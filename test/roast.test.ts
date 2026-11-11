@@ -917,6 +917,18 @@ describe("assemble guards", () => {
     expect(warnings.join(" ")).toContain("downgraded");
   });
 
+  test("a listed level 1 objection makes the verdict at least NEEDS-DESIGN-DISCUSSION", () => {
+    const run = (level: "1b" | "2", verdict: SynthOutput["verdict"]) => {
+      const warnings: string[] = [];
+      const a = assemble({ synth: synth({ verdict, ranked_objection_ids: ["x-1"] }), objections: [base({ level })], precedents: [], threadText: "", report: emptyReport(), warnings });
+      return { verdict: a.verdict, warnings };
+    };
+    expect(run("1b", "NEEDS-COMMITTER-EYES").verdict).toBe("NEEDS-DESIGN-DISCUSSION");
+    expect(run("1b", "NEEDS-COMMITTER-EYES").warnings.join(" ")).toContain("listed a level 1b objection (x-1)");
+    expect(run("1b", "NO-FUNDAMENTAL-OBJECTION").verdict).toBe("NEEDS-DESIGN-DISCUSSION");
+    expect(run("2", "NEEDS-COMMITTER-EYES").verdict).toBe("NEEDS-COMMITTER-EYES");
+  });
+
   test("NO-FUNDAMENTAL-OBJECTION cannot stand next to a ranked fatal objection", () => {
     const a = assemble({
       synth: synth({ verdict: "NO-FUNDAMENTAL-OBJECTION", ranked_objection_ids: ["x-1"] }),

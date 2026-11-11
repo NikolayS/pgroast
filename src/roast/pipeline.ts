@@ -373,6 +373,13 @@ export function assemble(a: AssembleArgs): Assembled {
     warnings.push("synthesis said NO-FUNDAMENTAL-OBJECTION but ranked a fatal objection; changed to NEEDS-DESIGN-DISCUSSION");
     verdict = "NEEDS-DESIGN-DISCUSSION";
   }
+  // A listed objection at level 1 means desirability or the problem statement is in question,
+  // which by the verdict definitions (prompts/synth.md) is at least a design discussion.
+  const level1 = ranked.find((o) => o.level === "1a" || o.level === "1b");
+  if (level1 && (verdict === "NEEDS-COMMITTER-EYES" || verdict === "NO-FUNDAMENTAL-OBJECTION")) {
+    warnings.push(`synthesis said ${verdict} but listed a level ${level1.level} objection (${level1.id}); changed to NEEDS-DESIGN-DISCUSSION`);
+    verdict = "NEEDS-DESIGN-DISCUSSION";
+  }
 
   // Touch points: all 15, once each, in the issue's order.
   const given = new Map(synth.touch_points.map((t) => [t.id, t]));

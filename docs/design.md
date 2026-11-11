@@ -184,7 +184,9 @@ committability object and the "not now" flag. Then `assemble()` enforces, in cod
   failing level if the model named none.
 - Verdict guards: `LIKELY-REJECT` needs a surviving fatal objection in the list or a `same_idea`
   prior attempt, else it becomes `NEEDS-DESIGN-DISCUSSION`; `NO-FUNDAMENTAL-OBJECTION` cannot
-  stand next to a listed fatal objection. Each change is recorded in `warnings`.
+  stand next to a listed fatal objection. A listed objection at level 1a or 1b makes the verdict
+  at least `NEEDS-DESIGN-DISCUSSION` (added 2026-11-11 after eval run `pilot-2`). Each change is
+  recorded in `warnings`.
 - Touch points: all 15, once each, in the issue's order; a missing one is "not hit" plus a
   warning; a listed objection about a touch point forces `hit`.
 - Prior attempts: link, thread links, dates, status and "who objected" are copied from the
