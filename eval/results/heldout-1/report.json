@@ -1,0 +1,1368 @@
+{
+  "run_id": "heldout-1",
+  "scored_at": "2026-11-11T23:24:13.663Z",
+  "dry_run": false,
+  "rules": "docs/eval.md",
+  "cases_in_file": 18,
+  "cases_scored": 12,
+  "repeats": 1,
+  "headline": {
+    "cases": 12,
+    "errors": 0,
+    "verdict_lenient": {
+      "num": 9,
+      "den": 12,
+      "pct": 75
+    },
+    "verdict_strict": {
+      "num": 4,
+      "den": 12,
+      "pct": 33.3
+    },
+    "decisive_found": {
+      "num": 5,
+      "den": 12,
+      "pct": 41.7
+    },
+    "decisive_found_or_partial": {
+      "num": 11,
+      "den": 12,
+      "pct": 91.7
+    },
+    "decisive_found_but_refuted": 2,
+    "earlier_found": {
+      "num": 0,
+      "den": 0,
+      "pct": null
+    },
+    "earlier_not_in_corpus": 5,
+    "earlier_retrieved_only": 0,
+    "false_alarm_rate": {
+      "num": 3,
+      "den": 3,
+      "pct": 100
+    }
+  },
+  "by_post_training_cutoff": {
+    "true": {
+      "cases": 0,
+      "errors": 0,
+      "verdict_lenient": {
+        "num": 0,
+        "den": 0,
+        "pct": null
+      },
+      "verdict_strict": {
+        "num": 0,
+        "den": 0,
+        "pct": null
+      },
+      "decisive_found": {
+        "num": 0,
+        "den": 0,
+        "pct": null
+      },
+      "decisive_found_or_partial": {
+        "num": 0,
+        "den": 0,
+        "pct": null
+      },
+      "decisive_found_but_refuted": 0,
+      "earlier_found": {
+        "num": 0,
+        "den": 0,
+        "pct": null
+      },
+      "earlier_not_in_corpus": 0,
+      "earlier_retrieved_only": 0,
+      "false_alarm_rate": {
+        "num": 0,
+        "den": 0,
+        "pct": null
+      }
+    },
+    "false": {
+      "cases": 12,
+      "errors": 0,
+      "verdict_lenient": {
+        "num": 9,
+        "den": 12,
+        "pct": 75
+      },
+      "verdict_strict": {
+        "num": 4,
+        "den": 12,
+        "pct": 33.3
+      },
+      "decisive_found": {
+        "num": 5,
+        "den": 12,
+        "pct": 41.7
+      },
+      "decisive_found_or_partial": {
+        "num": 11,
+        "den": 12,
+        "pct": 91.7
+      },
+      "decisive_found_but_refuted": 2,
+      "earlier_found": {
+        "num": 0,
+        "den": 0,
+        "pct": null
+      },
+      "earlier_not_in_corpus": 5,
+      "earlier_retrieved_only": 0,
+      "false_alarm_rate": {
+        "num": 3,
+        "den": 3,
+        "pct": 100
+      }
+    },
+    "unknown": {
+      "cases": 0,
+      "errors": 0,
+      "verdict_lenient": {
+        "num": 0,
+        "den": 0,
+        "pct": null
+      },
+      "verdict_strict": {
+        "num": 0,
+        "den": 0,
+        "pct": null
+      },
+      "decisive_found": {
+        "num": 0,
+        "den": 0,
+        "pct": null
+      },
+      "decisive_found_or_partial": {
+        "num": 0,
+        "den": 0,
+        "pct": null
+      },
+      "decisive_found_but_refuted": 0,
+      "earlier_found": {
+        "num": 0,
+        "den": 0,
+        "pct": null
+      },
+      "earlier_not_in_corpus": 0,
+      "earlier_retrieved_only": 0,
+      "false_alarm_rate": {
+        "num": 0,
+        "den": 0,
+        "pct": null
+      }
+    }
+  },
+  "by_outcome": {
+    "rejected": {
+      "cases": 4,
+      "errors": 0,
+      "verdict_lenient": {
+        "num": 4,
+        "den": 4,
+        "pct": 100
+      },
+      "verdict_strict": {
+        "num": 0,
+        "den": 4,
+        "pct": 0
+      },
+      "decisive_found": {
+        "num": 3,
+        "den": 4,
+        "pct": 75
+      },
+      "decisive_found_or_partial": {
+        "num": 4,
+        "den": 4,
+        "pct": 100
+      },
+      "decisive_found_but_refuted": 1,
+      "earlier_found": {
+        "num": 0,
+        "den": 0,
+        "pct": null
+      },
+      "earlier_not_in_corpus": 3,
+      "earlier_retrieved_only": 0,
+      "false_alarm_rate": {
+        "num": 0,
+        "den": 0,
+        "pct": null
+      }
+    },
+    "accepted": {
+      "cases": 3,
+      "errors": 0,
+      "verdict_lenient": {
+        "num": 0,
+        "den": 3,
+        "pct": 0
+      },
+      "verdict_strict": {
+        "num": 0,
+        "den": 3,
+        "pct": 0
+      },
+      "decisive_found": {
+        "num": 1,
+        "den": 3,
+        "pct": 33.3
+      },
+      "decisive_found_or_partial": {
+        "num": 3,
+        "den": 3,
+        "pct": 100
+      },
+      "decisive_found_but_refuted": 0,
+      "earlier_found": {
+        "num": 0,
+        "den": 0,
+        "pct": null
+      },
+      "earlier_not_in_corpus": 2,
+      "earlier_retrieved_only": 0,
+      "false_alarm_rate": {
+        "num": 3,
+        "den": 3,
+        "pct": 100
+      }
+    },
+    "reverted": {
+      "cases": 5,
+      "errors": 0,
+      "verdict_lenient": {
+        "num": 5,
+        "den": 5,
+        "pct": 100
+      },
+      "verdict_strict": {
+        "num": 4,
+        "den": 5,
+        "pct": 80
+      },
+      "decisive_found": {
+        "num": 1,
+        "den": 5,
+        "pct": 20
+      },
+      "decisive_found_or_partial": {
+        "num": 4,
+        "den": 5,
+        "pct": 80
+      },
+      "decisive_found_but_refuted": 1,
+      "earlier_found": {
+        "num": 0,
+        "den": 0,
+        "pct": null
+      },
+      "earlier_not_in_corpus": 0,
+      "earlier_retrieved_only": 0,
+      "false_alarm_rate": {
+        "num": 0,
+        "den": 0,
+        "pct": null
+      }
+    }
+  },
+  "by_decisive_level": {
+    "idea": {
+      "cases": 6,
+      "errors": 0,
+      "verdict_lenient": {
+        "num": 4,
+        "den": 6,
+        "pct": 66.7
+      },
+      "verdict_strict": {
+        "num": 0,
+        "den": 6,
+        "pct": 0
+      },
+      "decisive_found": {
+        "num": 4,
+        "den": 6,
+        "pct": 66.7
+      },
+      "decisive_found_or_partial": {
+        "num": 6,
+        "den": 6,
+        "pct": 100
+      },
+      "decisive_found_but_refuted": 1,
+      "earlier_found": {
+        "num": 0,
+        "den": 0,
+        "pct": null
+      },
+      "earlier_not_in_corpus": 5,
+      "earlier_retrieved_only": 0,
+      "false_alarm_rate": {
+        "num": 2,
+        "den": 2,
+        "pct": 100
+      }
+    },
+    "design": {
+      "cases": 4,
+      "errors": 0,
+      "verdict_lenient": {
+        "num": 3,
+        "den": 4,
+        "pct": 75
+      },
+      "verdict_strict": {
+        "num": 2,
+        "den": 4,
+        "pct": 50
+      },
+      "decisive_found": {
+        "num": 0,
+        "den": 4,
+        "pct": 0
+      },
+      "decisive_found_or_partial": {
+        "num": 3,
+        "den": 4,
+        "pct": 75
+      },
+      "decisive_found_but_refuted": 1,
+      "earlier_found": {
+        "num": 0,
+        "den": 0,
+        "pct": null
+      },
+      "earlier_not_in_corpus": 0,
+      "earlier_retrieved_only": 0,
+      "false_alarm_rate": {
+        "num": 1,
+        "den": 1,
+        "pct": 100
+      }
+    },
+    "implementation": {
+      "cases": 2,
+      "errors": 0,
+      "verdict_lenient": {
+        "num": 2,
+        "den": 2,
+        "pct": 100
+      },
+      "verdict_strict": {
+        "num": 2,
+        "den": 2,
+        "pct": 100
+      },
+      "decisive_found": {
+        "num": 1,
+        "den": 2,
+        "pct": 50
+      },
+      "decisive_found_or_partial": {
+        "num": 2,
+        "den": 2,
+        "pct": 100
+      },
+      "decisive_found_but_refuted": 0,
+      "earlier_found": {
+        "num": 0,
+        "den": 0,
+        "pct": null
+      },
+      "earlier_not_in_corpus": 0,
+      "earlier_retrieved_only": 0,
+      "false_alarm_rate": {
+        "num": 0,
+        "den": 0,
+        "pct": null
+      }
+    },
+    "unclassified": {
+      "cases": 0,
+      "errors": 0,
+      "verdict_lenient": {
+        "num": 0,
+        "den": 0,
+        "pct": null
+      },
+      "verdict_strict": {
+        "num": 0,
+        "den": 0,
+        "pct": null
+      },
+      "decisive_found": {
+        "num": 0,
+        "den": 0,
+        "pct": null
+      },
+      "decisive_found_or_partial": {
+        "num": 0,
+        "den": 0,
+        "pct": null
+      },
+      "decisive_found_but_refuted": 0,
+      "earlier_found": {
+        "num": 0,
+        "den": 0,
+        "pct": null
+      },
+      "earlier_not_in_corpus": 0,
+      "earlier_retrieved_only": 0,
+      "false_alarm_rate": {
+        "num": 0,
+        "den": 0,
+        "pct": null
+      }
+    }
+  },
+  "by_repeat": null,
+  "agreement": null,
+  "scores": [
+    {
+      "case_id": "unsigned-integer-types",
+      "title": "Support for unsigned integer types",
+      "outcome": "rejected",
+      "post_training_cutoff": false,
+      "repeat": 1,
+      "decisive_level": "idea",
+      "decisive_levels": [
+        {
+          "decisive_index": 1,
+          "level": "design",
+          "reason": "Concerns how unsigned types would interact with the implicit-cast/numeric promotion hierarchy and operator resolution, a broad architectural consequence of the approach."
+        },
+        {
+          "decisive_index": 2,
+          "level": "design",
+          "reason": "Objects to the scale and maintenance cost of building out functions, operators and opclasses that the chosen approach requires."
+        },
+        {
+          "decisive_index": 3,
+          "level": "idea",
+          "reason": "Points to an existing extension, implying the feature need not live in core."
+        }
+      ],
+      "decisive_in_window": false,
+      "cutoffs": {
+        "case_cutoff_date": "2024-12-07",
+        "last_shown_date": "2024-12-06",
+        "precedent_cutoff": "2024-12-07"
+      },
+      "verdict": "NEEDS-DESIGN-DISCUSSION",
+      "confidence": "low",
+      "error": null,
+      "verdict_lenient": true,
+      "verdict_strict": false,
+      "decisive": {
+        "status": "scored",
+        "result": "found",
+        "objection_id": "standards-compat-1",
+        "bucket": "other_surviving",
+        "reason": "The reviewer states the same mechanism: adding unsigned types to the numeric category with implicit casts would make existing expressions ambiguous, producing 'operator is not unique' errors in queries that worked before.",
+        "found_surviving": true,
+        "items": [
+          {
+            "decisive_index": 1,
+            "result": "found",
+            "objection_id": "standards-compat-1",
+            "reason": "The reviewer states the same mechanism: adding unsigned types to the numeric category with implicit casts would make existing expressions ambiguous, producing 'operator is not unique' errors in queries that worked before.",
+            "bucket": "other_surviving"
+          },
+          {
+            "decisive_index": 2,
+            "result": "found",
+            "objection_id": "maintenance-fit-2",
+            "reason": "The reviewer identifies the enlarged operator, cast and opclass matrix needed to support the new types and the ongoing cost of keeping it consistent, which is the same build-out effort concern.",
+            "bucket": "refuted"
+          },
+          {
+            "decisive_index": 3,
+            "result": "found",
+            "objection_id": "already-exists-1",
+            "reason": "The reviewer explicitly names the pguint extension as already providing uint4 and uint8 types outside core.",
+            "bucket": "refuted"
+          }
+        ]
+      },
+      "earlier": {
+        "status": "not in corpus",
+        "in_corpus": [],
+        "matched": []
+      },
+      "surviving_fatal": 0,
+      "false_alarm": null,
+      "cost": {
+        "roast_calls": 19,
+        "judge_calls": 3,
+        "cost_usd": 1.8595124000000003,
+        "wall_ms": 142686
+      }
+    },
+    {
+      "case_id": "hidden-invisible-columns",
+      "title": "[PATCH] Proposal for HIDDEN/INVISIBLE column",
+      "outcome": "rejected",
+      "post_training_cutoff": false,
+      "repeat": 1,
+      "decisive_level": "idea",
+      "decisive_levels": [
+        {
+          "decisive_index": 1,
+          "level": "idea",
+          "reason": "Questions whether the feature has any real benefit and is worth adding to PostgreSQL at all."
+        },
+        {
+          "decisive_index": 2,
+          "level": "design",
+          "reason": "Objects to the chosen user-visible terminology, which misleadingly implies security semantics the feature does not provide."
+        },
+        {
+          "decisive_index": 3,
+          "level": "design",
+          "reason": "Objects to exposing the attribute via a new information_schema column, a catalog/interface choice that conflicts with the SQL standard."
+        },
+        {
+          "decisive_index": 4,
+          "level": "design",
+          "reason": "Doubts that the feature's semantics can be defined coherently without many gotchas, a concern about the behavioural design rather than specific code."
+        }
+      ],
+      "decisive_in_window": false,
+      "cutoffs": {
+        "case_cutoff_date": "2021-10-15",
+        "last_shown_date": "2021-10-14",
+        "precedent_cutoff": "2021-10-15"
+      },
+      "verdict": "NEEDS-DESIGN-DISCUSSION",
+      "confidence": "medium",
+      "error": null,
+      "verdict_lenient": true,
+      "verdict_strict": false,
+      "decisive": {
+        "status": "scored",
+        "result": "found",
+        "objection_id": "standards-compat-1",
+        "bucket": "listed",
+        "reason": "The reviewer argues the semantics of '*' and whole-row references are undefined across many sites (RETURNING *, row types, %ROWTYPE, CTAS), which is the same concern that the feature cannot be defined without many gotchas.",
+        "found_surviving": true,
+        "items": [
+          {
+            "decisive_index": 1,
+            "result": "found",
+            "objection_id": "maintenance-fit-2",
+            "reason": "The reviewer argues the benefit over existing views is small while the project carries permanent syntax and catalog cost, matching 'no real benefit, only more complexity in code and UI'.",
+            "bucket": "refuted"
+          },
+          {
+            "decisive_index": 2,
+            "result": "not_found",
+            "objection_id": null,
+            "reason": "No reviewer objection says the HIDDEN/INVISIBLE terminology is misleading or falsely implies a security property; standards-compat-3 discusses spelling only for standard and vendor alignment.",
+            "bucket": null
+          },
+          {
+            "decisive_index": 3,
+            "result": "found",
+            "objection_id": "standards-compat-3",
+            "reason": "The reviewer explicitly objects to adding a non-standard is_hidden column to information_schema because information_schema is meant to follow the SQL standard.",
+            "bucket": "other_surviving"
+          },
+          {
+            "decisive_index": 4,
+            "result": "found",
+            "objection_id": "standards-compat-1",
+            "reason": "The reviewer argues the semantics of '*' and whole-row references are undefined across many sites (RETURNING *, row types, %ROWTYPE, CTAS), which is the same concern that the feature cannot be defined without many gotchas.",
+            "bucket": "listed"
+          }
+        ]
+      },
+      "earlier": {
+        "status": "n/a",
+        "in_corpus": [],
+        "matched": []
+      },
+      "surviving_fatal": 0,
+      "false_alarm": null,
+      "cost": {
+        "roast_calls": 18,
+        "judge_calls": 3,
+        "cost_usd": 3.206438,
+        "wall_ms": 198795
+      }
+    },
+    {
+      "case_id": "delete-order-by-limit",
+      "title": "Allow DELETE to use ORDER BY and LIMIT/OFFSET",
+      "outcome": "rejected",
+      "post_training_cutoff": false,
+      "repeat": 1,
+      "decisive_level": "idea",
+      "decisive_levels": [
+        {
+          "decisive_index": 1,
+          "level": "idea",
+          "reason": "States the feature was rejected before as an idea and there is no new reason to reconsider it."
+        },
+        {
+          "decisive_index": 2,
+          "level": "idea",
+          "reason": "Argues that a non-deterministic partial DELETE is an undesirable property for a data-modifying command, questioning whether the feature is wanted at all."
+        },
+        {
+          "decisive_index": 3,
+          "level": "idea",
+          "reason": "Says tolerating indeterminism in SELECT does not make it desirable in UPDATE/DELETE, a desirability objection to the feature itself."
+        }
+      ],
+      "decisive_in_window": false,
+      "cutoffs": {
+        "case_cutoff_date": "2021-12-18",
+        "last_shown_date": "2021-12-17",
+        "precedent_cutoff": "2021-12-18"
+      },
+      "verdict": "NEEDS-DESIGN-DISCUSSION",
+      "confidence": "low",
+      "error": null,
+      "verdict_lenient": true,
+      "verdict_strict": false,
+      "decisive": {
+        "status": "scored",
+        "result": "found",
+        "objection_id": "standards-compat-2",
+        "bucket": "refuted",
+        "reason": "Reviewer explicitly contrasts SELECT (unordered LIMIT only changes returned rows) with DELETE (changes which data survives), matching the tolerate-in-SELECT-but-not-in-DML argument.",
+        "found_surviving": false,
+        "items": [
+          {
+            "decisive_index": 1,
+            "result": "partially",
+            "objection_id": "maintenance-fit-1",
+            "reason": "Reviewer notes prior attempts exist and the proposal doesn't address why they failed, but doesn't state that the idea was previously rejected on its merits with no new reason to reconsider.",
+            "bucket": "listed"
+          },
+          {
+            "decisive_index": 2,
+            "result": "partially",
+            "objection_id": "standards-compat-2",
+            "reason": "Reviewer raises non-determinism of which rows get deleted as a bad fit for a destructive command, but only for LIMIT without ORDER BY and as a fixable contract gap, whereas the real objection was to partial DELETE in general.",
+            "bucket": "refuted"
+          },
+          {
+            "decisive_index": 3,
+            "result": "found",
+            "objection_id": "standards-compat-2",
+            "reason": "Reviewer explicitly contrasts SELECT (unordered LIMIT only changes returned rows) with DELETE (changes which data survives), matching the tolerate-in-SELECT-but-not-in-DML argument.",
+            "bucket": "refuted"
+          }
+        ]
+      },
+      "earlier": {
+        "status": "not in corpus",
+        "in_corpus": [],
+        "matched": []
+      },
+      "surviving_fatal": 0,
+      "false_alarm": null,
+      "cost": {
+        "roast_calls": 18,
+        "judge_calls": 3,
+        "cost_usd": 1.9640939999999998,
+        "wall_ms": 157174
+      }
+    },
+    {
+      "case_id": "global-unique-index",
+      "title": "Patch: Global Unique Index",
+      "outcome": "rejected",
+      "post_training_cutoff": false,
+      "repeat": 1,
+      "decisive_level": "idea",
+      "decisive_levels": [
+        {
+          "decisive_index": 1,
+          "level": "idea",
+          "reason": "Questions whether the feature is wanted at all, since it would negate the benefits of partitioning."
+        },
+        {
+          "decisive_index": 2,
+          "level": "idea",
+          "reason": "Declares the whole proposal a dead end that will never be committed, a rejection of its desirability rather than of specific code."
+        },
+        {
+          "decisive_index": 3,
+          "level": "design",
+          "reason": "Argues the approach inherently requires locks blocking partition addition, making inserts costly and ATTACH PARTITION a performance disaster, an architectural flaw."
+        }
+      ],
+      "decisive_in_window": false,
+      "cutoffs": {
+        "case_cutoff_date": "2022-11-18",
+        "last_shown_date": "2022-11-18",
+        "precedent_cutoff": "2022-11-18"
+      },
+      "verdict": "NEEDS-DESIGN-DISCUSSION",
+      "confidence": "medium",
+      "error": null,
+      "verdict_lenient": true,
+      "verdict_strict": false,
+      "decisive": {
+        "status": "scored",
+        "result": "found",
+        "objection_id": "maintenance-fit-2",
+        "bucket": "listed",
+        "reason": "The reviewer says each insert must lock every sibling index and that ATTACH/DETACH of a partition then conflicts with ordinary inserts, which is the same locking-cost and ATTACH-contention concern.",
+        "found_surviving": true,
+        "items": [
+          {
+            "decisive_index": 1,
+            "result": "partially",
+            "objection_id": "maintenance-fit-2",
+            "reason": "The reviewer notes that write cost grows with partition count, 'the very dimension that made them partition', but frames it as a fixable performance issue rather than saying the feature defeats the purpose of partitioning.",
+            "bucket": "listed"
+          },
+          {
+            "decisive_index": 2,
+            "result": "not_found",
+            "objection_id": null,
+            "reason": "No reviewer objection says the approach is a fundamental dead end; all 13 are rated fixable.",
+            "bucket": null
+          },
+          {
+            "decisive_index": 3,
+            "result": "found",
+            "objection_id": "maintenance-fit-2",
+            "reason": "The reviewer says each insert must lock every sibling index and that ATTACH/DETACH of a partition then conflicts with ordinary inserts, which is the same locking-cost and ATTACH-contention concern.",
+            "bucket": "listed"
+          }
+        ]
+      },
+      "earlier": {
+        "status": "not in corpus",
+        "in_corpus": [],
+        "matched": []
+      },
+      "surviving_fatal": 0,
+      "false_alarm": null,
+      "cost": {
+        "roast_calls": 19,
+        "judge_calls": 3,
+        "cost_usd": 3.3441262000000003,
+        "wall_ms": 205352
+      }
+    },
+    {
+      "case_id": "btree-include-covering-indexes",
+      "title": "WIP: Covering + unique indexes (CREATE INDEX ... INCLUDE)",
+      "outcome": "accepted",
+      "post_training_cutoff": false,
+      "repeat": 1,
+      "decisive_level": "design",
+      "decisive_levels": [
+        {
+          "decisive_index": 1,
+          "level": "implementation",
+          "reason": "Objects to the commit timing because code review is still in progress, which concerns the patch's readiness rather than its goal or approach."
+        },
+        {
+          "decisive_index": 2,
+          "level": "implementation",
+          "reason": "Says a complex patch should not be pushed before reviewers sign off, which is a concern about the reviewed state of the code, not the idea or architecture."
+        },
+        {
+          "decisive_index": 3,
+          "level": "design",
+          "reason": "Raises an unresolved question about how the B-tree key space should work when leaf high keys are truncated, which is an on-disk and architectural design matter."
+        }
+      ],
+      "decisive_in_window": false,
+      "cutoffs": {
+        "case_cutoff_date": "2016-01-04",
+        "last_shown_date": "2015-12-04",
+        "precedent_cutoff": "2015-12-05"
+      },
+      "verdict": "NEEDS-DESIGN-DISCUSSION",
+      "confidence": "medium",
+      "error": null,
+      "verdict_lenient": false,
+      "verdict_strict": false,
+      "decisive": {
+        "status": "scored",
+        "result": "partially",
+        "objection_id": "maintenance-fit-2",
+        "bucket": "listed",
+        "reason": "The reviewer notes only in passing that nobody with nbtree expertise has reviewed the internals; it does not object to the commit timing while review is still under way.",
+        "found_surviving": false,
+        "items": [
+          {
+            "decisive_index": 1,
+            "result": "partially",
+            "objection_id": "maintenance-fit-2",
+            "reason": "The reviewer notes only in passing that nobody with nbtree expertise has reviewed the internals; it does not object to the commit timing while review is still under way.",
+            "bucket": "listed"
+          },
+          {
+            "decisive_index": 2,
+            "result": "partially",
+            "objection_id": "maintenance-fit-2",
+            "reason": "The reviewer flags the missing nbtree-internals review and the undocumented invariants of a complex change, but does not state the core point that it should not be pushed before reviewers sign off.",
+            "bucket": "listed"
+          },
+          {
+            "decisive_index": 3,
+            "result": "partially",
+            "objection_id": "maintenance-fit-2",
+            "reason": "The reviewer raises the unspecified handling of truncated tuples (how they are told apart, how keys are compared), but does not identify the specific key-space question for truncated leaf high keys.",
+            "bucket": "listed"
+          }
+        ]
+      },
+      "earlier": {
+        "status": "n/a",
+        "in_corpus": [],
+        "matched": []
+      },
+      "surviving_fatal": 0,
+      "false_alarm": true,
+      "cost": {
+        "roast_calls": 19,
+        "judge_calls": 3,
+        "cost_usd": 2.7217978,
+        "wall_ms": 181636
+      }
+    },
+    {
+      "case_id": "incremental-backup",
+      "title": "trying again to get incremental backup",
+      "outcome": "accepted",
+      "post_training_cutoff": false,
+      "repeat": 1,
+      "decisive_level": "idea",
+      "decisive_levels": [
+        {
+          "decisive_index": 1,
+          "level": "idea",
+          "reason": "Frost questions whether incremental backup without built-in backup management is worth having in core at all, calling it a check-box feature users won't be happy with, which is a desirability objection rather than one about the mechanism or code."
+        }
+      ],
+      "decisive_in_window": false,
+      "cutoffs": {
+        "case_cutoff_date": "2023-06-19",
+        "last_shown_date": "2023-06-15",
+        "precedent_cutoff": "2023-06-16"
+      },
+      "verdict": "NEEDS-DESIGN-DISCUSSION",
+      "confidence": "medium",
+      "error": null,
+      "verdict_lenient": false,
+      "verdict_strict": false,
+      "decisive": {
+        "status": "scored",
+        "result": "partially",
+        "objection_id": "already-exists-1",
+        "bucket": "refuted",
+        "reason": "The reviewer questions what in-core incremental backup adds over external tools that already have retention and restore workflows, which is the same area, but it never states that the feature lacks built-in management of full-vs-incremental backups and so leaves users to build that themselves.",
+        "found_surviving": false,
+        "items": [
+          {
+            "decisive_index": 1,
+            "result": "partially",
+            "objection_id": "already-exists-1",
+            "reason": "The reviewer questions what in-core incremental backup adds over external tools that already have retention and restore workflows, which is the same area, but it never states that the feature lacks built-in management of full-vs-incremental backups and so leaves users to build that themselves.",
+            "bucket": "refuted"
+          }
+        ]
+      },
+      "earlier": {
+        "status": "not in corpus",
+        "in_corpus": [],
+        "matched": []
+      },
+      "surviving_fatal": 0,
+      "false_alarm": true,
+      "cost": {
+        "roast_calls": 20,
+        "judge_calls": 3,
+        "cost_usd": 3.4857924000000002,
+        "wall_ms": 197306
+      }
+    },
+    {
+      "case_id": "data-checksums-default-on",
+      "title": "Enable data checksums by default",
+      "outcome": "accepted",
+      "post_training_cutoff": false,
+      "repeat": 1,
+      "decisive_level": "idea",
+      "decisive_levels": [
+        {
+          "decisive_index": 1,
+          "level": "idea",
+          "reason": "The hint-bit WAL logging overhead is an inherent cost of having checksums on, not a flaw in particular code, so it questions whether flipping the default is desirable at all."
+        },
+        {
+          "decisive_index": 2,
+          "level": "design",
+          "reason": "It concerns the on-disk compatibility and pg_upgrade consequences of changing the default, a user-visible upgrade-path issue with the chosen approach."
+        }
+      ],
+      "decisive_in_window": true,
+      "cutoffs": {
+        "case_cutoff_date": "2024-08-08",
+        "last_shown_date": "2024-08-08",
+        "precedent_cutoff": "2024-08-08"
+      },
+      "verdict": "NEEDS-DESIGN-DISCUSSION",
+      "confidence": "medium",
+      "error": null,
+      "verdict_lenient": false,
+      "verdict_strict": false,
+      "decisive": {
+        "status": "scored",
+        "result": "found",
+        "objection_id": "standards-compat-1",
+        "bucket": "listed",
+        "reason": "States directly that default-to-default pg_upgrade stops working because old default clusters have checksums off and new default clusters have them on.",
+        "found_surviving": true,
+        "items": [
+          {
+            "decisive_index": 1,
+            "result": "found",
+            "objection_id": "maintenance-fit-2",
+            "reason": "States that the main cost is hint-bit WAL logging rather than checksum computation, citing the ~5% tps impact, with no current measurements.",
+            "bucket": "refuted"
+          },
+          {
+            "decisive_index": 2,
+            "result": "found",
+            "objection_id": "standards-compat-1",
+            "reason": "States directly that default-to-default pg_upgrade stops working because old default clusters have checksums off and new default clusters have them on.",
+            "bucket": "listed"
+          }
+        ]
+      },
+      "earlier": {
+        "status": "not in corpus",
+        "in_corpus": [],
+        "matched": []
+      },
+      "surviving_fatal": 0,
+      "false_alarm": true,
+      "cost": {
+        "roast_calls": 20,
+        "judge_calls": 3,
+        "cost_usd": 2.7337163999999996,
+        "wall_ms": 199320
+      }
+    },
+    {
+      "case_id": "temporal-pk-fk-pg17",
+      "title": "SQL:2011 application time (temporal PRIMARY KEY / UNIQUE / FOREIGN KEY WITHOUT OVERLAPS)",
+      "outcome": "reverted",
+      "post_training_cutoff": false,
+      "repeat": 1,
+      "decisive_level": "design",
+      "decisive_levels": [
+        {
+          "decisive_index": 1,
+          "level": "design",
+          "reason": "Says fundamental design questions about the approach were missed early on, which is an architecture-level concern rather than a code bug or a doubt about the feature's desirability."
+        },
+        {
+          "decisive_index": 2,
+          "level": "design",
+          "reason": "Concerns a fundamental incompatibility between the chosen range-based approach and standard periods, i.e. the suitability of the architecture for future evolution."
+        },
+        {
+          "decisive_index": 3,
+          "level": "design",
+          "reason": "The call to revert rests on unresolved design-level issues (empty ranges/period semantics of the chosen approach) that cannot be fixed in time, not on specific code defects or on the idea being unwanted."
+        }
+      ],
+      "decisive_in_window": false,
+      "cutoffs": {
+        "case_cutoff_date": "2024-01-24",
+        "last_shown_date": "2021-09-06",
+        "precedent_cutoff": "2021-09-07"
+      },
+      "verdict": "NEEDS-DESIGN-DISCUSSION",
+      "confidence": "medium",
+      "error": null,
+      "verdict_lenient": true,
+      "verdict_strict": true,
+      "decisive": {
+        "status": "scored",
+        "result": "partially",
+        "objection_id": "standards-compat-1",
+        "bucket": "listed",
+        "reason": "The reviewer raises an unresolved fundamental design question (a temporal PK is not a true unique key), but not the specific missed questions or the point that it was too late to fix them for the release.",
+        "found_surviving": false,
+        "items": [
+          {
+            "decisive_index": 1,
+            "result": "partially",
+            "objection_id": "standards-compat-1",
+            "reason": "The reviewer raises an unresolved fundamental design question (a temporal PK is not a true unique key), but not the specific missed questions or the point that it was too late to fix them for the release.",
+            "bucket": "listed"
+          },
+          {
+            "decisive_index": 2,
+            "result": "partially",
+            "objection_id": "standards-compat-3",
+            "reason": "The reviewer notes a deviation from standard period semantics that would cause trouble later, but does not identify a fundamental incompatibility between ranges and periods that threatens the plan to evolve toward standard periods.",
+            "bucket": "other_surviving"
+          },
+          {
+            "decisive_index": 3,
+            "result": "partially",
+            "objection_id": "replication-ondisk-2",
+            "reason": "The reviewer says the catalog design is unsettled before it becomes a permanent contract, which is the same area, but does not say the issues cannot be resolved in time and so the patch set should be reverted.",
+            "bucket": "refuted"
+          }
+        ]
+      },
+      "earlier": {
+        "status": "n/a",
+        "in_corpus": [],
+        "matched": []
+      },
+      "surviving_fatal": 0,
+      "false_alarm": null,
+      "cost": {
+        "roast_calls": 18,
+        "judge_calls": 3,
+        "cost_usd": 7.7041564,
+        "wall_ms": 259892
+      }
+    },
+    {
+      "case_id": "sqljson-pg15",
+      "title": "SQL/JSON: functions (JSON_QUERY/JSON_VALUE/JSON_EXISTS, constructors, IS JSON, JSON_TABLE) for PG15",
+      "outcome": "reverted",
+      "post_training_cutoff": false,
+      "repeat": 1,
+      "decisive_level": "design",
+      "decisive_levels": [
+        {
+          "decisive_index": 1,
+          "level": "design",
+          "reason": "Objects to the chosen error-handling approach of wrapping every coercion in a subtransaction, an architectural choice rather than a specific bug."
+        },
+        {
+          "decisive_index": 2,
+          "level": "implementation",
+          "reason": "Concerns the alpha-level quality of the code as written, not the desirability of the feature or its broad design."
+        },
+        {
+          "decisive_index": 3,
+          "level": "implementation",
+          "reason": "Says the code itself is far from releasable, a judgment on code quality that comes from reading the code."
+        }
+      ],
+      "decisive_in_window": false,
+      "cutoffs": {
+        "case_cutoff_date": "2022-03-03",
+        "last_shown_date": "2018-03-13",
+        "precedent_cutoff": "2018-03-14"
+      },
+      "verdict": "NEEDS-DESIGN-DISCUSSION",
+      "confidence": "medium",
+      "error": null,
+      "verdict_lenient": true,
+      "verdict_strict": true,
+      "decisive": {
+        "status": "scored",
+        "result": "not_found",
+        "objection_id": null,
+        "bucket": null,
+        "reason": "No reviewer objection mentions subtransactions per coercion or any executor hot-path performance cost of error handling.",
+        "found_surviving": false,
+        "items": [
+          {
+            "decisive_index": 1,
+            "result": "not_found",
+            "objection_id": null,
+            "reason": "No reviewer objection mentions subtransactions per coercion or any executor hot-path performance cost of error handling.",
+            "bucket": null
+          },
+          {
+            "decisive_index": 2,
+            "result": "not_found",
+            "objection_id": null,
+            "reason": "Reviewer objections focus on missing docs, patch size and deparse concerns, not on the implementation being alpha-quality and unfit to ship as a headline feature in the release.",
+            "bucket": null
+          },
+          {
+            "decisive_index": 3,
+            "result": "not_found",
+            "objection_id": null,
+            "reason": "No reviewer objection states that the code quality itself is far from releasable; maintenance-fit-2 is about lack of docs and an owner, which is only topical overlap.",
+            "bucket": null
+          }
+        ]
+      },
+      "earlier": {
+        "status": "n/a",
+        "in_corpus": [],
+        "matched": []
+      },
+      "surviving_fatal": 0,
+      "false_alarm": null,
+      "cost": {
+        "roast_calls": 19,
+        "judge_calls": 3,
+        "cost_usd": 2.4784043999999996,
+        "wall_ms": 198032
+      }
+    },
+    {
+      "case_id": "group-by-all-pg19",
+      "title": "[PATCH] GROUP BY ALL",
+      "outcome": "reverted",
+      "post_training_cutoff": false,
+      "repeat": 1,
+      "decisive_level": "implementation",
+      "decisive_levels": [
+        {
+          "decisive_index": 1,
+          "level": "implementation",
+          "reason": "A specific wrong-results bug found in post-commit review: the code missed the special handling of GROUP BY entries that also appear in ORDER BY."
+        },
+        {
+          "decisive_index": 2,
+          "level": "implementation",
+          "reason": "A concern that the committed code hides further similar bugs, which is about code correctness rather than the feature or its overall approach."
+        },
+        {
+          "decisive_index": 3,
+          "level": "implementation",
+          "reason": "The refactoring needed for the fix is too much code churn for post-beta2, a risk and timing concern about the code, not about the idea or design."
+        }
+      ],
+      "decisive_in_window": false,
+      "cutoffs": {
+        "case_cutoff_date": "2025-09-29",
+        "last_shown_date": "2024-07-23",
+        "precedent_cutoff": "2024-07-24"
+      },
+      "verdict": "NEEDS-DESIGN-DISCUSSION",
+      "confidence": "low",
+      "error": null,
+      "verdict_lenient": true,
+      "verdict_strict": true,
+      "decisive": {
+        "status": "scored",
+        "result": "partially",
+        "objection_id": "maintenance-fit-2",
+        "bucket": "refuted",
+        "reason": "The reviewer flags unspecified handling of ORDER BY-related (resjunk) entries, but not the missed ORDER BY/GROUP BY matching logic that gives wrong results under non-default equality semantics.",
+        "found_surviving": false,
+        "items": [
+          {
+            "decisive_index": 1,
+            "result": "partially",
+            "objection_id": "maintenance-fit-2",
+            "reason": "The reviewer flags unspecified handling of ORDER BY-related (resjunk) entries, but not the missed ORDER BY/GROUP BY matching logic that gives wrong results under non-default equality semantics.",
+            "bucket": "refuted"
+          },
+          {
+            "decisive_index": 2,
+            "result": "partially",
+            "objection_id": "maintenance-fit-2",
+            "reason": "The reviewer warns in general terms that unhandled cases will surface as bug reports after release, which is near Tom's worry about other lurking bugs but is not tied to the implementation missing existing special handling.",
+            "bucket": "refuted"
+          },
+          {
+            "decisive_index": 3,
+            "result": "not_found",
+            "objection_id": null,
+            "reason": "No reviewer objection concerns the fix being too large or risky for late beta, or the release-timing reason for reverting.",
+            "bucket": null
+          }
+        ]
+      },
+      "earlier": {
+        "status": "n/a",
+        "in_corpus": [],
+        "matched": []
+      },
+      "surviving_fatal": 0,
+      "false_alarm": null,
+      "cost": {
+        "roast_calls": 18,
+        "judge_calls": 3,
+        "cost_usd": 2.614338,
+        "wall_ms": 188604
+      }
+    },
+    {
+      "case_id": "pg-dumpall-non-text-formats",
+      "title": "Non-text mode for pg_dumpall (custom/directory/tar output for pg_dumpall, pg_restore support)",
+      "outcome": "reverted",
+      "post_training_cutoff": false,
+      "repeat": 1,
+      "decisive_level": "implementation",
+      "decisive_levels": [
+        {
+          "decisive_index": 1,
+          "level": "implementation",
+          "reason": "Points to a specific bug seen in the code: pgdumpopts is only applied in plain mode, so options are silently ignored in non-plain formats."
+        },
+        {
+          "decisive_index": 2,
+          "level": "implementation",
+          "reason": "Objects to code structure, namely duplicated format-specific DROP ROLE query building that risks format-specific bugs."
+        },
+        {
+          "decisive_index": 3,
+          "level": "implementation",
+          "reason": "Says the feature is feasible but the committed code is not ready for post-commit fixups and should be reverted and re-reviewed."
+        }
+      ],
+      "decisive_in_window": false,
+      "cutoffs": {
+        "case_cutoff_date": "2025-04-04",
+        "last_shown_date": "2024-06-10",
+        "precedent_cutoff": "2024-06-11"
+      },
+      "verdict": "NEEDS-DESIGN-DISCUSSION",
+      "confidence": "low",
+      "error": null,
+      "verdict_lenient": true,
+      "verdict_strict": true,
+      "decisive": {
+        "status": "scored",
+        "result": "found",
+        "objection_id": "maintenance-fit-1",
+        "bucket": "listed",
+        "reason": "The reviewer states the same concern: two separate emitters for global objects (plain vs. non-plain) create risk of format-specific drift/bugs instead of a single source of truth.",
+        "found_surviving": true,
+        "items": [
+          {
+            "decisive_index": 1,
+            "result": "partially",
+            "objection_id": "standards-compat-1",
+            "reason": "The reviewer raises unspecified/ambiguous option behavior on cluster archives, but focuses on pg_restore options rather than pg_dumpall dump options being silently ignored in non-plain mode.",
+            "bucket": "listed"
+          },
+          {
+            "decisive_index": 2,
+            "result": "found",
+            "objection_id": "maintenance-fit-1",
+            "reason": "The reviewer states the same concern: two separate emitters for global objects (plain vs. non-plain) create risk of format-specific drift/bugs instead of a single source of truth.",
+            "bucket": "listed"
+          },
+          {
+            "decisive_index": 3,
+            "result": "not_found",
+            "objection_id": null,
+            "reason": "No reviewer objection argues that the commit is not mature enough for post-commit fixups and should be reverted and re-reviewed.",
+            "bucket": null
+          }
+        ]
+      },
+      "earlier": {
+        "status": "n/a",
+        "in_corpus": [],
+        "matched": []
+      },
+      "surviving_fatal": 0,
+      "false_alarm": null,
+      "cost": {
+        "roast_calls": 17,
+        "judge_calls": 3,
+        "cost_usd": 1.7798956000000004,
+        "wall_ms": 152057
+      }
+    },
+    {
+      "case_id": "fast-default-domain-constraints",
+      "title": "support fast default for domain with constraints",
+      "outcome": "reverted",
+      "post_training_cutoff": false,
+      "repeat": 1,
+      "decisive_level": "design",
+      "decisive_levels": [
+        {
+          "decisive_index": 1,
+          "level": "design",
+          "reason": "Objects that the approach changes user-visible behaviour and breaks backwards compatibility by erroring on an invalid default even when the table is empty."
+        },
+        {
+          "decisive_index": 2,
+          "level": "design",
+          "reason": "Objects to the chosen semantics of treating domain CHECK failures differently from other default-evaluation errors, giving inconsistent user-visible behaviour."
+        },
+        {
+          "decisive_index": 3,
+          "level": "design",
+          "reason": "The empty-table/invalid-default failure requires an addition to the table AM API to fix properly, which is an interface/architecture gap rather than a local code bug."
+        }
+      ],
+      "decisive_in_window": false,
+      "cutoffs": {
+        "case_cutoff_date": "2026-03-12",
+        "last_shown_date": "2025-03-05",
+        "precedent_cutoff": "2025-03-06"
+      },
+      "verdict": "NEEDS-COMMITTER-EYES",
+      "confidence": "low",
+      "error": null,
+      "verdict_lenient": true,
+      "verdict_strict": false,
+      "decisive": {
+        "status": "scored",
+        "result": "found",
+        "objection_id": "standards-compat-1",
+        "bucket": "refuted",
+        "reason": "The reviewer raises the same backwards-compatibility regression: evaluating the default in Phase 2 makes ADD COLUMN fail on an empty table where it succeeds today, though it illustrates this with hard errors inside the CHECK rather than a plain constraint failure.",
+        "found_surviving": false,
+        "items": [
+          {
+            "decisive_index": 1,
+            "result": "found",
+            "objection_id": "standards-compat-1",
+            "reason": "The reviewer raises the same backwards-compatibility regression: evaluating the default in Phase 2 makes ADD COLUMN fail on an empty table where it succeeds today, though it illustrates this with hard errors inside the CHECK rather than a plain constraint failure.",
+            "bucket": "refuted"
+          },
+          {
+            "decisive_index": 2,
+            "result": "partially",
+            "objection_id": "standards-compat-1",
+            "reason": "The reviewer notes that soft-error handling covers only the domain CHECK/NOT NULL outcome and not other evaluation errors, but frames this as an empty-table failure rather than as a fundamentally inconsistent user experience across kinds of default-evaluation error.",
+            "bucket": "refuted"
+          },
+          {
+            "decisive_index": 3,
+            "result": "partially",
+            "objection_id": "maintenance-fit-1",
+            "reason": "The reviewer identifies the failure on an empty table with an erroring default, but does not say that a proper fix needs a table access method API addition or that the change is therefore not ready for release.",
+            "bucket": "listed"
+          }
+        ]
+      },
+      "earlier": {
+        "status": "n/a",
+        "in_corpus": [],
+        "matched": []
+      },
+      "surviving_fatal": 0,
+      "false_alarm": null,
+      "cost": {
+        "roast_calls": 18,
+        "judge_calls": 3,
+        "cost_usd": 1.692002,
+        "wall_ms": 138542
+      }
+    }
+  ],
+  "totals": {
+    "roast_calls": 223,
+    "judge_calls": 36,
+    "cost_usd": 35.58,
+    "wall_ms": 2219396
+  }
+}

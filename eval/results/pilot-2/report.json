@@ -1,0 +1,894 @@
+{
+  "run_id": "pilot-2",
+  "scored_at": "2026-11-11T22:41:59.367Z",
+  "dry_run": false,
+  "rules": "docs/eval.md",
+  "cases_in_file": 18,
+  "cases_scored": 6,
+  "repeats": 1,
+  "headline": {
+    "cases": 6,
+    "errors": 0,
+    "verdict_lenient": {
+      "num": 4,
+      "den": 6,
+      "pct": 66.7
+    },
+    "verdict_strict": {
+      "num": 1,
+      "den": 6,
+      "pct": 16.7
+    },
+    "decisive_found": {
+      "num": 2,
+      "den": 6,
+      "pct": 33.3
+    },
+    "decisive_found_or_partial": {
+      "num": 5,
+      "den": 6,
+      "pct": 83.3
+    },
+    "decisive_found_but_refuted": 1,
+    "earlier_found": {
+      "num": 1,
+      "den": 1,
+      "pct": 100
+    },
+    "earlier_not_in_corpus": 0,
+    "earlier_retrieved_only": 0,
+    "false_alarm_rate": {
+      "num": 1,
+      "den": 1,
+      "pct": 100
+    }
+  },
+  "by_post_training_cutoff": {
+    "true": {
+      "cases": 2,
+      "errors": 0,
+      "verdict_lenient": {
+        "num": 2,
+        "den": 2,
+        "pct": 100
+      },
+      "verdict_strict": {
+        "num": 0,
+        "den": 2,
+        "pct": 0
+      },
+      "decisive_found": {
+        "num": 1,
+        "den": 2,
+        "pct": 50
+      },
+      "decisive_found_or_partial": {
+        "num": 2,
+        "den": 2,
+        "pct": 100
+      },
+      "decisive_found_but_refuted": 1,
+      "earlier_found": {
+        "num": 0,
+        "den": 0,
+        "pct": null
+      },
+      "earlier_not_in_corpus": 0,
+      "earlier_retrieved_only": 0,
+      "false_alarm_rate": {
+        "num": 0,
+        "den": 0,
+        "pct": null
+      }
+    },
+    "false": {
+      "cases": 4,
+      "errors": 0,
+      "verdict_lenient": {
+        "num": 2,
+        "den": 4,
+        "pct": 50
+      },
+      "verdict_strict": {
+        "num": 1,
+        "den": 4,
+        "pct": 25
+      },
+      "decisive_found": {
+        "num": 1,
+        "den": 4,
+        "pct": 25
+      },
+      "decisive_found_or_partial": {
+        "num": 3,
+        "den": 4,
+        "pct": 75
+      },
+      "decisive_found_but_refuted": 0,
+      "earlier_found": {
+        "num": 1,
+        "den": 1,
+        "pct": 100
+      },
+      "earlier_not_in_corpus": 0,
+      "earlier_retrieved_only": 0,
+      "false_alarm_rate": {
+        "num": 1,
+        "den": 1,
+        "pct": 100
+      }
+    },
+    "unknown": {
+      "cases": 0,
+      "errors": 0,
+      "verdict_lenient": {
+        "num": 0,
+        "den": 0,
+        "pct": null
+      },
+      "verdict_strict": {
+        "num": 0,
+        "den": 0,
+        "pct": null
+      },
+      "decisive_found": {
+        "num": 0,
+        "den": 0,
+        "pct": null
+      },
+      "decisive_found_or_partial": {
+        "num": 0,
+        "den": 0,
+        "pct": null
+      },
+      "decisive_found_but_refuted": 0,
+      "earlier_found": {
+        "num": 0,
+        "den": 0,
+        "pct": null
+      },
+      "earlier_not_in_corpus": 0,
+      "earlier_retrieved_only": 0,
+      "false_alarm_rate": {
+        "num": 0,
+        "den": 0,
+        "pct": null
+      }
+    }
+  },
+  "by_outcome": {
+    "rejected": {
+      "cases": 2,
+      "errors": 0,
+      "verdict_lenient": {
+        "num": 1,
+        "den": 2,
+        "pct": 50
+      },
+      "verdict_strict": {
+        "num": 0,
+        "den": 2,
+        "pct": 0
+      },
+      "decisive_found": {
+        "num": 1,
+        "den": 2,
+        "pct": 50
+      },
+      "decisive_found_or_partial": {
+        "num": 2,
+        "den": 2,
+        "pct": 100
+      },
+      "decisive_found_but_refuted": 0,
+      "earlier_found": {
+        "num": 1,
+        "den": 1,
+        "pct": 100
+      },
+      "earlier_not_in_corpus": 0,
+      "earlier_retrieved_only": 0,
+      "false_alarm_rate": {
+        "num": 0,
+        "den": 0,
+        "pct": null
+      }
+    },
+    "accepted": {
+      "cases": 1,
+      "errors": 0,
+      "verdict_lenient": {
+        "num": 0,
+        "den": 1,
+        "pct": 0
+      },
+      "verdict_strict": {
+        "num": 0,
+        "den": 1,
+        "pct": 0
+      },
+      "decisive_found": {
+        "num": 0,
+        "den": 1,
+        "pct": 0
+      },
+      "decisive_found_or_partial": {
+        "num": 1,
+        "den": 1,
+        "pct": 100
+      },
+      "decisive_found_but_refuted": 0,
+      "earlier_found": {
+        "num": 0,
+        "den": 0,
+        "pct": null
+      },
+      "earlier_not_in_corpus": 0,
+      "earlier_retrieved_only": 0,
+      "false_alarm_rate": {
+        "num": 1,
+        "den": 1,
+        "pct": 100
+      }
+    },
+    "reverted": {
+      "cases": 3,
+      "errors": 0,
+      "verdict_lenient": {
+        "num": 3,
+        "den": 3,
+        "pct": 100
+      },
+      "verdict_strict": {
+        "num": 1,
+        "den": 3,
+        "pct": 33.3
+      },
+      "decisive_found": {
+        "num": 1,
+        "den": 3,
+        "pct": 33.3
+      },
+      "decisive_found_or_partial": {
+        "num": 2,
+        "den": 3,
+        "pct": 66.7
+      },
+      "decisive_found_but_refuted": 1,
+      "earlier_found": {
+        "num": 0,
+        "den": 0,
+        "pct": null
+      },
+      "earlier_not_in_corpus": 0,
+      "earlier_retrieved_only": 0,
+      "false_alarm_rate": {
+        "num": 0,
+        "den": 0,
+        "pct": null
+      }
+    }
+  },
+  "by_decisive_level": {
+    "idea": {
+      "cases": 2,
+      "errors": 0,
+      "verdict_lenient": {
+        "num": 1,
+        "den": 2,
+        "pct": 50
+      },
+      "verdict_strict": {
+        "num": 0,
+        "den": 2,
+        "pct": 0
+      },
+      "decisive_found": {
+        "num": 1,
+        "den": 2,
+        "pct": 50
+      },
+      "decisive_found_or_partial": {
+        "num": 2,
+        "den": 2,
+        "pct": 100
+      },
+      "decisive_found_but_refuted": 0,
+      "earlier_found": {
+        "num": 1,
+        "den": 1,
+        "pct": 100
+      },
+      "earlier_not_in_corpus": 0,
+      "earlier_retrieved_only": 0,
+      "false_alarm_rate": {
+        "num": 0,
+        "den": 0,
+        "pct": null
+      }
+    },
+    "design": {
+      "cases": 4,
+      "errors": 0,
+      "verdict_lenient": {
+        "num": 3,
+        "den": 4,
+        "pct": 75
+      },
+      "verdict_strict": {
+        "num": 1,
+        "den": 4,
+        "pct": 25
+      },
+      "decisive_found": {
+        "num": 1,
+        "den": 4,
+        "pct": 25
+      },
+      "decisive_found_or_partial": {
+        "num": 3,
+        "den": 4,
+        "pct": 75
+      },
+      "decisive_found_but_refuted": 1,
+      "earlier_found": {
+        "num": 0,
+        "den": 0,
+        "pct": null
+      },
+      "earlier_not_in_corpus": 0,
+      "earlier_retrieved_only": 0,
+      "false_alarm_rate": {
+        "num": 1,
+        "den": 1,
+        "pct": 100
+      }
+    },
+    "implementation": {
+      "cases": 0,
+      "errors": 0,
+      "verdict_lenient": {
+        "num": 0,
+        "den": 0,
+        "pct": null
+      },
+      "verdict_strict": {
+        "num": 0,
+        "den": 0,
+        "pct": null
+      },
+      "decisive_found": {
+        "num": 0,
+        "den": 0,
+        "pct": null
+      },
+      "decisive_found_or_partial": {
+        "num": 0,
+        "den": 0,
+        "pct": null
+      },
+      "decisive_found_but_refuted": 0,
+      "earlier_found": {
+        "num": 0,
+        "den": 0,
+        "pct": null
+      },
+      "earlier_not_in_corpus": 0,
+      "earlier_retrieved_only": 0,
+      "false_alarm_rate": {
+        "num": 0,
+        "den": 0,
+        "pct": null
+      }
+    },
+    "unclassified": {
+      "cases": 0,
+      "errors": 0,
+      "verdict_lenient": {
+        "num": 0,
+        "den": 0,
+        "pct": null
+      },
+      "verdict_strict": {
+        "num": 0,
+        "den": 0,
+        "pct": null
+      },
+      "decisive_found": {
+        "num": 0,
+        "den": 0,
+        "pct": null
+      },
+      "decisive_found_or_partial": {
+        "num": 0,
+        "den": 0,
+        "pct": null
+      },
+      "decisive_found_but_refuted": 0,
+      "earlier_found": {
+        "num": 0,
+        "den": 0,
+        "pct": null
+      },
+      "earlier_not_in_corpus": 0,
+      "earlier_retrieved_only": 0,
+      "false_alarm_rate": {
+        "num": 0,
+        "den": 0,
+        "pct": null
+      }
+    }
+  },
+  "by_repeat": null,
+  "agreement": null,
+  "scores": [
+    {
+      "case_id": "psql-prompt-time-escape",
+      "title": "Proposal: %T Prompt parameter for psql for current time (like Oracle has)",
+      "outcome": "rejected",
+      "post_training_cutoff": false,
+      "repeat": 1,
+      "decisive_level": "idea",
+      "decisive_levels": [
+        {
+          "decisive_index": 1,
+          "level": "idea",
+          "reason": "Questions whether the feature is needed at all, since %`date` already covers a niche requirement and is more customizable."
+        },
+        {
+          "decisive_index": 2,
+          "level": "idea",
+          "reason": "Argues the feature is not worth the cost of consuming scarce prompt-code namespace, i.e. a desirability judgement rather than a critique of how it is built."
+        },
+        {
+          "decisive_index": 3,
+          "level": "design",
+          "reason": "Accepts the goal of timestamps but disputes the prompt as the right place, suggesting command tags or \\echo output instead."
+        }
+      ],
+      "decisive_in_window": false,
+      "cutoffs": {
+        "case_cutoff_date": "2023-02-23",
+        "last_shown_date": "2023-02-22",
+        "precedent_cutoff": "2023-02-23"
+      },
+      "verdict": "NEEDS-COMMITTER-EYES",
+      "confidence": "low",
+      "error": null,
+      "verdict_lenient": false,
+      "verdict_strict": false,
+      "decisive": {
+        "status": "scored",
+        "result": "found",
+        "objection_id": "already-exists-1",
+        "bucket": "listed",
+        "reason": "The reviewer argues that the %`date` backquote escape already covers the use and the gain is niche (mainly Windows), matching Tom's point; the fixed-format inflexibility part is also covered in the other objections.",
+        "found_surviving": true,
+        "items": [
+          {
+            "decisive_index": 1,
+            "result": "found",
+            "objection_id": "already-exists-1",
+            "reason": "The reviewer argues that the %`date` backquote escape already covers the use and the gain is niche (mainly Windows), matching Tom's point; the fixed-format inflexibility part is also covered in the other objections.",
+            "bucket": "listed"
+          },
+          {
+            "decisive_index": 2,
+            "result": "found",
+            "objection_id": "maintenance-fit-1",
+            "reason": "The reviewer explicitly objects that the feature consumes the small single-character prompt-escape namespace.",
+            "bucket": "refuted"
+          },
+          {
+            "decisive_index": 3,
+            "result": "partially",
+            "objection_id": "standards-compat-1",
+            "reason": "The reviewer notes the prompt render time doesn't match the use cases and that stamping output lines is a different moment, but does not argue that the prompt is the wrong place because script output has no prompts, nor suggest timestamping command tags/\\echo.",
+            "bucket": "listed"
+          }
+        ]
+      },
+      "earlier": {
+        "status": "n/a",
+        "in_corpus": [],
+        "matched": []
+      },
+      "surviving_fatal": 0,
+      "false_alarm": null,
+      "cost": {
+        "roast_calls": 14,
+        "judge_calls": 3,
+        "cost_usd": 1.7305309999999998,
+        "wall_ms": 131350
+      }
+    },
+    {
+      "case_id": "pg-dump-filter-data-where",
+      "title": "PoC: pg_dump --filter-data <file> (like Oracle Where Clause on RMAN for specific tables)",
+      "outcome": "rejected",
+      "post_training_cutoff": false,
+      "repeat": 1,
+      "decisive_level": "idea",
+      "decisive_levels": [
+        {
+          "decisive_index": 1,
+          "level": "idea",
+          "reason": "Questions whether the feature is needed at all, since partitioning and skipping old partitions already covers the use case with existing functionality."
+        },
+        {
+          "decisive_index": 2,
+          "level": "design",
+          "reason": "Accepts the goal of filtered dumps but argues for a different approach, dumping a view in place of the table instead of adding new filter flags."
+        },
+        {
+          "decisive_index": 3,
+          "level": "design",
+          "reason": "Objects to the chosen interface, a separate filter file, as more complex and action-at-a-distance compared with an explicit command-line mapping."
+        }
+      ],
+      "decisive_in_window": false,
+      "cutoffs": {
+        "case_cutoff_date": "2025-08-16",
+        "last_shown_date": "2025-08-15",
+        "precedent_cutoff": "2025-08-16"
+      },
+      "verdict": "NEEDS-DESIGN-DISCUSSION",
+      "confidence": "low",
+      "error": null,
+      "verdict_lenient": true,
+      "verdict_strict": false,
+      "decisive": {
+        "status": "scored",
+        "result": "partially",
+        "objection_id": "already-exists-1",
+        "bucket": "refuted",
+        "reason": "The reviewer argues that existing functionality already covers the need, but through --exclude-table-data plus \\copy; it never mentions partitioning by date and skipping old partitions.",
+        "found_surviving": false,
+        "items": [
+          {
+            "decisive_index": 1,
+            "result": "partially",
+            "objection_id": "already-exists-1",
+            "reason": "The reviewer argues that existing functionality already covers the need, but through --exclude-table-data plus \\copy; it never mentions partitioning by date and skipping old partitions.",
+            "bucket": "refuted"
+          },
+          {
+            "decisive_index": 2,
+            "result": "not_found",
+            "objection_id": null,
+            "reason": "No reviewer objection proposes having pg_dump dump a view as the filtering mechanism in place of new flags.",
+            "bucket": null
+          },
+          {
+            "decisive_index": 3,
+            "result": "partially",
+            "objection_id": "maintenance-fit-1",
+            "reason": "The reviewer objects to the separate filter file as added complexity, but because it duplicates the existing --filter format, not because a file mapping is action-at-a-distance compared with explicit command-line mapping.",
+            "bucket": "refuted"
+          }
+        ]
+      },
+      "earlier": {
+        "status": "found",
+        "in_corpus": [
+          {
+            "msgid": "CAGiT_HNav5B=OfCdfyFoqTa+oe5W1vG=PXkTETCxXg4kcUTktA@mail.gmail.com",
+            "rows": [
+              "cf:1644"
+            ],
+            "retrievable_before_cutoff": true
+          },
+          {
+            "msgid": "CALAY4q8o00Sg5nemi2AuqNuLvmGLaR6br+YrvM41ZuSPjM2Qvg@mail.gmail.com",
+            "rows": [
+              "cf:2600"
+            ],
+            "retrievable_before_cutoff": true
+          }
+        ],
+        "matched": [
+          "CAGiT_HNav5B=OfCdfyFoqTa+oe5W1vG=PXkTETCxXg4kcUTktA@mail.gmail.com",
+          "CALAY4q8o00Sg5nemi2AuqNuLvmGLaR6br+YrvM41ZuSPjM2Qvg@mail.gmail.com"
+        ]
+      },
+      "surviving_fatal": 0,
+      "false_alarm": null,
+      "cost": {
+        "roast_calls": 13,
+        "judge_calls": 3,
+        "cost_usd": 2.0169152,
+        "wall_ms": 199345
+      }
+    },
+    {
+      "case_id": "pg-stat-io-view",
+      "title": "pg_stat_bgwriter.buffers_backend is pretty meaningless (-> pg_stat_io)",
+      "outcome": "accepted",
+      "post_training_cutoff": false,
+      "repeat": 1,
+      "decisive_level": "design",
+      "decisive_levels": [
+        {
+          "decisive_index": 1,
+          "level": "design",
+          "reason": "The objection weighs the added complexity and maintenance cost of the suggested approach against its benefit, which is a judgement about the chosen design rather than about the goal itself or specific code."
+        }
+      ],
+      "decisive_in_window": false,
+      "cutoffs": {
+        "case_cutoff_date": "2020-01-27",
+        "last_shown_date": "2020-01-27",
+        "precedent_cutoff": "2020-01-27"
+      },
+      "verdict": "NEEDS-DESIGN-DISCUSSION",
+      "confidence": "medium",
+      "error": null,
+      "verdict_lenient": false,
+      "verdict_strict": false,
+      "decisive": {
+        "status": "scored",
+        "result": "partially",
+        "objection_id": "maintenance-fit-1",
+        "bucket": "listed",
+        "reason": "The reviewer raises a maintenance/complexity concern about the growing process-type by write-kind column set, which is in the same area as Andres's complexity-without-benefit objection. The quote does not say what \"this\" refers to, so it cannot be confirmed that the reviewer targets the same complexity.",
+        "found_surviving": false,
+        "items": [
+          {
+            "decisive_index": 1,
+            "result": "partially",
+            "objection_id": "maintenance-fit-1",
+            "reason": "The reviewer raises a maintenance/complexity concern about the growing process-type by write-kind column set, which is in the same area as Andres's complexity-without-benefit objection. The quote does not say what \"this\" refers to, so it cannot be confirmed that the reviewer targets the same complexity.",
+            "bucket": "listed"
+          }
+        ]
+      },
+      "earlier": {
+        "status": "n/a",
+        "in_corpus": [],
+        "matched": []
+      },
+      "surviving_fatal": 0,
+      "false_alarm": true,
+      "cost": {
+        "roast_calls": 12,
+        "judge_calls": 3,
+        "cost_usd": 1.6269010000000002,
+        "wall_ms": 126566
+      }
+    },
+    {
+      "case_id": "split-merge-partitions-pg17",
+      "title": "Add SPLIT PARTITION/MERGE PARTITIONS commands",
+      "outcome": "reverted",
+      "post_training_cutoff": false,
+      "repeat": 1,
+      "decisive_level": "design",
+      "decisive_levels": [
+        {
+          "decisive_index": 1,
+          "level": "implementation",
+          "reason": "A specific security defect (repeated name lookups) found in the committed code and shown with an exploit demo that gives one partition two parents."
+        },
+        {
+          "decisive_index": 2,
+          "level": "implementation",
+          "reason": "A call to revert because the committed code has too many accumulated defects to fix before release, not a challenge to the feature's desirability."
+        },
+        {
+          "decisive_index": 3,
+          "level": "design",
+          "reason": "The chosen approach of turning OIDs back into names for the CREATE TABLE code to re-resolve is inherently unsafe, which is an architectural flaw rather than a single bug."
+        }
+      ],
+      "decisive_in_window": false,
+      "cutoffs": {
+        "case_cutoff_date": "2024-04-07",
+        "last_shown_date": "2022-05-31",
+        "precedent_cutoff": "2022-06-01"
+      },
+      "verdict": "NEEDS-DESIGN-DISCUSSION",
+      "confidence": "low",
+      "error": null,
+      "verdict_lenient": true,
+      "verdict_strict": true,
+      "decisive": {
+        "status": "scored",
+        "result": "not_found",
+        "objection_id": null,
+        "bucket": null,
+        "reason": "No reviewer objection raises repeated name lookups or the race that lets a partition end up with two parents; the security objections concern ownership checks and lost grants/RLS instead.",
+        "found_surviving": false,
+        "items": [
+          {
+            "decisive_index": 1,
+            "result": "not_found",
+            "objection_id": null,
+            "reason": "No reviewer objection raises repeated name lookups or the race that lets a partition end up with two parents; the security objections concern ownership checks and lost grants/RLS instead.",
+            "bucket": null
+          },
+          {
+            "decisive_index": 2,
+            "result": "not_found",
+            "objection_id": null,
+            "reason": "No reviewer objection argues that the feature has too many security problems to fix before release and must be reverted; all are rated fixable and concern other issues.",
+            "bucket": null
+          },
+          {
+            "decisive_index": 3,
+            "result": "not_found",
+            "objection_id": null,
+            "reason": "No reviewer objection identifies the OID-to-name-to-OID round trip through the CREATE TABLE code as an unsafe lookup pattern.",
+            "bucket": null
+          }
+        ]
+      },
+      "earlier": {
+        "status": "n/a",
+        "in_corpus": [],
+        "matched": []
+      },
+      "surviving_fatal": 0,
+      "false_alarm": null,
+      "cost": {
+        "roast_calls": 12,
+        "judge_calls": 3,
+        "cost_usd": 2.3807196,
+        "wall_ms": 182645
+      }
+    },
+    {
+      "case_id": "subscription-conninfo-owner-change",
+      "title": "Validate SERVER subscription conninfo during ALTER SUBSCRIPTION ... OWNER TO",
+      "outcome": "reverted",
+      "post_training_cutoff": true,
+      "repeat": 1,
+      "decisive_level": "design",
+      "decisive_levels": [
+        {
+          "decisive_index": 1,
+          "level": "design",
+          "reason": "Objects to the user-visible behaviour of raising errors in OWNER TO because it breaks dump/restore compatibility, a consequence of the chosen approach rather than a code-level bug."
+        },
+        {
+          "decisive_index": 2,
+          "level": "design",
+          "reason": "Weighs the behavioural trade-off of validating at DDL time (interactive convenience) against false-positive failures during restore, which is a question of approach and compatibility."
+        }
+      ],
+      "decisive_in_window": false,
+      "cutoffs": {
+        "case_cutoff_date": "2026-07-23",
+        "last_shown_date": "2026-07-22",
+        "precedent_cutoff": "2026-07-23"
+      },
+      "verdict": "NEEDS-COMMITTER-EYES",
+      "confidence": "medium",
+      "error": null,
+      "verdict_lenient": true,
+      "verdict_strict": false,
+      "decisive": {
+        "status": "scored",
+        "result": "found",
+        "objection_id": "standards-compat-1",
+        "bucket": "listed",
+        "reason": "Reviewer states that the new error in OWNER TO fires during pg_dump restore, causing restore failures, which is the same core reason as the revert.",
+        "found_surviving": true,
+        "items": [
+          {
+            "decisive_index": 1,
+            "result": "found",
+            "objection_id": "standards-compat-1",
+            "reason": "Reviewer states that the new error in OWNER TO fires during pg_dump restore, causing restore failures, which is the same core reason as the revert.",
+            "bucket": "listed"
+          },
+          {
+            "decisive_index": 2,
+            "result": "found",
+            "objection_id": "standards-compat-1",
+            "reason": "Reviewer explicitly weighs interactive fail-early convenience against restore failures, including cases where the check fires on state replay, matching the false-positive-during-restore concern.",
+            "bucket": "listed"
+          }
+        ]
+      },
+      "earlier": {
+        "status": "n/a",
+        "in_corpus": [],
+        "matched": []
+      },
+      "surviving_fatal": 0,
+      "false_alarm": null,
+      "cost": {
+        "roast_calls": 13,
+        "judge_calls": 3,
+        "cost_usd": 1.4692961999999996,
+        "wall_ms": 117745
+      }
+    },
+    {
+      "case_id": "reject-concurrent-sequence-refresh",
+      "title": "sequencesync worker race with REFRESH SEQUENCES (fix: reject REFRESH SEQUENCES while a sequencesync worker runs)",
+      "outcome": "reverted",
+      "post_training_cutoff": true,
+      "repeat": 1,
+      "decisive_level": "design",
+      "decisive_levels": [
+        {
+          "decisive_index": 1,
+          "level": "design",
+          "reason": "Objects to the chosen approach's user-visible behaviour: rejecting the command pushes onto users a race they cannot observe or reasonably avoid."
+        },
+        {
+          "decisive_index": 2,
+          "level": "design",
+          "reason": "Questions whether the committed approach of erroring out is sound at all, predicting inevitable field failures from its behaviour rather than from a specific code bug."
+        },
+        {
+          "decisive_index": 3,
+          "level": "design",
+          "reason": "The revert rationale is that blocking the command is inconvenient for users and the race should be fixed by a different approach, while the goal itself stays valid."
+        }
+      ],
+      "decisive_in_window": false,
+      "cutoffs": {
+        "case_cutoff_date": "2026-07-15",
+        "last_shown_date": "2026-07-11",
+        "precedent_cutoff": "2026-07-12"
+      },
+      "verdict": "NEEDS-COMMITTER-EYES",
+      "confidence": "medium",
+      "error": null,
+      "verdict_lenient": true,
+      "verdict_strict": false,
+      "decisive": {
+        "status": "scored",
+        "result": "found",
+        "objection_id": "standards-compat-2",
+        "bucket": "refuted",
+        "reason": "The reviewer states the same concern that the remedy assumes users can tell when a sequencesync worker is running, which they have no way to do, though it is framed around a WARNING rather than a rejection.",
+        "found_surviving": false,
+        "items": [
+          {
+            "decisive_index": 1,
+            "result": "found",
+            "objection_id": "standards-compat-2",
+            "reason": "The reviewer states the same concern that the remedy assumes users can tell when a sequencesync worker is running, which they have no way to do, though it is framed around a WARNING rather than a rejection.",
+            "bucket": "refuted"
+          },
+          {
+            "decisive_index": 2,
+            "result": "partially",
+            "objection_id": "maintenance-fit-2",
+            "reason": "The reviewer says the fix turns a guarantee into a user chore and may misfire often, but does not argue that rejecting the command will cause annoying field failures; it actually favours an ERROR.",
+            "bucket": "refuted"
+          },
+          {
+            "decisive_index": 3,
+            "result": "partially",
+            "objection_id": "already-exists-1",
+            "reason": "The reviewer argues for a different coordination mechanism (stop and restart the worker) instead of pushing the burden onto the user, but never says that blocking the command is itself the inconvenience.",
+            "bucket": "refuted"
+          }
+        ]
+      },
+      "earlier": {
+        "status": "n/a",
+        "in_corpus": [],
+        "matched": []
+      },
+      "surviving_fatal": 0,
+      "false_alarm": null,
+      "cost": {
+        "roast_calls": 13,
+        "judge_calls": 3,
+        "cost_usd": 2.0326214000000005,
+        "wall_ms": 151712
+      }
+    }
+  ],
+  "totals": {
+    "roast_calls": 77,
+    "judge_calls": 18,
+    "cost_usd": 11.26,
+    "wall_ms": 909363
+  }
+}
