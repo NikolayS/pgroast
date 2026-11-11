@@ -626,5 +626,222 @@
   "blind_n": 6,
   "decisive_objection_position": null,
   "post_training_cutoff": false
+ },
+ {
+  "id": "group-by-all-pg19",
+  "title": "[PATCH] GROUP BY ALL",
+  "area": "parser / SQL syntax",
+  "outcome": "reverted",
+  "proposer": "David Christensen",
+  "thread_url": "https://www.postgresql.org/message-id/flat/CAHM0NXjz0kDwtzoe-fnHAqPB1qA8_VJN0XAmCgUZ+iPnvP5LbA@mail.gmail.com",
+  "first_message_id": "CAHM0NXjz0kDwtzoe-fnHAqPB1qA8_VJN0XAmCgUZ+iPnvP5LbA@mail.gmail.com",
+  "first_message_date": "2024-07-22",
+  "cf_url": null,
+  "cutoff_date": "2025-09-29",
+  "decisive_objections": [
+   {
+    "who": "Tom Lane (committer of revert)",
+    "date": "2026-07-17",
+    "message_url": null,
+    "source": "commit message of a32733d8f10 (local git, verified)",
+    "quote": "A postcommit review discovered that GROUP BY ALL missed our special handling of entries that also appear in an ORDER BY in the query. This caused the query to return wrong results when ORDER BY specifies non-default equality semantics. While this should be fixable with some refactoring, doing it cleanly seems like too much code churn for late beta. We'll revert and try again in v20.",
+    "category": "planner behaviour"
+   },
+   {
+    "who": "Tom Lane",
+    "date": "2026-07-14",
+    "message_url": "https://www.postgresql.org/message-id/3278800.1783989856@sss.pgh.pa.us",
+    "quote": "I don't have a lot of faith that there aren't other comparable bugs lurking.",
+    "category": "maintenance burden"
+   },
+   {
+    "who": "Tom Lane",
+    "date": "2026-07-14",
+    "message_url": "https://www.postgresql.org/message-id/3278800.1783989856@sss.pgh.pa.us",
+    "quote": "That is a large change to take on post-beta2, though. Maybe the path of prudence is to revert GROUP BY ALL for v19 and try again for v20.",
+    "category": "maintenance burden"
+   }
+  ],
+  "earlier_attempts": [],
+  "commit": "ef38a4d9756",
+  "revert_commit": "a32733d8f10",
+  "outcome_summary": "GROUP BY ALL (group by every non-aggregate target-list entry) was proposed in July 2024, revived in Sept 2025 once the SQL standard committee was moving on it, and committed for PG19 by Tom Lane (ef38a4d9756, 2025-09-29). In June 2026 Chao Li found that the ALL path skipped transformGroupClauseExpr()'s copying of ORDER BY operator semantics, giving wrong results with non-default equality operators (e.g. record_image_ops); Tom judged the clause-handling code too baroque to fix safely post-beta2 and it was reverted from 19 and master (a32733d8f10, 2026-07-17), to retry in v20.",
+  "notes": "Revert reason taken verbatim from the revert commit message (message_url null, source=commit). Supporting list messages are in a separate thread 'Fix GROUP BY ALL handling of ORDER BY operator semantics' started by Chao Li 2026-06-29 (5243308F-8E5C-45AA-828C-FAD96C4F34DA@gmail.com), so decisive_objection_position is null. The original thread's message 2 (David G. Johnston, 2024-07-22: 'I strongly dislike adding this feature. I'd only consider supporting it if it was part of the SQL standard.') is an objection that was overcome, and it IS within blind_n=6. Original commit is by Tom Lane (Author: David Christensen). The revert also covers follow-up 2ce745836. cf_url null: not located without login. Blind: first 6 messages are 2024-07-22/23 (proposal, David G. Johnston's dislike, Isaac Morland, two Tom Lane replies); the revert trigger is in a separate 2026 thread.",
+  "thread_message_count": 56,
+  "blind_n": 6,
+  "decisive_objection_position": null,
+  "post_training_cutoff": false
+ },
+ {
+  "id": "pg-dumpall-non-text-formats",
+  "title": "Non-text mode for pg_dumpall (custom/directory/tar output for pg_dumpall, pg_restore support)",
+  "area": "pg_dump / pg_restore",
+  "outcome": "reverted",
+  "proposer": "Andrew Dunstan (design); Mahendra Singh Thalor (patch author)",
+  "thread_url": "https://www.postgresql.org/message-id/flat/cb103623-8ee6-4ba5-a2c9-f32e3a4933fa@dunslane.net",
+  "first_message_id": "cb103623-8ee6-4ba5-a2c9-f32e3a4933fa@dunslane.net",
+  "first_message_date": "2024-06-10",
+  "cf_url": null,
+  "cutoff_date": "2025-04-04",
+  "decisive_objections": [
+   {
+    "who": "Noah Misch",
+    "date": "2025-07-08",
+    "message_url": "https://www.postgresql.org/message-id/20250708212819.09.nmisch@google.com",
+    "quote": "This uses pgdumpopts for plain mode only, so many pg_dumpall options silently have no effect in non-plain mode.",
+    "category": "pg_dump round-trip"
+   },
+   {
+    "who": "Noah Misch",
+    "date": "2026-06-07",
+    "message_url": "https://www.postgresql.org/message-id/20260607000218.96.noahmisch@microsoft.com",
+    "quote": "There should be one appendPQExpBuffer(delQry, \"DROP ROLE ...\"), not one for plain format and another for non-plain formats. Having two creates excess risk of format-specific bugs, something pg_dump.c has long avoided well.",
+    "category": "maintenance burden"
+   },
+   {
+    "who": "Noah Misch",
+    "date": "2026-06-07",
+    "message_url": "https://www.postgresql.org/message-id/20260607000218.96.noahmisch@microsoft.com",
+    "quote": "None of this is meant to say the feature is impossible. But I don’t think this commit is at the point where post-commit fixups are the right workflow. I recommend reverting, posting a new version, and letting commitfest review finish.",
+    "category": "maintenance burden"
+   }
+  ],
+  "earlier_attempts": [],
+  "commit": "763aaa06f03",
+  "revert_commit": "7ca548f23a6",
+  "outcome_summary": "Andrew Dunstan proposed directory/custom/tar output for pg_dumpall in June 2024. It was committed for PG18 (1495eff7bdb, 2025-04-04) and reverted before release (ce9a6244b5b, 2025-07-30) after Noah Misch's review raised robustness and security concerns about how global objects are handled; it was re-committed for PG19 (763aaa06f03, 2026-02-23) and reverted again (7ca548f23a6, 2026-06-15) after Noah's second post-commit review found pg_dumpall still bypassed the archiver architecture (format-specific DROP/CREATE paths, missing fsync, dependency metadata) and recommended finishing it through the commitfest.",
+  "notes": "Reverted TWICE (PG18 and PG19). commit/revert_commit fields hold the 2026 pair; the 2025 pair is 1495eff7bdb / ce9a6244b5b (2025 revert message: 'Recent discussions of the mechanisms used to manage global data have raised concerns about their robustness and security.'). cutoff_date is set before the FIRST commit (2025-04-04) so neither revert leaks. Revert commit 7ca548f23a6 says: 'in line with Noah Misch's post-commit review which recommends reverting and finishing the work through the commitfest.' The thread is still active (221 messages, last 2026-10-13). cf_url null: not located without login. Note Noah's 2026 message contains a typographic apostrophe in “don’t”, kept verbatim. Blind: first 6 messages are all 2024-06-10 (design proposal, Nathan Bossart, Magnus Hagander); Noah Misch's first review is position 118, his 2026 review position 214.",
+  "thread_message_count": 221,
+  "blind_n": 6,
+  "decisive_objection_position": 118,
+  "post_training_cutoff": false
+ },
+ {
+  "id": "fast-default-domain-constraints",
+  "title": "support fast default for domain with constraints",
+  "area": "DDL / ALTER TABLE",
+  "outcome": "reverted",
+  "proposer": "jian he",
+  "thread_url": "https://www.postgresql.org/message-id/flat/CACJufxE_+iZBR1i49k_AHigppPwLTJi6km8NOsC7FWvKdEmmXg@mail.gmail.com",
+  "first_message_id": "CACJufxE_+iZBR1i49k_AHigppPwLTJi6km8NOsC7FWvKdEmmXg@mail.gmail.com",
+  "first_message_date": "2025-03-05",
+  "cf_url": null,
+  "cutoff_date": "2026-03-12",
+  "decisive_objections": [
+   {
+    "who": "Tom Lane",
+    "date": "2025-03-05",
+    "message_url": "https://www.postgresql.org/message-id/229413.1741144420@sss.pgh.pa.us",
+    "quote": "This patch appears to summarily throw away a couple of backwards-compatibility concerns that the previous round took care to preserve: * not throwing an error if the default would fail the domain constraints, but the table is empty so there is no need to instantiate the default.",
+    "category": "pg_dump round-trip"
+   },
+   {
+    "who": "Tom Lane",
+    "date": "2026-06-06",
+    "message_url": "https://www.postgresql.org/message-id/36611.1780777185@sss.pgh.pa.us",
+    "quote": "The fundamental problem with this whole mess is that it treats certain kinds of default-expression evaluation error (i.e., domain CHECK failures) differently from others. There is no way that that leads to a consistent user experience.",
+    "category": "SQL standard/syntax"
+   },
+   {
+    "who": "Andrew Dunstan (committer of revert)",
+    "date": "2026-06-08",
+    "message_url": null,
+    "source": "commit message of a0354e29c41 (local git, verified)",
+    "quote": "The change failed with an empty table and an invalid default, and the best way to deal with that will involve an addition to the TAM API, so it's not ready for relese 19 now.",
+    "category": "ABI/extension API"
+   }
+  ],
+  "earlier_attempts": [],
+  "commit": "a0b6ef29a51",
+  "revert_commit": "a0354e29c41",
+  "outcome_summary": "jian he proposed evaluating domain CHECK constraints in soft-error mode so ALTER TABLE ADD COLUMN with a domain-typed default could use the fast-default path instead of a rewrite. Andrew Dunstan committed it for PG19 (a0b6ef29a51, 2026-03-12). In June 2026 Chao Li showed that adding such a column to an empty table now raised errors that previously were deferred, and Tom Lane (citing pg_dump/restore hazards and inconsistent treatment of errors) recommended reverting; a proper fix needs a new table-AM 'is empty' callback, so it was reverted (a0354e29c41, 2026-06-08) and deferred to v20.",
+  "notes": "Very clean blind-mode case: Tom Lane's very first reply (position 2, 2025-03-05, 17 minutes after the proposal) names the exact behaviour (empty table + failing default must not error) whose loss later forced the revert 15 months later; blind_n=1. The revert discussion is in a separate thread 'Fix domain fast defaults on empty tables' (Chao Li, 2026-06-05, 7033D663-DDB4-4B35-922C-F33DE53B1502@gmail.com); Tom Lane there (2026-06-05, 3590551.1780668509@sss.pgh.pa.us) adds the pg_dump angle: 'I suspect it is now possible to create a database that will fail dump/restore because of this inconsistency.' The typo 'relese' is verbatim from the revert commit. Category for the commit-message reason is 'ABI/extension API' because the fix needs a new TableAmRoutine method. cf_url null: not located without login. Blind: Tom Lane's backwards-compatibility objection is the very first reply (position 2), so blind_n=1 (proposal only).",
+  "thread_message_count": 20,
+  "blind_n": 1,
+  "decisive_objection_position": 2,
+  "post_training_cutoff": false
+ },
+ {
+  "id": "subscription-conninfo-owner-change",
+  "title": "Validate SERVER subscription conninfo during ALTER SUBSCRIPTION ... OWNER TO",
+  "area": "logical replication",
+  "outcome": "reverted",
+  "proposer": "Fujii Masao",
+  "thread_url": "https://www.postgresql.org/message-id/flat/CAHGQGwFGa6+wWVgUmZPFwN=fBY59mYPkMK3=TxT=Pv5C1mNNRQ@mail.gmail.com",
+  "first_message_id": "CAHGQGwFGa6+wWVgUmZPFwN=fBY59mYPkMK3=TxT=Pv5C1mNNRQ@mail.gmail.com",
+  "first_message_date": "2026-07-18",
+  "cf_url": null,
+  "cutoff_date": "2026-07-23",
+  "decisive_objections": [
+   {
+    "who": "Jeff Davis (committer of revert)",
+    "date": "2026-08-05",
+    "message_url": null,
+    "source": "commit message of ac230cd3ce9 (local git, verified)",
+    "quote": "Raising errors during OWNER TO can cause problems during restore. An upcoming commit will avoid other errors that can happen in this path.",
+    "category": "pg_dump round-trip"
+   },
+   {
+    "who": "Jeff Davis",
+    "date": "2026-07-29",
+    "message_url": "https://www.postgresql.org/message-id/e103ae8daf74485e0c0ebde297fae735d38f54d1.camel@j-davis.com",
+    "quote": "That loses some convenience for interactive DDL, but avoids false positive failures during restore.",
+    "category": "pg_dump round-trip"
+   }
+  ],
+  "earlier_attempts": [],
+  "commit": "1c9c3589042",
+  "revert_commit": "ac230cd3ce9",
+  "outcome_summary": "Fujii Masao proposed making ALTER SUBSCRIPTION ... OWNER TO validate the new owner's generated conninfo for the new PG19 CREATE SUBSCRIPTION ... SERVER feature, and committed it (1c9c3589042, 2026-07-23). In a parallel thread started by Noah Misch ('CREATE SUBSCRIPTION ... SERVER vs. pg_dump, etc.'), Jeff Davis worked out that DDL run during pg_restore must not need a connection or fail on conninfo checks, since restore issues OWNER TO before user mappings exist; Jeff reverted the validation (ac230cd3ce9, 2026-08-05), moving the checks to connection time.",
+  "notes": "post_training_cutoff=true (thread started 2026-07-18). Small, bugfix-sized change rather than a feature, but the reason (pg_dump/restore ordering) is a classic hackers objection. The decision happened in another thread (20260710195902.4f.noahmisch@microsoft.com, Noah Misch, 2026-07-10), so decisive_objection_position is null; the only hint inside the proposal thread is message 8 (Jeff Davis, 2026-07-28, pointing to that discussion), after the commit. Thread has 8 messages; blind_n=6 shows everything up to the pre-commit review. cf_url null: not located. Blind: first 6 messages are 2026-07-18..2026-07-22 (proposal and reviews by yuanchao zhang, Hayato Kuroda, Fujii).",
+  "thread_message_count": 8,
+  "blind_n": 6,
+  "decisive_objection_position": null,
+  "post_training_cutoff": true
+ },
+ {
+  "id": "reject-concurrent-sequence-refresh",
+  "title": "sequencesync worker race with REFRESH SEQUENCES (fix: reject REFRESH SEQUENCES while a sequencesync worker runs)",
+  "area": "logical replication",
+  "outcome": "reverted",
+  "proposer": "Noah Misch (report); vignesh C (patch author)",
+  "thread_url": "https://www.postgresql.org/message-id/flat/20260710045217.f0.noahmisch@microsoft.com",
+  "first_message_id": "20260710045217.f0.noahmisch@microsoft.com",
+  "first_message_date": "2026-07-10",
+  "cf_url": null,
+  "cutoff_date": "2026-07-15",
+  "decisive_objections": [
+   {
+    "who": "Tom Lane",
+    "date": "2026-07-16",
+    "message_url": "https://www.postgresql.org/message-id/3621808.1784170708@sss.pgh.pa.us",
+    "quote": "Well, that would fix this test, but I wonder if this result isn't telling us that f38afa4ab has created a failure condition that will bite real users. Why would the user issuing REFRESH SEQUENCES be aware of whether there's a sync worker running right then? Why should it be his problem to avoid that?",
+    "category": "psql UX"
+   },
+   {
+    "who": "Tom Lane",
+    "date": "2026-07-17",
+    "message_url": "https://www.postgresql.org/message-id/3848535.1784266437@sss.pgh.pa.us",
+    "quote": "I grow even more skeptical that f38afa4ab was a good idea. It seems inevitable that it will cause annoying failures in the field.",
+    "category": "maintenance burden"
+   },
+   {
+    "who": "Amit Kapila (committer of revert)",
+    "date": "2026-07-18",
+    "message_url": null,
+    "source": "commit message of dde9a87d4d0 (local git, verified)",
+    "quote": "While discussing how to fix the tests, we concluded that blocking the command while a sequencesync worker is running is inconvenient for users. So we will fix the original race differently in a follow-up commit.",
+    "category": "WAL/replication"
+   }
+  ],
+  "earlier_attempts": [],
+  "commit": "f38afa4abb0",
+  "revert_commit": "dde9a87d4d0",
+  "outcome_summary": "Noah Misch reported (from an AI-assisted review) that ALTER SUBSCRIPTION ... REFRESH SEQUENCES could race with a running sequencesync worker and leave stale sequence values marked READY. Among the options discussed, the chosen fix made REFRESH SEQUENCES raise an ERROR while a sequencesync worker was running (f38afa4abb0, 2026-07-15). The buildfarm (skink under valgrind) immediately hit the new error; Tom Lane argued this was a user-facing failure mode rather than a test problem, and Amit Kapila reverted it (dde9a87d4d0, 2026-07-18) to fix the race another way.",
+  "notes": "post_training_cutoff=true (thread started 2026-07-10). This is a bugfix-approach revert, not a feature revert: the 'proposal' (message 1) is a bug report, and the rejected design choice (ERROR on concurrent refresh) appears in the discussion of options at message 6 (Amit Kapila listing 'return ERROR suggesting sequence sync already in-progress' among the alternatives), which IS within blind_n=6. Use it to test whether the tool can predict that an ERROR-instead-of-wait fix will be rejected as user-hostile. Tom Lane's buildfarm report (position 28, 3614163.1784163070@sss.pgh.pa.us, 2026-07-16) triggered the discussion; his objection proper is position 30. Category 'psql UX' is approximate (user-facing command behaviour). cf_url null. Blind: first 6 messages are 2026-07-10/11 (report, patch, reviews, Amit Kapila's list of fix options); Tom Lane's buildfarm-failure report is position 28 and his first objection to the design is position 30.",
+  "thread_message_count": 82,
+  "blind_n": 6,
+  "decisive_objection_position": 30,
+  "post_training_cutoff": true
  }
 ]
