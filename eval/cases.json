@@ -1,0 +1,630 @@
+[
+ {
+  "id": "psql-prompt-time-escape",
+  "title": "Proposal: %T Prompt parameter for psql for current time (like Oracle has)",
+  "area": "psql",
+  "outcome": "rejected",
+  "proposer": "Kirk Wolak",
+  "thread_url": "https://www.postgresql.org/message-id/flat/CACLU5mSRwHr_8z=enMj-nXF1tmC7+Jn5heZQNiKuLyxYUtL2fg@mail.gmail.com",
+  "first_message_id": "CACLU5mSRwHr_8z=enMj-nXF1tmC7+Jn5heZQNiKuLyxYUtL2fg@mail.gmail.com",
+  "first_message_date": "2023-02-22",
+  "cf_url": "https://commitfest.postgresql.org/patch/4227/",
+  "cutoff_date": "2023-02-22",
+  "decisive_objections": [
+   {
+    "who": "Tom Lane",
+    "date": "2023-02-22",
+    "message_url": "https://www.postgresql.org/message-id/157609.1677088525@sss.pgh.pa.us",
+    "quote": "I'm not really convinced that %`date` isn't a usable solution for this, especially since it seems like a very niche requirement. The next person who wants it might well have a different desire than you for exactly what gets shown. The output of date can be customized, but a hard-wired prompt.c feature not so much.",
+    "category": "psql UX"
+   },
+   {
+    "who": "Tom Lane",
+    "date": "2023-02-22",
+    "message_url": "https://www.postgresql.org/message-id/157609.1677088525@sss.pgh.pa.us",
+    "quote": "On the whole I'd rather not eat more of the limited namespace for psql prompt codes for this.",
+    "category": "psql UX"
+   },
+   {
+    "who": "Greg Stark",
+    "date": "2023-04-09",
+    "message_url": "https://www.postgresql.org/message-id/CAM-w4HP3PKwCg2QfV4iN9w9xTvborFAhz3MQ-CVJy_iZPZkatw@mail.gmail.com",
+    "quote": "I'm not sure if the *prompt* is a sensible place for it though. The place it seems like it would be most useful is reading the output of script executions where there would be no prompts. Perhaps it's the command tags and \\echo statements that should be timestamped.",
+    "category": "psql UX"
+   }
+  ],
+  "earlier_attempts": [],
+  "commit": null,
+  "revert_commit": null,
+  "outcome_summary": "Kirk proposed a fixed %T prompt escape printing the client's current time as HH24:MI:SS (explicitly no date, no format options). Tom Lane objected immediately that %`date` already covers it, that one hard-wired format won't fit the next user, and that prompt-escape namespace is scarce; in April Greg Stark and Tom Lane added that one timestamp format can't satisfy everyone and that timestamps belong on command tags / \\echo output rather than the prompt. CF 4227 (v2/v3 patch) was closed Returned with feedback in CF 2023-07 (Daniel Gustafsson: it had not built since the March CF) and was never resubmitted.",
+  "notes": "Shape differs slightly from the brief: Kirk's version is %T = current client time HH24:MI:SS in the psql PROMPT only; he explicitly rejected adding the date. Command-output timestamps were Greg Stark's counter-suggestion (2023-04-09), not Kirk's proposal. Formal CF status is 'Returned with feedback' (closing reason given: patch did not build), not 'Rejected'; the substantive objections are Tom's and Greg's. The same thread also spawned Kirk's companion proposal ':SQL_EXEC_TIME (like :ROW_COUNT)' (2023-02-23, subject change mid-thread). CUTOFF CAVEAT: Tom's objection came 38 minutes after the proposal on the same day (archive shows 17:17:46 vs 17:55:25), so with day granularity cutoff_date equals first_message_date: the tool must be given the first message itself plus nothing else; a timestamp cutoff of 2023-02-22T17:55 (archive time) would be precise. Nikolay Samokhvalov (the user) replied in-thread and is listed as a CF reviewer. Blind: message 2 is Nikolay Samokhvalov's supportive reply; Tom Lane's objection is message 3, so blind_n=2.",
+  "thread_message_count": 35,
+  "blind_n": 2,
+  "decisive_objection_position": 3,
+  "post_training_cutoff": false
+ },
+ {
+  "id": "pg-dump-filter-data-where",
+  "title": "PoC: pg_dump --filter-data <file> (like Oracle Where Clause on RMAN for specific tables)",
+  "area": "pg_dump",
+  "outcome": "rejected",
+  "proposer": "Kirk Wolak",
+  "thread_url": "https://www.postgresql.org/message-id/flat/CACLU5mS07WGPpq6=m8aC5tUMusNpL8FhBPnYem86iSawEgcavw@mail.gmail.com",
+  "first_message_id": "CACLU5mS07WGPpq6=m8aC5tUMusNpL8FhBPnYem86iSawEgcavw@mail.gmail.com",
+  "first_message_date": "2025-08-15",
+  "cf_url": null,
+  "cutoff_date": "2025-08-15",
+  "decisive_objections": [
+   {
+    "who": "Tom Lane",
+    "date": "2025-08-15",
+    "message_url": "https://www.postgresql.org/message-id/615474.1755275838@sss.pgh.pa.us",
+    "quote": "Have you considered partitioning these tables by date and then not dumping the older partitions? That would fit into existing functionality a lot better.",
+    "category": "doesn't-fit/extension"
+   },
+   {
+    "who": "Greg Sabino Mullane",
+    "date": "2025-08-15",
+    "message_url": "https://www.postgresql.org/message-id/CAKAnmmLYwUw0Kc4E-aBDeYNU=S+RxRx+CTXgBR6dvERAcUvUYQ@mail.gmail.com",
+    "quote": "Rather than invent new flags, I think a better approach would be to convince pg_dump to dump a view, such that table foo has a view fooslice to limit / filter the output.",
+    "category": "pg_dump round-trip"
+   },
+   {
+    "who": "Greg Sabino Mullane",
+    "date": "2025-08-15",
+    "message_url": "https://www.postgresql.org/message-id/CAKAnmmLYwUw0Kc4E-aBDeYNU=S+RxRx+CTXgBR6dvERAcUvUYQ@mail.gmail.com",
+    "quote": "While we could make the view mapping into a separate filtering file as you suggest, that's more complexity and also a little more dangerous in an action-at-a-distance way, so I'd rather have people be very specific in the mapping on the command line.",
+    "category": "maintenance burden"
+   }
+  ],
+  "earlier_attempts": [
+   {
+    "thread_url": "https://www.postgresql.org/message-id/flat/1212299813.17810.17.camel@ubuntu",
+    "date": "2008-06-01",
+    "summary": "Davy Durham: 'Feature: give pg_dump a WHERE clause expression'; Tom Lane: 'Just do a COPY (SELECT ...) TO somefile.'",
+    "outcome": "not committed"
+   },
+   {
+    "thread_url": "https://www.postgresql.org/message-id/flat/1216999182.3894.930.camel@ebony.2ndQuadrant",
+    "date": "2008-07-25",
+    "summary": "Simon Riggs: 'Adding WHERE clause to pg_dump' (pg_dump -w for sampling); Tom Lane called it an 'ugly, non-orthogonal wart' and pointed to COPY (SELECT ...) TO STDOUT",
+    "outcome": "not committed"
+   },
+   {
+    "thread_url": "https://www.postgresql.org/message-id/flat/CAGiT_HNav5B=OfCdfyFoqTa+oe5W1vG=PXkTETCxXg4kcUTktA@mail.gmail.com",
+    "date": "2018-05-20",
+    "summary": "Carter Thaxton: --include-table-data-where (later --where); concerns about filtered dumps not restoring (FKs) and option parsing",
+    "outcome": "not committed (returned with feedback per Borodin's 2026 recap)"
+   },
+   {
+    "thread_url": "https://www.postgresql.org/message-id/flat/CALAY4q8o00Sg5nemi2AuqNuLvmGLaR6br+YrvM41ZuSPjM2Qvg@mail.gmail.com",
+    "date": "2020-06-15",
+    "summary": "Surafel Temesgen: pg_dump --where option revival",
+    "outcome": "returned with feedback in the CF app (Michael Paquier, 2020-09-30)"
+   },
+   {
+    "thread_url": "https://www.postgresql.org/message-id/flat/CAC5EiNMthnPAKugDj0D8-kfn21hPQnOuvDAMOHa4TDmzGYon4w@mail.gmail.com",
+    "date": "2022-10-04",
+    "summary": "Nikita Starovoitov: possibility of partial data dumps with pg_dump",
+    "outcome": "stalled, not committed"
+   }
+  ],
+  "commit": null,
+  "revert_commit": null,
+  "outcome_summary": "Kirk asked for feedback on a per-table WHERE/LIMIT filter file applied to pg_dump's COPY. Within an hour Tom Lane redirected him to partitioning plus existing exclusion options, and Greg Sabino Mullane argued for dumping a view instead of a new filter-file flag; no patch or CF entry followed and the thread went quiet after 2025-08-26. In June 2026 Kirk pivoted to a narrower patch ('[PATCH v1] Allow excluded tables to remain in the pg_restore data-loading path for directory-format dumps', CACLU5mTrtt2ocj_UhVC2_4tjXRi7oMCxK17WjoeX7khwRvZjxQ@mail.gmail.com) that adds empty placeholder data files instead of any WHERE clause.",
+  "notes": "Archive contradicts the brief's framing in two ways: (1) Kirk's 2025 post was an RFC/PoC asking for design input (no patch attached, no CF entry found), so 'rejected' means 'redirected and abandoned', not a formal rejection; (2) the idea Kirk pursued afterwards (2026) is a placeholder-file patch, not WHERE filtering, and that 2026 thread was still open as of 2026-07-01 (one reply, Andrey Borodin, positive). Andrey Borodin's 2026-07-01 reply (502B3804-007B-4B3D-B6F2-F9632EBECF7C@yandex-team.ru) gives a good recap of the history; the earlier_attempts list was cross-checked against the fetched threads. cf_url null: CF search requires login, and no CF link appears in the thread. CUTOFF CAVEAT: Tom replied 26 minutes after the proposal (same day), so cutoff_date = first_message_date; feed only the first message. Greg Stark's 'pg_dump round-trip' category is approximate (his point is about the dump interface, a view keeps the restore path standard). Blind: Tom Lane's redirect is the very first reply (position 2), so blind_n=1 (proposal only).",
+  "thread_message_count": 7,
+  "blind_n": 1,
+  "decisive_objection_position": 2,
+  "post_training_cutoff": false
+ },
+ {
+  "id": "unsigned-integer-types",
+  "title": "Support for unsigned integer types",
+  "area": "data types",
+  "outcome": "rejected",
+  "proposer": "Jack Bay",
+  "thread_url": "https://www.postgresql.org/message-id/flat/CAN3gO4sPBKbfWYK10i294u3kzsfDb4WX891FMbjLnKjMS08u7A@mail.gmail.com",
+  "first_message_id": "CAN3gO4sPBKbfWYK10i294u3kzsfDb4WX891FMbjLnKjMS08u7A@mail.gmail.com",
+  "first_message_date": "2024-12-06",
+  "cf_url": null,
+  "cutoff_date": "2024-12-07",
+  "decisive_objections": [
+   {
+    "who": "Tom Lane",
+    "date": "2024-12-07",
+    "message_url": "https://www.postgresql.org/message-id/3180774.1733588677@sss.pgh.pa.us",
+    "quote": "This has been discussed before, and we've concluded that the impact on the numeric promotion hierarchy (that is, implicit-cast rules among the integer types) would probably be catastrophic, leading to problems like ambiguous-operator errors in many cases that were fine before. Quick, is \"42 + 1\" an int32 or uint32 operation?",
+    "category": "SQL standard/syntax"
+   },
+   {
+    "who": "Tom Lane",
+    "date": "2024-12-07",
+    "message_url": "https://www.postgresql.org/message-id/3180774.1733588677@sss.pgh.pa.us",
+    "quote": "Plus, the sheer magnitude of effort needed to build out a reasonable set of support (functions, operators, opclasses) for uint types seems daunting.",
+    "category": "maintenance burden"
+   },
+   {
+    "who": "Peter Eisentraut",
+    "date": "2024-12-10",
+    "message_url": "https://www.postgresql.org/message-id/e3d0d43d-99d7-4412-afad-f16831f3065e@eisentraut.org",
+    "quote": "Here is an extension that implements this: https://github.com/petere/pguint",
+    "category": "doesn't-fit/extension"
+   }
+  ],
+  "earlier_attempts": [
+   {
+    "thread_url": "https://www.postgresql.org/message-id/flat/CAL0=0H37uQGNwrcfNEpE=iLHc+hy3vKjY_f0NGyh2q4Z7MwvJA@mail.gmail.com",
+    "date": "2011-09-26",
+    "summary": "'Is there any plan to add unsigned integer types?' (question, no patch); answered with existing alternatives",
+    "outcome": "not pursued"
+   }
+  ],
+  "commit": null,
+  "revert_commit": null,
+  "outcome_summary": "A user asked for uint32/uint64 in core. Tom Lane answered that adding them to the implicit-cast promotion hierarchy would cause widespread ambiguous-operator breakage, while keeping them outside it would make them unusable, and that the support surface (functions, operators, opclasses) is daunting; Peter Eisentraut pointed to his pguint extension. No patch followed.",
+  "notes": "This is a feature request without a patch, so 'rejected' = turned down on the list. Category for the cast-hierarchy objection is approximate (it is really type-system / implicit-cast semantics; the closest listed category is 'SQL standard/syntax'). The 2011 thread is one earlier instance found; Tom says 'discussed before', there are likely more (not exhaustively searched; archive full-text search only covers recent mail). Blind: Tom Lane's objection is the very first reply (position 2), so blind_n=1 (proposal only). The proposal is a short feature request without a patch.",
+  "thread_message_count": 5,
+  "blind_n": 1,
+  "decisive_objection_position": 2,
+  "post_training_cutoff": false
+ },
+ {
+  "id": "hidden-invisible-columns",
+  "title": "[PATCH] Proposal for HIDDEN/INVISIBLE column",
+  "area": "SQL / DDL",
+  "outcome": "rejected",
+  "proposer": "Gilles Darold",
+  "thread_url": "https://www.postgresql.org/message-id/flat/be81d947-f4fe-c062-f107-0f05f8f87ca8@migops.com",
+  "first_message_id": "be81d947-f4fe-c062-f107-0f05f8f87ca8@migops.com",
+  "first_message_date": "2021-10-14",
+  "cf_url": "https://commitfest.postgresql.org/patch/3361/",
+  "cutoff_date": "2021-10-14",
+  "decisive_objections": [
+   {
+    "who": "Aleksander Alekseev",
+    "date": "2021-10-14",
+    "message_url": "https://www.postgresql.org/message-id/CAJ7c6TMaHrib8FZfazyMu=09Qur-Fz4dEu_ujYkEaQ6UByoa1g@mail.gmail.com",
+    "quote": "So I can't see any real benefits of adding this feature to PostgreSQL. It will only make the existing code and the existing user interface even more complicated than they are now.",
+    "category": "maintenance burden"
+   },
+   {
+    "who": "Tom Lane",
+    "date": "2021-10-14",
+    "message_url": "https://www.postgresql.org/message-id/892708.1634233481@sss.pgh.pa.us",
+    "quote": "As for the proposal itself, I'm kind of allergic to the terminology you've suggested, because the column is in no way hidden. It's still visible in the catalogs, you can still select it explicitly, etc. Anybody who thinks this is useful from a security standpoint is mistaken, but these words suggest that it is.",
+    "category": "security"
+   },
+   {
+    "who": "Tom Lane",
+    "date": "2021-10-14",
+    "message_url": "https://www.postgresql.org/message-id/892708.1634233481@sss.pgh.pa.us",
+    "quote": "BTW, you do NOT get to add an information_schema column for this. The information_schema is defined in the SQL standard.",
+    "category": "SQL standard/syntax"
+   },
+   {
+    "who": "Tom Lane",
+    "date": "2021-10-14",
+    "message_url": "https://www.postgresql.org/message-id/895717.1634237021@sss.pgh.pa.us",
+    "quote": "So the more I think about this, the squishier it gets. I'm now sharing the fears expressed upthread about whether it's even possible to define this in a way that won't have a lot of gotchas.",
+    "category": "SQL standard/syntax"
+   }
+  ],
+  "earlier_attempts": [],
+  "commit": null,
+  "revert_commit": null,
+  "outcome_summary": "Gilles Darold posted a working patch for columns excluded from SELECT * expansion. Tom Lane objected to the misleading 'hidden' terminology (implies security), the position-dependent syntax, the non-standard information_schema change, and the unclear semantics for t.*, row_to_json(t), and composite rowtypes; Bruce Momjian said the feature is not generally desired. Gilles gave up on 2021-10-28 and CF 3361 was closed as Rejected in CF 2021-11.",
+  "notes": "Clean case: CF status literally 'Rejected'. Bruce Momjian 2021-10-28 (20211028143113.GA32290@momjian.us): 'I want to state I still think this feature is not generally desired, and is better implemented at the query level.' Gilles's reply 2021-10-28 concedes. Related later idea: 'Proposal: SELECT * EXCLUDE (...) command' (Hunaid Sohail, 2026-01-08, CAMWA6yb9GGiJbe9iU88yjurVQCsFgZvW7xSxa0aFLC0Wtz4Aqg@mail.gmail.com) is still under discussion as of 2026-10-30, so it is not used as a case. earlier_attempts: none searched exhaustively. CUTOFF CAVEAT: the thread got ~25 replies on day one including Tom's objections, so cutoff_date = first_message_date; feed only the first message. Blind: Aleksander Alekseev's -1 is the very first reply (position 2), so blind_n=1 (proposal only); Tom Lane's objections are at positions 15, 18 and 20.",
+  "thread_message_count": 58,
+  "blind_n": 1,
+  "decisive_objection_position": 2,
+  "post_training_cutoff": false
+ },
+ {
+  "id": "delete-order-by-limit",
+  "title": "Allow DELETE to use ORDER BY and LIMIT/OFFSET",
+  "area": "SQL / DML",
+  "outcome": "rejected",
+  "proposer": "Yugo Nagata",
+  "thread_url": "https://www.postgresql.org/message-id/flat/20211217094718.0d4d1c9eea684d09d8111c5d@sraoss.co.jp",
+  "first_message_id": "20211217094718.0d4d1c9eea684d09d8111c5d@sraoss.co.jp",
+  "first_message_date": "2021-12-17",
+  "cf_url": null,
+  "cutoff_date": "2021-12-17",
+  "decisive_objections": [
+   {
+    "who": "Tom Lane",
+    "date": "2021-12-17",
+    "message_url": "https://www.postgresql.org/message-id/1272732.1639711078@sss.pgh.pa.us",
+    "quote": "Indeed, this is technically possible, but we've rejected the idea before and I'm not aware of any reason to change our minds.",
+    "category": "SQL standard/syntax"
+   },
+   {
+    "who": "Tom Lane",
+    "date": "2021-12-17",
+    "message_url": "https://www.postgresql.org/message-id/1272732.1639711078@sss.pgh.pa.us",
+    "quote": "The problem is that a partial DELETE is not very deterministic about which rows are deleted, and that does not seem like a great property for a data-updating command. (The same applies to UPDATE, which is why we don't allow these options in that command either.)",
+    "category": "SQL standard/syntax"
+   },
+   {
+    "who": "Tom Lane",
+    "date": "2021-12-17",
+    "message_url": "https://www.postgresql.org/message-id/1272732.1639711078@sss.pgh.pa.us",
+    "quote": "We live with this amount of indeterminism in SELECT, but that doesn't make it a brilliant idea to allow it in UPDATE/DELETE.",
+    "category": "SQL standard/syntax"
+   }
+  ],
+  "earlier_attempts": [
+   {
+    "thread_url": "https://www.postgresql.org/message-id/flat/20020921141206.GA32585@cuci.nl",
+    "date": "2002-09-21",
+    "summary": "Stephen R. van den Berg: Implementation of LIMIT on DELETE and UPDATE statements",
+    "outcome": "not committed"
+   },
+   {
+    "thread_url": "https://www.postgresql.org/message-id/flat/AANLkTi=6fBZh9yZT7f7kKh+zmQngAyHgZWBPM3eiEMj1@mail.gmail.com",
+    "date": "2010-11-30",
+    "summary": "Daniel Loureiro: DELETE with LIMIT (or my first hack)",
+    "outcome": "not committed"
+   },
+   {
+    "thread_url": "https://www.postgresql.org/message-id/flat/1393112801.59251.YahooMailNeo@web163006.mail.bf1.yahoo.com",
+    "date": "2014-02-22",
+    "summary": "Rukh Meski: 9.5: UPDATE/DELETE .. ORDER BY .. LIMIT ..",
+    "outcome": "not committed"
+   },
+   {
+    "thread_url": "https://www.postgresql.org/message-id/flat/CALAY4q9fcrscybax7fg_uojFwjw_Wg0UMuSrf-FvN68SeSAPAA@mail.gmail.com",
+    "date": "2017-04-24",
+    "summary": "Surafel Temesgen: DELETE and UPDATE with LIMIT and ORDER BY",
+    "outcome": "not committed"
+   }
+  ],
+  "commit": null,
+  "revert_commit": null,
+  "outcome_summary": "Yugo Nagata posted a concept patch for DELETE ... ORDER BY ... LIMIT/OFFSET (MySQL-style). Tom Lane replied within hours that the idea had been rejected before: a partial DELETE is nondeterministic (underspecified sort order, LIMIT cutting peer groups, and EvalPlanQual re-checking rows after sorting), and the ctid-subquery workaround exists. Greg Stark and Corey Huinker argued for it, but nothing was committed.",
+  "notes": "No CF entry found (cf_url null; CF search needs login, none linked in thread). 'Rejected' = turned down on the list, no formal CF status. Category is approximate: the objection is about DML semantics/determinism; the closest listed category is 'SQL standard/syntax' (also non-standard syntax). David G. Johnston (same day) added that the use cases were not compelling. Earlier attempts are listed with their first message dates; their exact closing status was not individually verified beyond 'never committed'. CUTOFF CAVEAT: Tom's objection came the same day (archive 00:47 vs 03:17), so cutoff_date = first_message_date. Blind: message 2 is the proposer's own follow-up; Tom Lane's rejection is position 3, so blind_n=2.",
+  "thread_message_count": 9,
+  "blind_n": 2,
+  "decisive_objection_position": 3,
+  "post_training_cutoff": false
+ },
+ {
+  "id": "global-unique-index",
+  "title": "Patch: Global Unique Index",
+  "area": "partitioning / indexes",
+  "outcome": "rejected",
+  "proposer": "Cary Huang",
+  "thread_url": "https://www.postgresql.org/message-id/flat/184879c5306.12490ea581628934.7312528450011769010@highgo.ca",
+  "first_message_id": "184879c5306.12490ea581628934.7312528450011769010@highgo.ca",
+  "first_message_date": "2022-11-17",
+  "cf_url": null,
+  "cutoff_date": "2022-11-18",
+  "decisive_objections": [
+   {
+    "who": "Tom Lane",
+    "date": "2022-11-18",
+    "message_url": "https://www.postgresql.org/message-id/2187643.1668783992@sss.pgh.pa.us",
+    "quote": "I'm not convinced that we want this feature at all: as far as I can see, it will completely destroy the benefits of making a partitioned table in the first place.",
+    "category": "planner behaviour"
+   },
+   {
+    "who": "Tom Lane",
+    "date": "2022-11-29",
+    "message_url": "https://www.postgresql.org/message-id/1239139.1669763636@sss.pgh.pa.us",
+    "quote": "I still think this is a dead end that will never get committed.",
+    "category": "hot-path performance"
+   },
+   {
+    "who": "Tom Lane",
+    "date": "2022-11-30",
+    "message_url": "https://www.postgresql.org/message-id/1257837.1669774583@sss.pgh.pa.us",
+    "quote": "The thing that feels insoluble is that you can't do this without acquiring sufficient locks to prevent addition of new partitions while the insertion is in progress. That will be expensive in itself, and it will turn ATTACH PARTITION into a performance disaster.",
+    "category": "hot-path performance"
+   }
+  ],
+  "earlier_attempts": [
+   {
+    "thread_url": "https://www.postgresql.org/message-id/flat/CALtqXTcurqy1PKXzP9XO=ofLLA5wBSo77BnUnYVEZpmcA3V0ag@mail.gmail.com",
+    "date": "2019-10-30",
+    "summary": "Ibrar Ahmed: Proposal: Global Index",
+    "outcome": "not committed"
+   }
+  ],
+  "commit": null,
+  "revert_commit": null,
+  "outcome_summary": "Cary Huang posted a patch enforcing uniqueness across all partitions by checking every partition's local index on insert. Tom Lane argued it defeats the purpose of partitioning, would deadlock or serialize concurrent inserts across partitions, and needs locks that make ATTACH PARTITION a performance disaster; Bruce Momjian questioned how concurrent duplicate insertion is prevented. The thread petered out in 2023 and nothing was committed.",
+  "notes": "cf_url null: a CF entry may exist but could not be located without login (WebSearch found none). Categories are approximate: Tom's first objection is architectural ('destroys the benefits of partitioning'); the locking/ATTACH objection is concurrency/performance. A later, different design 'Proposal: Global Index for PostgreSQL' (Dilip Kumar, 2025-06-06, CAFiTN-uyec_y2QS2whUam8Rp1M+PPGuP0Zz45uX_U6mhQ8mtRg@mail.gmail.com) exists, so this case should be read as 'this design rejected', not 'global indexes forever rejected'. Bruce Momjian 2022-11-25 (Y4D/3EbEibKkJW2C@momjian.us) raised the concurrent-duplicate problem. Blind: messages 2-3 are Sergei Kornilov and Pavel Stehule; Tom Lane's objection is position 4, so blind_n=3.",
+  "thread_message_count": 36,
+  "blind_n": 3,
+  "decisive_objection_position": 4,
+  "post_training_cutoff": false
+ },
+ {
+  "id": "btree-include-covering-indexes",
+  "title": "WIP: Covering + unique indexes (CREATE INDEX ... INCLUDE)",
+  "area": "indexes / nbtree",
+  "outcome": "accepted",
+  "proposer": "Anastasia Lubennikova",
+  "thread_url": "https://www.postgresql.org/message-id/flat/56168952.4010101@postgrespro.ru",
+  "first_message_id": "56168952.4010101@postgrespro.ru",
+  "first_message_date": "2015-10-08",
+  "cf_url": null,
+  "cutoff_date": "2016-01-04",
+  "decisive_objections": [
+   {
+    "who": "Peter Geoghegan",
+    "date": "2016-04-04",
+    "message_url": "https://www.postgresql.org/message-id/CAM3SWZSHjDog0CH4H7iupoe0U=weRJT0JYmMSKpHZVwHqzM0gg@mail.gmail.com",
+    "quote": "I object to committing the patch in that time frame. I'm looking at it again.",
+    "category": "maintenance burden"
+   },
+   {
+    "who": "Tom Lane",
+    "date": "2016-04-04",
+    "message_url": "https://www.postgresql.org/message-id/28756.1459798626@sss.pgh.pa.us",
+    "quote": "Since it's a rather complex patch, pushing it in advance of the reviewers signing off on it doesn't seem like a great idea ...",
+    "category": "maintenance burden"
+   },
+   {
+    "who": "Peter Geoghegan",
+    "date": "2016-04-04",
+    "message_url": "https://www.postgresql.org/message-id/CAM3SWZTfBosvae8Gh6AESRVKT3Fad7XcDkhZSbEqazZPE81rwQ@mail.gmail.com",
+    "quote": "I see what you mean, but I think we need to decide what to do about the key space when leaf high keys are truncated.",
+    "category": "on-disk/pg_upgrade"
+   }
+  ],
+  "earlier_attempts": [],
+  "commit": "8224de4f42c",
+  "revert_commit": null,
+  "outcome_summary": "Covering (INCLUDE) B-tree indexes were proposed in Oct 2015, committed for 9.6 on 2016-04-08 (386e3d7609c) and reverted the same day (8b99edefcab, 'It's not ready yet') after Peter Geoghegan and Tom Lane objected to committing before review sign-off, with open questions about B-tree key space when truncating non-key attributes in pivot tuples. After two more years of work it was committed for PG11 (8224de4f42c, 2018-04-07) and remains in tree.",
+  "notes": "Accepted case with an intermediate same-day revert in 2016 (8b99edefcab); the tool should predict 'eventually accepted'. cutoff_date 2016-01-04 keeps messages 1-8 (through Jeff Janes 2015-12-27). The B-tree invariant concern is categorized 'on-disk/pg_upgrade' because it is about the nbtree page/tuple format; it was overcome by the PG11 design (pivot tuple truncation with stored attribute count). cf_url null: CF entry not located without login. Blind: first 6 messages are 2015-10-08..2015-12-04 (proposal, Thom Brown, author updates, Robert Haas's opclass question). Objections overcome are at positions 44-46.",
+  "thread_message_count": 221,
+  "blind_n": 6,
+  "decisive_objection_position": 44,
+  "post_training_cutoff": false
+ },
+ {
+  "id": "pg-stat-io-view",
+  "title": "pg_stat_bgwriter.buffers_backend is pretty meaningless (-> pg_stat_io)",
+  "area": "monitoring / statistics",
+  "outcome": "accepted",
+  "proposer": "Andres Freund (idea); Melanie Plageman (patch author)",
+  "thread_url": "https://www.postgresql.org/message-id/flat/20200124195226.lth52iydq2n2uilq@alap3.anarazel.de",
+  "first_message_id": "20200124195226.lth52iydq2n2uilq@alap3.anarazel.de",
+  "first_message_date": "2020-01-24",
+  "cf_url": null,
+  "cutoff_date": "2020-01-27",
+  "decisive_objections": [
+   {
+    "who": "Andres Freund",
+    "date": "2022-10-26",
+    "message_url": "https://www.postgresql.org/message-id/20221026185808.4qnxowtn35x43u7u@awork3.anarazel.de",
+    "quote": "-1, I think this just blows up the complexity further, without providing much benefit.",
+    "category": "maintenance burden"
+   }
+  ],
+  "earlier_attempts": [],
+  "commit": "a9c70b46dbe",
+  "revert_commit": null,
+  "outcome_summary": "Andres Freund pointed out that pg_stat_bgwriter.buffers_backend mixes unrelated writes and is accounted absurdly via the checkpointer. Melanie Plageman turned this into a per-backend-type, per-object, per-context IO statistics view over ~3 years and many design iterations on the view shape; it was committed as pg_stat_io in PG16 (a9c70b46dbe, 2023-02-11).",
+  "notes": "No strong 'kill' objection was raised in this thread; the quoted item is the strongest pushback found (Andres rejecting one proposed view shape, 2022-10-26), which was resolved by redesigning the columns. Use this case mainly to test that the tool does NOT predict rejection for a well-motivated monitoring feature with committer backing. cutoff_date 2020-01-27 keeps messages 1-5. cf_url null: CF entry not located without login. Blind: first 6 messages are 2020-01-24..2020-01-27 (Andres, Magnus Hagander, Kyotaro Horiguchi).",
+  "thread_message_count": 173,
+  "blind_n": 6,
+  "decisive_objection_position": 91,
+  "post_training_cutoff": false
+ },
+ {
+  "id": "incremental-backup",
+  "title": "trying again to get incremental backup",
+  "area": "backup / WAL",
+  "outcome": "accepted",
+  "proposer": "Robert Haas",
+  "thread_url": "https://www.postgresql.org/message-id/flat/CA+TgmoYOYZfMCyOXFyC-P+-mdrZqm5pP2N7S-r0z3_402h9rsA@mail.gmail.com",
+  "first_message_id": "CA+TgmoYOYZfMCyOXFyC-P+-mdrZqm5pP2N7S-r0z3_402h9rsA@mail.gmail.com",
+  "first_message_date": "2023-06-14",
+  "cf_url": "https://commitfest.postgresql.org/patch/4648/",
+  "cutoff_date": "2023-06-19",
+  "decisive_objections": [
+   {
+    "who": "Stephen Frost",
+    "date": "2019-04-17",
+    "message_url": "https://www.postgresql.org/message-id/20190417224309.GH6197@tamriel.snowman.net",
+    "quote": "In addition, saying that PG has incremental backup but no built-in management of those full-vs-incremental backups and telling users that they basically have to build that themselves really feels a lot like we're trying to address a check-box requirement rather than making something that our users are going to be happy with.",
+    "category": "doesn't-fit/extension"
+   }
+  ],
+  "earlier_attempts": [
+   {
+    "thread_url": "https://www.postgresql.org/message-id/flat/CA+TgmoYxQLL=mVyN90HZgH0X_EUrw+aZ0xsXJk7XV3-3LygTvA@mail.gmail.com",
+    "date": "2019-04-09",
+    "summary": "Robert Haas: block-level incremental backup (first design; evolved into backup manifests, PG13)",
+    "outcome": "not committed as incremental backup; backup manifests committed instead"
+   }
+  ],
+  "commit": "dc212340058",
+  "revert_commit": null,
+  "outcome_summary": "Robert Haas's 2019 attempt at block-level incremental backup drew pushback that external tools (pgBackRest etc.) already do this and that core would ship only a check-box feature without backup management; it turned into backup manifests instead. His 2023 retry used an always-on WAL summarizer plus pg_basebackup --incremental and pg_combinebackup, and was committed for PG17 (174c480508a WAL summarizer and dc212340058 incremental backup, 2023-12-20).",
+  "notes": "The quoted objection comes from the 2019 predecessor thread (same proposer, same idea), not the 2023 thread; the 2023 thread itself contains design questions but no strong objection. cutoff_date 2023-06-19 keeps messages 1-6 (2023-06-14/15). Blind: first 6 messages are 2023-06-14..2023-06-15; the quoted objection is in the 2019 predecessor thread (position null).",
+  "thread_message_count": 106,
+  "blind_n": 6,
+  "decisive_objection_position": null,
+  "post_training_cutoff": false
+ },
+ {
+  "id": "data-checksums-default-on",
+  "title": "Enable data checksums by default",
+  "area": "initdb / storage",
+  "outcome": "accepted",
+  "proposer": "Greg Sabino Mullane",
+  "thread_url": "https://www.postgresql.org/message-id/flat/CAKAnmmKwiMHik5AHmBEdf5vqzbOBbcwEPHo4-PioWeAbzwcTOQ@mail.gmail.com",
+  "first_message_id": "CAKAnmmKwiMHik5AHmBEdf5vqzbOBbcwEPHo4-PioWeAbzwcTOQ@mail.gmail.com",
+  "first_message_date": "2024-08-06",
+  "cf_url": "https://commitfest.postgresql.org/patch/5178/",
+  "cutoff_date": "2024-08-08",
+  "decisive_objections": [
+   {
+    "who": "Peter Eisentraut",
+    "date": "2024-08-08",
+    "message_url": "https://www.postgresql.org/message-id/8f5b725d-1a6c-4ba6-a9ba-a67106fa2054@eisentraut.org",
+    "quote": "My understanding was that the reason for some hesitation about adopting data checksums was the performance impact. Not the checksumming itself, but the overhead from hint bit logging. The last time I looked into that, you could get performance impacts on the order of 5% tps.",
+    "category": "hot-path performance"
+   },
+   {
+    "who": "Peter Eisentraut",
+    "date": "2024-08-08",
+    "message_url": "https://www.postgresql.org/message-id/8f5b725d-1a6c-4ba6-a9ba-a67106fa2054@eisentraut.org",
+    "quote": "For those uses, this change would render pg_upgrade useless for upgrades from an old instance with default settings to a new instance with default settings.",
+    "category": "on-disk/pg_upgrade"
+   }
+  ],
+  "earlier_attempts": [
+   {
+    "thread_url": "https://www.postgresql.org/message-id/flat/20190322151653.GD32388@msg.df7cb.de",
+    "date": "2019-03-22",
+    "summary": "Christoph Berg: Enable data checksums by default; Tom Lane: 'the main value of checksums is that they allow the Postgres project to deflect blame' and asked for proof the CPU cost is justified",
+    "outcome": "not committed"
+   }
+  ],
+  "commit": "04bec894a04",
+  "revert_commit": null,
+  "outcome_summary": "Greg Sabino Mullane proposed flipping initdb's default to data checksums on. Peter Eisentraut raised the hint-bit WAL-logging overhead (~5% tps) and the pg_upgrade problem (old default clusters without checksums can't be upgraded into new default clusters); these were addressed by first adding initdb --no-data-checksums (983a588e0b8, 2024-10-01) and documentation, and the default was switched in PG18 (04bec894a04, 2024-10-16). The 2019 attempt had failed on Tom Lane's skepticism about the CPU cost vs. benefit.",
+  "notes": "Good case for 'a naive rejector would cite performance and pg_upgrade'. cutoff_date 2024-08-08 keeps messages 1-3 (2024-08-06/07) and excludes Peter Eisentraut's objection. pg_upgrade handling remained a follow-up topic (CF 5206 'pg_upgrade: Support for upgrading to checksums enabled', not verified here). Blind: accepted case, blind_n kept at 6 per spec, so Peter Eisentraut's performance/pg_upgrade objection (position 5) IS among the shown messages; the tool sees the objection and must still predict acceptance.",
+  "thread_message_count": 65,
+  "blind_n": 6,
+  "decisive_objection_position": 5,
+  "post_training_cutoff": false
+ },
+ {
+  "id": "split-merge-partitions-pg17",
+  "title": "Add SPLIT PARTITION/MERGE PARTITIONS commands",
+  "area": "partitioning / DDL",
+  "outcome": "reverted",
+  "proposer": "Dmitry Koval",
+  "thread_url": "https://www.postgresql.org/message-id/flat/c73a1746-0cd0-6bdd-6b23-3ae0b7c0c582@postgrespro.ru",
+  "first_message_id": "c73a1746-0cd0-6bdd-6b23-3ae0b7c0c582@postgrespro.ru",
+  "first_message_date": "2022-05-31",
+  "cf_url": "https://commitfest.postgresql.org/patch/3659/",
+  "cutoff_date": "2024-04-07",
+  "decisive_objections": [
+   {
+    "who": "Noah Misch",
+    "date": "2024-08-08",
+    "message_url": "https://www.postgresql.org/message-id/20240808171351.a9.nmisch@google.com",
+    "quote": "This breaks from the CVE-2014-0062 (commit 5f17304) principle of not repeating name lookups. The attached demo uses this defect to make one partition have two parents.",
+    "category": "security"
+   },
+   {
+    "who": "Robert Haas",
+    "date": "2024-08-22",
+    "message_url": "https://www.postgresql.org/message-id/CA+TgmobHYix=Nn8D4RUHa6fhUVPR88KGAMq1pBfnGfOfEjRixA@mail.gmail.com",
+    "quote": "Unfortunately, I think there are too many problems here to be reasonably fixed before release, and I think all of SPLIT/MERGE PARTITION needs to be reverted.",
+    "category": "security"
+   },
+   {
+    "who": "Robert Haas",
+    "date": "2024-08-22",
+    "message_url": "https://www.postgresql.org/message-id/CA+TgmobHYix=Nn8D4RUHa6fhUVPR88KGAMq1pBfnGfOfEjRixA@mail.gmail.com",
+    "quote": "In both cases, we do a reverse lookup on an OID to get a name which the CREATE TABLE code will later turn back into an OID. If we don't get the same value, that's at least a bug and probably a security vulnerability, and there is no way to be certain that we will get the same value.",
+    "category": "security"
+   }
+  ],
+  "earlier_attempts": [],
+  "commit": "1adf16b8fba",
+  "revert_commit": "3890d90c150",
+  "outcome_summary": "ALTER TABLE ... MERGE PARTITIONS / SPLIT PARTITION were committed for PG17 on 2024-04-07 (1adf16b8fba, 87c21bb9412). In August 2024 Noah Misch showed the implementation repeated name lookups (CVE-2014-0062 class), and Robert Haas found more such lookups and argued that building the new partition via a synthesized CREATE TABLE through ProcessUtility was the wrong design; Korotkov reverted the whole feature before RC (3890d90c150, 2024-08-24, backpatched to 17). A reworked version was committed for PG19 on 2025-12-14 (f2e4cc42795, 4b3d173629f).",
+  "notes": "commit field holds the MERGE PARTITIONS commit; SPLIT is 87c21bb9412 (same day). Revert commit message cites 'security issues related to repeatable name lookups (CVE-2014-0062)'. cutoff_date = first commit date, so the tool sees ~2 years of pre-commit review but no post-commit issue reports. Note Robert Haas also posted a design objection on 2024-04-12 (CA+TgmoYcjL+w2BQzku5iNXKR5fyxJMSP3avQta8xngioTX7D7A@mail.gmail.com: the syntax names new tables but gives no way to set their properties), after the commit. Jonathan Katz (RMT) explicitly cited the PG15 SQL/JSON precedent when supporting the revert (2024-08-22). Blind: first 6 messages are all from 2022-05-31; Noah Misch's report is position 144, Robert Haas's revert call position 154.",
+  "thread_message_count": 298,
+  "blind_n": 6,
+  "decisive_objection_position": 144,
+  "post_training_cutoff": false
+ },
+ {
+  "id": "temporal-pk-fk-pg17",
+  "title": "SQL:2011 application time (temporal PRIMARY KEY / UNIQUE / FOREIGN KEY WITHOUT OVERLAPS)",
+  "area": "constraints / SQL standard",
+  "outcome": "reverted",
+  "proposer": "Paul A. Jungwirth",
+  "thread_url": "https://www.postgresql.org/message-id/flat/CA+renyUApHgSZF9-nd-a0+OPGharLQLO=mDHcY4_qQ0+noCUVg@mail.gmail.com",
+  "first_message_id": "CA+renyUApHgSZF9-nd-a0+OPGharLQLO=mDHcY4_qQ0+noCUVg@mail.gmail.com",
+  "first_message_date": "2021-06-30",
+  "cf_url": "https://commitfest.postgresql.org/patch/4308/",
+  "cutoff_date": "2024-01-24",
+  "decisive_objections": [
+   {
+    "who": "Peter Eisentraut",
+    "date": "2024-05-13",
+    "message_url": "https://www.postgresql.org/message-id/64c2b2ab-7ce9-475e-ac59-3bfec528bada@eisentraut.org",
+    "quote": "It looks like we missed some of these fundamental design questions early on, and it might be too late now to fix them for PG17.",
+    "category": "SQL standard/syntax"
+   },
+   {
+    "who": "Peter Eisentraut",
+    "date": "2024-05-13",
+    "message_url": "https://www.postgresql.org/message-id/64c2b2ab-7ce9-475e-ac59-3bfec528bada@eisentraut.org",
+    "quote": "I'm also concerned that if ranges have this fundamental incompatibility with periods, then the plan to eventually evolve this patch set to support standard periods will also have as-yet-unknown problems.",
+    "category": "SQL standard/syntax"
+   },
+   {
+    "who": "Peter Eisentraut",
+    "date": "2024-05-13",
+    "message_url": "https://www.postgresql.org/message-id/64c2b2ab-7ce9-475e-ac59-3bfec528bada@eisentraut.org",
+    "quote": "I'm afraid that these issues cannot be resolved in good time for this release, so we should revert this patch set for now.",
+    "category": "catalog"
+   }
+  ],
+  "earlier_attempts": [],
+  "commit": "46a0cd4cefb",
+  "revert_commit": "8aee330af55",
+  "outcome_summary": "Temporal PRIMARY KEY/UNIQUE (46a0cd4cefb, 2024-01-24) and FOREIGN KEY (34768ee3616, 2024-03-24) constraints using WITHOUT OVERLAPS on range columns were committed for PG17. Post-commit, the author found empty ranges bypass the exclusion semantics; Peter Eisentraut judged these fundamental design questions (empty ranges, relation to SQL-standard PERIODs, implicit CHECK constraints tied to PKs) unresolvable before release and reverted the set (8aee330af55, 2024-05-16). It was re-committed for PG18 (fc0438b4e80, 2024-09-17).",
+  "notes": "Revert commit message: 'This feature set did not handle empty ranges correctly, and it's now too late for PostgreSQL 17 to fix it.' The empty-range problem was raised by the author himself (Paul Jungwirth, 2024-04-03, 47550967-260b-4180-9791-b224859fe63e@illuminatedcomputing.com); Robert Haas pushed it onto the PG17 open items (2024-04-26). Category for the revert sentence is a poor fit ('catalog' chosen because the fix needed implicit CHECK constraints linked to PK constraints in pg_constraint); the honest category is 'release timing / unresolved design'. cf_url 4308 is the CF entry that covered the 2024-01 commit period (2048 is the original 2019-2022 entry, Returned with feedback). Blind: first 6 messages are from 2021 (proposal and early patch versions); Peter Eisentraut's revert recommendation is position 142.",
+  "thread_message_count": 230,
+  "blind_n": 6,
+  "decisive_objection_position": 142,
+  "post_training_cutoff": false
+ },
+ {
+  "id": "sqljson-pg15",
+  "title": "SQL/JSON: functions (JSON_QUERY/JSON_VALUE/JSON_EXISTS, constructors, IS JSON, JSON_TABLE) for PG15",
+  "area": "SQL/JSON / executor",
+  "outcome": "reverted",
+  "proposer": "Nikita Glukhov",
+  "thread_url": "https://www.postgresql.org/message-id/flat/cd0bb935-0158-78a7-08b5-904886deac4b@postgrespro.ru",
+  "first_message_id": "cd0bb935-0158-78a7-08b5-904886deac4b@postgrespro.ru",
+  "first_message_date": "2018-01-10",
+  "cf_url": null,
+  "cutoff_date": "2022-03-03",
+  "decisive_objections": [
+   {
+    "who": "Andres Freund",
+    "date": "2022-08-15",
+    "message_url": "https://www.postgresql.org/message-id/20220815223853.itrlpqgpqheg6r6a@awork3.anarazel.de",
+    "quote": "I don't think it's sane from a performance view to start a subtransaction for every coercion, particularly because most coercion paths will never trigger an error, leaving things like out-of-memory or interrupts aside.",
+    "category": "hot-path performance"
+   },
+   {
+    "who": "Tom Lane",
+    "date": "2022-08-23",
+    "message_url": "https://www.postgresql.org/message-id/692364.1661267311@sss.pgh.pa.us",
+    "quote": "The problem here is that this was going to be a headline new feature for v15. Shipping what apparently is only an alpha-quality implementation seems pretty problematic unless we advertise it as such, and that's not something we've done very much in the past.",
+    "category": "maintenance burden"
+   },
+   {
+    "who": "Andres Freund",
+    "date": "2022-08-31",
+    "message_url": "https://www.postgresql.org/message-id/20220831154916.pgspuz3bp4427int@awork3.anarazel.de",
+    "quote": "It feels blatantly obvious that this code isn't even remotely close to being releasable.",
+    "category": "maintenance burden"
+   }
+  ],
+  "earlier_attempts": [],
+  "commit": "1a36bc9dba8",
+  "revert_commit": "2f2b18bd3f5",
+  "outcome_summary": "Andrew Dunstan committed the large SQL/JSON patch set for PG15 in March-April 2022 (f79b803dcc9 and 1a36bc9dba8 on 2022-03-03, JSON_TABLE 4e34747c88a on 2022-04-04). Post-feature-freeze review by Andres Freund found the ON ERROR handling ran a subtransaction per coercion and the code hard to follow; Tom Lane and Andres judged it alpha quality, and after an RMT-driven debate it was reverted from master (2f2b18bd3f5) and REL_15_STABLE (96ef3237bf7) on 2022-09-01. Reworked pieces landed in PG16 (IS JSON, constructors) and PG17 (query functions, JSON_TABLE) using soft error handling instead of subtransactions.",
+  "notes": "The revert discussion happened in a separate thread, 'SQL/JSON features for v15' (abd9b83b-aa66-f230-3d6d-734817f0995d@postgresql.org, 2022-08-09; commit cites 40d2c882-bcac-19a9-754d-4299e1d87ac7@postgresql.org, which resolves to the same thread), continuing Andres's earlier review at 20220811171740.m5b4h7x63g4lzgrk@awork3.anarazel.de (not fetched). commit field is the 'SQL/JSON query functions' commit; the reverted set is 23 commits listed in 2f2b18bd3f5. One piece ('Common SQL/JSON clauses') had already been reverted and re-applied in March 2022 for buildfarm failures (1460fc59425) - a small revert, not the feature revert. cutoff_date = first big commit date; the proposal thread spans 2018-2022 (151 messages). cf_url null: CF entries for the SQL/JSON series not located without login. The later PG17 'Revert recent SQL/JSON related commits' (4d7e24e0f4d, 2024-09-06) is a separate, smaller revert. Blind: first 6 messages are 2018 patch postings; the revert discussion is in a different thread (position null).",
+  "thread_message_count": 151,
+  "blind_n": 6,
+  "decisive_objection_position": null,
+  "post_training_cutoff": false
+ }
+]
