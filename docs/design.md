@@ -13,6 +13,7 @@ rubric is `prompts/committer-paranoia.md` (notes: `docs/haas-paranoia-notes.md`)
 ```
 bun run src/cli.ts <cf-id|cf-url|message-id|thread-url> [--blind N] [--before DATE] [--hint TEXT] [--out DIR] [--backend claude|codex] [--rounds N] [--self] [--no-enrich] [--dry-run] [--offline]
 bun run src/cli.ts --self --proposal FILE [--patch FILE ...]
+bun run src/cli.ts page <roast.json> [--out FILE] [--site DIR [--base-url URL]]
 bun run src/cli.ts doctor
 ```
 
@@ -60,7 +61,7 @@ input ──> thread loader ──> brief (LLM) ──> retrieval (code) ──>
                 roast.md <── render (code) <── assembly (code) <── synthesis (LLM) <── critic (LLM)
 ```
 
-10 LLM calls for the core of one roast (9 when no roaster raises anything: the critic is
+10 LLM calls for the core of one roast (11 when the tone lint finds something) (9 when no roaster raises anything: the critic is
 skipped), plus at most one repair call per stage when a reply is not valid JSON. Precedent
 enrichment adds up to 8 calls the first time a thread is seen (0 from cache) and 1 relevance
 call. `--rounds` adds more (see "Rounds").
@@ -210,12 +211,79 @@ the end of the Markdown with the critic's reason.
 the verdict: `audience` (`most users` | `a sizeable minority` | `niche` | `unclear`),
 `maintenance_burden` and `review_cost` (`low` | `medium` | `high`; review cost from the patch
 size and the subsystems in the touched-file list), `recommended_action` (`proceed` | `park` |
-`bundle` | `needs champion` | `withdraw and resubmit` | `fix design first`) and `reason`. It is
+`bundle` | `needs champion` | `needs design rethink` | `withdraw and resubmit` |
+`fix design first` | `close: dead or superseded`) and `reason`. For long-lived entries the
+prompt separates "dead or superseded" from "stuck": age alone is never a reason to recommend
+closing, and a recommendation to close must name a concrete reason (and what superseded it,
+only when that is in the thread or the corpus; else "unknown"). It is
 copied to the output as is. No verdict rule reads it.
 
 `roast-summary.txt` is built by `renderSummary()` from the same JSON: the draft header, title,
 verdict, the top three objections, the first prior attempt, the first question, the priority
 line and "not now" when it applies; never more than 10 lines, no markup, no model call.
+
+## Tone (`src/roast/tone.ts`)
+
+"Roast" is an internal name. Everything a person may forward reads as a design pre-review:
+calm, respectful, evidence-first. Three layers:
+
+1. **Prompts.** `roaster-common.md`, `critic.md` and `synth.md` carry the same tone section: the
+   rubric's persona is a way of thinking, not a voice; no snark, sarcasm, hyperbole, drama,
+   exclamation marks or intensifiers; write about the proposal, never about the author. Each
+   objection ends in one question the author can answer (`author_must_show`).
+2. **Labels.** The document title is "Design pre-review: <title>"; section 3 is "Objections a
+   reviewer is likely to raise"; the critic's part is shown as "Counter-check". The disclosure
+   line stays verbatim.
+3. **Lint in code**, before any file is written. `TONE_RULES` is a word and phrase list in five
+   groups (intensifiers, hyperbole, sarcasm markers, internal vocabulary such as "roast" and
+   "beat down", remarks about the author such as "you failed to") plus exclamation marks (not
+   `!=`, not inside a code span). It runs over every prose field the models wrote
+   (`proseFields()`): objections of every status, questions, verdict reasoning, brief,
+   committability, priority, self advice, notes. A listed objection's `author_must_show` must
+   also end with a question mark. Verbatim archive quotes are not checked: they are not ours
+   to rewrite.
+
+On a hit, one call (`prompts/tone.md`, synthesis model, label `tone-repair`) gets only the
+flagged sentences and returns one rewrite per sentence; code replaces exactly those sentences,
+after the usual link scrub. The lint runs again; what is still flagged is listed in
+`tone_lint.remaining` (path, rule, match, sentence), in the run section of `roast.md`, and in
+`warnings`. `pgroast page` runs the same lint on the JSON it is given and shows the count.
+
+The list is a filter for the common cases, not a judgment of tone: a rude sentence made of
+polite words passes, and a harmless use of a listed word ("the simply-named option") is
+rewritten or reported.
+
+## Page and site layout (`pgroast page`, `src/roast/page.ts`)
+
+`pgroast page <roast.json> [--out FILE]` renders the opt-in "full version": one self-contained
+HTML file (inline CSS, no scripts, no external requests, light and dark by
+`prefers-color-scheme`, readable on a phone) with every objection, including those that held
+up but are not listed, those refuted in the counter-check (with the reasoning) and those
+withdrawn, the evidence and archive links, touch points, questions, committability, priority,
+loaded invariants and the run section. The disclosure line is at the top and at the bottom.
+
+`--site DIR` writes the stable layout that a CommitFest app could include from:
+
+```
+DIR/cf/<cf-id>.html        embeddable fragment: a card, no <html>/<head>, classes with a
+                           pgroast- prefix, inline styles only, no scripts: verdict, top three
+                           questions, priority, disclosure, link to the full page
+DIR/cf/<cf-id>.json        the roast.json
+DIR/cf/<cf-id>/full.html   the full page
+DIR/msg/<message-id>.*     the same for a thread without a CommitFest entry (characters
+                           outside [A-Za-z0-9._-] become "_")
+```
+
+The card's link is `{{PGROAST_BASE_URL}}/cf/<cf-id>/full.html` until `--base-url URL` fills it
+in. No index is written: an entry without a review is absent, which is a 404 on any static
+host. The command makes no model call and no network request, and there is no upload, hosting
+or publishing code: where the files go is a person's decision.
+
+Everything in roast.json is untrusted in an HTML context (model output, archive text, titles,
+links). Every value passes `esc()` (`& < > " ' \``), and a link is emitted only when
+`safeUrl()` accepts it as a plain http(s) URL; any other value is shown as text. A test feeds a
+roast in which every text and URL field is hostile and checks that the output contains only
+tags from a fixed list and no href other than https.
 
 ## Rounds (`--rounds N`, default 0)
 
@@ -348,6 +416,7 @@ The eval runner should import from this file: `Roast`, `FinalObjection`, `PriorA
 | `priority` | `audience`, `maintenance_burden`, `review_cost`, `recommended_action`, `reason` |
 | `self_advice[]` | self mode: `objection_id`, `action` (`fix` \| `rebut`), `how` |
 | `rounds_requested`, `rounds[]` | per round: `kind`, `llm_calls`, `new_objections`, `new_survived`, `revised`, `withdrawn`, `follow_ups` |
+| `tone_lint` | `fields_checked`, `hits_found`, `sentences_rewritten`, `repair_call`, `remaining[]` |
 | `invariants_loaded[]` | invariant files given to the roasters |
 | `enrichment` | counts: candidates, from cache, new calls, failed, quotes verified / dropped, relevance pass |
 | `touch_points[15]` | `id`, `label`, `hit`, `reason` |

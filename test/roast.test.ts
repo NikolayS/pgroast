@@ -1,8 +1,9 @@
 import { describe, expect, test } from "bun:test";
-import { mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { parseArgs } from "../src/cli.ts";
+import { parseArgs, runPage } from "../src/cli.ts";
+import { BASE_URL_PLACEHOLDER, esc, renderFragment, renderPage, safeMessageId, safeUrl, siteFiles } from "../src/roast/page.ts";
 import {
   API_KEY_VARS,
   assertAllowedModel,
@@ -1361,5 +1362,161 @@ describe("tone lint", () => {
       expect(t).toContain("## Tone of everything you write");
       expect(t).toContain("of thinking, not a voice");
     }
+  });
+});
+
+// ----------------------------------------------------------------------------- page
+
+describe("page and site layout", () => {
+  const base = runRoast(proposal(5), {
+    enrichStore: new MemoryEnrichmentStore(),
+    enrichLoadThread: async () => OLD_THREAD,
+    enrichClosers: async () => [],
+    backend: new FakeBackend(fakeAnswers),
+    models: modelsFromEnv({}),
+    search: async () => PRECEDENTS,
+    log: () => undefined,
+    now: () => new Date("2026-11-11T00:00:00Z"),
+  });
+  const TAGS = new Set("html head meta title style body main p h1 h2 h3 ul ol li a section span code dl dt dd div table thead tbody tr th td strong footer".split(" "));
+  const tagsOf = (html: string) => new Set([...html.replace(/<!DOCTYPE html>/, "").replace(/<style>[\s\S]*?<\/style>/, "<style></style>").matchAll(/<\/?([A-Za-z][A-Za-z0-9-]*)/g)].map((m) => m[1]!.toLowerCase()));
+
+  test("the full page holds every objection, listed or not, refuted or not, and the disclosure twice", async () => {
+    const r = await base;
+    const html = renderPage(r);
+    expect(html.startsWith("<!DOCTYPE html>")).toBe(true);
+    expect(html.split(esc(DISCLOSURE)).length - 1).toBe(2);
+    expect(html.indexOf(esc(DISCLOSURE))).toBeLessThan(html.indexOf("<h1>"));
+    expect(html).toContain("<h1>Design pre-review: Support Int64 GUCs</h1>");
+    for (const o of [...r.objections, ...r.other_surviving, ...r.refuted]) {
+      expect(html).toContain(`id="${o.id}"`);
+      expect(html).toContain(esc(o.critic.reasoning));
+    }
+    expect(r.refuted.length).toBeGreaterThan(0);
+    expect(html).toContain("Refuted in the counter-check (not specific). Applies to any patch.");
+    expect(html).toContain("<h2>Touch points</h2>");
+    expect(html).toContain("<h2>Committability</h2>");
+    expect(html).toContain("<dt>Recommended action</dt><dd>needs champion</dd>");
+    expect(html).toContain("Subsystem invariants: none loaded");
+    expect(html).toContain("Tone check: 0 finding(s)");
+    expect(html).toContain("Which settings need more than 31 bits?");
+    expect(html).toContain('href="https://commitfest.postgresql.org/patch/5253/"');
+    // self-contained: no scripts, no external resources, light and dark, mobile viewport
+    expect(html).not.toMatch(/<script|<link|<img|<iframe|@import|url\(|\ssrc=|\son[a-z]+=/i);
+    expect(html).toContain("prefers-color-scheme:dark");
+    expect(html).toContain('name="viewport"');
+    for (const t of tagsOf(html)) expect(TAGS.has(t)).toBe(true);
+    expect(html).not.toMatch(/steelman|PG Roast|roaster/i);
+  });
+
+  test("hostile text and links are escaped: nothing from roast.json becomes markup or a script link", async () => {
+    const r = structuredClone(await base);
+    const evil = `"><script>alert(1)</script><img src=x onerror=alert(2)> ' \` & </style></title>`;
+    r.input.cf!.title = evil;
+    r.input.subject = evil;
+    r.input.cf!.authors = evil;
+    r.input.cf!.url = "javascript:alert(3)";
+    r.input.thread_url = `https://www.postgresql.org/x" onmouseover="alert(4)`;
+    r.verdict = evil as typeof r.verdict;
+    r.verdict_reasoning = evil;
+    r.questions = [evil];
+    r.brief.problem = evil;
+    r.priority.reason = evil;
+    r.priority.recommended_action = evil as typeof r.priority.recommended_action;
+    r.committability.liability = evil;
+    r.warnings = [evil];
+    r.disclosure = evil;
+    r.generated_at = evil;
+    r.invariants_loaded = [evil];
+    for (const o of [...r.objections, ...r.refuted, ...r.other_surviving]) {
+      o.id = evil;
+      o.title = evil;
+      o.argument = evil;
+      o.failure_scenario = evil;
+      o.author_must_show = evil;
+      o.critic.reasoning = evil;
+      o.angle = evil as typeof o.angle;
+      o.precedents = [{ id: "P1", title: evil, url: "data:text/html,<script>alert(5)</script>", thread_urls: ["JaVaScRiPt:alert(6)", "https://ok.example/thread"], date: evil, status: evil }];
+      o.thread_refs = [{ index: 1, from: evil, date: evil, url: " javascript:alert(7)" }];
+    }
+    for (const x of r.prior_attempts) {
+      x.title = evil;
+      x.url = "vbscript:x";
+      x.quote = evil;
+      x.quote_url = "javascript:alert(8)";
+      x.reason = evil;
+      x.who_objected = evil;
+      x.thread_urls = [evil];
+    }
+    for (const t of r.touch_points) {
+      t.hit = true;
+      t.reason = evil;
+      t.label = evil;
+    }
+    for (const html of [renderPage(r), renderFragment(r, `${BASE_URL_PLACEHOLDER}/cf/1/full.html`), renderFragment(r, `javascript:alert(9)`), renderFragment(r, `x" onclick="alert(10)`)]) {
+      expect(html).not.toMatch(/<script|<img/i);
+      expect(html).not.toMatch(/href="\s*(javascript|vbscript|data):/i);
+      expect(html).not.toMatch(/\son[a-z]+\s*=\s*"/i);
+      for (const m of html.matchAll(/href="([^"]*)"/g)) expect(m[1]!.startsWith("https://") || m[1]!.startsWith(BASE_URL_PLACEHOLDER)).toBe(true);
+      for (const t of tagsOf(html)) expect(TAGS.has(t)).toBe(true);
+      expect(html).toContain("&lt;script&gt;alert(1)&lt;/script&gt;");
+    }
+    const page = renderPage(r);
+    expect(page.match(/<title>/g)!.length).toBe(1);
+    expect(page.match(/<\/style>/g)!.length).toBe(1);
+    expect(page).toContain('href="https://ok.example/thread"');
+    expect(esc(`<a href="x" onclick='y'>&\``)).toBe("&lt;a href=&quot;x&quot; onclick=&#39;y&#39;&gt;&amp;&#96;");
+    expect(safeUrl("https://www.postgresql.org/message-id/x%40y")).toBe("https://www.postgresql.org/message-id/x%40y");
+    for (const u of ["javascript:alert(1)", "data:text/html,x", "//evil.example", "https://a b", 'https://a/"x', "", null, "ftp://x"]) expect(safeUrl(u)).toBeNull();
+  });
+
+  test("fragment: a card without html/head, pgroast- classes, inline styles, no scripts, verdict, questions, priority, disclosure", async () => {
+    const r = await base;
+    const f = renderFragment(r, `${BASE_URL_PLACEHOLDER}/cf/5253/full.html`);
+    expect(f.startsWith('<div class="pgroast-card"')).toBe(true);
+    expect(f).not.toMatch(/<html|<head|<body|<style|<script|<link|<!DOCTYPE/i);
+    const classes = [...f.matchAll(/class="([^"]+)"/g)].flatMap((m) => m[1]!.split(/\s+/));
+    expect(classes.length).toBeGreaterThan(5);
+    for (const c of classes) expect(c.startsWith("pgroast-")).toBe(true);
+    for (const m of f.matchAll(/<(p|div|ol)\b([^>]*)>/g)) expect(m[2]).toContain('style="');
+    expect(f).toContain(esc(DISCLOSURE));
+    expect(f).toContain(`Pre-review verdict: <strong>${r.verdict}</strong>`);
+    expect(f).toContain('<li class="pgroast-question">Which settings need more than 31 bits?</li>');
+    expect(f).toContain("Priority: needs champion; audience: niche;");
+    expect(f).toContain('href="{{PGROAST_BASE_URL}}/cf/5253/full.html"');
+    expect(f.replace(/pgroast-|PGROAST_/g, "")).not.toMatch(/roast/i);
+  });
+
+  test("site layout: cf/<id>.html, .json, <id>/full.html; msg/<id> for a thread; nothing else; local files only", async () => {
+    const r = await base;
+    const files = siteFiles(r);
+    expect(files.map((f) => f.path)).toEqual(["cf/5253.html", "cf/5253.json", "cf/5253/full.html"]);
+    expect(JSON.parse(files[1]!.content)).toEqual(JSON.parse(JSON.stringify(r)));
+    expect(files[2]!.content.startsWith("<!DOCTYPE html>")).toBe(true);
+    expect(siteFiles(r, "https://example.org/pre/")[0]!.content).toContain('href="https://example.org/pre/cf/5253/full.html"');
+
+    const thread = { ...r, input: { ...r.input, cf: null, thread_url: "https://www.postgresql.org/message-id/flat/CAJ7c6%2Bx%3Dy%40mail.gmail.com" } };
+    expect(siteFiles(thread).map((f) => f.path)).toEqual(["msg/CAJ7c6_x_y_mail.gmail.com.html", "msg/CAJ7c6_x_y_mail.gmail.com.json", "msg/CAJ7c6_x_y_mail.gmail.com/full.html"]);
+    expect(safeMessageId("../../etc/passwd@x")).toBe("__.._etc_passwd_x");
+    expect(safeMessageId("../../etc/passwd@x")).not.toContain("/");
+    expect(() => siteFiles({ ...r, input: { ...r.input, cf: null, thread_url: "" } })).toThrow(/neither/);
+
+    const dir = mkdtempSync(join(tmpdir(), "pgroast-site-"));
+    writeFileSync(join(dir, "roast.json"), JSON.stringify(r));
+    const written = runPage({ json: join(dir, "roast.json"), site: join(dir, "site") });
+    expect(written.map((w) => w.slice(dir.length + 1))).toEqual(["site/cf/5253.html", "site/cf/5253.json", "site/cf/5253/full.html"]);
+    expect(existsSync(join(dir, "site", "index.html"))).toBe(false);
+    expect(runPage({ json: join(dir, "roast.json") })).toEqual([join(dir, "roast.html")]);
+    expect(readFileSync(join(dir, "roast.html"), "utf8")).toBe(renderPage(r));
+    writeFileSync(join(dir, "old.json"), JSON.stringify({ verdict: "x" }));
+    expect(() => runPage({ json: join(dir, "old.json") })).toThrow(/not a roast.json of this version/);
+
+    expect(parseArgs(["page", "out/x/roast.json", "--site", "site", "--base-url=https://example.org/p"])).toMatchObject({ page: { json: "out/x/roast.json", site: "site", baseUrl: "https://example.org/p" } });
+    expect(() => parseArgs(["page"])).toThrow(/roast.json/);
+    expect(() => parseArgs(["page", "a.json", "--out", "x.html", "--site", "d"])).toThrow(/not both/);
+    expect(() => parseArgs(["page", "a.json", "--site", "d", "--base-url", "javascript:alert(1)"])).toThrow(/http/);
+    expect(() => parseArgs(["page", "a.json", "--upload"])).toThrow(/unknown option/);
+    // no publishing code: the page module and the CLI have no network call
+    for (const f of ["src/roast/page.ts", "src/cli.ts"]) expect(readFileSync(join(import.meta.dir, "..", f), "utf8")).not.toMatch(/\bfetch\(|Bun\.serve|https\.request|XMLHttpRequest|net\.connect/);
   });
 });

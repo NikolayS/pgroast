@@ -2,13 +2,16 @@
 // pgroast <cf-id|cf-url|message-id|thread-url> [--blind N] [--before DATE] [--hint TEXT] [--out DIR]
 //         [--backend claude|codex] [--rounds N] [--self] [--dry-run]
 // pgroast --self --proposal FILE [--patch FILE ...]
+// pgroast page <roast.json> [--out FILE] [--site DIR [--base-url URL]]
 // pgroast doctor
 //
 // Writes roast.md, roast.json and roast-summary.txt to a local directory. It never posts
 // anything anywhere.
 
-import { mkdirSync, writeFileSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
+import { renderPage, safeUrl, siteFiles } from "./roast/page.ts";
+import type { Roast } from "./roast/schema.ts";
 import { REPO_ROOT, stats as fetchStats } from "./thread/fetch.ts";
 import { loadProposal, validateDate } from "./thread/load.ts";
 import { loadLocalProposal } from "./thread/local.ts";
@@ -20,6 +23,7 @@ import { renderMarkdown, renderSummary } from "./roast/render.ts";
 
 const USAGE = `Usage: bun run src/cli.ts <cf-id|cf-url|message-id|thread-url> [options]
        bun run src/cli.ts --self --proposal FILE [--patch FILE ...]
+       bun run src/cli.ts page <roast.json> [--out FILE] [--site DIR [--base-url URL]]
        bun run src/cli.ts doctor      check the installed CLIs and their login
 
   --self           your own proposal, before you send it: same roast, written for the author
@@ -41,6 +45,13 @@ const USAGE = `Usage: bun run src/cli.ts <cf-id|cf-url|message-id|thread-url> [o
   --dry-run        print the prompts, call no model
   --offline        use only cached pages
   -h, --help
+
+page: renders a finished roast.json, with no model call, to one self-contained HTML file
+(default: roast.html next to the JSON; --out FILE), or with --site DIR to a static layout:
+DIR/cf/<cf-id>.html (embeddable card), DIR/cf/<cf-id>.json, DIR/cf/<cf-id>/full.html
+(DIR/msg/<message-id>.* for a thread without a CommitFest entry). The card links to
+{{PGROAST_BASE_URL}}/cf/<cf-id>/full.html unless --base-url is given. Local files only:
+nothing is uploaded or published.
 
 The model runs through an installed Claude Code or Codex CLI on your subscription login.
 No API key is used: API key variables are removed from the CLI's environment.
@@ -66,12 +77,14 @@ export interface CliArgs {
   proposal?: string;
   patches?: string[];
   rounds?: number;
+  page?: { json: string; out?: string; site?: string; baseUrl?: string };
   dryRun: boolean;
   offline: boolean;
 }
 
 export function parseArgs(argv: string[]): CliArgs | "help" {
   const a: CliArgs = { input: "", dryRun: false, offline: false };
+  if (argv[0] === "page") return parsePageArgs(argv.slice(1));
   const rest = [...argv];
   const value = (flag: string, inline: string | undefined): string => {
     const v = inline ?? rest.shift();
@@ -150,6 +163,64 @@ export function parseArgs(argv: string[]): CliArgs | "help" {
   return a;
 }
 
+function parsePageArgs(argv: string[]): CliArgs | "help" {
+  const page: NonNullable<CliArgs["page"]> = { json: "" };
+  const rest = [...argv];
+  while (rest.length) {
+    const tok = rest.shift()!;
+    const eq = tok.startsWith("--") && tok.includes("=") ? tok.indexOf("=") : -1;
+    const flag = eq > 0 ? tok.slice(0, eq) : tok;
+    const inline = eq > 0 ? tok.slice(eq + 1) : undefined;
+    const value = (): string => {
+      const v = inline ?? rest.shift();
+      if (v == null || v === "") throw new Error(`${flag} needs a value`);
+      return v;
+    };
+    if (flag === "-h" || flag === "--help") return "help";
+    else if (flag === "--out") page.out = value();
+    else if (flag === "--site") page.site = value();
+    else if (flag === "--base-url") {
+      const u = value();
+      if (!safeUrl(u)) throw new Error("--base-url must be an http(s) URL");
+      page.baseUrl = u;
+    } else if (flag.startsWith("--")) throw new Error(`unknown option ${flag} for page`);
+    else if (page.json) throw new Error(`unexpected argument "${tok}"`);
+    else page.json = tok;
+  }
+  if (!page.json) throw new Error("page needs the path of a roast.json");
+  if (page.out && page.site) throw new Error("give --out FILE or --site DIR, not both");
+  if (page.baseUrl && !page.site) throw new Error("--base-url is for --site");
+  return { input: "page", dryRun: false, offline: false, page };
+}
+
+/** `pgroast page`: roast.json -> static HTML. No model, no network, local files only. */
+export function runPage(page: NonNullable<CliArgs["page"]>, log: (m: string) => void = () => undefined): string[] {
+  let roast: Roast;
+  try {
+    roast = JSON.parse(readFileSync(page.json, "utf8")) as Roast;
+  } catch (e) {
+    throw new Error(`cannot read ${page.json}: ${(e as Error).message}`);
+  }
+  const missing = ["verdict", "objections", "other_surviving", "refuted", "withdrawn", "touch_points", "questions", "committability", "priority", "rounds", "invariants_loaded", "disclosure", "brief", "input"].filter(
+    (k) => (roast as unknown as Record<string, unknown>)?.[k] == null,
+  );
+  if (missing.length) throw new Error(`${page.json} is not a roast.json of this version (missing: ${missing.join(", ")}); run the roast again`);
+  const written: string[] = [];
+  const write = (file: string, content: string) => {
+    mkdirSync(dirname(file), { recursive: true });
+    writeFileSync(file, content);
+    written.push(file);
+    log(`wrote ${file}`);
+  };
+  if (page.site) {
+    const dir = resolve(page.site);
+    for (const f of siteFiles(roast, page.baseUrl)) write(join(dir, f.path), f.content);
+  } else {
+    write(resolve(page.out ?? join(dirname(page.json), "roast.html")), renderPage(roast));
+  }
+  return written;
+}
+
 async function main(): Promise<number> {
   let args: CliArgs | "help";
   try {
@@ -160,6 +231,10 @@ async function main(): Promise<number> {
   }
   if (args === "help") {
     console.log(USAGE);
+    return 0;
+  }
+  if (args.page) {
+    runPage(args.page, (m) => console.error(m));
     return 0;
   }
   if (args.doctor) {
