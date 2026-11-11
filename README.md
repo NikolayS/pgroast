@@ -74,7 +74,7 @@ Full design: [docs/design.md](docs/design.md).
 
    PG Roast starts that CLI for every model call, so the calls count toward the limits of the account the CLI is signed in to. A roast is 12 to 20 calls. No API key is needed or used: `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`, `OPENAI_API_KEY` and `CODEX_API_KEY` are removed from the CLI's environment, and a call fails if the CLI reports that it is using a key.
 2. **[Bun](https://bun.sh) 1.3.5 or later.** There are no npm dependencies.
-3. **Postgres 18** with `psql` on the PATH, for the precedent index (database `pgroast`; `PGROAST_DSN` if it is not on the local socket).
+3. **Postgres 18**, for the precedent index (database `pgroast`; `PGROAST_DSN` if it is not on the local socket). `createdb` and `psql` are used once, to load the index.
 4. A clone of the Postgres repository, only if you rebuild the index (`PGROAST_PG_REPO`).
 
 ## Quick start
