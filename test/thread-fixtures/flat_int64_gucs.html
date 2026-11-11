@@ -1,0 +1,2218 @@
+<!doctype html>
+<html lang="en">
+ <head>
+  <title>PostgreSQL: [PATCH] Support Int64 GUCs</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+  <meta http-equiv="Content-Type" content="text/xhtml; charset=utf-8" />
+  <meta property="og:url" content="https://www.postgresql.org/message-id/flat/CAJ7c6TMvPz8q%2BnC%3DJoKniy7yxPzQYcCTnNFYmsDP-nnWsAOJ2g%40mail.gmail.com" />
+  <meta property="og:type" content="article" />
+  <meta property="article:author" content="Aleksander Alekseev" />
+  <meta property="article:published_time" content="2024-09-12T11:08:15" />
+  <meta property="og:image" content="https://www.postgresql.org/media-archives/img/about/press/elephant.png" />
+  <meta property="og:title" content="[PATCH] Support Int64 GUCs" />
+  <meta property="og:description" content="" />
+  <meta property="og:site_name" content="PostgreSQL Mailing List Archives" />
+   
+  <meta name="theme-color" content="#336791"/>
+  <meta name="copyright" content="The PostgreSQL Global Development Group" />
+  <link href="/media-archives/css/fontawesome.css?1f02c594" rel="stylesheet">
+  <link rel="stylesheet" href="/media-archives/css/bootstrap.min.css?1f02c594">
+  <link rel="shortcut icon" href="/favicon.ico" />
+  
+  <link rel="stylesheet" type="text/css" href="/dyncss/base.css?1f02c594">
+  
+<meta name="robots" content="noindex" />
+
+  </head>
+  <body>
+    <div class="container-fluid">
+      <div class="row justify-content-md-center">
+        <div class="col">
+          <!-- Header -->
+          <nav class="navbar navbar-expand-lg navbar-light bg-light">
+            <a class="navbar-brand p-0" href="/">
+              <img class="logo" src="/media-archives/img/about/press/elephant.png" alt="PostgreSQL Elephant Logo">
+            </a>
+            <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#pgNavbar" aria-controls="pgNavbar" aria-expanded="false" aria-label="Toggle navigation">
+              <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="pgNavbar">
+              <ul class="navbar-nav mr-auto">
+                <li class="nav-item p-2"><a href="/" title="Home">Home</a></li>
+                <li class="nav-item p-2"><a href="/about/" title="About">About</a></li>
+                <li class="nav-item p-2"><a href="/download/" title="Download">Download</a></li>
+                <li class="nav-item p-2"><a href="/docs/" title="Documentation">Documentation</a></li>
+                <li class="nav-item p-2"><a href="/community/" title="Community">Community</a></li>
+                <li class="nav-item p-2"><a href="/developer/" title="Developers">Developers</a></li>
+                <li class="nav-item p-2"><a href="/support/" title="Support">Support</a></li>
+                <li class="nav-item p-2"><a href="/about/donate/" title="Donate">Donate</a></li>
+                <li class="nav-item p-2"><a href="/account/" title="Your account">Your account</a></li>
+              </ul>
+             <form role="search" method="get" action="https://www.postgresql.org/search/">
+               <div class="input-group">
+                 <input id="q" name="q" type="text" size="20" maxlength="255" accesskey="s"  class="form-control" placeholder="Search for...">
+                 <span class="input-group-btn">
+                   <button class="btn btn-default" type="submit"><i class="fas fa-search"></i></button>
+                 </span>
+               </div><!-- /input-group -->
+             </form>
+            </div>
+          </nav>
+        </div>
+      </div>
+      
+    </div>
+    
+<div class="container-fluid margin archive">
+  <div class="row">
+    <div class="col-lg-2">
+      <div id="pgSideWrap">
+       <div id="pgSideNav">
+         <h2>Quick Links</h2>
+         <ul>
+            <li><a href="/community/">Community</a></li>
+            <li><a href="/community/contributors/">Contributors</a></li>
+            <li><a href="/list/">Mailing Lists</a></li>
+            <li><a href="/community/irc/">IRC</a></li>
+            
+            <li><a href="/community/user-groups/">Local User Groups</a></li>
+            <li><a href="/about/events/">Events</a></li>
+            <li class="last-child"><a href="/community/international/">International Sites</a></li>
+         </ul>
+       </div>
+      </div> <!-- pgSideWrap -->
+    </div>
+    <div class="col-lg-10">
+      <div id="pgContentWrap">
+        
+
+<h1 id="flatMsgSubject" class="subject" data-isfirst="True" data-msgid="7ca85c1b078002e52407da68140868e0">[PATCH] Support Int64 GUCs</h1>
+<table class="table-sm table-responsive message-header" style="border-bottom: 0.05em solid #E7EAE8; margin-bottom: 1em;">
+ <tr>
+  <th scope="row" style="width: 10%">Lists:</th>
+  <td><span class="listname"><a href="/list/pgsql-hackers/since/202409121108">pgsql-hackers</a></span></td>
+</table>
+
+
+
+<a name="CAJ7c6TMvPz8q+nC=JoKniy7yxPzQYcCTnNFYmsDP-nnWsAOJ2g@mail.gmail.com"></a>
+<a name="7ca85c1b078002e52407da68140868e0"></a>
+
+
+<table class="table-sm table-responsive message-header" style="border-bottom: 0.05em solid #E7EAE8; margin-bottom: 1em;">
+ <tr>
+  <th scope="row" style="width: 10%">From:</th>
+  <td>Aleksander Alekseev &lt;aleksander(at)timescale(dot)com&gt;</td>
+ </tr>
+ <tr>
+  <th scope="row">To:</th>
+  <td>PostgreSQL Hackers &lt;pgsql-hackers(at)lists(dot)postgresql(dot)org&gt;</td>
+ </tr>
+
+ <tr>
+  <th scope="row">Subject:</th>
+  <td>[PATCH] Support Int64 GUCs</td>
+ </tr>
+ <tr>
+  <th scope="row">Date:</th>
+  <td>2024-09-12 11:08:15</td>
+ </tr>
+ <tr>
+  <th scope="row">Message-ID:</th>
+  <td><a href="/message-id/CAJ7c6TMvPz8q%2BnC%3DJoKniy7yxPzQYcCTnNFYmsDP-nnWsAOJ2g%40mail.gmail.com">CAJ7c6TMvPz8q+nC=JoKniy7yxPzQYcCTnNFYmsDP-nnWsAOJ2g@mail.gmail.com</a></td>
+ </tr>
+ <tr>
+   <th class="align-middle" scope="row">Views:</th>
+   <td>
+     <a href="/message-id/flat/CAJ7c6TMvPz8q%2BnC%3DJoKniy7yxPzQYcCTnNFYmsDP-nnWsAOJ2g%40mail.gmail.com">Whole Thread</a> |
+     <a href="#" data-ref="/message-id/raw/CAJ7c6TMvPz8q%2BnC%3DJoKniy7yxPzQYcCTnNFYmsDP-nnWsAOJ2g%40mail.gmail.com" class="post-link">Raw Message</a> |
+     <a href="#" data-ref="/message-id/mbox/CAJ7c6TMvPz8q%2BnC%3DJoKniy7yxPzQYcCTnNFYmsDP-nnWsAOJ2g%40mail.gmail.com" class="post-link">Download mbox</a>
+ | <a href="#" data-ref="/message-id/resend/CAJ7c6TMvPz8q%2BnC%3DJoKniy7yxPzQYcCTnNFYmsDP-nnWsAOJ2g%40mail.gmail.com" class="post-link">Resend email</a>
+   </td>
+ </tr>
+ 
+  
+    <tr>
+      <th scope="row">Lists:</th>
+      <td>
+        
+          <span class="listname"><a href="/list/pgsql-hackers/since/202409120000">pgsql-hackers</a></span>
+        
+      </td>
+    </tr>
+  
+</table>
+
+<div class="message-content"><p>Hi,</p>
+
+<p>Attached is a self-sufficient patch extracted from a larger patchset<br>[1]. The entire patchset probably will not proceed further in the<br>nearest future. Since there was interest in this particular patch it<br>deserves being discussed in a separate thread.</p>
+
+<p>Currently we support 32-bit integer values in GUCs, but don&#x27;t support<br>64-bit ones. The proposed patch adds this support.</p>
+
+<p>Firstly, it adds DefineCustomInt64Variable() which can be used by the<br>extension authors.</p>
+
+<p>Secondly, the following core GUCs are made 64-bit:</p>
+
+<p>```<br>autovacuum_freeze_min_age<br>autovacuum_freeze_max_age<br>autovacuum_freeze_table_age<br>autovacuum_multixact_freeze_min_age<br>autovacuum_multixact_freeze_max_age<br>autovacuum_multixact_freeze_table_age<br>```</p>
+
+<p>I see several open questions with the patch in its current state.</p>
+
+<p>Firstly, I&#x27;m not sure if it is beneficial to affect the named GUCs out<br>of the context of the larger patchset. Perhaps we have better GUCs<br>that could benefit from being 64-bit? Or should we just leave alone<br>the core GUCs and focus on providing DefineCustomInt64Variable() ?</p>
+
+<p>Secondly, DefineCustomInt64Variable() is not test-covered. Turned out<br>it was not even defined (although declared) in the original patch.<br>This was fixed in the attached version. Maybe one of the test modules<br>could use it even if it makes little sense for this particular module?<br>For instance, test/modules/worker_spi/ could use it for<br>worker_spi.naptime.</p>
+
+<p>Last but not least, large values like 12345678912345 could be<br>difficult to read. Perhaps we should also support 12_345_678_912_345<br>syntax? This is not implemented in the attached patch and arguably<br>could be discussed separately when and if we merge it.</p>
+
+<p>Thoughts?</p>
+
+<p>[1]: <a href="https://www.postgresql.org/message-id/flat/CAJ7c6TP9Ce021ebJ=5zOhMjiG3Wqg4hO6Mg0WsccErvAD9vZYA@mail.gmail.com" rel="nofollow">https://www.postgresql.org/message-id/flat/CAJ7c6TP9Ce021ebJ%3D5zOhMjiG3Wqg4hO6Mg0WsccErvAD9vZYA%40mail.gmail.com</a></p>
+
+<p>--<br>Best regards,<br>Aleksander Alekseev<br></p></div>
+
+
+  <table class="table table-sm table-responsive message-attachments">
+    <thead>
+      <tr>
+        <th scope="col">Attachment</th>
+        <th scope="col">Content-Type</th>
+        <th scope="col">Size</th>
+      </tr>
+    </thead>
+    <tbody>
+      
+        <tr>
+          <th scope="row">
+            
+              <a href="/message-id/attachment/165178/v1-0001-Support-64-bit-integer-GUCs.patch">v1-0001-Support-64-bit-integer-GUCs.patch</a>
+            
+          </th>
+          <td>application/octet-stream</td>
+          <td>33.5 KB</td>
+        </tr>
+      
+    </tbody>
+  </table>
+
+
+
+
+
+
+
+
+
+
+
+  <hr style="margin-bottom: 0.5rem;" />
+
+
+<a name="CALT9ZEGPxHFs_=r1MuXUWLCbiup_m4iop1X3R=aSR_YtysSFuQ@mail.gmail.com"></a>
+<a name="beba0cf09762847e66f8c1e70abbc694"></a>
+
+
+<table class="table-sm table-responsive message-header" style="border-bottom: 0.05em solid #E7EAE8; margin-bottom: 1em;">
+ <tr>
+  <th scope="row" style="width: 10%">From:</th>
+  <td>Pavel Borisov &lt;pashkin(dot)elfe(at)gmail(dot)com&gt;</td>
+ </tr>
+ <tr>
+  <th scope="row">To:</th>
+  <td>Aleksander Alekseev &lt;aleksander(at)timescale(dot)com&gt;</td>
+ </tr>
+
+ <tr>
+  <th scope="row">Cc:</th>
+  <td>PostgreSQL Hackers &lt;pgsql-hackers(at)lists(dot)postgresql(dot)org&gt;</td>
+ </tr>
+
+ <tr>
+  <th scope="row">Subject:</th>
+  <td>Re: [PATCH] Support Int64 GUCs</td>
+ </tr>
+ <tr>
+  <th scope="row">Date:</th>
+  <td>2024-09-12 11:29:14</td>
+ </tr>
+ <tr>
+  <th scope="row">Message-ID:</th>
+  <td><a href="/message-id/CALT9ZEGPxHFs_%3Dr1MuXUWLCbiup_m4iop1X3R%3DaSR_YtysSFuQ%40mail.gmail.com">CALT9ZEGPxHFs_=r1MuXUWLCbiup_m4iop1X3R=aSR_YtysSFuQ@mail.gmail.com</a></td>
+ </tr>
+ <tr>
+   <th class="align-middle" scope="row">Views:</th>
+   <td>
+     <a href="/message-id/flat/CALT9ZEGPxHFs_%3Dr1MuXUWLCbiup_m4iop1X3R%3DaSR_YtysSFuQ%40mail.gmail.com">Whole Thread</a> |
+     <a href="#" data-ref="/message-id/raw/CALT9ZEGPxHFs_%3Dr1MuXUWLCbiup_m4iop1X3R%3DaSR_YtysSFuQ%40mail.gmail.com" class="post-link">Raw Message</a> |
+     <a href="#" data-ref="/message-id/mbox/CALT9ZEGPxHFs_%3Dr1MuXUWLCbiup_m4iop1X3R%3DaSR_YtysSFuQ%40mail.gmail.com" class="post-link">Download mbox</a>
+ | <a href="#" data-ref="/message-id/resend/CALT9ZEGPxHFs_%3Dr1MuXUWLCbiup_m4iop1X3R%3DaSR_YtysSFuQ%40mail.gmail.com" class="post-link">Resend email</a>
+   </td>
+ </tr>
+ 
+  
+    <tr>
+      <th scope="row">Lists:</th>
+      <td>
+        
+          <span class="listname"><a href="/list/pgsql-hackers/since/202409120000">pgsql-hackers</a></span>
+        
+      </td>
+    </tr>
+  
+</table>
+
+<div class="message-content"><p>Hi, Alexander!<br>Thank you for working on this!</p>
+
+<p>On Thu, 12 Sept 2024 at 15:08, Aleksander Alekseev &lt;aleksander(at)timescale(dot)com&gt;<br>wrote:</p>
+
+<p>&gt; Hi,<br>&gt;<br>&gt; Attached is a self-sufficient patch extracted from a larger patchset<br>&gt; [1]. The entire patchset probably will not proceed further in the<br>&gt; nearest future. Since there was interest in this particular patch it<br>&gt; deserves being discussed in a separate thread.<br>&gt;<br>&gt; Currently we support 32-bit integer values in GUCs, but don&#x27;t support<br>&gt; 64-bit ones. The proposed patch adds this support.<br>&gt;<br>&gt; Firstly, it adds DefineCustomInt64Variable() which can be used by the<br>&gt; extension authors.<br>&gt;<br>&gt; Secondly, the following core GUCs are made 64-bit:<br>&gt;<br>&gt; ```<br>&gt; autovacuum_freeze_min_age<br>&gt; autovacuum_freeze_max_age<br>&gt; autovacuum_freeze_table_age<br>&gt; autovacuum_multixact_freeze_min_age<br>&gt; autovacuum_multixact_freeze_max_age<br>&gt; autovacuum_multixact_freeze_table_age<br>&gt; ```<br>&gt;<br>&gt; I see several open questions with the patch in its current state.<br>&gt;<br>&gt; Firstly, I&#x27;m not sure if it is beneficial to affect the named GUCs out<br>&gt; of the context of the larger patchset. Perhaps we have better GUCs<br>&gt; that could benefit from being 64-bit? Or should we just leave alone<br>&gt; the core GUCs and focus on providing DefineCustomInt64Variable() ?<br>&gt;<br>I think the direction is good and delivering 64-bit GUCs is very much worth<br>committing.<br>The patch itself looks good, but we could need to add locks against<br>concurrently modifying 64-bit values, which could be non-atomic on older<br>architectures.</p>
+
+<p>&gt; Secondly, DefineCustomInt64Variable() is not test-covered. Turned out<br>&gt; it was not even defined (although declared) in the original patch.<br>&gt; This was fixed in the attached version. Maybe one of the test modules<br>&gt; could use it even if it makes little sense for this particular module?<br>&gt; For instance, test/modules/worker_spi/ could use it for<br>&gt; worker_spi.naptime.<br>&gt;<br>&gt; Last but not least, large values like 12345678912345 could be<br>&gt; difficult to read. Perhaps we should also support 12_345_678_912_345<br>&gt; syntax? This is not implemented in the attached patch and arguably<br>&gt; could be discussed separately when and if we merge it.<br>&gt;</p>
+
+<p>I think 12345678912345 is good enough. Underscore dividers make reading<br>little bit easier but look weird overall. I can&#x27;t remember other places<br>where we output long numbers with dividers.</p>
+
+<p>Regards,<br>Pavel Borisov<br>Supabase<br></p></div>
+
+
+
+
+
+
+
+
+
+
+
+
+  <hr style="margin-bottom: 0.5rem;" />
+
+
+<a name="CAJ7c6TPWJJpzgtXuEQ6ARrSYUeHnrX=VTo_n0UghcrsC20UgTg@mail.gmail.com"></a>
+<a name="daee6648ddc6a95458c091a3e61873d4"></a>
+
+
+<table class="table-sm table-responsive message-header" style="border-bottom: 0.05em solid #E7EAE8; margin-bottom: 1em;">
+ <tr>
+  <th scope="row" style="width: 10%">From:</th>
+  <td>Aleksander Alekseev &lt;aleksander(at)timescale(dot)com&gt;</td>
+ </tr>
+ <tr>
+  <th scope="row">To:</th>
+  <td>Pavel Borisov &lt;pashkin(dot)elfe(at)gmail(dot)com&gt;</td>
+ </tr>
+
+ <tr>
+  <th scope="row">Cc:</th>
+  <td>PostgreSQL Hackers &lt;pgsql-hackers(at)lists(dot)postgresql(dot)org&gt;</td>
+ </tr>
+
+ <tr>
+  <th scope="row">Subject:</th>
+  <td>Re: [PATCH] Support Int64 GUCs</td>
+ </tr>
+ <tr>
+  <th scope="row">Date:</th>
+  <td>2024-09-12 11:34:40</td>
+ </tr>
+ <tr>
+  <th scope="row">Message-ID:</th>
+  <td><a href="/message-id/CAJ7c6TPWJJpzgtXuEQ6ARrSYUeHnrX%3DVTo_n0UghcrsC20UgTg%40mail.gmail.com">CAJ7c6TPWJJpzgtXuEQ6ARrSYUeHnrX=VTo_n0UghcrsC20UgTg@mail.gmail.com</a></td>
+ </tr>
+ <tr>
+   <th class="align-middle" scope="row">Views:</th>
+   <td>
+     <a href="/message-id/flat/CAJ7c6TPWJJpzgtXuEQ6ARrSYUeHnrX%3DVTo_n0UghcrsC20UgTg%40mail.gmail.com">Whole Thread</a> |
+     <a href="#" data-ref="/message-id/raw/CAJ7c6TPWJJpzgtXuEQ6ARrSYUeHnrX%3DVTo_n0UghcrsC20UgTg%40mail.gmail.com" class="post-link">Raw Message</a> |
+     <a href="#" data-ref="/message-id/mbox/CAJ7c6TPWJJpzgtXuEQ6ARrSYUeHnrX%3DVTo_n0UghcrsC20UgTg%40mail.gmail.com" class="post-link">Download mbox</a>
+ | <a href="#" data-ref="/message-id/resend/CAJ7c6TPWJJpzgtXuEQ6ARrSYUeHnrX%3DVTo_n0UghcrsC20UgTg%40mail.gmail.com" class="post-link">Resend email</a>
+   </td>
+ </tr>
+ 
+  
+    <tr>
+      <th scope="row">Lists:</th>
+      <td>
+        
+          <span class="listname"><a href="/list/pgsql-hackers/since/202409120000">pgsql-hackers</a></span>
+        
+      </td>
+    </tr>
+  
+</table>
+
+<div class="message-content"><p>Hi Pavel,</p>
+
+<p>&gt; I think the direction is good and delivering 64-bit GUCs is very much worth committing.<br>&gt; The patch itself looks good, but we could need to add locks against concurrently modifying 64-bit values, which could be non-atomic on older architectures.</p>
+
+<p>Thanks for the feedback.</p>
+
+<p>&gt; I think 12345678912345 is good enough. Underscore dividers make reading little bit easier but look weird overall. I can&#x27;t remember other places where we output long numbers with dividers.</p>
+
+<p>We already support this in SQL:</p>
+
+<p>psql (18devel)<br>=# SELECT 123_456;<br> ?column?<br>----------<br>   123456</p>
+
+<p>-- <br>Best regards,<br>Aleksander Alekseev</p>
+
+<p></p></div>
+
+
+
+
+
+
+
+
+
+
+
+
+  <hr style="margin-bottom: 0.5rem;" />
+
+
+<a name="ZuLwp8SLShYtd-Xo@nathan"></a>
+<a name="2ab5b6904bb94c3dc2d5b9407c1ae1b2"></a>
+
+
+<table class="table-sm table-responsive message-header" style="border-bottom: 0.05em solid #E7EAE8; margin-bottom: 1em;">
+ <tr>
+  <th scope="row" style="width: 10%">From:</th>
+  <td>Nathan Bossart &lt;nathandbossart(at)gmail(dot)com&gt;</td>
+ </tr>
+ <tr>
+  <th scope="row">To:</th>
+  <td>Aleksander Alekseev &lt;aleksander(at)timescale(dot)com&gt;</td>
+ </tr>
+
+ <tr>
+  <th scope="row">Cc:</th>
+  <td>PostgreSQL Hackers &lt;pgsql-hackers(at)lists(dot)postgresql(dot)org&gt;</td>
+ </tr>
+
+ <tr>
+  <th scope="row">Subject:</th>
+  <td>Re: [PATCH] Support Int64 GUCs</td>
+ </tr>
+ <tr>
+  <th scope="row">Date:</th>
+  <td>2024-09-12 13:46:15</td>
+ </tr>
+ <tr>
+  <th scope="row">Message-ID:</th>
+  <td><a href="/message-id/ZuLwp8SLShYtd-Xo%40nathan">ZuLwp8SLShYtd-Xo@nathan</a></td>
+ </tr>
+ <tr>
+   <th class="align-middle" scope="row">Views:</th>
+   <td>
+     <a href="/message-id/flat/ZuLwp8SLShYtd-Xo%40nathan">Whole Thread</a> |
+     <a href="#" data-ref="/message-id/raw/ZuLwp8SLShYtd-Xo%40nathan" class="post-link">Raw Message</a> |
+     <a href="#" data-ref="/message-id/mbox/ZuLwp8SLShYtd-Xo%40nathan" class="post-link">Download mbox</a>
+ | <a href="#" data-ref="/message-id/resend/ZuLwp8SLShYtd-Xo%40nathan" class="post-link">Resend email</a>
+   </td>
+ </tr>
+ 
+  
+    <tr>
+      <th scope="row">Lists:</th>
+      <td>
+        
+          <span class="listname"><a href="/list/pgsql-hackers/since/202409120000">pgsql-hackers</a></span>
+        
+      </td>
+    </tr>
+  
+</table>
+
+<div class="message-content"><p>On Thu, Sep 12, 2024 at 02:08:15PM +0300, Aleksander Alekseev wrote:<br>&gt; Secondly, the following core GUCs are made 64-bit:<br>&gt; <br>&gt; ```<br>&gt; autovacuum_freeze_min_age<br>&gt; autovacuum_freeze_max_age<br>&gt; autovacuum_freeze_table_age<br>&gt; autovacuum_multixact_freeze_min_age<br>&gt; autovacuum_multixact_freeze_max_age<br>&gt; autovacuum_multixact_freeze_table_age<br>&gt; ```<br>&gt; <br>&gt; I see several open questions with the patch in its current state.<br>&gt; <br>&gt; Firstly, I&#x27;m not sure if it is beneficial to affect the named GUCs out<br>&gt; of the context of the larger patchset. Perhaps we have better GUCs<br>&gt; that could benefit from being 64-bit? Or should we just leave alone<br>&gt; the core GUCs and focus on providing DefineCustomInt64Variable() ?</p>
+
+<p>I don&#x27;t understand why we would want to make these GUCs 64-bit.  All of the<br>allowed values fit in an int32, so AFAICT this would only serve to mislead<br>users into thinking they could set these much higher than they can/should.</p>
+
+<p>TBH I&#x27;m quite skeptical that this would even be particularly useful for<br>extension authors.  In what cases would a floating point value not suffice?<br>I&#x27;m not totally opposed to the idea of 64-bit GUCs, but I&#x27;d like more<br>information about the motivation.</p>
+
+<p>-- <br>nathan</p>
+
+<p></p></div>
+
+
+
+
+
+
+
+
+
+
+
+
+  <hr style="margin-bottom: 0.5rem;" />
+
+
+<a name="CAPpHfdspZP3a_7Pe3d8z_43nt+Bp17MoyjBbEmmPurYXH9uiaA@mail.gmail.com"></a>
+<a name="f25815cd3a21e9ed9d4ef25cc47f968e"></a>
+
+
+<table class="table-sm table-responsive message-header" style="border-bottom: 0.05em solid #E7EAE8; margin-bottom: 1em;">
+ <tr>
+  <th scope="row" style="width: 10%">From:</th>
+  <td>Alexander Korotkov &lt;aekorotkov(at)gmail(dot)com&gt;</td>
+ </tr>
+ <tr>
+  <th scope="row">To:</th>
+  <td>Pavel Borisov &lt;pashkin(dot)elfe(at)gmail(dot)com&gt;</td>
+ </tr>
+
+ <tr>
+  <th scope="row">Cc:</th>
+  <td>Aleksander Alekseev &lt;aleksander(at)timescale(dot)com&gt;,  PostgreSQL Hackers &lt;pgsql-hackers(at)lists(dot)postgresql(dot)org&gt;</td>
+ </tr>
+
+ <tr>
+  <th scope="row">Subject:</th>
+  <td>Re: [PATCH] Support Int64 GUCs</td>
+ </tr>
+ <tr>
+  <th scope="row">Date:</th>
+  <td>2024-09-20 12:13:29</td>
+ </tr>
+ <tr>
+  <th scope="row">Message-ID:</th>
+  <td><a href="/message-id/CAPpHfdspZP3a_7Pe3d8z_43nt%2BBp17MoyjBbEmmPurYXH9uiaA%40mail.gmail.com">CAPpHfdspZP3a_7Pe3d8z_43nt+Bp17MoyjBbEmmPurYXH9uiaA@mail.gmail.com</a></td>
+ </tr>
+ <tr>
+   <th class="align-middle" scope="row">Views:</th>
+   <td>
+     <a href="/message-id/flat/CAPpHfdspZP3a_7Pe3d8z_43nt%2BBp17MoyjBbEmmPurYXH9uiaA%40mail.gmail.com">Whole Thread</a> |
+     <a href="#" data-ref="/message-id/raw/CAPpHfdspZP3a_7Pe3d8z_43nt%2BBp17MoyjBbEmmPurYXH9uiaA%40mail.gmail.com" class="post-link">Raw Message</a> |
+     <a href="#" data-ref="/message-id/mbox/CAPpHfdspZP3a_7Pe3d8z_43nt%2BBp17MoyjBbEmmPurYXH9uiaA%40mail.gmail.com" class="post-link">Download mbox</a>
+ | <a href="#" data-ref="/message-id/resend/CAPpHfdspZP3a_7Pe3d8z_43nt%2BBp17MoyjBbEmmPurYXH9uiaA%40mail.gmail.com" class="post-link">Resend email</a>
+   </td>
+ </tr>
+ 
+  
+    <tr>
+      <th scope="row">Lists:</th>
+      <td>
+        
+          <span class="listname"><a href="/list/pgsql-hackers/since/202409200000">pgsql-hackers</a></span>
+        
+      </td>
+    </tr>
+  
+</table>
+
+<div class="message-content"><p>On Thu, Sep 12, 2024 at 2:29 PM Pavel Borisov &lt;pashkin(dot)elfe(at)gmail(dot)com&gt; wrote:<br>&gt; Hi, Alexander!<br>&gt; Thank you for working on this!<br>&gt;<br>&gt; On Thu, 12 Sept 2024 at 15:08, Aleksander Alekseev &lt;aleksander(at)timescale(dot)com&gt; wrote:<br>&gt;&gt;<br>&gt;&gt; Hi,<br>&gt;&gt;<br>&gt;&gt; Attached is a self-sufficient patch extracted from a larger patchset<br>&gt;&gt; [1]. The entire patchset probably will not proceed further in the<br>&gt;&gt; nearest future. Since there was interest in this particular patch it<br>&gt;&gt; deserves being discussed in a separate thread.<br>&gt;&gt;<br>&gt;&gt; Currently we support 32-bit integer values in GUCs, but don&#x27;t support<br>&gt;&gt; 64-bit ones. The proposed patch adds this support.<br>&gt;&gt;<br>&gt;&gt; Firstly, it adds DefineCustomInt64Variable() which can be used by the<br>&gt;&gt; extension authors.<br>&gt;&gt;<br>&gt;&gt; Secondly, the following core GUCs are made 64-bit:<br>&gt;&gt;<br>&gt;&gt; ```<br>&gt;&gt; autovacuum_freeze_min_age<br>&gt;&gt; autovacuum_freeze_max_age<br>&gt;&gt; autovacuum_freeze_table_age<br>&gt;&gt; autovacuum_multixact_freeze_min_age<br>&gt;&gt; autovacuum_multixact_freeze_max_age<br>&gt;&gt; autovacuum_multixact_freeze_table_age<br>&gt;&gt; ```<br>&gt;&gt;<br>&gt;&gt; I see several open questions with the patch in its current state.<br>&gt;&gt;<br>&gt;&gt; Firstly, I&#x27;m not sure if it is beneficial to affect the named GUCs out<br>&gt;&gt; of the context of the larger patchset. Perhaps we have better GUCs<br>&gt;&gt; that could benefit from being 64-bit? Or should we just leave alone<br>&gt;&gt; the core GUCs and focus on providing DefineCustomInt64Variable() ?<br>&gt;<br>&gt; I think the direction is good and delivering 64-bit GUCs is very much worth committing.<br>&gt; The patch itself looks good, but we could need to add locks against concurrently modifying 64-bit values, which could be non-atomic on older architectures.</p>
+
+<p>GUCs are located in the local memory.  No concurrent read/writes of<br>them are possible.  It might happen that SIGHUP comes during<br>read/write of the GUC variable.  But, that&#x27;s protected the other way:<br>SignalHandlerForConfigReload() just sets the ConfigReloadPending flag,<br>which is processed during CHECK_FOR_INTERRUPTS().  So, I don&#x27;t see a<br>need to locks here.</p>
+
+<p>------<br>Regards,<br>Alexander Korotkov<br>Supabase</p>
+
+<p></p></div>
+
+
+
+
+
+
+
+
+
+
+
+
+  <hr style="margin-bottom: 0.5rem;" />
+
+
+<a name="CAPpHfduUg0WHfLv9M79GKksG76w6eQjBnSBaLDwuyXP4MEaJeg@mail.gmail.com"></a>
+<a name="1f5e0f2841d2575c4dd2dc742ba4def2"></a>
+
+
+<table class="table-sm table-responsive message-header" style="border-bottom: 0.05em solid #E7EAE8; margin-bottom: 1em;">
+ <tr>
+  <th scope="row" style="width: 10%">From:</th>
+  <td>Alexander Korotkov &lt;aekorotkov(at)gmail(dot)com&gt;</td>
+ </tr>
+ <tr>
+  <th scope="row">To:</th>
+  <td>Aleksander Alekseev &lt;aleksander(at)timescale(dot)com&gt;</td>
+ </tr>
+
+ <tr>
+  <th scope="row">Cc:</th>
+  <td>PostgreSQL Hackers &lt;pgsql-hackers(at)lists(dot)postgresql(dot)org&gt;</td>
+ </tr>
+
+ <tr>
+  <th scope="row">Subject:</th>
+  <td>Re: [PATCH] Support Int64 GUCs</td>
+ </tr>
+ <tr>
+  <th scope="row">Date:</th>
+  <td>2024-09-20 12:33:21</td>
+ </tr>
+ <tr>
+  <th scope="row">Message-ID:</th>
+  <td><a href="/message-id/CAPpHfduUg0WHfLv9M79GKksG76w6eQjBnSBaLDwuyXP4MEaJeg%40mail.gmail.com">CAPpHfduUg0WHfLv9M79GKksG76w6eQjBnSBaLDwuyXP4MEaJeg@mail.gmail.com</a></td>
+ </tr>
+ <tr>
+   <th class="align-middle" scope="row">Views:</th>
+   <td>
+     <a href="/message-id/flat/CAPpHfduUg0WHfLv9M79GKksG76w6eQjBnSBaLDwuyXP4MEaJeg%40mail.gmail.com">Whole Thread</a> |
+     <a href="#" data-ref="/message-id/raw/CAPpHfduUg0WHfLv9M79GKksG76w6eQjBnSBaLDwuyXP4MEaJeg%40mail.gmail.com" class="post-link">Raw Message</a> |
+     <a href="#" data-ref="/message-id/mbox/CAPpHfduUg0WHfLv9M79GKksG76w6eQjBnSBaLDwuyXP4MEaJeg%40mail.gmail.com" class="post-link">Download mbox</a>
+ | <a href="#" data-ref="/message-id/resend/CAPpHfduUg0WHfLv9M79GKksG76w6eQjBnSBaLDwuyXP4MEaJeg%40mail.gmail.com" class="post-link">Resend email</a>
+   </td>
+ </tr>
+ 
+  
+    <tr>
+      <th scope="row">Lists:</th>
+      <td>
+        
+          <span class="listname"><a href="/list/pgsql-hackers/since/202409200000">pgsql-hackers</a></span>
+        
+      </td>
+    </tr>
+  
+</table>
+
+<div class="message-content"><p>Hi, Aleksander!</p>
+
+<p>Thank you for your work on this subject.</p>
+
+<p>On Thu, Sep 12, 2024 at 2:08 PM Aleksander Alekseev<br>&lt;aleksander(at)timescale(dot)com&gt; wrote:<br>&gt; Attached is a self-sufficient patch extracted from a larger patchset<br>&gt; [1]. The entire patchset probably will not proceed further in the<br>&gt; nearest future. Since there was interest in this particular patch it<br>&gt; deserves being discussed in a separate thread.<br>&gt;<br>&gt; Currently we support 32-bit integer values in GUCs, but don&#x27;t support<br>&gt; 64-bit ones. The proposed patch adds this support.<br>&gt;<br>&gt; Firstly, it adds DefineCustomInt64Variable() which can be used by the<br>&gt; extension authors.<br>&gt;<br>&gt; Secondly, the following core GUCs are made 64-bit:<br>&gt;<br>&gt; ```<br>&gt; autovacuum_freeze_min_age<br>&gt; autovacuum_freeze_max_age<br>&gt; autovacuum_freeze_table_age<br>&gt; autovacuum_multixact_freeze_min_age<br>&gt; autovacuum_multixact_freeze_max_age<br>&gt; autovacuum_multixact_freeze_table_age<br>&gt; ```<br>&gt;<br>&gt; I see several open questions with the patch in its current state.<br>&gt;<br>&gt; Firstly, I&#x27;m not sure if it is beneficial to affect the named GUCs out<br>&gt; of the context of the larger patchset. Perhaps we have better GUCs<br>&gt; that could benefit from being 64-bit? Or should we just leave alone<br>&gt; the core GUCs and focus on providing DefineCustomInt64Variable() ?</p>
+
+<p>It doesn&#x27;t look like these *_age GUCs could benefit from being 64-bit,<br>before 64-bit transaction ids get in.  However, I think there are some<br>better candidates.</p>
+
+<p>autovacuum_vacuum_threshold<br>autovacuum_vacuum_insert_threshold<br>autovacuum_analyze_threshold</p>
+
+<p>This GUCs specify number of tuples before vacuum/analyze.  That could<br>be more than 2^31.  With large tables of small tuples, I can&#x27;t even<br>say this is always impractical to have values greater than 2^31.</p>
+
+<p>&gt; Secondly, DefineCustomInt64Variable() is not test-covered. Turned out<br>&gt; it was not even defined (although declared) in the original patch.<br>&gt; This was fixed in the attached version. Maybe one of the test modules<br>&gt; could use it even if it makes little sense for this particular module?<br>&gt; For instance, test/modules/worker_spi/ could use it for<br>&gt; worker_spi.naptime.</p>
+
+<p>I don&#x27;t think there are good candidates among existing extension GUCs.<br>I think we could add something for pure testing purposes somewhere in<br>src/test/modules.</p>
+
+<p>&gt; Last but not least, large values like 12345678912345 could be<br>&gt; difficult to read. Perhaps we should also support 12_345_678_912_345<br>&gt; syntax? This is not implemented in the attached patch and arguably<br>&gt; could be discussed separately when and if we merge it.</p>
+
+<p>I also think we&#x27;re good with 12345678912345 so far.</p>
+
+<p>------<br>Regards,<br>Alexander Korotkov<br>Supabase</p>
+
+<p></p></div>
+
+
+
+
+
+
+
+
+
+
+
+
+  <hr style="margin-bottom: 0.5rem;" />
+
+
+<a name="CAJ7c6TNPrNUT-aSi5UbohN-EMnsQ36tHvRnvr7dqa3vfuZ0Tpw@mail.gmail.com"></a>
+<a name="2b6d3aeb41dadd8ac5cb54f968cc3d99"></a>
+
+
+<table class="table-sm table-responsive message-header" style="border-bottom: 0.05em solid #E7EAE8; margin-bottom: 1em;">
+ <tr>
+  <th scope="row" style="width: 10%">From:</th>
+  <td>Aleksander Alekseev &lt;aleksander(at)timescale(dot)com&gt;</td>
+ </tr>
+ <tr>
+  <th scope="row">To:</th>
+  <td>PostgreSQL Hackers &lt;pgsql-hackers(at)lists(dot)postgresql(dot)org&gt;</td>
+ </tr>
+
+ <tr>
+  <th scope="row">Cc:</th>
+  <td>Alexander Korotkov &lt;aekorotkov(at)gmail(dot)com&gt;, Nathan Bossart &lt;nathandbossart(at)gmail(dot)com&gt;</td>
+ </tr>
+
+ <tr>
+  <th scope="row">Subject:</th>
+  <td>Re: [PATCH] Support Int64 GUCs</td>
+ </tr>
+ <tr>
+  <th scope="row">Date:</th>
+  <td>2024-09-24 09:27:20</td>
+ </tr>
+ <tr>
+  <th scope="row">Message-ID:</th>
+  <td><a href="/message-id/CAJ7c6TNPrNUT-aSi5UbohN-EMnsQ36tHvRnvr7dqa3vfuZ0Tpw%40mail.gmail.com">CAJ7c6TNPrNUT-aSi5UbohN-EMnsQ36tHvRnvr7dqa3vfuZ0Tpw@mail.gmail.com</a></td>
+ </tr>
+ <tr>
+   <th class="align-middle" scope="row">Views:</th>
+   <td>
+     <a href="/message-id/flat/CAJ7c6TNPrNUT-aSi5UbohN-EMnsQ36tHvRnvr7dqa3vfuZ0Tpw%40mail.gmail.com">Whole Thread</a> |
+     <a href="#" data-ref="/message-id/raw/CAJ7c6TNPrNUT-aSi5UbohN-EMnsQ36tHvRnvr7dqa3vfuZ0Tpw%40mail.gmail.com" class="post-link">Raw Message</a> |
+     <a href="#" data-ref="/message-id/mbox/CAJ7c6TNPrNUT-aSi5UbohN-EMnsQ36tHvRnvr7dqa3vfuZ0Tpw%40mail.gmail.com" class="post-link">Download mbox</a>
+ | <a href="#" data-ref="/message-id/resend/CAJ7c6TNPrNUT-aSi5UbohN-EMnsQ36tHvRnvr7dqa3vfuZ0Tpw%40mail.gmail.com" class="post-link">Resend email</a>
+   </td>
+ </tr>
+ 
+  
+    <tr>
+      <th scope="row">Lists:</th>
+      <td>
+        
+          <span class="listname"><a href="/list/pgsql-hackers/since/202409240000">pgsql-hackers</a></span>
+        
+      </td>
+    </tr>
+  
+</table>
+
+<div class="message-content"><p>Hi, Alexander!</p>
+
+<p>&gt; Thank you for your work on this subject.</p>
+
+<p>Thanks for your feedback.</p>
+
+<p>&gt; It doesn&#x27;t look like these *_age GUCs could benefit from being 64-bit,<br>&gt; before 64-bit transaction ids get in.  However, I think there are some<br>&gt; better candidates.<br>&gt;<br>&gt; autovacuum_vacuum_threshold<br>&gt; autovacuum_vacuum_insert_threshold<br>&gt; autovacuum_analyze_threshold<br>&gt;<br>&gt; This GUCs specify number of tuples before vacuum/analyze.  That could<br>&gt; be more than 2^31.  With large tables of small tuples, I can&#x27;t even<br>&gt; say this is always impractical to have values greater than 2^31.</p>
+
+<p>Sounds good to me. Fixed.</p>
+
+<p>&gt; &gt; Secondly, DefineCustomInt64Variable() is not test-covered. Turned out<br>&gt; &gt; it was not even defined (although declared) in the original patch.<br>&gt; &gt; This was fixed in the attached version. Maybe one of the test modules<br>&gt; &gt; could use it even if it makes little sense for this particular module?<br>&gt; &gt; For instance, test/modules/worker_spi/ could use it for<br>&gt; &gt; worker_spi.naptime.<br>&gt;<br>&gt; I don&#x27;t think there are good candidates among existing extension GUCs.<br>&gt; I think we could add something for pure testing purposes somewhere in<br>&gt; src/test/modules.</p>
+
+<p>I found a great candidate in src/test/modules/delay_execution:</p>
+
+<p>```<br>    DefineCustomIntVariable(&quot;delay_execution.post_planning_lock_id&quot;,<br>                            &quot;Sets the advisory lock ID to be<br>locked/unlocked after planning.&quot;,<br>```</p>
+
+<p>Advisory lock IDs are bigints [1]. I modified the module to use Int64&#x27;s.</p>
+
+<p>I guess it may also answer Nathan&#x27;s question.</p>
+
+<p>&gt; &gt; Last but not least, large values like 12345678912345 could be<br>&gt; &gt; difficult to read. Perhaps we should also support 12_345_678_912_345<br>&gt; &gt; syntax? This is not implemented in the attached patch and arguably<br>&gt; &gt; could be discussed separately when and if we merge it.<br>&gt;<br>&gt; I also think we&#x27;re good with 12345678912345 so far.</p>
+
+<p>Fair enough.</p>
+
+<p>PFA the updated patch.</p>
+
+<p>[1]: <a href="https://www.postgresql.org/docs/current/functions-admin.html#FUNCTIONS-ADVISORY-LOCKS" rel="nofollow">https://www.postgresql.org/docs/current/functions-admin.html#FUNCTIONS-ADVISORY-LOCKS</a></p>
+
+<p>--<br>Best regards,<br>Aleksander Alekseev<br></p></div>
+
+
+  <table class="table table-sm table-responsive message-attachments">
+    <thead>
+      <tr>
+        <th scope="col">Attachment</th>
+        <th scope="col">Content-Type</th>
+        <th scope="col">Size</th>
+      </tr>
+    </thead>
+    <tbody>
+      
+        <tr>
+          <th scope="row">
+            
+              <a href="/message-id/attachment/165513/v2-0001-Support-64-bit-integer-GUCs.patch">v2-0001-Support-64-bit-integer-GUCs.patch</a>
+            
+          </th>
+          <td>application/octet-stream</td>
+          <td>41.2 KB</td>
+        </tr>
+      
+    </tbody>
+  </table>
+
+
+
+
+
+
+
+
+
+
+
+  <hr style="margin-bottom: 0.5rem;" />
+
+
+<a name="CAJ7c6TNPOXiP7FT5K8rpvPqT7RBHqoE3x9yBSbu5qhAHXpwF+g@mail.gmail.com"></a>
+<a name="7ff184d9764be9d2d4cd04962f079f44"></a>
+
+
+<table class="table-sm table-responsive message-header" style="border-bottom: 0.05em solid #E7EAE8; margin-bottom: 1em;">
+ <tr>
+  <th scope="row" style="width: 10%">From:</th>
+  <td>Aleksander Alekseev &lt;aleksander(at)timescale(dot)com&gt;</td>
+ </tr>
+ <tr>
+  <th scope="row">To:</th>
+  <td>PostgreSQL Hackers &lt;pgsql-hackers(at)lists(dot)postgresql(dot)org&gt;</td>
+ </tr>
+
+ <tr>
+  <th scope="row">Cc:</th>
+  <td>Alexander Korotkov &lt;aekorotkov(at)gmail(dot)com&gt;, Nathan Bossart &lt;nathandbossart(at)gmail(dot)com&gt;</td>
+ </tr>
+
+ <tr>
+  <th scope="row">Subject:</th>
+  <td>Re: [PATCH] Support Int64 GUCs</td>
+ </tr>
+ <tr>
+  <th scope="row">Date:</th>
+  <td>2024-09-24 09:35:03</td>
+ </tr>
+ <tr>
+  <th scope="row">Message-ID:</th>
+  <td><a href="/message-id/CAJ7c6TNPOXiP7FT5K8rpvPqT7RBHqoE3x9yBSbu5qhAHXpwF%2Bg%40mail.gmail.com">CAJ7c6TNPOXiP7FT5K8rpvPqT7RBHqoE3x9yBSbu5qhAHXpwF+g@mail.gmail.com</a></td>
+ </tr>
+ <tr>
+   <th class="align-middle" scope="row">Views:</th>
+   <td>
+     <a href="/message-id/flat/CAJ7c6TNPOXiP7FT5K8rpvPqT7RBHqoE3x9yBSbu5qhAHXpwF%2Bg%40mail.gmail.com">Whole Thread</a> |
+     <a href="#" data-ref="/message-id/raw/CAJ7c6TNPOXiP7FT5K8rpvPqT7RBHqoE3x9yBSbu5qhAHXpwF%2Bg%40mail.gmail.com" class="post-link">Raw Message</a> |
+     <a href="#" data-ref="/message-id/mbox/CAJ7c6TNPOXiP7FT5K8rpvPqT7RBHqoE3x9yBSbu5qhAHXpwF%2Bg%40mail.gmail.com" class="post-link">Download mbox</a>
+ | <a href="#" data-ref="/message-id/resend/CAJ7c6TNPOXiP7FT5K8rpvPqT7RBHqoE3x9yBSbu5qhAHXpwF%2Bg%40mail.gmail.com" class="post-link">Resend email</a>
+   </td>
+ </tr>
+ 
+  
+    <tr>
+      <th scope="row">Lists:</th>
+      <td>
+        
+          <span class="listname"><a href="/list/pgsql-hackers/since/202409240000">pgsql-hackers</a></span>
+        
+      </td>
+    </tr>
+  
+</table>
+
+<div class="message-content"><p>Hi,</p>
+
+<p>&gt; PFA the updated patch.</p>
+
+<p>It is worth mentioning that v2 should not be merged as is.<br>Particularly although it changes the following GUCs:</p>
+
+<p>&gt; autovacuum_vacuum_threshold<br>&gt; autovacuum_vacuum_insert_threshold<br>&gt; autovacuum_analyze_threshold</p>
+
+<p>... it doesn&#x27;t affect the code that uses these GUCs which results in<br>casting int64s to ints.</p>
+
+<p>I would appreciate a bit more feedback on v2. If the community is fine<br>with modifying these GUCs I will correct the patch in this respect.</p>
+
+<p>-- <br>Best regards,<br>Aleksander Alekseev</p>
+
+<p></p></div>
+
+
+
+
+
+
+
+
+
+
+
+
+  <hr style="margin-bottom: 0.5rem;" />
+
+
+<a name="E4EFA467-BE68-4784-84D6-0E3C62CA5EA0@hotmail.com"></a>
+<a name="b67473ff92ae0b82fe3ebc9c7ad05f0b"></a>
+
+
+<table class="table-sm table-responsive message-header" style="border-bottom: 0.05em solid #E7EAE8; margin-bottom: 1em;">
+ <tr>
+  <th scope="row" style="width: 10%">From:</th>
+  <td>Li Japin &lt;japinli(at)hotmail(dot)com&gt;</td>
+ </tr>
+ <tr>
+  <th scope="row">To:</th>
+  <td>Aleksander Alekseev &lt;aleksander(at)timescale(dot)com&gt;</td>
+ </tr>
+
+ <tr>
+  <th scope="row">Cc:</th>
+  <td>PostgreSQL Hackers &lt;pgsql-hackers(at)lists(dot)postgresql(dot)org&gt;, Alexander
+ Korotkov &lt;aekorotkov(at)gmail(dot)com&gt;, Nathan Bossart &lt;nathandbossart(at)gmail(dot)com&gt;</td>
+ </tr>
+
+ <tr>
+  <th scope="row">Subject:</th>
+  <td>Re: [PATCH] Support Int64 GUCs</td>
+ </tr>
+ <tr>
+  <th scope="row">Date:</th>
+  <td>2024-09-24 10:55:16</td>
+ </tr>
+ <tr>
+  <th scope="row">Message-ID:</th>
+  <td><a href="/message-id/E4EFA467-BE68-4784-84D6-0E3C62CA5EA0%40hotmail.com">E4EFA467-BE68-4784-84D6-0E3C62CA5EA0@hotmail.com</a></td>
+ </tr>
+ <tr>
+   <th class="align-middle" scope="row">Views:</th>
+   <td>
+     <a href="/message-id/flat/E4EFA467-BE68-4784-84D6-0E3C62CA5EA0%40hotmail.com">Whole Thread</a> |
+     <a href="#" data-ref="/message-id/raw/E4EFA467-BE68-4784-84D6-0E3C62CA5EA0%40hotmail.com" class="post-link">Raw Message</a> |
+     <a href="#" data-ref="/message-id/mbox/E4EFA467-BE68-4784-84D6-0E3C62CA5EA0%40hotmail.com" class="post-link">Download mbox</a>
+ | <a href="#" data-ref="/message-id/resend/E4EFA467-BE68-4784-84D6-0E3C62CA5EA0%40hotmail.com" class="post-link">Resend email</a>
+   </td>
+ </tr>
+ 
+  
+    <tr>
+      <th scope="row">Lists:</th>
+      <td>
+        
+          <span class="listname"><a href="/list/pgsql-hackers/since/202409240000">pgsql-hackers</a></span>
+        
+      </td>
+    </tr>
+  
+</table>
+
+<div class="message-content"><p>Hi, Aleksander Alekseev</p>
+
+<p>Thanks for updating the patch.</p>
+
+<p>&gt; On Sep 24, 2024, at 17:27, Aleksander Alekseev &lt;aleksander(at)timescale(dot)com&gt; wrote:<br>&gt; <br>&gt; Hi, Alexander!<br>&gt; <br>&gt;&gt; Thank you for your work on this subject.<br>&gt; <br>&gt; Thanks for your feedback.<br>&gt; <br>&gt;&gt; It doesn&#x27;t look like these *_age GUCs could benefit from being 64-bit,<br>&gt;&gt; before 64-bit transaction ids get in.  However, I think there are some<br>&gt;&gt; better candidates.<br>&gt;&gt; <br>&gt;&gt; autovacuum_vacuum_threshold<br>&gt;&gt; autovacuum_vacuum_insert_threshold<br>&gt;&gt; autovacuum_analyze_threshold<br>&gt;&gt; <br>&gt;&gt; This GUCs specify number of tuples before vacuum/analyze.  That could<br>&gt;&gt; be more than 2^31.  With large tables of small tuples, I can&#x27;t even<br>&gt;&gt; say this is always impractical to have values greater than 2^31.<br>&gt; <br>&gt; Sounds good to me. Fixed.</p>
+
+<p>I found the autovacuum_vacuum_threshold, autovacuum_vacuum_insert_threshold<br>and autovacuum_analyze_threshold is change to int64 for relation option,<br>however the GUCs are still integers.</p>
+
+<p>```<br>postgres=# select * from pg_settings where name = &#x27;autovacuum_vacuum_threshold&#x27; \gx<br>-[ RECORD 1 ]---+------------------------------------------------------------<br>name            | autovacuum_vacuum_threshold<br>setting         | 50<br>unit            |<br>category        | Autovacuum<br>short_desc      | Minimum number of tuple updates or deletes prior to vacuum.<br>extra_desc      |<br>context         | sighup<br>vartype         | integer<br>source          | default<br>min_val         | 0<br>max_val         | 2147483647<br>enumvals        |<br>boot_val        | 50<br>reset_val       | 50<br>sourcefile      |<br>sourceline      |<br>pending_restart | f<br>```</p>
+
+<p>Is there something I missed?</p>
+
+<p>&gt; <br>&gt;&gt;&gt; Secondly, DefineCustomInt64Variable() is not test-covered. Turned out<br>&gt;&gt;&gt; it was not even defined (although declared) in the original patch.<br>&gt;&gt;&gt; This was fixed in the attached version. Maybe one of the test modules<br>&gt;&gt;&gt; could use it even if it makes little sense for this particular module?<br>&gt;&gt;&gt; For instance, test/modules/worker_spi/ could use it for<br>&gt;&gt;&gt; worker_spi.naptime.<br>&gt;&gt; <br>&gt;&gt; I don&#x27;t think there are good candidates among existing extension GUCs.<br>&gt;&gt; I think we could add something for pure testing purposes somewhere in<br>&gt;&gt; src/test/modules.<br>&gt; <br>&gt; I found a great candidate in src/test/modules/delay_execution:<br>&gt; <br>&gt; ```<br>&gt;    DefineCustomIntVariable(&quot;delay_execution.post_planning_lock_id&quot;,<br>&gt;                            &quot;Sets the advisory lock ID to be<br>&gt; locked/unlocked after planning.&quot;,<br>&gt; ```<br>&gt; <br>&gt; Advisory lock IDs are bigints [1]. I modified the module to use Int64&#x27;s.</p>
+
+<p>I check the delay_execution.post_planning_lock_id parameter, and it’s varitype<br>is int64, maybe bigint is better, see [1].</p>
+
+<p>```<br>postgres=# select * from pg_settings where name = &#x27;delay_execution.post_planning_lock_id&#x27; \gx<br>-[ RECORD 1 ]---+----------------------------------------------------------------<br>name            | delay_execution.post_planning_lock_id<br>setting         | 0<br>unit            |<br>category        | Customized Options<br>short_desc      | Sets the advisory lock ID to be locked/unlocked after planning.<br>extra_desc      | Zero disables the delay.<br>context         | user<br>vartype         | int64<br>source          | default<br>min_val         | 0<br>max_val         | 9223372036854775807<br>enumvals        |<br>boot_val        | 0<br>reset_val       | 0<br>sourcefile      |<br>sourceline      |<br>pending_restart | f<br>```</p>
+
+<p>[1] <a href="https://www.postgresql.org/docs/current/datatype-numeric.html" rel="nofollow">https://www.postgresql.org/docs/current/datatype-numeric.html</a></p>
+
+<p>--<br>Regrads,<br>Japin Li</p>
+
+<p></p></div>
+
+
+
+
+
+
+
+
+
+
+
+
+  <hr style="margin-bottom: 0.5rem;" />
+
+
+<a name="ZvLRJPcI4hCTF5Kw@nathan"></a>
+<a name="87fcec8cce95670b405f134b35f53997"></a>
+
+
+<table class="table-sm table-responsive message-header" style="border-bottom: 0.05em solid #E7EAE8; margin-bottom: 1em;">
+ <tr>
+  <th scope="row" style="width: 10%">From:</th>
+  <td>Nathan Bossart &lt;nathandbossart(at)gmail(dot)com&gt;</td>
+ </tr>
+ <tr>
+  <th scope="row">To:</th>
+  <td>Aleksander Alekseev &lt;aleksander(at)timescale(dot)com&gt;</td>
+ </tr>
+
+ <tr>
+  <th scope="row">Cc:</th>
+  <td>PostgreSQL Hackers &lt;pgsql-hackers(at)lists(dot)postgresql(dot)org&gt;, Alexander Korotkov &lt;aekorotkov(at)gmail(dot)com&gt;</td>
+ </tr>
+
+ <tr>
+  <th scope="row">Subject:</th>
+  <td>Re: [PATCH] Support Int64 GUCs</td>
+ </tr>
+ <tr>
+  <th scope="row">Date:</th>
+  <td>2024-09-24 14:48:04</td>
+ </tr>
+ <tr>
+  <th scope="row">Message-ID:</th>
+  <td><a href="/message-id/ZvLRJPcI4hCTF5Kw%40nathan">ZvLRJPcI4hCTF5Kw@nathan</a></td>
+ </tr>
+ <tr>
+   <th class="align-middle" scope="row">Views:</th>
+   <td>
+     <a href="/message-id/flat/ZvLRJPcI4hCTF5Kw%40nathan">Whole Thread</a> |
+     <a href="#" data-ref="/message-id/raw/ZvLRJPcI4hCTF5Kw%40nathan" class="post-link">Raw Message</a> |
+     <a href="#" data-ref="/message-id/mbox/ZvLRJPcI4hCTF5Kw%40nathan" class="post-link">Download mbox</a>
+ | <a href="#" data-ref="/message-id/resend/ZvLRJPcI4hCTF5Kw%40nathan" class="post-link">Resend email</a>
+   </td>
+ </tr>
+ 
+  
+    <tr>
+      <th scope="row">Lists:</th>
+      <td>
+        
+          <span class="listname"><a href="/list/pgsql-hackers/since/202409240000">pgsql-hackers</a></span>
+        
+      </td>
+    </tr>
+  
+</table>
+
+<div class="message-content"><p>On Tue, Sep 24, 2024 at 12:27:20PM +0300, Aleksander Alekseev wrote:<br>&gt;&gt; It doesn&#x27;t look like these *_age GUCs could benefit from being 64-bit,<br>&gt;&gt; before 64-bit transaction ids get in.  However, I think there are some<br>&gt;&gt; better candidates.<br>&gt;&gt;<br>&gt;&gt; autovacuum_vacuum_threshold<br>&gt;&gt; autovacuum_vacuum_insert_threshold<br>&gt;&gt; autovacuum_analyze_threshold<br>&gt;&gt;<br>&gt;&gt; This GUCs specify number of tuples before vacuum/analyze.  That could<br>&gt;&gt; be more than 2^31.  With large tables of small tuples, I can&#x27;t even<br>&gt;&gt; say this is always impractical to have values greater than 2^31.<br>&gt;<br>&gt; [...]<br>&gt; <br>&gt; I found a great candidate in src/test/modules/delay_execution:<br>&gt; <br>&gt; ```<br>&gt;     DefineCustomIntVariable(&quot;delay_execution.post_planning_lock_id&quot;,<br>&gt;                             &quot;Sets the advisory lock ID to be<br>&gt; locked/unlocked after planning.&quot;,<br>&gt; ```<br>&gt; <br>&gt; Advisory lock IDs are bigints [1]. I modified the module to use Int64&#x27;s.<br>&gt; <br>&gt; I guess it may also answer Nathan&#x27;s question.</p>
+
+<p>Hm.  I&#x27;m not sure I find any of these to be particularly convincing<br>examples of why we need int64 GUCs.  Yes, the GUCs in question could<br>potentially be set to higher values, but I&#x27;ve yet to hear of this being a<br>problem in practice.  We might not want to encourage such high values,<br>either.</p>
+
+<p>-- <br>nathan</p>
+
+<p></p></div>
+
+
+
+
+
+
+
+
+
+
+
+
+  <hr style="margin-bottom: 0.5rem;" />
+
+
+<a name="CAJ7c6TNx=Bvzo-oZL5vfe6iQca+O0xMfH5uiFRJKRd+yOYxSiQ@mail.gmail.com"></a>
+<a name="12e9aa168842ce6eee83e2c8d2f4c136"></a>
+
+
+<table class="table-sm table-responsive message-header" style="border-bottom: 0.05em solid #E7EAE8; margin-bottom: 1em;">
+ <tr>
+  <th scope="row" style="width: 10%">From:</th>
+  <td>Aleksander Alekseev &lt;aleksander(at)timescale(dot)com&gt;</td>
+ </tr>
+ <tr>
+  <th scope="row">To:</th>
+  <td>PostgreSQL Hackers &lt;pgsql-hackers(at)lists(dot)postgresql(dot)org&gt;</td>
+ </tr>
+
+ <tr>
+  <th scope="row">Cc:</th>
+  <td>Li Japin &lt;japinli(at)hotmail(dot)com&gt;, Alexander Korotkov &lt;aekorotkov(at)gmail(dot)com&gt;,  Nathan Bossart &lt;nathandbossart(at)gmail(dot)com&gt;</td>
+ </tr>
+
+ <tr>
+  <th scope="row">Subject:</th>
+  <td>Re: [PATCH] Support Int64 GUCs</td>
+ </tr>
+ <tr>
+  <th scope="row">Date:</th>
+  <td>2024-09-25 11:03:12</td>
+ </tr>
+ <tr>
+  <th scope="row">Message-ID:</th>
+  <td><a href="/message-id/CAJ7c6TNx%3DBvzo-oZL5vfe6iQca%2BO0xMfH5uiFRJKRd%2ByOYxSiQ%40mail.gmail.com">CAJ7c6TNx=Bvzo-oZL5vfe6iQca+O0xMfH5uiFRJKRd+yOYxSiQ@mail.gmail.com</a></td>
+ </tr>
+ <tr>
+   <th class="align-middle" scope="row">Views:</th>
+   <td>
+     <a href="/message-id/flat/CAJ7c6TNx%3DBvzo-oZL5vfe6iQca%2BO0xMfH5uiFRJKRd%2ByOYxSiQ%40mail.gmail.com">Whole Thread</a> |
+     <a href="#" data-ref="/message-id/raw/CAJ7c6TNx%3DBvzo-oZL5vfe6iQca%2BO0xMfH5uiFRJKRd%2ByOYxSiQ%40mail.gmail.com" class="post-link">Raw Message</a> |
+     <a href="#" data-ref="/message-id/mbox/CAJ7c6TNx%3DBvzo-oZL5vfe6iQca%2BO0xMfH5uiFRJKRd%2ByOYxSiQ%40mail.gmail.com" class="post-link">Download mbox</a>
+ | <a href="#" data-ref="/message-id/resend/CAJ7c6TNx%3DBvzo-oZL5vfe6iQca%2BO0xMfH5uiFRJKRd%2ByOYxSiQ%40mail.gmail.com" class="post-link">Resend email</a>
+   </td>
+ </tr>
+ 
+  
+    <tr>
+      <th scope="row">Lists:</th>
+      <td>
+        
+          <span class="listname"><a href="/list/pgsql-hackers/since/202409250000">pgsql-hackers</a></span>
+        
+      </td>
+    </tr>
+  
+</table>
+
+<div class="message-content"><p>Hi,</p>
+
+<p>&gt; I found the autovacuum_vacuum_threshold, autovacuum_vacuum_insert_threshold<br>&gt; and autovacuum_analyze_threshold is change to int64 for relation option,<br>&gt; however the GUCs are still integers.<br>&gt;<br>&gt; ```<br>&gt; postgres=# select * from pg_settings where name = &#x27;autovacuum_vacuum_threshold&#x27; \gx<br>&gt; -[ RECORD 1 ]---+------------------------------------------------------------<br>&gt; name            | autovacuum_vacuum_threshold<br>&gt; setting         | 50<br>&gt; unit            |<br>&gt; category        | Autovacuum<br>&gt; short_desc      | Minimum number of tuple updates or deletes prior to vacuum.<br>&gt; extra_desc      |<br>&gt; context         | sighup<br>&gt; vartype         | integer<br>&gt; source          | default<br>&gt; min_val         | 0<br>&gt; max_val         | 2147483647<br>&gt; enumvals        |<br>&gt; boot_val        | 50<br>&gt; reset_val       | 50<br>&gt; sourcefile      |<br>&gt; sourceline      |<br>&gt; pending_restart | f<br>&gt; ```<br>&gt;<br>&gt; Is there something I missed?</p>
+
+<p>No, you found a bug. The patch didn&#x27;t change ConfigureNamesInt64[]<br>thus these GUCs were still treated as int32s.</p>
+
+<p>Here is the corrected patch v3. Thanks!</p>
+
+<p>=# select * from pg_settings where name = &#x27;autovacuum_vacuum_threshold&#x27;;<br>-[ RECORD 1 ]---+------------------------------------------------------------<br>name            | autovacuum_vacuum_threshold<br>setting         | 1234605616436508552<br>unit            |<br>category        | Autovacuum<br>short_desc      | Minimum number of tuple updates or deletes prior to vacuum.<br>extra_desc      |<br>context         | sighup<br>vartype         | int64<br>source          | configuration file<br>min_val         | 0<br>max_val         | 9223372036854775807<br>enumvals        |<br>boot_val        | 50<br>reset_val       | 1234605616436508552<br>sourcefile      | /Users/eax/pginstall/data-master/postgresql.conf<br>sourceline      | 664<br>pending_restart | f</p>
+
+<p>-- <br>Best regards,<br>Aleksander Alekseev<br></p></div>
+
+
+  <table class="table table-sm table-responsive message-attachments">
+    <thead>
+      <tr>
+        <th scope="col">Attachment</th>
+        <th scope="col">Content-Type</th>
+        <th scope="col">Size</th>
+      </tr>
+    </thead>
+    <tbody>
+      
+        <tr>
+          <th scope="row">
+            
+              <a href="/message-id/attachment/165535/v3-0001-Support-64-bit-integer-GUCs.patch">v3-0001-Support-64-bit-integer-GUCs.patch</a>
+            
+          </th>
+          <td>application/octet-stream</td>
+          <td>44.8 KB</td>
+        </tr>
+      
+    </tbody>
+  </table>
+
+
+
+
+
+
+
+
+
+
+
+  <hr style="margin-bottom: 0.5rem;" />
+
+
+<a name="C6C1FCFD-0E75-42EB-BF96-9DADC9C07208@hotmail.com"></a>
+<a name="4dd3a245919a4b8492481c428bcd6081"></a>
+
+
+<table class="table-sm table-responsive message-header" style="border-bottom: 0.05em solid #E7EAE8; margin-bottom: 1em;">
+ <tr>
+  <th scope="row" style="width: 10%">From:</th>
+  <td>Li Japin &lt;japinli(at)hotmail(dot)com&gt;</td>
+ </tr>
+ <tr>
+  <th scope="row">To:</th>
+  <td>Aleksander Alekseev &lt;aleksander(at)timescale(dot)com&gt;</td>
+ </tr>
+
+ <tr>
+  <th scope="row">Cc:</th>
+  <td>PostgreSQL Hackers &lt;pgsql-hackers(at)lists(dot)postgresql(dot)org&gt;, Alexander
+ Korotkov &lt;aekorotkov(at)gmail(dot)com&gt;, Nathan Bossart &lt;nathandbossart(at)gmail(dot)com&gt;</td>
+ </tr>
+
+ <tr>
+  <th scope="row">Subject:</th>
+  <td>Re: [PATCH] Support Int64 GUCs</td>
+ </tr>
+ <tr>
+  <th scope="row">Date:</th>
+  <td>2024-09-25 14:38:46</td>
+ </tr>
+ <tr>
+  <th scope="row">Message-ID:</th>
+  <td><a href="/message-id/C6C1FCFD-0E75-42EB-BF96-9DADC9C07208%40hotmail.com">C6C1FCFD-0E75-42EB-BF96-9DADC9C07208@hotmail.com</a></td>
+ </tr>
+ <tr>
+   <th class="align-middle" scope="row">Views:</th>
+   <td>
+     <a href="/message-id/flat/C6C1FCFD-0E75-42EB-BF96-9DADC9C07208%40hotmail.com">Whole Thread</a> |
+     <a href="#" data-ref="/message-id/raw/C6C1FCFD-0E75-42EB-BF96-9DADC9C07208%40hotmail.com" class="post-link">Raw Message</a> |
+     <a href="#" data-ref="/message-id/mbox/C6C1FCFD-0E75-42EB-BF96-9DADC9C07208%40hotmail.com" class="post-link">Download mbox</a>
+ | <a href="#" data-ref="/message-id/resend/C6C1FCFD-0E75-42EB-BF96-9DADC9C07208%40hotmail.com" class="post-link">Resend email</a>
+   </td>
+ </tr>
+ 
+  
+    <tr>
+      <th scope="row">Lists:</th>
+      <td>
+        
+          <span class="listname"><a href="/list/pgsql-hackers/since/202409250000">pgsql-hackers</a></span>
+        
+      </td>
+    </tr>
+  
+</table>
+
+<div class="message-content"><p><br>On Sep 25, 2024, at 19:03, Aleksander Alekseev &lt;aleksander(at)timescale(dot)com&gt; wrote:</p>
+
+<p>Hi,</p>
+
+<p>I found the autovacuum_vacuum_threshold, autovacuum_vacuum_insert_threshold<br>and autovacuum_analyze_threshold is change to int64 for relation option,<br>however the GUCs are still integers.</p>
+
+<p>```<br>postgres=# select * from pg_settings where name = &#x27;autovacuum_vacuum_threshold&#x27; \gx<br>-[ RECORD 1 ]---+------------------------------------------------------------<br>name            | autovacuum_vacuum_threshold<br>setting         | 50<br>unit            |<br>category        | Autovacuum<br>short_desc      | Minimum number of tuple updates or deletes prior to vacuum.<br>extra_desc      |<br>context         | sighup<br>vartype         | integer<br>source          | default<br>min_val         | 0<br>max_val         | 2147483647<br>enumvals        |<br>boot_val        | 50<br>reset_val       | 50<br>sourcefile      |<br>sourceline      |<br>pending_restart | f<br>```</p>
+
+<p>Is there something I missed?</p>
+
+<p>No, you found a bug. The patch didn&#x27;t change ConfigureNamesInt64[]<br>thus these GUCs were still treated as int32s.</p>
+
+<p>Here is the corrected patch v3. Thanks!</p>
+
+<p>=# select * from pg_settings where name = &#x27;autovacuum_vacuum_threshold&#x27;;<br>-[ RECORD 1 ]---+------------------------------------------------------------<br>name            | autovacuum_vacuum_threshold<br>setting         | 1234605616436508552<br>unit            |<br>category        | Autovacuum<br>short_desc      | Minimum number of tuple updates or deletes prior to vacuum.<br>extra_desc      |<br>context         | sighup<br>vartype         | int64<br>source          | configuration file<br>min_val         | 0<br>max_val         | 9223372036854775807<br>enumvals        |<br>boot_val        | 50<br>reset_val       | 1234605616436508552<br>sourcefile      | /Users/eax/pginstall/data-master/postgresql.conf<br>sourceline      | 664<br>pending_restart | f</p>
+
+<p>Thanks for updating the patch.</p>
+
+<p>After testing the v3 patch, I found it cannot correctly handle the number with underscore.</p>
+
+<p>See:</p>
+
+<p>```<br>postgres=# alter system set autovacuum_vacuum_threshold to 2_147_483_648;<br>ERROR:  invalid value for parameter &quot;autovacuum_vacuum_threshold&quot;: &quot;2_147_483_648&quot;<br>postgres=# alter system set autovacuum_vacuum_threshold to 2_147_483_647;<br>ALTER SYSTEM<br>```</p>
+
+<p>IIRC, the lexer only supports integers but not int64.</p>
+
+<p>--<br>Best regards,<br>Japin Li</p>
+
+<p></p></div>
+
+
+
+
+
+
+
+
+
+
+
+
+  <hr style="margin-bottom: 0.5rem;" />
+
+
+<a name="CAJ7c6TPyreD0t37aqPzaXBzMzEDQSbk=w++9qdTVagEaq+iiLw@mail.gmail.com"></a>
+<a name="6e0d925b6efbe2ec8e3465c1a4248c47"></a>
+
+
+<table class="table-sm table-responsive message-header" style="border-bottom: 0.05em solid #E7EAE8; margin-bottom: 1em;">
+ <tr>
+  <th scope="row" style="width: 10%">From:</th>
+  <td>Aleksander Alekseev &lt;aleksander(at)timescale(dot)com&gt;</td>
+ </tr>
+ <tr>
+  <th scope="row">To:</th>
+  <td>PostgreSQL Hackers &lt;pgsql-hackers(at)lists(dot)postgresql(dot)org&gt;</td>
+ </tr>
+
+ <tr>
+  <th scope="row">Cc:</th>
+  <td>Li Japin &lt;japinli(at)hotmail(dot)com&gt;, Alexander Korotkov &lt;aekorotkov(at)gmail(dot)com&gt;,  Nathan Bossart &lt;nathandbossart(at)gmail(dot)com&gt;</td>
+ </tr>
+
+ <tr>
+  <th scope="row">Subject:</th>
+  <td>Re: [PATCH] Support Int64 GUCs</td>
+ </tr>
+ <tr>
+  <th scope="row">Date:</th>
+  <td>2024-09-25 14:44:28</td>
+ </tr>
+ <tr>
+  <th scope="row">Message-ID:</th>
+  <td><a href="/message-id/CAJ7c6TPyreD0t37aqPzaXBzMzEDQSbk%3Dw%2B%2B9qdTVagEaq%2BiiLw%40mail.gmail.com">CAJ7c6TPyreD0t37aqPzaXBzMzEDQSbk=w++9qdTVagEaq+iiLw@mail.gmail.com</a></td>
+ </tr>
+ <tr>
+   <th class="align-middle" scope="row">Views:</th>
+   <td>
+     <a href="/message-id/flat/CAJ7c6TPyreD0t37aqPzaXBzMzEDQSbk%3Dw%2B%2B9qdTVagEaq%2BiiLw%40mail.gmail.com">Whole Thread</a> |
+     <a href="#" data-ref="/message-id/raw/CAJ7c6TPyreD0t37aqPzaXBzMzEDQSbk%3Dw%2B%2B9qdTVagEaq%2BiiLw%40mail.gmail.com" class="post-link">Raw Message</a> |
+     <a href="#" data-ref="/message-id/mbox/CAJ7c6TPyreD0t37aqPzaXBzMzEDQSbk%3Dw%2B%2B9qdTVagEaq%2BiiLw%40mail.gmail.com" class="post-link">Download mbox</a>
+ | <a href="#" data-ref="/message-id/resend/CAJ7c6TPyreD0t37aqPzaXBzMzEDQSbk%3Dw%2B%2B9qdTVagEaq%2BiiLw%40mail.gmail.com" class="post-link">Resend email</a>
+   </td>
+ </tr>
+ 
+  
+    <tr>
+      <th scope="row">Lists:</th>
+      <td>
+        
+          <span class="listname"><a href="/list/pgsql-hackers/since/202409250000">pgsql-hackers</a></span>
+        
+      </td>
+    </tr>
+  
+</table>
+
+<div class="message-content"><p>Hi,</p>
+
+<p>&gt; ```<br>&gt; postgres=# alter system set autovacuum_vacuum_threshold to 2_147_483_648;<br>&gt; ERROR:  invalid value for parameter &quot;autovacuum_vacuum_threshold&quot;: &quot;2_147_483_648&quot;<br>&gt; postgres=# alter system set autovacuum_vacuum_threshold to 2_147_483_647;<br>&gt; ALTER SYSTEM<br>&gt; ```<br>&gt;<br>&gt; IIRC, the lexer only supports integers but not int64.</p>
+
+<p>Right. Supporting underscores for GUCs was discussed above but not<br>implemented in the patch. As Alexander rightly pointed out this is not<br>a priority and can be discussed separately.</p>
+
+<p>-- <br>Best regards,<br>Aleksander Alekseev</p>
+
+<p></p></div>
+
+
+
+
+
+
+
+
+
+
+
+
+  <hr style="margin-bottom: 0.5rem;" />
+
+
+<a name="3649727.1727276882@sss.pgh.pa.us"></a>
+<a name="7b430dd3752a3945ad77e8474834c66d"></a>
+
+
+<table class="table-sm table-responsive message-header" style="border-bottom: 0.05em solid #E7EAE8; margin-bottom: 1em;">
+ <tr>
+  <th scope="row" style="width: 10%">From:</th>
+  <td>Tom Lane &lt;tgl(at)sss(dot)pgh(dot)pa(dot)us&gt;</td>
+ </tr>
+ <tr>
+  <th scope="row">To:</th>
+  <td>Aleksander Alekseev &lt;aleksander(at)timescale(dot)com&gt;</td>
+ </tr>
+
+ <tr>
+  <th scope="row">Cc:</th>
+  <td>PostgreSQL Hackers &lt;pgsql-hackers(at)lists(dot)postgresql(dot)org&gt;,
+        Li Japin &lt;japinli(at)hotmail(dot)com&gt;,
+        Alexander Korotkov &lt;aekorotkov(at)gmail(dot)com&gt;,
+        Nathan Bossart &lt;nathandbossart(at)gmail(dot)com&gt;</td>
+ </tr>
+
+ <tr>
+  <th scope="row">Subject:</th>
+  <td>Re: [PATCH] Support Int64 GUCs</td>
+ </tr>
+ <tr>
+  <th scope="row">Date:</th>
+  <td>2024-09-25 15:08:02</td>
+ </tr>
+ <tr>
+  <th scope="row">Message-ID:</th>
+  <td><a href="/message-id/3649727.1727276882%40sss.pgh.pa.us">3649727.1727276882@sss.pgh.pa.us</a></td>
+ </tr>
+ <tr>
+   <th class="align-middle" scope="row">Views:</th>
+   <td>
+     <a href="/message-id/flat/3649727.1727276882%40sss.pgh.pa.us">Whole Thread</a> |
+     <a href="#" data-ref="/message-id/raw/3649727.1727276882%40sss.pgh.pa.us" class="post-link">Raw Message</a> |
+     <a href="#" data-ref="/message-id/mbox/3649727.1727276882%40sss.pgh.pa.us" class="post-link">Download mbox</a>
+ | <a href="#" data-ref="/message-id/resend/3649727.1727276882%40sss.pgh.pa.us" class="post-link">Resend email</a>
+   </td>
+ </tr>
+ 
+  
+    <tr>
+      <th scope="row">Lists:</th>
+      <td>
+        
+          <span class="listname"><a href="/list/pgsql-hackers/since/202409250000">pgsql-hackers</a></span>
+        
+      </td>
+    </tr>
+  
+</table>
+
+<div class="message-content"><p>FWIW, I agree with the upthread opinions that we shouldn&#x27;t do this<br>(invent int64 GUCs).  I don&#x27;t think we need the added code bloat<br>and risk of breaking user code that isn&#x27;t expecting this new GUC<br>type.  We invented the notion of GUC units in part to ensure that<br>int32 GUCs could be adapted to handle potentially-large numbers.<br>And there&#x27;s always the fallback position of using a float8 GUC<br>if you really feel you need a wider range.</p>
+
+<p>			regards, tom lane</p>
+
+<p></p></div>
+
+
+
+
+
+
+
+
+
+
+
+
+  <hr style="margin-bottom: 0.5rem;" />
+
+
+<a name="CAPpHfdspEzhGYWuxHbhDKxadUOAVi+ZhBv8nB=Mduci2-1ORaQ@mail.gmail.com"></a>
+<a name="38d49ba483dd847b754e36acf60a4f67"></a>
+
+
+<table class="table-sm table-responsive message-header" style="border-bottom: 0.05em solid #E7EAE8; margin-bottom: 1em;">
+ <tr>
+  <th scope="row" style="width: 10%">From:</th>
+  <td>Alexander Korotkov &lt;aekorotkov(at)gmail(dot)com&gt;</td>
+ </tr>
+ <tr>
+  <th scope="row">To:</th>
+  <td>Tom Lane &lt;tgl(at)sss(dot)pgh(dot)pa(dot)us&gt;</td>
+ </tr>
+
+ <tr>
+  <th scope="row">Cc:</th>
+  <td>Aleksander Alekseev &lt;aleksander(at)timescale(dot)com&gt;,  PostgreSQL Hackers &lt;pgsql-hackers(at)lists(dot)postgresql(dot)org&gt;, Li Japin &lt;japinli(at)hotmail(dot)com&gt;,  Nathan Bossart &lt;nathandbossart(at)gmail(dot)com&gt;</td>
+ </tr>
+
+ <tr>
+  <th scope="row">Subject:</th>
+  <td>Re: [PATCH] Support Int64 GUCs</td>
+ </tr>
+ <tr>
+  <th scope="row">Date:</th>
+  <td>2024-09-25 18:04:36</td>
+ </tr>
+ <tr>
+  <th scope="row">Message-ID:</th>
+  <td><a href="/message-id/CAPpHfdspEzhGYWuxHbhDKxadUOAVi%2BZhBv8nB%3DMduci2-1ORaQ%40mail.gmail.com">CAPpHfdspEzhGYWuxHbhDKxadUOAVi+ZhBv8nB=Mduci2-1ORaQ@mail.gmail.com</a></td>
+ </tr>
+ <tr>
+   <th class="align-middle" scope="row">Views:</th>
+   <td>
+     <a href="/message-id/flat/CAPpHfdspEzhGYWuxHbhDKxadUOAVi%2BZhBv8nB%3DMduci2-1ORaQ%40mail.gmail.com">Whole Thread</a> |
+     <a href="#" data-ref="/message-id/raw/CAPpHfdspEzhGYWuxHbhDKxadUOAVi%2BZhBv8nB%3DMduci2-1ORaQ%40mail.gmail.com" class="post-link">Raw Message</a> |
+     <a href="#" data-ref="/message-id/mbox/CAPpHfdspEzhGYWuxHbhDKxadUOAVi%2BZhBv8nB%3DMduci2-1ORaQ%40mail.gmail.com" class="post-link">Download mbox</a>
+ | <a href="#" data-ref="/message-id/resend/CAPpHfdspEzhGYWuxHbhDKxadUOAVi%2BZhBv8nB%3DMduci2-1ORaQ%40mail.gmail.com" class="post-link">Resend email</a>
+   </td>
+ </tr>
+ 
+  
+    <tr>
+      <th scope="row">Lists:</th>
+      <td>
+        
+          <span class="listname"><a href="/list/pgsql-hackers/since/202409250000">pgsql-hackers</a></span>
+        
+      </td>
+    </tr>
+  
+</table>
+
+<div class="message-content"><p>Hi, Tom!</p>
+
+<p>On Wed, Sep 25, 2024 at 6:08 PM Tom Lane &lt;tgl(at)sss(dot)pgh(dot)pa(dot)us&gt; wrote:<br>&gt; FWIW, I agree with the upthread opinions that we shouldn&#x27;t do this<br>&gt; (invent int64 GUCs).  I don&#x27;t think we need the added code bloat<br>&gt; and risk of breaking user code that isn&#x27;t expecting this new GUC<br>&gt; type.  We invented the notion of GUC units in part to ensure that<br>&gt; int32 GUCs could be adapted to handle potentially-large numbers.<br>&gt; And there&#x27;s always the fallback position of using a float8 GUC<br>&gt; if you really feel you need a wider range.</p>
+
+<p>Thank you for your feedback.<br>Do you think we don&#x27;t need int64 GUCs just now, when 64-bit<br>transaction ids are far from committable shape?  Or do you think we<br>don&#x27;t need int64 GUCs even if we have 64-bit transaction ids?  If yes,<br>what do you think we should use for *_age variables with 64-bit<br>transaction ids?</p>
+
+<p>------<br>Regards,<br>Alexander Korotkov<br>Supabase</p>
+
+<p></p></div>
+
+
+
+
+
+
+
+
+
+
+
+
+  <hr style="margin-bottom: 0.5rem;" />
+
+
+<a name="CAGjGUALj0Ty0pv_7dseJRkSbHWZJM9-mOUdfs4Y=nUa-HGcTOw@mail.gmail.com"></a>
+<a name="176e2a7b1c7bc4303b821919d1c12456"></a>
+
+
+<table class="table-sm table-responsive message-header" style="border-bottom: 0.05em solid #E7EAE8; margin-bottom: 1em;">
+ <tr>
+  <th scope="row" style="width: 10%">From:</th>
+  <td>wenhui qiu &lt;qiuwenhuifx(at)gmail(dot)com&gt;</td>
+ </tr>
+ <tr>
+  <th scope="row">To:</th>
+  <td>Alexander Korotkov &lt;aekorotkov(at)gmail(dot)com&gt;</td>
+ </tr>
+
+ <tr>
+  <th scope="row">Cc:</th>
+  <td>Tom Lane &lt;tgl(at)sss(dot)pgh(dot)pa(dot)us&gt;, Aleksander Alekseev &lt;aleksander(at)timescale(dot)com&gt;,  PostgreSQL Hackers &lt;pgsql-hackers(at)lists(dot)postgresql(dot)org&gt;, Li Japin &lt;japinli(at)hotmail(dot)com&gt;,  Nathan Bossart &lt;nathandbossart(at)gmail(dot)com&gt;</td>
+ </tr>
+
+ <tr>
+  <th scope="row">Subject:</th>
+  <td>Re: [PATCH] Support Int64 GUCs</td>
+ </tr>
+ <tr>
+  <th scope="row">Date:</th>
+  <td>2024-09-26 09:30:47</td>
+ </tr>
+ <tr>
+  <th scope="row">Message-ID:</th>
+  <td><a href="/message-id/CAGjGUALj0Ty0pv_7dseJRkSbHWZJM9-mOUdfs4Y%3DnUa-HGcTOw%40mail.gmail.com">CAGjGUALj0Ty0pv_7dseJRkSbHWZJM9-mOUdfs4Y=nUa-HGcTOw@mail.gmail.com</a></td>
+ </tr>
+ <tr>
+   <th class="align-middle" scope="row">Views:</th>
+   <td>
+     <a href="/message-id/flat/CAGjGUALj0Ty0pv_7dseJRkSbHWZJM9-mOUdfs4Y%3DnUa-HGcTOw%40mail.gmail.com">Whole Thread</a> |
+     <a href="#" data-ref="/message-id/raw/CAGjGUALj0Ty0pv_7dseJRkSbHWZJM9-mOUdfs4Y%3DnUa-HGcTOw%40mail.gmail.com" class="post-link">Raw Message</a> |
+     <a href="#" data-ref="/message-id/mbox/CAGjGUALj0Ty0pv_7dseJRkSbHWZJM9-mOUdfs4Y%3DnUa-HGcTOw%40mail.gmail.com" class="post-link">Download mbox</a>
+ | <a href="#" data-ref="/message-id/resend/CAGjGUALj0Ty0pv_7dseJRkSbHWZJM9-mOUdfs4Y%3DnUa-HGcTOw%40mail.gmail.com" class="post-link">Resend email</a>
+   </td>
+ </tr>
+ 
+  
+    <tr>
+      <th scope="row">Lists:</th>
+      <td>
+        
+          <span class="listname"><a href="/list/pgsql-hackers/since/202409260000">pgsql-hackers</a></span>
+        
+      </td>
+    </tr>
+  
+</table>
+
+<div class="message-content"><p> Hi Alexander<br>      I think we need int64 GUCs, due to these  parameters（<br>autovacuum_freeze_table_age, autovacuum_freeze_max_age,When a table age is<br>greater than any of these parameters an aggressive vacuum will be<br>performed, When we implementing xid64, is it still necessary to be in the<br>int range? btw, I have a suggestion to record a warning in the log when the<br>table age exceeds the int maximum. These default values we can set a<br>reasonable values ,for example autovacuum_freeze_max_age=4294967295 or<br>8589934592.</p>
+
+<p>Thanks</p>
+
+<p>Alexander Korotkov &lt;aekorotkov(at)gmail(dot)com&gt; 于2024年9月26日周四 02:05写道：</p>
+
+<p>&gt; Hi, Tom!<br>&gt;<br>&gt; On Wed, Sep 25, 2024 at 6:08 PM Tom Lane &lt;tgl(at)sss(dot)pgh(dot)pa(dot)us&gt; wrote:<br>&gt; &gt; FWIW, I agree with the upthread opinions that we shouldn&#x27;t do this<br>&gt; &gt; (invent int64 GUCs).  I don&#x27;t think we need the added code bloat<br>&gt; &gt; and risk of breaking user code that isn&#x27;t expecting this new GUC<br>&gt; &gt; type.  We invented the notion of GUC units in part to ensure that<br>&gt; &gt; int32 GUCs could be adapted to handle potentially-large numbers.<br>&gt; &gt; And there&#x27;s always the fallback position of using a float8 GUC<br>&gt; &gt; if you really feel you need a wider range.<br>&gt;<br>&gt; Thank you for your feedback.<br>&gt; Do you think we don&#x27;t need int64 GUCs just now, when 64-bit<br>&gt; transaction ids are far from committable shape?  Or do you think we<br>&gt; don&#x27;t need int64 GUCs even if we have 64-bit transaction ids?  If yes,<br>&gt; what do you think we should use for *_age variables with 64-bit<br>&gt; transaction ids?<br>&gt;<br>&gt; ------<br>&gt; Regards,<br>&gt; Alexander Korotkov<br>&gt; Supabase<br>&gt;<br>&gt;<br>&gt;<br></p></div>
+
+
+
+
+
+
+
+
+
+
+
+
+  <hr style="margin-bottom: 0.5rem;" />
+
+
+<a name="CAPpHfdusZDd_6ACM5iyk_RNTJVumZsZv1hmrmS+QuCVva1fESA@mail.gmail.com"></a>
+<a name="913cefd0f89907c65a07563e95ab2267"></a>
+
+
+<table class="table-sm table-responsive message-header" style="border-bottom: 0.05em solid #E7EAE8; margin-bottom: 1em;">
+ <tr>
+  <th scope="row" style="width: 10%">From:</th>
+  <td>Alexander Korotkov &lt;aekorotkov(at)gmail(dot)com&gt;</td>
+ </tr>
+ <tr>
+  <th scope="row">To:</th>
+  <td>wenhui qiu &lt;qiuwenhuifx(at)gmail(dot)com&gt;</td>
+ </tr>
+
+ <tr>
+  <th scope="row">Cc:</th>
+  <td>Tom Lane &lt;tgl(at)sss(dot)pgh(dot)pa(dot)us&gt;, Aleksander Alekseev &lt;aleksander(at)timescale(dot)com&gt;,  PostgreSQL Hackers &lt;pgsql-hackers(at)lists(dot)postgresql(dot)org&gt;, Li Japin &lt;japinli(at)hotmail(dot)com&gt;,  Nathan Bossart &lt;nathandbossart(at)gmail(dot)com&gt;</td>
+ </tr>
+
+ <tr>
+  <th scope="row">Subject:</th>
+  <td>Re: [PATCH] Support Int64 GUCs</td>
+ </tr>
+ <tr>
+  <th scope="row">Date:</th>
+  <td>2024-09-26 15:55:07</td>
+ </tr>
+ <tr>
+  <th scope="row">Message-ID:</th>
+  <td><a href="/message-id/CAPpHfdusZDd_6ACM5iyk_RNTJVumZsZv1hmrmS%2BQuCVva1fESA%40mail.gmail.com">CAPpHfdusZDd_6ACM5iyk_RNTJVumZsZv1hmrmS+QuCVva1fESA@mail.gmail.com</a></td>
+ </tr>
+ <tr>
+   <th class="align-middle" scope="row">Views:</th>
+   <td>
+     <a href="/message-id/flat/CAPpHfdusZDd_6ACM5iyk_RNTJVumZsZv1hmrmS%2BQuCVva1fESA%40mail.gmail.com">Whole Thread</a> |
+     <a href="#" data-ref="/message-id/raw/CAPpHfdusZDd_6ACM5iyk_RNTJVumZsZv1hmrmS%2BQuCVva1fESA%40mail.gmail.com" class="post-link">Raw Message</a> |
+     <a href="#" data-ref="/message-id/mbox/CAPpHfdusZDd_6ACM5iyk_RNTJVumZsZv1hmrmS%2BQuCVva1fESA%40mail.gmail.com" class="post-link">Download mbox</a>
+ | <a href="#" data-ref="/message-id/resend/CAPpHfdusZDd_6ACM5iyk_RNTJVumZsZv1hmrmS%2BQuCVva1fESA%40mail.gmail.com" class="post-link">Resend email</a>
+   </td>
+ </tr>
+ 
+  
+    <tr>
+      <th scope="row">Lists:</th>
+      <td>
+        
+          <span class="listname"><a href="/list/pgsql-hackers/since/202409260000">pgsql-hackers</a></span>
+        
+      </td>
+    </tr>
+  
+</table>
+
+<div class="message-content"><p>On Thu, Sep 26, 2024 at 12:30 PM wenhui qiu &lt;qiuwenhuifx(at)gmail(dot)com&gt; wrote:<br>&gt;       I think we need int64 GUCs, due to these  parameters（ autovacuum_freeze_table_age, autovacuum_freeze_max_age,When a table age is greater than any of these parameters an aggressive vacuum will be performed, When we implementing xid64, is it still necessary to be in the int range? btw, I have a suggestion to record a warning in the log when the table age exceeds the int maximum. These default values we can set a reasonable values ,for example autovacuum_freeze_max_age=4294967295 or 8589934592.</p>
+
+<p>In principle, even with 64-bit transaction ids we could specify *_age<br>GUCs as int32 with bigger units or as float8.  That feels a bit<br>awkward for me.  This is why I queried more about Tom&#x27;s opinion in<br>more details: did he propose to wait with int64 GUCs before we have<br>64-bit transaction ids, or give up about them completely?</p>
+
+<p>Links.<br>1. <a href="https://www.postgresql.org/message-id/3649727.1727276882@sss.pgh.pa.us" rel="nofollow">https://www.postgresql.org/message-id/3649727.1727276882%40sss.pgh.pa.us</a></p>
+
+<p>------<br>Regards,<br>Alexander Korotkov<br>Supabase</p>
+
+<p></p></div>
+
+
+
+
+
+
+
+
+
+
+
+
+  <hr style="margin-bottom: 0.5rem;" />
+
+
+<a name="330764.1727368750@sss.pgh.pa.us"></a>
+<a name="d678222ea98575e0c170b4e43dd74e32"></a>
+
+
+<table class="table-sm table-responsive message-header" style="border-bottom: 0.05em solid #E7EAE8; margin-bottom: 1em;">
+ <tr>
+  <th scope="row" style="width: 10%">From:</th>
+  <td>Tom Lane &lt;tgl(at)sss(dot)pgh(dot)pa(dot)us&gt;</td>
+ </tr>
+ <tr>
+  <th scope="row">To:</th>
+  <td>Alexander Korotkov &lt;aekorotkov(at)gmail(dot)com&gt;</td>
+ </tr>
+
+ <tr>
+  <th scope="row">Cc:</th>
+  <td>Aleksander Alekseev &lt;aleksander(at)timescale(dot)com&gt;,
+        PostgreSQL Hackers &lt;pgsql-hackers(at)lists(dot)postgresql(dot)org&gt;,
+        Li Japin &lt;japinli(at)hotmail(dot)com&gt;,
+        Nathan Bossart &lt;nathandbossart(at)gmail(dot)com&gt;</td>
+ </tr>
+
+ <tr>
+  <th scope="row">Subject:</th>
+  <td>Re: [PATCH] Support Int64 GUCs</td>
+ </tr>
+ <tr>
+  <th scope="row">Date:</th>
+  <td>2024-09-26 16:39:10</td>
+ </tr>
+ <tr>
+  <th scope="row">Message-ID:</th>
+  <td><a href="/message-id/330764.1727368750%40sss.pgh.pa.us">330764.1727368750@sss.pgh.pa.us</a></td>
+ </tr>
+ <tr>
+   <th class="align-middle" scope="row">Views:</th>
+   <td>
+     <a href="/message-id/flat/330764.1727368750%40sss.pgh.pa.us">Whole Thread</a> |
+     <a href="#" data-ref="/message-id/raw/330764.1727368750%40sss.pgh.pa.us" class="post-link">Raw Message</a> |
+     <a href="#" data-ref="/message-id/mbox/330764.1727368750%40sss.pgh.pa.us" class="post-link">Download mbox</a>
+ | <a href="#" data-ref="/message-id/resend/330764.1727368750%40sss.pgh.pa.us" class="post-link">Resend email</a>
+   </td>
+ </tr>
+ 
+  
+    <tr>
+      <th scope="row">Lists:</th>
+      <td>
+        
+          <span class="listname"><a href="/list/pgsql-hackers/since/202409260000">pgsql-hackers</a></span>
+        
+      </td>
+    </tr>
+  
+</table>
+
+<div class="message-content"><p>Alexander Korotkov &lt;aekorotkov(at)gmail(dot)com&gt; writes:<br>&gt; Do you think we don&#x27;t need int64 GUCs just now, when 64-bit<br>&gt; transaction ids are far from committable shape?  Or do you think we<br>&gt; don&#x27;t need int64 GUCs even if we have 64-bit transaction ids?  If yes,<br>&gt; what do you think we should use for *_age variables with 64-bit<br>&gt; transaction ids?</p>
+
+<p>I seriously doubt that _age values exceeding INT32_MAX would be<br>useful, even in the still-extremely-doubtful situation that we<br>get to true 64-bit XIDs.  But if you think we must have that,<br>we could still use float8 GUCs for them.  float8 is exact up<br>to 2^53 (given IEEE math), and you certainly aren&#x27;t going to<br>convince me that anyone needs _age values exceeding that.<br>For that matter, an imprecise representation of such an age<br>limit would still be all right wouldn&#x27;t it?</p>
+
+<p>			regards, tom lane</p>
+
+<p></p></div>
+
+
+
+
+
+
+
+
+
+
+
+
+  <hr style="margin-bottom: 0.5rem;" />
+
+
+<a name="CAJ7c6TNVy6oR9Cu=Gbct+9J2AVGQ5+R-3yH2tbwJ=+UgBswkdw@mail.gmail.com"></a>
+<a name="d4c1c95275164d499bc879d16f25ad76"></a>
+
+
+<table class="table-sm table-responsive message-header" style="border-bottom: 0.05em solid #E7EAE8; margin-bottom: 1em;">
+ <tr>
+  <th scope="row" style="width: 10%">From:</th>
+  <td>Aleksander Alekseev &lt;aleksander(at)timescale(dot)com&gt;</td>
+ </tr>
+ <tr>
+  <th scope="row">To:</th>
+  <td>PostgreSQL Hackers &lt;pgsql-hackers(at)lists(dot)postgresql(dot)org&gt;</td>
+ </tr>
+
+ <tr>
+  <th scope="row">Cc:</th>
+  <td>Tom Lane &lt;tgl(at)sss(dot)pgh(dot)pa(dot)us&gt;, Alexander Korotkov &lt;aekorotkov(at)gmail(dot)com&gt;,  Li Japin &lt;japinli(at)hotmail(dot)com&gt;, Nathan Bossart &lt;nathandbossart(at)gmail(dot)com&gt;</td>
+ </tr>
+
+ <tr>
+  <th scope="row">Subject:</th>
+  <td>Re: [PATCH] Support Int64 GUCs</td>
+ </tr>
+ <tr>
+  <th scope="row">Date:</th>
+  <td>2024-09-29 21:31:33</td>
+ </tr>
+ <tr>
+  <th scope="row">Message-ID:</th>
+  <td><a href="/message-id/CAJ7c6TNVy6oR9Cu%3DGbct%2B9J2AVGQ5%2BR-3yH2tbwJ%3D%2BUgBswkdw%40mail.gmail.com">CAJ7c6TNVy6oR9Cu=Gbct+9J2AVGQ5+R-3yH2tbwJ=+UgBswkdw@mail.gmail.com</a></td>
+ </tr>
+ <tr>
+   <th class="align-middle" scope="row">Views:</th>
+   <td>
+     <a href="/message-id/flat/CAJ7c6TNVy6oR9Cu%3DGbct%2B9J2AVGQ5%2BR-3yH2tbwJ%3D%2BUgBswkdw%40mail.gmail.com">Whole Thread</a> |
+     <a href="#" data-ref="/message-id/raw/CAJ7c6TNVy6oR9Cu%3DGbct%2B9J2AVGQ5%2BR-3yH2tbwJ%3D%2BUgBswkdw%40mail.gmail.com" class="post-link">Raw Message</a> |
+     <a href="#" data-ref="/message-id/mbox/CAJ7c6TNVy6oR9Cu%3DGbct%2B9J2AVGQ5%2BR-3yH2tbwJ%3D%2BUgBswkdw%40mail.gmail.com" class="post-link">Download mbox</a>
+ | <a href="#" data-ref="/message-id/resend/CAJ7c6TNVy6oR9Cu%3DGbct%2B9J2AVGQ5%2BR-3yH2tbwJ%3D%2BUgBswkdw%40mail.gmail.com" class="post-link">Resend email</a>
+   </td>
+ </tr>
+ 
+  
+    <tr>
+      <th scope="row">Lists:</th>
+      <td>
+        
+          <span class="listname"><a href="/list/pgsql-hackers/since/202409290000">pgsql-hackers</a></span>
+        
+      </td>
+    </tr>
+  
+</table>
+
+<div class="message-content"><p>Hi,</p>
+
+<p>&gt; I seriously doubt that _age values exceeding INT32_MAX would be<br>&gt; useful, even in the still-extremely-doubtful situation that we<br>&gt; get to true 64-bit XIDs.  But if you think we must have that,<br>&gt; we could still use float8 GUCs for them.  float8 is exact up<br>&gt; to 2^53 (given IEEE math), and you certainly aren&#x27;t going to<br>&gt; convince me that anyone needs _age values exceeding that.<br>&gt; For that matter, an imprecise representation of such an age<br>&gt; limit would still be all right wouldn&#x27;t it?</p>
+
+<p>Considering the recent feedback. I&#x27;m marking the corresponding CF<br>entry as &quot;Rejected&quot;.</p>
+
+<p>Thanks to everyone involved!</p>
+
+<p>-- <br>Best regards,<br>Aleksander Alekseev</p>
+
+<p></p></div>
+
+
+
+
+
+
+
+
+
+
+
+
+  <hr style="margin-bottom: 0.5rem;" />
+
+
+<a name="4c0c1924-a68c-4b3f-bf81-5af13b1a9087@gmail.com"></a>
+<a name="0d53b12de1fcbf1fe843954b748f3a60"></a>
+
+
+<table class="table-sm table-responsive message-header" style="border-bottom: 0.05em solid #E7EAE8; margin-bottom: 1em;">
+ <tr>
+  <th scope="row" style="width: 10%">From:</th>
+  <td>Evgeny &lt;evorop(at)gmail(dot)com&gt;</td>
+ </tr>
+ <tr>
+  <th scope="row">To:</th>
+  <td>pgsql-hackers(at)lists(dot)postgresql(dot)org</td>
+ </tr>
+
+ <tr>
+  <th scope="row">Subject:</th>
+  <td>Re: [PATCH] Support Int64 GUCs</td>
+ </tr>
+ <tr>
+  <th scope="row">Date:</th>
+  <td>2024-12-08 14:11:42</td>
+ </tr>
+ <tr>
+  <th scope="row">Message-ID:</th>
+  <td><a href="/message-id/4c0c1924-a68c-4b3f-bf81-5af13b1a9087%40gmail.com">4c0c1924-a68c-4b3f-bf81-5af13b1a9087@gmail.com</a></td>
+ </tr>
+ <tr>
+   <th class="align-middle" scope="row">Views:</th>
+   <td>
+     <a href="/message-id/flat/4c0c1924-a68c-4b3f-bf81-5af13b1a9087%40gmail.com">Whole Thread</a> |
+     <a href="#" data-ref="/message-id/raw/4c0c1924-a68c-4b3f-bf81-5af13b1a9087%40gmail.com" class="post-link">Raw Message</a> |
+     <a href="#" data-ref="/message-id/mbox/4c0c1924-a68c-4b3f-bf81-5af13b1a9087%40gmail.com" class="post-link">Download mbox</a>
+ | <a href="#" data-ref="/message-id/resend/4c0c1924-a68c-4b3f-bf81-5af13b1a9087%40gmail.com" class="post-link">Resend email</a>
+   </td>
+ </tr>
+ 
+  
+    <tr>
+      <th scope="row">Lists:</th>
+      <td>
+        
+          <span class="listname"><a href="/list/pgsql-hackers/since/202412080000">pgsql-hackers</a></span>
+        
+      </td>
+    </tr>
+  
+</table>
+
+<div class="message-content"><p>Hi hackers!</p>
+
+<p>Upgraded the &quot;Int64 GUC&quot; patch in order to conform to f3f06b13308e3 <br>updates. Rebased and tested upon the current master (3f9b9621766). The <br>patch is still needed to be up to date as a part of the xid64 solution.</p>
+
+<p>Best regards,<br>Evgeny Voropaev,<br>TantorLabs, LLC.<br>&lt;evorop(at)gmail(dot)com&gt;<br>&lt;evgeny(dot)voropaev(at)tantorlabs(dot)ru&gt;</p>
+
+<p></p></div>
+
+
+
+
+
+
+
+
+
+
+
+
+  <hr style="margin-bottom: 0.5rem;" />
+
+
+<a name="56bddcb1-80cc-4271-9c50-7495619e6835@gmail.com"></a>
+<a name="30faa69c82a6294d16907798f6d7a19c"></a>
+
+
+<table class="table-sm table-responsive message-header" style="border-bottom: 0.05em solid #E7EAE8; margin-bottom: 1em;">
+ <tr>
+  <th scope="row" style="width: 10%">From:</th>
+  <td>Evgeny Voropaev &lt;evorop(dot)wiki(at)gmail(dot)com&gt;</td>
+ </tr>
+ <tr>
+  <th scope="row">To:</th>
+  <td>pgsql-hackers(at)lists(dot)postgresql(dot)org</td>
+ </tr>
+
+ <tr>
+  <th scope="row">Subject:</th>
+  <td>Re: [PATCH] Support Int64 GUCs</td>
+ </tr>
+ <tr>
+  <th scope="row">Date:</th>
+  <td>2024-12-08 14:16:25</td>
+ </tr>
+ <tr>
+  <th scope="row">Message-ID:</th>
+  <td><a href="/message-id/56bddcb1-80cc-4271-9c50-7495619e6835%40gmail.com">56bddcb1-80cc-4271-9c50-7495619e6835@gmail.com</a></td>
+ </tr>
+ <tr>
+   <th class="align-middle" scope="row">Views:</th>
+   <td>
+     <a href="/message-id/flat/56bddcb1-80cc-4271-9c50-7495619e6835%40gmail.com">Whole Thread</a> |
+     <a href="#" data-ref="/message-id/raw/56bddcb1-80cc-4271-9c50-7495619e6835%40gmail.com" class="post-link">Raw Message</a> |
+     <a href="#" data-ref="/message-id/mbox/56bddcb1-80cc-4271-9c50-7495619e6835%40gmail.com" class="post-link">Download mbox</a>
+ | <a href="#" data-ref="/message-id/resend/56bddcb1-80cc-4271-9c50-7495619e6835%40gmail.com" class="post-link">Resend email</a>
+   </td>
+ </tr>
+ 
+  
+    <tr>
+      <th scope="row">Lists:</th>
+      <td>
+        
+          <span class="listname"><a href="/list/pgsql-hackers/since/202412080000">pgsql-hackers</a></span>
+        
+      </td>
+    </tr>
+  
+</table>
+
+<div class="message-content"><p>Hi hackers!</p>
+
+<p>Upgraded the &quot;Int64 GUC&quot; patch in order to conform to f3f06b13308e3 <br>updates. Rebased and tested upon the current master (3f9b9621766). The <br>patch is still needed to be up to date as a part of the xid64 solution.</p>
+
+<p>Best regards,<br>Evgeny Voropaev,<br>TantorLabs, LLC.<br>&lt;evorop(at)gmail(dot)com&gt;<br>&lt;evgeny(dot)voropaev(at)tantorlabs(dot)ru&gt;</p></div>
+
+
+  <table class="table table-sm table-responsive message-attachments">
+    <thead>
+      <tr>
+        <th scope="col">Attachment</th>
+        <th scope="col">Content-Type</th>
+        <th scope="col">Size</th>
+      </tr>
+    </thead>
+    <tbody>
+      
+        <tr>
+          <th scope="row">
+            
+              <a href="/message-id/attachment/168689/v4-0001-Support-64-bit-integer-GUCs.patch">v4-0001-Support-64-bit-integer-GUCs.patch</a>
+            
+          </th>
+          <td>text/x-patch</td>
+          <td>44.9 KB</td>
+        </tr>
+      
+    </tbody>
+  </table>
+
+
+
+
+
+
+
+
+
+
+
+  <hr style="margin-bottom: 0.5rem;" />
+
+
+<a name="CAGjGUALHd1PpzqFvVLxQ5b6N0sKP+QPmDC6X2uG8wv=D0ackWg@mail.gmail.com"></a>
+<a name="14c30915990192fbb72619afa0b83a57"></a>
+
+
+<table class="table-sm table-responsive message-header" style="border-bottom: 0.05em solid #E7EAE8; margin-bottom: 1em;">
+ <tr>
+  <th scope="row" style="width: 10%">From:</th>
+  <td>wenhui qiu &lt;qiuwenhuifx(at)gmail(dot)com&gt;</td>
+ </tr>
+ <tr>
+  <th scope="row">To:</th>
+  <td>Evgeny Voropaev &lt;evorop(dot)wiki(at)gmail(dot)com&gt;, Aleksander Alekseev &lt;aleksander(at)timescale(dot)com&gt;</td>
+ </tr>
+
+ <tr>
+  <th scope="row">Cc:</th>
+  <td>pgsql-hackers(at)lists(dot)postgresql(dot)org</td>
+ </tr>
+
+ <tr>
+  <th scope="row">Subject:</th>
+  <td>Re: [PATCH] Support Int64 GUCs</td>
+ </tr>
+ <tr>
+  <th scope="row">Date:</th>
+  <td>2024-12-10 13:32:17</td>
+ </tr>
+ <tr>
+  <th scope="row">Message-ID:</th>
+  <td><a href="/message-id/CAGjGUALHd1PpzqFvVLxQ5b6N0sKP%2BQPmDC6X2uG8wv%3DD0ackWg%40mail.gmail.com">CAGjGUALHd1PpzqFvVLxQ5b6N0sKP+QPmDC6X2uG8wv=D0ackWg@mail.gmail.com</a></td>
+ </tr>
+ <tr>
+   <th class="align-middle" scope="row">Views:</th>
+   <td>
+     <a href="/message-id/flat/CAGjGUALHd1PpzqFvVLxQ5b6N0sKP%2BQPmDC6X2uG8wv%3DD0ackWg%40mail.gmail.com">Whole Thread</a> |
+     <a href="#" data-ref="/message-id/raw/CAGjGUALHd1PpzqFvVLxQ5b6N0sKP%2BQPmDC6X2uG8wv%3DD0ackWg%40mail.gmail.com" class="post-link">Raw Message</a> |
+     <a href="#" data-ref="/message-id/mbox/CAGjGUALHd1PpzqFvVLxQ5b6N0sKP%2BQPmDC6X2uG8wv%3DD0ackWg%40mail.gmail.com" class="post-link">Download mbox</a>
+ | <a href="#" data-ref="/message-id/resend/CAGjGUALHd1PpzqFvVLxQ5b6N0sKP%2BQPmDC6X2uG8wv%3DD0ackWg%40mail.gmail.com" class="post-link">Resend email</a>
+   </td>
+ </tr>
+ 
+  
+    <tr>
+      <th scope="row">Lists:</th>
+      <td>
+        
+          <span class="listname"><a href="/list/pgsql-hackers/since/202412100000">pgsql-hackers</a></span>
+        
+      </td>
+    </tr>
+  
+</table>
+
+<div class="message-content"><p>Hi aleksander<br>   Didn&#x27;t you mark this patch as rejected last time? Do we still need to<br>continue this path?</p>
+
+<p>Thanks</p>
+
+<p>On Sun, Dec 8, 2024 at 10:16 PM Evgeny Voropaev &lt;evorop(dot)wiki(at)gmail(dot)com&gt;<br>wrote:</p>
+
+<p>&gt; Hi hackers!<br>&gt;<br>&gt; Upgraded the &quot;Int64 GUC&quot; patch in order to conform to f3f06b13308e3<br>&gt; updates. Rebased and tested upon the current master (3f9b9621766). The<br>&gt; patch is still needed to be up to date as a part of the xid64 solution.<br>&gt;<br>&gt; Best regards,<br>&gt; Evgeny Voropaev,<br>&gt; TantorLabs, LLC.<br>&gt; &lt;evorop(at)gmail(dot)com&gt;<br>&gt; &lt;evgeny(dot)voropaev(at)tantorlabs(dot)ru&gt;<br></p></div>
+
+
+
+
+
+
+
+
+
+
+
+
+  <hr style="margin-bottom: 0.5rem;" />
+
+
+<a name="CALT9ZEG9C6uXXrs+BOrQ4br4BW2x0Yi8qXxBg2m2vuj=Va8ozQ@mail.gmail.com"></a>
+<a name="318b0de02dedb1a0acaf96f970108485"></a>
+
+
+<table class="table-sm table-responsive message-header" style="border-bottom: 0.05em solid #E7EAE8; margin-bottom: 1em;">
+ <tr>
+  <th scope="row" style="width: 10%">From:</th>
+  <td>Pavel Borisov &lt;pashkin(dot)elfe(at)gmail(dot)com&gt;</td>
+ </tr>
+ <tr>
+  <th scope="row">To:</th>
+  <td>wenhui qiu &lt;qiuwenhuifx(at)gmail(dot)com&gt;</td>
+ </tr>
+
+ <tr>
+  <th scope="row">Cc:</th>
+  <td>Evgeny Voropaev &lt;evorop(dot)wiki(at)gmail(dot)com&gt;, Aleksander Alekseev &lt;aleksander(at)timescale(dot)com&gt;,  pgsql-hackers(at)lists(dot)postgresql(dot)org</td>
+ </tr>
+
+ <tr>
+  <th scope="row">Subject:</th>
+  <td>Re: [PATCH] Support Int64 GUCs</td>
+ </tr>
+ <tr>
+  <th scope="row">Date:</th>
+  <td>2024-12-10 13:43:14</td>
+ </tr>
+ <tr>
+  <th scope="row">Message-ID:</th>
+  <td><a href="/message-id/CALT9ZEG9C6uXXrs%2BBOrQ4br4BW2x0Yi8qXxBg2m2vuj%3DVa8ozQ%40mail.gmail.com">CALT9ZEG9C6uXXrs+BOrQ4br4BW2x0Yi8qXxBg2m2vuj=Va8ozQ@mail.gmail.com</a></td>
+ </tr>
+ <tr>
+   <th class="align-middle" scope="row">Views:</th>
+   <td>
+     <a href="/message-id/flat/CALT9ZEG9C6uXXrs%2BBOrQ4br4BW2x0Yi8qXxBg2m2vuj%3DVa8ozQ%40mail.gmail.com">Whole Thread</a> |
+     <a href="#" data-ref="/message-id/raw/CALT9ZEG9C6uXXrs%2BBOrQ4br4BW2x0Yi8qXxBg2m2vuj%3DVa8ozQ%40mail.gmail.com" class="post-link">Raw Message</a> |
+     <a href="#" data-ref="/message-id/mbox/CALT9ZEG9C6uXXrs%2BBOrQ4br4BW2x0Yi8qXxBg2m2vuj%3DVa8ozQ%40mail.gmail.com" class="post-link">Download mbox</a>
+ | <a href="#" data-ref="/message-id/resend/CALT9ZEG9C6uXXrs%2BBOrQ4br4BW2x0Yi8qXxBg2m2vuj%3DVa8ozQ%40mail.gmail.com" class="post-link">Resend email</a>
+   </td>
+ </tr>
+ 
+  
+    <tr>
+      <th scope="row">Lists:</th>
+      <td>
+        
+          <span class="listname"><a href="/list/pgsql-hackers/since/202412100000">pgsql-hackers</a></span>
+        
+      </td>
+    </tr>
+  
+</table>
+
+<div class="message-content"><p>Hi, Wenhui!</p>
+
+<p>On Tue, 10 Dec 2024 at 17:32, wenhui qiu &lt;qiuwenhuifx(at)gmail(dot)com&gt; wrote:</p>
+
+<p>&gt; Hi aleksander<br>&gt;    Didn&#x27;t you mark this patch as rejected last time? Do we still need to<br>&gt; continue this path?<br>&gt;<br>&gt;<br>&gt; Thanks<br>&gt;<br>&gt; On Sun, Dec 8, 2024 at 10:16 PM Evgeny Voropaev &lt;evorop(dot)wiki(at)gmail(dot)com&gt;<br>&gt; wrote:<br>&gt;<br>&gt;&gt; Hi hackers!<br>&gt;&gt;<br>&gt;&gt; Upgraded the &quot;Int64 GUC&quot; patch in order to conform to f3f06b13308e3<br>&gt;&gt; updates. Rebased and tested upon the current master (3f9b9621766). The<br>&gt;&gt; patch is still needed to be up to date as a part of the xid64 solution.<br>&gt;&gt;<br>&gt;&gt; Best regards,<br>&gt;&gt; Evgeny Voropaev,<br>&gt;&gt; TantorLabs, LLC.<br>&gt;&gt; &lt;evorop(at)gmail(dot)com&gt;<br>&gt;&gt; &lt;evgeny(dot)voropaev(at)tantorlabs(dot)ru&gt;<br>&gt;<br>&gt;<br>I see Aleksander worked on this patch (with many other hackers) and marked<br>it as rejected. And now Evgeniy, a new developer wants to continue and<br>rebase this patch and also the patches in another 64-xid thread<br>disregarding the fact that the patch is rejected. It&#x27;s not a crime. It&#x27;s<br>rejected, true.</p>
+
+<p>Regards,<br>Pavel Borisov<br></p></div>
+
+
+
+
+
+
+
+
+
+
+
+
+  <hr style="margin-bottom: 0.5rem;" />
+
+
+<a name="64772.1733843617@sss.pgh.pa.us"></a>
+<a name="999ce5625fe75c836b46f351d5c53dc3"></a>
+
+
+<table class="table-sm table-responsive message-header" style="border-bottom: 0.05em solid #E7EAE8; margin-bottom: 1em;">
+ <tr>
+  <th scope="row" style="width: 10%">From:</th>
+  <td>Tom Lane &lt;tgl(at)sss(dot)pgh(dot)pa(dot)us&gt;</td>
+ </tr>
+ <tr>
+  <th scope="row">To:</th>
+  <td>Pavel Borisov &lt;pashkin(dot)elfe(at)gmail(dot)com&gt;</td>
+ </tr>
+
+ <tr>
+  <th scope="row">Cc:</th>
+  <td>wenhui qiu &lt;qiuwenhuifx(at)gmail(dot)com&gt;,
+        Evgeny Voropaev &lt;evorop(dot)wiki(at)gmail(dot)com&gt;,
+        Aleksander Alekseev &lt;aleksander(at)timescale(dot)com&gt;,
+        pgsql-hackers(at)lists(dot)postgresql(dot)org</td>
+ </tr>
+
+ <tr>
+  <th scope="row">Subject:</th>
+  <td>Re: [PATCH] Support Int64 GUCs</td>
+ </tr>
+ <tr>
+  <th scope="row">Date:</th>
+  <td>2024-12-10 15:13:37</td>
+ </tr>
+ <tr>
+  <th scope="row">Message-ID:</th>
+  <td><a href="/message-id/64772.1733843617%40sss.pgh.pa.us">64772.1733843617@sss.pgh.pa.us</a></td>
+ </tr>
+ <tr>
+   <th class="align-middle" scope="row">Views:</th>
+   <td>
+     <a href="/message-id/flat/64772.1733843617%40sss.pgh.pa.us">Whole Thread</a> |
+     <a href="#" data-ref="/message-id/raw/64772.1733843617%40sss.pgh.pa.us" class="post-link">Raw Message</a> |
+     <a href="#" data-ref="/message-id/mbox/64772.1733843617%40sss.pgh.pa.us" class="post-link">Download mbox</a>
+ | <a href="#" data-ref="/message-id/resend/64772.1733843617%40sss.pgh.pa.us" class="post-link">Resend email</a>
+   </td>
+ </tr>
+ 
+  
+    <tr>
+      <th scope="row">Lists:</th>
+      <td>
+        
+          <span class="listname"><a href="/list/pgsql-hackers/since/202412100000">pgsql-hackers</a></span>
+        
+      </td>
+    </tr>
+  
+</table>
+
+<div class="message-content"><p>Pavel Borisov &lt;pashkin(dot)elfe(at)gmail(dot)com&gt; writes:<br>&gt; I see Aleksander worked on this patch (with many other hackers) and marked<br>&gt; it as rejected. And now Evgeniy, a new developer wants to continue and<br>&gt; rebase this patch and also the patches in another 64-xid thread<br>&gt; disregarding the fact that the patch is rejected. It&#x27;s not a crime. It&#x27;s<br>&gt; rejected, true.</p>
+
+<p>No, but it&#x27;s a waste of time.  Just rebasing the patch does nothing to<br>counter the arguments that made us reject it before.</p>
+
+<p>			regards, tom lane</p>
+
+<p></p></div>
+
+
+
+
+
+
+
+
+
+
+
+
+  <hr style="margin-bottom: 0.5rem;" />
+
+
+<a name="CALT9ZEEAh52FLzMWAWFvtnvZECaH+idd8Mkh9sdsE5XD7NYZyQ@mail.gmail.com"></a>
+<a name="14861fd1ff49012923fb2b84c5a860be"></a>
+
+
+<table class="table-sm table-responsive message-header" style="border-bottom: 0.05em solid #E7EAE8; margin-bottom: 1em;">
+ <tr>
+  <th scope="row" style="width: 10%">From:</th>
+  <td>Pavel Borisov &lt;pashkin(dot)elfe(at)gmail(dot)com&gt;</td>
+ </tr>
+ <tr>
+  <th scope="row">To:</th>
+  <td>Tom Lane &lt;tgl(at)sss(dot)pgh(dot)pa(dot)us&gt;</td>
+ </tr>
+
+ <tr>
+  <th scope="row">Cc:</th>
+  <td>wenhui qiu &lt;qiuwenhuifx(at)gmail(dot)com&gt;, Evgeny Voropaev &lt;evorop(dot)wiki(at)gmail(dot)com&gt;,  Aleksander Alekseev &lt;aleksander(at)timescale(dot)com&gt;, pgsql-hackers(at)lists(dot)postgresql(dot)org</td>
+ </tr>
+
+ <tr>
+  <th scope="row">Subject:</th>
+  <td>Re: [PATCH] Support Int64 GUCs</td>
+ </tr>
+ <tr>
+  <th scope="row">Date:</th>
+  <td>2024-12-10 15:22:29</td>
+ </tr>
+ <tr>
+  <th scope="row">Message-ID:</th>
+  <td><a href="/message-id/CALT9ZEEAh52FLzMWAWFvtnvZECaH%2Bidd8Mkh9sdsE5XD7NYZyQ%40mail.gmail.com">CALT9ZEEAh52FLzMWAWFvtnvZECaH+idd8Mkh9sdsE5XD7NYZyQ@mail.gmail.com</a></td>
+ </tr>
+ <tr>
+   <th class="align-middle" scope="row">Views:</th>
+   <td>
+     <a href="/message-id/flat/CALT9ZEEAh52FLzMWAWFvtnvZECaH%2Bidd8Mkh9sdsE5XD7NYZyQ%40mail.gmail.com">Whole Thread</a> |
+     <a href="#" data-ref="/message-id/raw/CALT9ZEEAh52FLzMWAWFvtnvZECaH%2Bidd8Mkh9sdsE5XD7NYZyQ%40mail.gmail.com" class="post-link">Raw Message</a> |
+     <a href="#" data-ref="/message-id/mbox/CALT9ZEEAh52FLzMWAWFvtnvZECaH%2Bidd8Mkh9sdsE5XD7NYZyQ%40mail.gmail.com" class="post-link">Download mbox</a>
+ | <a href="#" data-ref="/message-id/resend/CALT9ZEEAh52FLzMWAWFvtnvZECaH%2Bidd8Mkh9sdsE5XD7NYZyQ%40mail.gmail.com" class="post-link">Resend email</a>
+   </td>
+ </tr>
+ 
+  
+    <tr>
+      <th scope="row">Lists:</th>
+      <td>
+        
+          <span class="listname"><a href="/list/pgsql-hackers/since/202412100000">pgsql-hackers</a></span>
+        
+      </td>
+    </tr>
+  
+</table>
+
+<div class="message-content"><p>On Tue, 10 Dec 2024 at 19:13, Tom Lane &lt;tgl(at)sss(dot)pgh(dot)pa(dot)us&gt; wrote:</p>
+
+<p>&gt; Pavel Borisov &lt;pashkin(dot)elfe(at)gmail(dot)com&gt; writes:<br>&gt; &gt; I see Aleksander worked on this patch (with many other hackers) and<br>&gt; marked<br>&gt; &gt; it as rejected. And now Evgeniy, a new developer wants to continue and<br>&gt; &gt; rebase this patch and also the patches in another 64-xid thread<br>&gt; &gt; disregarding the fact that the patch is rejected. It&#x27;s not a crime. It&#x27;s<br>&gt; &gt; rejected, true.<br>&gt;<br>&gt; No, but it&#x27;s a waste of time.  Just rebasing the patch does nothing to<br>&gt; counter the arguments that made us reject it before.<br>&gt;</p>
+
+<p>Tom, I agree! Just wrote this because of probable confusion of names by<br>Wenhui above.</p>
+
+<p>Regards,<br>Pavel<br></p></div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+<form id="mail_other_options_form" method="post" action="/"></form>
+
+      </div> <!-- pgContentWrap -->
+    </div>
+  </div>
+</div>
+
+    <!-- Footer -->
+    <footer id="footer">
+      <div class="container">
+        <div class="row">
+          <div class="col-md-12">
+            <ul>
+              <li><a href="https://twitter.com/postgresql"><img src="/media-archives/img/atpostgresql.png" alt="@postgresql"></a></li>
+              <li><a href="https://git.postgresql.org/gitweb/?p=postgresql.git"><img src="/media-archives/img/git.png" alt="Git"></a></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <!-- Copyright -->
+      <div class="container">
+        <a href="/about/privacypolicy">Privacy Policy</a> |
+        <a href="/about/policies/coc/">Code of Conduct</a> |
+        <a href="/about/">About PostgreSQL</a> |
+        <a href="/about/contact/">Contact</a><br/>
+        <p>Copyright &copy; 1996-2026 The PostgreSQL Global Development Group</p>
+      </div>
+    </footer>
+    <script src="/media-archives/js/jquery-3.2.1.slim.min.js?1f02c594"></script>
+    <script src="/media-archives/js/popper.min.js?1f02c594"></script>
+    <script src="/media-archives/js/bootstrap.min.js?1f02c594"></script>
+    <script src="/media-archives/js/main.js?1f02c594"></script>
+  </body>
+</html>

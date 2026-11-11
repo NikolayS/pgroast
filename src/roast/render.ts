@@ -1,0 +1,211 @@
+// roast.md is rendered from roast.json by code: same content, never a second LLM call.
+
+import { LEVEL_NAMES, TOUCH_POINTS, type FinalObjection, type Roast } from "./schema.ts";
+
+const day = (iso: string | null) => (iso ? iso.slice(0, 10) : "date unknown");
+const link = (text: string, url: string) => `[${text.replace(/([[\]])/g, "\\$1")}](${url.replace(/\)/g, "%29")})`;
+const oneLine = (s: string) => s.replace(/\s+/g, " ").trim();
+const touchLabel = (id: string) => TOUCH_POINTS.find((t) => t.id === id)?.label ?? id.replace(/_/g, " ");
+
+function objectionBlock(o: FinalObjection, n: number): string {
+  const lines: string[] = [];
+  lines.push(`### ${n}. ${oneLine(o.title)}`);
+  lines.push("");
+  const sev = o.critic.original_severity ? `${o.severity} (the roaster said ${o.critic.original_severity}; the critic changed it)` : o.severity;
+  lines.push(`- **Severity:** ${sev}`);
+  lines.push(`- **Level:** ${LEVEL_NAMES[o.level]}${o.rubric_item ? ` (rubric item ${o.rubric_item})` : ""}`);
+  lines.push(`- **Category:** ${touchLabel(o.category)}${o.touch_points.length ? `; touch points: ${o.touch_points.map(touchLabel).join(", ")}` : ""}`);
+  lines.push(`- **Raised by:** ${o.angle} roaster (\`${o.id}\`)`);
+  lines.push("");
+  lines.push(`**What can go wrong.** ${o.failure_scenario.trim()}`);
+  lines.push("");
+  lines.push(`**Why it applies here.** ${o.argument.trim()}`);
+  lines.push("");
+  if (o.precedents.length) {
+    lines.push("**Precedents.**");
+    for (const p of o.precedents) {
+      const threads = p.thread_urls.length ? `; thread: ${p.thread_urls.map((u, i) => link(p.thread_urls.length > 1 ? `#${i + 1}` : "link", u)).join(", ")}` : "";
+      lines.push(`- ${link(oneLine(p.title), p.url)} (${p.status || "outcome unknown"}, ${day(p.date)})${threads}`);
+    }
+  } else {
+    lines.push("**Precedents.** None cited.");
+  }
+  lines.push("");
+  if (o.thread_refs.length) {
+    lines.push(`**Thread messages.** ${o.thread_refs.map((r) => link(`#${r.index} (${r.from}, ${day(r.date)})`, r.url)).join(", ")}`);
+    lines.push("");
+  }
+  lines.push(`**What the author must show.** ${o.author_must_show.trim()}`);
+  lines.push("");
+  lines.push(`**Critic.** Survived. ${o.critic.reasoning.trim()}`);
+  return lines.join("\n");
+}
+
+export function renderMarkdown(r: Roast): string {
+  const out: string[] = [];
+  const title = r.input.cf?.title ?? r.brief.title ?? r.input.subject;
+  out.push(`# PG Roast: ${oneLine(title)}`);
+  out.push("");
+  out.push(`> ${r.disclosure}`);
+  out.push("");
+
+  // Input
+  const src: string[] = [];
+  if (r.input.cf) {
+    src.push(`- CommitFest: ${link(`patch ${r.input.cf.id}`, r.input.cf.url)}${r.input.cf.status ? ` (${r.input.cf.status})` : r.input.cf.redacted ? " (status withheld)" : ""}; authors: ${r.input.cf.authors || "not given"}`);
+  }
+  src.push(`- Thread: ${link(oneLine(r.input.subject), r.input.thread_url)}, started ${day(r.input.thread_start)}`);
+  const mode = [r.input.blind != null ? `blind mode, first ${r.input.blind}` : "", r.input.before ? `before ${r.input.before}` : ""].filter(Boolean).join("; ");
+  src.push(`- Messages read: ${r.input.messages_read} of ${r.input.messages_total}${mode ? ` (${mode})` : ""}`);
+  src.push(`- Patch prose read: ${r.input.attachments_read.length ? r.input.attachments_read.join(", ") : "none"} (commit message, file list and doc hunks only; no code review)`);
+  if (r.input.hint) src.push(`- Directed precedent lookup: "${oneLine(r.input.hint)}"`);
+  out.push(...src, "");
+
+  // 1. Verdict
+  out.push("## 1. Verdict");
+  out.push("");
+  out.push(`**${r.verdict}** (confidence: ${r.confidence})`);
+  out.push("");
+  out.push(r.verdict_reasoning.trim());
+  out.push("");
+  out.push(
+    r.failing_level
+      ? `First failing level, from the base up: **${LEVEL_NAMES[r.failing_level]}**. The review stops there; higher levels are not evaluated.`
+      : "No level of the review pyramid fails.",
+  );
+  out.push("");
+  for (const l of r.levels) out.push(`- ${l.name}: ${l.status === "not_evaluated" ? "not evaluated" : l.status}`);
+  out.push("- Levels 3-5 (implementation): out of scope");
+  if (r.provisional_note.trim()) out.push("", `Provisional: ${r.provisional_note.trim()}`);
+  out.push("");
+
+  // The proposal
+  out.push("## The proposal, restated");
+  out.push("");
+  out.push(`**Problem.** ${r.brief.problem.trim()}`);
+  out.push("");
+  out.push(`**Proposed design.** ${r.brief.proposed_design.trim()}`);
+  out.push("");
+  if (r.brief.user_visible_surface.length) {
+    out.push("**User-visible surface.**");
+    out.push(...r.brief.user_visible_surface.map((s) => `- ${oneLine(s)}`), "");
+  }
+  if (r.brief.author_claims.length) {
+    out.push("**What the author claims.**");
+    out.push(...r.brief.author_claims.map((s) => `- ${oneLine(s)}`), "");
+  }
+  if (r.brief.thread_state.trim()) out.push(`**Thread state.** ${r.brief.thread_state.trim()}`, "");
+
+  // 2. Prior attempts
+  out.push("## 2. Prior attempts");
+  out.push("");
+  if (r.precedent_backend === "none") {
+    out.push("The precedent corpus was not available in this run, so earlier attempts were NOT searched. This is not a finding of \"no precedent\".");
+  } else if (r.prior_attempts.length === 0) {
+    out.push(`No precedent found (corpus searched for items before ${r.precedent_cutoff}; ${r.precedents_retrieved.length} candidates retrieved, none is the same or a similar idea).`);
+  } else {
+    for (const p of r.prior_attempts) {
+      const rel = p.relation === "same_idea" ? "same idea" : p.relation === "similar_idea" ? "similar idea" : "related";
+      out.push(`### ${oneLine(p.title)} (${rel})`);
+      out.push("");
+      out.push(`- **Link:** ${link(p.url, p.url)}`);
+      if (p.thread_urls.length) out.push(`- **Thread:** ${p.thread_urls.map((u) => link(u, u)).join(", ")}`);
+      out.push(`- **Date:** ${p.date ? `decided ${day(p.date)}` : "decision date unknown"}${p.first_date ? `; started ${day(p.first_date)}` : ""}`);
+      out.push(`- **Outcome:** ${p.status || "unknown"} (${p.kind || "?"})`);
+      out.push(`- **Who objected:** ${p.who_objected.trim() || "not recorded in the corpus"}`);
+      out.push(`- **Reason (quote):** ${p.quote ? `"${oneLine(p.quote)}"` : "quote unavailable"}`);
+      out.push(`- **What is different this time:** ${oneLine(p.what_is_different)}`);
+      out.push("");
+    }
+  }
+  out.push("");
+
+  // 3. Steelman
+  out.push("## 3. The steelman of the rejection");
+  out.push("");
+  if (r.objections.length === 0) {
+    out.push("No objection survived the critic strongly enough to list here.");
+    out.push("");
+  } else {
+    r.objections.forEach((o, i) => out.push(objectionBlock(o, i + 1), ""));
+  }
+
+  // 4. Touch points
+  out.push("## 4. Touch points");
+  out.push("");
+  out.push("| Touch point | Hit | Why |");
+  out.push("|---|---|---|");
+  for (const t of r.touch_points) out.push(`| ${t.label} | ${t.hit ? "**yes**" : "no"} | ${t.hit ? oneLine(t.reason).replace(/\|/g, "\\|") : ""} |`);
+  out.push("");
+
+  // 5. Questions
+  out.push("## 5. Questions the author must answer before anyone reviews code");
+  out.push("");
+  if (r.questions.length === 0) out.push("None.");
+  else r.questions.forEach((q, i) => out.push(`${i + 1}. ${oneLine(q)}`));
+  out.push("");
+
+  // Committability
+  out.push("## Committability");
+  out.push("");
+  out.push('"Will not get committed" is not the same as "should be rejected". The verdict above is about the merits (levels 1-2) only; this section is about who would sign for it, and it never changes the verdict.');
+  out.push("");
+  out.push(`- **Owner:** ${r.committability.owner}${r.committability.owner_note.trim() ? `. ${oneLine(r.committability.owner_note)}` : ""}`);
+  out.push(`- **Liability:** ${oneLine(r.committability.liability)}`);
+  out.push(`- **Author follow-up:** ${oneLine(r.committability.author_follow_up)}`);
+  out.push("");
+  out.push(
+    r.not_now.applies
+      ? `**Not now / show demand: yes.** This is an outcome, not a rejection. Evidence that would change it: ${oneLine(r.not_now.evidence_that_would_change_it) || "(not stated)"}`
+      : "**Not now / show demand:** does not apply.",
+  );
+  out.push("");
+
+  // Appendix
+  out.push("## Appendix");
+  out.push("");
+  if (r.other_surviving.length) {
+    out.push("### Survived the critic, not listed above");
+    out.push("");
+    for (const o of r.other_surviving) {
+      out.push(`- \`${o.id}\` (${o.severity}, level ${o.level}) ${oneLine(o.title)}. Not listed: ${o.not_ranked_reason ?? "not ranked"}.`);
+    }
+    out.push("");
+  }
+  out.push("### Refuted by the critic");
+  out.push("");
+  if (r.refuted.length === 0) out.push("None.");
+  for (const o of r.refuted) {
+    out.push(`- \`${o.id}\` ${oneLine(o.title)}. Refuted (${o.critic.refutation_kind.replace(/_/g, " ")}): ${oneLine(o.critic.reasoning)}`);
+  }
+  out.push("");
+  out.push("### Roasters");
+  out.push("");
+  for (const n of r.roaster_notes) out.push(`- ${n.angle}: ${n.objections} objection(s)${n.note.trim() ? `. ${oneLine(n.note)}` : ""}`);
+  out.push("");
+  out.push("### Precedents retrieved");
+  out.push("");
+  if (r.precedents_retrieved.length === 0) out.push(r.precedent_backend === "none" ? "Search not done." : "None.");
+  for (const p of r.precedents_retrieved) {
+    out.push(`- ${p.id}: ${link(oneLine(p.title), p.url)} (${p.kind}, ${p.status || "?"}, ${day(p.date ?? p.first_date)})`);
+  }
+  out.push("");
+  if (r.warnings.length) {
+    out.push("### Warnings");
+    out.push("");
+    out.push(...r.warnings.map((w) => `- ${oneLine(w)}`), "");
+  }
+  const s = r.sanitizer;
+  out.push("### Run");
+  out.push("");
+  out.push(`- Backend: ${r.backend} CLI on the subscription login (no API key); models: roasters ${r.models.roaster}, critic ${r.models.critic}, synthesis ${r.models.synth}; no tools given to any of them`);
+  out.push(`- LLM calls: ${r.stats.llm_calls}; wall time: ${Math.round(r.stats.wall_ms / 1000)} s${r.stats.cost_usd != null && !r.stats.dry_run ? `; cost reported by the CLI: $${r.stats.cost_usd.toFixed(2)}` : ""}${r.stats.dry_run ? "; DRY RUN (no model was called; content is placeholder)" : ""}`);
+  out.push(`- Sanitizer: ${s.urls_removed.length} link(s) removed, ${s.precedent_ids_dropped.length} unknown precedent id(s) dropped, ${s.thread_refs_dropped.length} bad message reference(s) dropped, ${s.quotes_dropped.length} unverifiable quote(s) dropped`);
+  out.push(`- Generated: ${r.generated_at} by ${r.tool}`);
+  out.push("");
+  out.push("---");
+  out.push("");
+  out.push(r.disclosure);
+  out.push("");
+  return out.join("\n");
+}

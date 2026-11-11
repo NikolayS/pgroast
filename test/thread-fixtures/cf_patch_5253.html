@@ -1,0 +1,497 @@
+
+
+
+ <!DOCTYPE html>
+ <html>
+  <head>
+   <title>Support Int64 GUCs</title>
+   <meta name="description" content="PostgreSQL patch by Aleksander Alekseev (a.alekseev), Maxim Orlov (m.orlov) in the Commitfest 2024-11 commitfest." />
+   <meta property="og:title" content="Support Int64 GUCs" />
+   <meta property="og:description" content="PostgreSQL patch by Aleksander Alekseev (a.alekseev), Maxim Orlov (m.orlov) in the Commitfest 2024-11 commitfest." />
+   <meta property="og:type" content="website" />
+   <meta property="og:site_name" content="PostgreSQL Commitfest" />
+   <meta property="og:url" content="https://commitfest.postgresql.org/patch/5253/" />
+   <link rel="stylesheet" href="/media/commitfest/css/jquery-ui.css" type="text/css">
+   <link rel="stylesheet" href="/media/commitfest/css/bootstrap.css?v=5.3.7" />
+   <link rel="stylesheet" href="/media/commitfest/css/bootstrap-icons.css" />
+   <link rel="stylesheet" href="/media/commitfest/css/selectize.bootstrap5.css" />
+   <link rel="stylesheet" href="/media/commitfest/css/commitfest.css?v=cc40062c-7766-416a-be78-99b5cec5e916" />
+   <link rel="shortcut icon" href="/media/commitfest/favicon.ico" />
+   
+   
+  </head>
+  <body>
+  <!-- Main Navigation -->
+   <nav class="navbar navbar-expand-sm navbar-dark bg-dark mb-3">
+    <div class="container-fluid">
+     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNavbar" aria-controls="mainNavbar" aria-expanded="false" aria-label="Toggle navigation">
+      <span class="navbar-toggler-icon"></span>
+     </button>
+     <div class="collapse navbar-collapse" id="mainNavbar">
+      <div class="navbar-content-wrapper">
+       <ul class="navbar-nav me-auto mb-2 mb-sm-0">
+        <li class="nav-item">
+         <a class="nav-link" href="/">Home</a>
+        </li>
+        <li class="nav-item">
+         <a class="nav-link" href="/63/new/">New Patch</a>
+        </li>
+        <li class="nav-item">
+         <a class="nav-link" href="/current/">Current CF</a>
+        </li>
+        <li class="nav-item">
+         <a class="nav-link" href="/open/">Open CF</a>
+        </li>
+        <li class="nav-item">
+         <a class="nav-link" href="/draft/">Draft CF</a>
+        </li>
+        <li class="nav-item dropdown">
+         <a class="nav-link dropdown-toggle" href="#" id="moreDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+          More
+         </a>
+         <ul class="dropdown-menu" aria-labelledby="moreDropdown">
+          <li><a class="dropdown-item" href="/activity/">Activity Log</a></li>
+          <li><a class="dropdown-item" href="/archive/">All Commitfests</a></li>
+         </ul>
+        </li>
+        <li class="nav-item">
+         <a class="nav-link" href="/help/">Help</a>
+        </li>
+       </ul>
+       <div class="navbar-actions d-flex gap-2 align-items-center">
+        <form method="GET" action="/search/">
+         <div class="input-group" style="width: 300px;">
+          <input type="text" class="form-control" name="searchterm" placeholder="Email Message-ID or keywords">
+          <button type="submit" class="btn btn-secondary">
+           <i class="bi bi-search"></i>
+          </button>
+         </div>
+        </form>
+        <a class="btn btn-secondary" href="https://github.com/postgres/pgcommitfest" target="_blank"><img class="github-logo" src="/media/commitfest/github-mark.svg"/> Contribute</a>
+       </div>
+      </div>
+     </div>
+    </div>
+   </nav>
+
+   <div class="container-fluid">
+
+    <nav aria-label="breadcrumb">
+     <ol class="breadcrumb">
+      
+       <li class="breadcrumb-item"><a href="/">Home</a></li>
+       
+        <li class="breadcrumb-item"><a href="/50/">Commitfest 2024-11</a></li>
+       
+       <li class="breadcrumb-item active" aria-current="page">Support Int64 GUCs</li>
+      
+     </ol>
+     <div class="float-end">
+      
+       <a href="/account/login/?next=/patch/5253/">Log in</a>
+      
+      
+     </div>
+    </nav>
+
+    
+     <h1>Support Int64 GUCs</h1>
+    
+
+    
+
+    
+ 
+  
+ 
+ <form method="post" style="margin-bottom:5px;"><input type="hidden" name="csrfmiddlewaretoken" value="enQohxMPYBOk8gstTEss0Jm8yC90IDcIjVkubMB0XaEKdNq3KAtPi2WimChVODS4">
+ 
+  
+  <a class="btn btn-secondary" href="/account/login/?next=/patch/5253/">Log in to edit</a>
+  <button type="button" class="btn btn-secondary" data-bs-toggle="modal" data-bs-target="#reviewModal">Review</button>
+ 
+
+</form>
+
+ <table class="table table-bordered">
+  <tbody>
+   <tr>
+    <th>ID</th>
+    <td><a href="/patch/5253">5253</a></td>
+   </tr>
+   <tr>
+    <th>Title</th>
+    <td>Support Int64 GUCs</td>
+   </tr>
+   <tr>
+    <th>CI (CFBot)</th>
+    <td>
+     
+      <span class="badge bg-secondary">Not processed</span></a>
+     
+     
+     
+    </a>
+   </td>
+  </tr>
+  <tr>
+   <th>Stats (from CFBot)</th>
+   <td>
+    
+     Unknown
+    
+   </tr>
+   <tr>
+    <th>Tags</th>
+    <td>
+     
+    </td>
+   </tr>
+   <tr>
+    <th>Created</th>
+    <td>2024-09-12 11:11:01</td>
+   </tr>
+   <tr>
+    <th style="white-space: nowrap;">Last modified</th>
+    <td>2024-09-29 21:30:17 (2 years ago)</td>
+   </tr>
+   <tr>
+    <th style="white-space: nowrap;">Latest email</th>
+    <td>2024-09-29 21:31:33 (2 years ago)</td>
+   </tr>
+   <tr>
+    <th>Status</th>
+    <td>
+     <div style="margin-bottom: 3px;"><a href="/50/">2024-11</a> (2024-11-01 – 2024-11-30): <span class="badge bg-danger">Rejected</span></div>
+    
+    </td>
+   </tr>
+   <tr>
+    <th>Target version</th>
+    <td></td>
+   </tr>
+   <tr>
+    <th>Authors</th>
+    <td>Aleksander Alekseev (a.alekseev), Maxim Orlov (m.orlov)</td>
+   </tr>
+   <tr>
+    <th>Reviewers</th>
+    <td>
+     Nathan Bossart (bossartn)
+     
+      <a class="btn btn-secondary float-end" href="/account/login/?next=/patch/5253/">Log in to become reviewer</a>
+     
+    </td>
+   </tr>
+   <tr>
+    <th>Committer</th>
+    <td>
+     
+    </td>
+   </tr>
+   <tr>
+    <th>Links</th>
+    <td>
+     
+     
+    </td>
+   </tr>
+   <tr>
+    <th>Emails</th>
+    <td>
+     
+      <div style="float:right"><button class="btn btn-secondary" onclick="location.href='/account/login/?next=/50/5253/%3Fattachthreadnow'">Attach thread</button></div>
+     
+     <dl>
+      
+       <dt><a href="https://www.postgresql.org/message-id/flat/CAJ7c6TMvPz8q+nC=JoKniy7yxPzQYcCTnNFYmsDP-nnWsAOJ2g@mail.gmail.com">[PATCH] Support Int64 GUCs</a> <button type="button" class="btn-close btn-close-nofloat" title="Detach this thread" onclick="detachThread(50,5253,'CAJ7c6TMvPz8q+nC=JoKniy7yxPzQYcCTnNFYmsDP-nnWsAOJ2g@mail.gmail.com')"></button></dt>
+       <dd>
+        First at <a href="https://www.postgresql.org/message-id/CAJ7c6TMvPz8q+nC=JoKniy7yxPzQYcCTnNFYmsDP-nnWsAOJ2g@mail.gmail.com">2024-09-12 11:08:15</a> by Aleksander Alekseev &lt;aleksander at timescale.com&gt;<br/>
+        Latest at <a href="https://www.postgresql.org/message-id/CAJ7c6TNVy6oR9Cu=Gbct+9J2AVGQ5+R-3yH2tbwJ=+UgBswkdw@mail.gmail.com">2024-09-29 21:31:33</a> by Aleksander Alekseev &lt;aleksander at timescale.com&gt;<br/>
+        
+         
+          Latest attachment (<a href="https://www.postgresql.org/message-id/attachment/165535/v3-0001-Support-64-bit-integer-GUCs.patch">v3-0001-Support-64-bit-integer-GUCs.patch</a>) at <a href="https://www.postgresql.org/message-id/CAJ7c6TNx=Bvzo-oZL5vfe6iQca+O0xMfH5uiFRJKRd+yOYxSiQ@mail.gmail.com">2024-09-25 11:03:12</a> from Aleksander Alekseev &lt;aleksander at timescale.com&gt; <button type="button" class="btn btn-secondary btn-sm" data-bs-toggle="collapse" data-bs-target="#att4921" title="Show all attachments">+</button>
+          <div id="att4921" class="collapse">
+         
+         &nbsp;&nbsp;&nbsp;&nbsp;Attachment (<a href="https://www.postgresql.org/message-id/attachment/165535/v3-0001-Support-64-bit-integer-GUCs.patch">v3-0001-Support-64-bit-integer-GUCs.patch</a>) at <a href="https://www.postgresql.org/message-id/CAJ7c6TNx=Bvzo-oZL5vfe6iQca+O0xMfH5uiFRJKRd+yOYxSiQ@mail.gmail.com">2024-09-25 11:03:12</a> from Aleksander Alekseev &lt;aleksander at timescale.com&gt; (Patch: Yes)<br/>
+         
+        
+         
+         &nbsp;&nbsp;&nbsp;&nbsp;Attachment (<a href="https://www.postgresql.org/message-id/attachment/165513/v2-0001-Support-64-bit-integer-GUCs.patch">v2-0001-Support-64-bit-integer-GUCs.patch</a>) at <a href="https://www.postgresql.org/message-id/CAJ7c6TNPrNUT-aSi5UbohN-EMnsQ36tHvRnvr7dqa3vfuZ0Tpw@mail.gmail.com">2024-09-24 09:27:20</a> from Aleksander Alekseev &lt;aleksander at timescale.com&gt; (Patch: Yes)<br/>
+         
+        
+         
+         &nbsp;&nbsp;&nbsp;&nbsp;Attachment (<a href="https://www.postgresql.org/message-id/attachment/165178/v1-0001-Support-64-bit-integer-GUCs.patch">v1-0001-Support-64-bit-integer-GUCs.patch</a>) at <a href="https://www.postgresql.org/message-id/CAJ7c6TMvPz8q+nC=JoKniy7yxPzQYcCTnNFYmsDP-nnWsAOJ2g@mail.gmail.com">2024-09-12 11:08:15</a> from Aleksander Alekseev &lt;aleksander at timescale.com&gt; (Patch: Yes)<br/>
+         </div>
+        
+        <div>
+         
+         
+        </div>
+       </dd>
+      
+     </dl>
+    </td>
+   </tr>
+   <tr>
+    <th>History</th>
+    <td>
+     <div style="max-height: 200px; overflow-y: scroll;">
+      <table class="table table-bordered table-striped">
+       <thead>
+        <tr>
+         <th>When</th>
+         <th>Who</th>
+         <th>What</th>
+        </tr>
+       </thead>
+       <tbody>
+        
+         <tr>
+          <td style="white-space: nowrap;">2024-09-29 21:30:17</td>
+          <td style="white-space: nowrap;">Aleksander Alekseev (aalekseev)</td>
+          <td width="99%">Closed in commitfest 2024-11 with status: Rejected</td>
+         </tr>
+        
+         <tr>
+          <td style="white-space: nowrap;">2024-09-17 21:06:59</td>
+          <td style="white-space: nowrap;">Nathan Bossart (bossartn)</td>
+          <td width="99%">Added bossartn as reviewer</td>
+         </tr>
+        
+         <tr>
+          <td style="white-space: nowrap;">2024-09-12 11:11:24</td>
+          <td style="white-space: nowrap;">Aleksander Alekseev (a.alekseev)</td>
+          <td width="99%">Changed authors to Aleksander Alekseev (a.alekseev), Maxim Orlov (m.orlov)</td>
+         </tr>
+        
+         <tr>
+          <td style="white-space: nowrap;">2024-09-12 11:11:01</td>
+          <td style="white-space: nowrap;">Aleksander Alekseev (a.alekseev)</td>
+          <td width="99%">Attached mail thread CAJ7c6TMvPz8q+nC=JoKniy7yxPzQYcCTnNFYmsDP-nnWsAOJ2g@mail.gmail.com</td>
+         </tr>
+        
+         <tr>
+          <td style="white-space: nowrap;">2024-09-12 11:11:01</td>
+          <td style="white-space: nowrap;">Aleksander Alekseev (a.alekseev)</td>
+          <td width="99%">Created patch record</td>
+         </tr>
+        
+       </tbody>
+      </table>
+     </div>
+     
+    </td>
+   </tr>
+  </tbody>
+ </table>
+
+ <div class="dropup" >
+  <form method="post" style="margin-bottom:5px;"><input type="hidden" name="csrfmiddlewaretoken" value="enQohxMPYBOk8gstTEss0Jm8yC90IDcIjVkubMB0XaEKdNq3KAtPi2WimChVODS4">
+ 
+  
+  <a class="btn btn-secondary" href="/account/login/?next=/patch/5253/">Log in to edit</a>
+  <button type="button" class="btn btn-secondary" data-bs-toggle="modal" data-bs-target="#reviewModal">Review</button>
+ 
+
+</form>
+
+ </div>
+
+
+ <div class="modal fade" id="commitModal" role="dialog">
+  <div class="modal-dialog modal-lg">
+   <div class="modal-content">
+    <div class="modal-header">
+     <h4 class="modal-title">Flag as committed</h4>
+     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+    </div>
+    <div class="modal-body">
+     <form>
+      <div class="mb-3">
+       <label for="committerSelect" class="form-label">Committer</label>
+       <select id="committerSelect" class="enable-selectize form-select">
+        <option value="" style="display:none;"></option>
+        
+         <option value="smagen">Alexander Korotkov</option>
+        
+         <option value="alvherre">Álvaro Herrera</option>
+        
+         <option value="amitkapila">Amit Kapila</option>
+        
+         <option value="amitlan">Amit Langote</option>
+        
+         <option value="andresfreund">Andres Freund</option>
+        
+         <option value="adunstan">Andrew Dunstan</option>
+        
+         <option value="bmomjian">Bruce Momjian</option>
+        
+         <option value="d_gustafsson">Daniel Gustafsson</option>
+        
+         <option value="davidrowley">David Rowley</option>
+        
+         <option value="deanr">Dean Rasheed</option>
+        
+         <option value="efujita">Etsuro Fujita</option>
+        
+         <option value="masaofujii">Fujii Masao</option>
+        
+         <option value="heikki">Heikki Linnakangas</option>
+        
+         <option value="jchampion">Jacob Champion</option>
+        
+         <option value="jdavis">Jeff Davis</option>
+        
+         <option value="jconway">Joe Conway</option>
+        
+         <option value="john.naylor">John Naylor</option>
+        
+         <option value="mha">Magnus Hagander</option>
+        
+         <option value="masahikosawada">Masahiko Sawada</option>
+        
+         <option value="melanieplageman">Melanie Plageman</option>
+        
+         <option value="michael-kun">Michael Paquier</option>
+        
+         <option value="bossartn">Nathan Bossart</option>
+        
+         <option value="nmisch">Noah Misch</option>
+        
+         <option value="petere">Peter Eisentraut</option>
+        
+         <option value="pgeoghegan">Peter Geoghegan</option>
+        
+         <option value="richardguo">Richard Guo</option>
+        
+         <option value="rhaas">Robert Haas</option>
+        
+         <option value="ishii">Tatsuo Ishii</option>
+        
+         <option value="macdice">Thomas Munro</option>
+        
+         <option value="tgl">Tom Lane</option>
+        
+         <option value="fuzzycz">Tomas Vondra</option>
+        
+       </select>
+      </div>
+     </form>
+    </div>
+    <div class="modal-footer">
+     <a href="#" class="btn btn-secondary" data-bs-dismiss="modal">Close</a>
+     <a href="#" class="btn btn-primary" id="doCommitButton">Flag as committed</a>
+     <form id="commitForm" method="post"><input type="hidden" name="csrfmiddlewaretoken" value="enQohxMPYBOk8gstTEss0Jm8yC90IDcIjVkubMB0XaEKdNq3KAtPi2WimChVODS4"></form>
+    </div>
+   </div>
+  </div>
+ </div>
+
+
+ <div class="modal fade" id="reviewModal" role="dialog">
+  <div class="modal-dialog">
+   <div class="modal-content">
+    <div class="modal-header">
+     <h4 class="modal-title">Review</h4>
+     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+    </div>
+    <div class="modal-body">
+     <p>Reviews are posted by replying to the patch's thread on the mailinglist. If the thread isn't in your inbox:</p>
+     <ol>
+      <li>Open the latest message in the archives (or whichever message you want to reply to):
+       <ul>
+        
+         <li><a href="https://www.postgresql.org/message-id/CAJ7c6TNVy6oR9Cu=Gbct+9J2AVGQ5+R-3yH2tbwJ=+UgBswkdw@mail.gmail.com">[PATCH] Support Int64 GUCs</a></li>
+        
+       </ul>
+      </li>
+      <li>Log in and click "Resend email" to get a copy in your inbox.</li>
+      <li>Reply all to that email with your review.</li>
+     </ol>
+     <p class="mb-0">Afterwards, use "Change Status" if needed.</p>
+    </div>
+   </div>
+  </div>
+ </div>
+
+ 
+<div class="modal fade" id="attachModal" role="dialog">
+ <div class="modal-dialog modal-lg"><div class="modal-content">
+  <div class="modal-header">
+   <h3 class="modal-title">Attach thread</h3>
+   <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+  </div>
+  <div class="modal-body">
+   <form class="d-flex gap-2" style="margin-bottom: 15px;">
+    <input type="hidden" id="attachThreadAttachOnly" value="0">
+    <div class="input-group">
+     <input id="attachThreadSearchField" type="text" class="form-control" placeholder="Search subject or name">
+     <button id="attachThreadSearchButton" onclick="return findLatestThreads()" class="btn btn-secondary">Search</button>
+    </div>
+   </form>
+   <div class="mb-3">Pick one of the recent emails from pgsql-hackers, or search above for subject or name:</div>
+   <div id="attachThreadListWrap" class="mb-3">
+    <select id="attachThreadList" size="6" class="form-select" onchange="attachThreadChanged()">
+    </select>
+   </div>
+   <div class="mb-2">Or enter an <i>exact</i> message id:</div>
+   <input type="text" id="attachThreadMessageId" class="form-control" placeholder="Message id" onkeypress="attachThreadChanged()" onchange="attachThreadChanged()">
+  </div>
+  <div class="modal-footer">
+   <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+   <button type="button" id="doAttachThreadButton" class="btn btn-primary disabled">Attach thread</button>
+  </div>
+ </div></div>
+</div>
+
+
+ <div class="modal fade" id="annotateModal" role="dialog">
+  <div class="modal-dialog modal-lg"><div class="modal-content">
+   <div class="modal-header">
+    <h4 class="modal-title">Add annotation</h4>
+    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+   </div>
+   <div id="annotateMessageBody" class="modal-body">
+    <form>
+     <div class="mb-3">
+      <label for="annotateMessageList" class="form-label">Pick one of the messages in this thread</label>
+      <div id="annotateListWrap">
+       <select id="annotateMessageList" class="form-select" onChange="annotateMsgPicked()">
+       </select>
+      </div>
+     </div>
+     <div class="mb-3">
+      <label for="annotateMsgId" class="form-label">Or copy/paste the message-id:</label>
+      <div id="annotateMsgidWrap">
+       <input id="annotateMsgId" type="text" class="form-control" onKeyUp="annotateChanged()">
+      </div>
+     </div>
+     <div class="mb-3">
+      <label for="annotateMessage" class="form-label">Enter a message for the annotation</label>
+      <div id="annotateTextWrap">
+       <input id="annotateMessage" type="text" class="form-control" onKeyUp="annotateChanged()">
+      </div>
+     </div>
+    </form>
+   </div>
+   <div class="modal-footer">
+    <a href="#" class="btn btn-secondary" data-bs-dismiss="modal">Close</a>
+    <a href="#" id="doAnnotateMessageButton" class="btn btn-primary disabled">Add annotation</a>
+   </div>
+  </div></div>
+ </div>
+
+   </div>
+   <script src="/media/commitfest/js/jquery.js"></script>
+   <script src="/media/commitfest/js/jquery-ui.js"></script>
+   <script src="/media/commitfest/js/bootstrap.js?v=5.3.7"></script>
+   <script src="/media/commitfest/js/selectize.min.js"></script>
+   <script src="/media/commitfest/js/commitfest.js?v=cc40062c-7766-416a-be78-99b5cec5e916"></script>
+   
+ <script>
+  
+ </script>
+
+
+</html>
