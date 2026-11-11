@@ -155,7 +155,7 @@ describe("pushback: run (fake model)", () => {
     }
     if (a.label === "pushback-reduce") {
       const cands = JSON.parse(a.prompt.split("# Candidate objections\n\n")[1]!.split("\n\n# Responses")[0]!) as { id: string; message: number }[];
-      const idOf = (n: number) => cands.find((c) => c.message === n)!.id;
+      const idOf = (n: number) => cands.find((c) => c.message === n)?.id ?? "C0"; // "C0": that part was not read
       return {
         objections: [
           { title: "Variables can shadow columns", statement: "A variable with the name of a column can change the meaning of an existing query.", candidate_ids: [idOf(2), idOf(6).toLowerCase(), "C77"], status: "unresolved", resolved_by_message_indexes: [3, 1, 500], status_reasoning: "The objection is repeated in message #6 after the warning of message #3.", blocking: true },
@@ -273,6 +273,16 @@ describe("pushback: run (fake model)", () => {
     const r = await runPushback(input(), { backend: b, models: { map: "opus", reduce: "claude-mythos-5-2" }, cache: null, chunkChars: 700, log: () => undefined });
     expect(r.warnings.join("\n")).toContain("part 1 (messages #1 to #");
     expect(r.chunk_notes.some((n) => n.chunk === 1)).toBe(false);
+    expect(r.stats.chunks).toBeGreaterThan(1);
+    // what the other parts found is kept; the report does not claim the whole thread was read
+    expect(r.objections.map((o) => o.title)).toContain("Variables can shadow columns");
+    expect(r.objections[0]!.candidates.map((c) => c.message.index)).toEqual([6]);
+    const md = renderPushbackMarkdown(r);
+    const read = r.chunk_notes.reduce((n, c) => n + c.last_message - c.first_message + 1, 0);
+    expect(read).toBeLessThan(7);
+    expect(md).toContain(`- Read: ${read} of 7 messages`);
+    expect(md).not.toContain("- Read: all 7 messages");
+    expect(md).toContain("- Warning: part 1 (messages #1 to #");
   });
 });
 

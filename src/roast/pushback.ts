@@ -618,7 +618,10 @@ export function renderPushbackMarkdown(r: Pushback): string {
   out.push(`> ${r.disclosure}`, "");
   if (r.input.cf) out.push(`- CommitFest: ${link(`patch ${r.input.cf.id}`, r.input.cf.url)}${r.input.cf.status ? ` (${r.input.cf.status})` : ""}; authors: ${r.input.cf.authors || "not given"}`);
   for (const t of r.input.threads) out.push(`- Thread: ${link(oneLine(t.subject), t.url)} (${t.messages} messages)`);
-  out.push(`- Read: all ${r.input.messages} messages, ${day(r.input.first_message)} to ${day(r.input.last_message)}; the text of the messages only, no patches and no code`);
+  const read = r.chunk_notes.reduce((n, c) => n + c.last_message - c.first_message + 1, 0);
+  const span = `${day(r.input.first_message)} to ${day(r.input.last_message)}; the text of the messages only, no patches and no code`;
+  if (read >= r.input.messages) out.push(`- Read: all ${r.input.messages} messages, ${span}`);
+  else out.push(`- Read: ${read} of ${r.input.messages} messages (${r.stats.chunks - r.chunk_notes.length} of ${r.stats.chunks} part(s) could not be read, see the warnings below; objections in them are missing), ${span}`);
   out.push(`- Last moved: ${day(r.input.last_message)} (${r.input.last_message_from})`, "");
 
   out.push("## What blocks it", "");
