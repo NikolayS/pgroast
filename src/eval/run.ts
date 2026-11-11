@@ -1,6 +1,9 @@
-// Eval runner: roast each case in blind mode, exactly as
-//   bun run src/cli.ts <thread_url> --blind <blind_n> --before <cutoff_date> [--rounds N]
-// would, writing to eval/results/<run-id>/<case-id>[/r<k>]/. Resumable.
+// Eval runner: roast each case in blind mode, as
+//   bun run src/cli.ts <thread_url> --blind <blind_n> [--rounds N]
+// would, with one difference: cutoff_date is the precedent cutoff (roast
+// `before`) but is NOT applied to the thread messages (the lead's rule: the
+// decisive objection often came the same day). Writes to
+// eval/results/<run-id>/<case-id>[/r<k>]/. Resumable.
 
 import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -41,7 +44,7 @@ export interface CaseMeta {
   wall_ms: number;
   llm_calls: number;
   cost_usd: number | null;
-  options: { thread_url: string; blind: number; before: string; rounds: number; hint: string | null; backend: string; models: unknown };
+  options: { thread_url: string; blind: number; precedent_before: string; message_filter: string; rounds: number; hint: string | null; backend: string; models: unknown };
   error: string | null;
 }
 
@@ -75,14 +78,18 @@ export async function runEval(o: RunEvalOptions): Promise<{ done: number; skippe
     const meta: CaseMeta = {
       case_id: c.id, repeat: k, started_at: new Date(t0).toISOString(), wall_ms: 0, llm_calls: 0, cost_usd: null,
       options: {
-        thread_url: c.thread_url, blind: c.blind_n, before: c.cutoff_date, rounds: o.rounds ?? 0,
+        thread_url: c.thread_url, blind: c.blind_n, precedent_before: c.cutoff_date,
+        message_filter: "blind only (first N messages); cutoff_date not applied to messages", rounds: o.rounds ?? 0,
         hint: null, backend: o.dryRun ? "dry-run" : backendName, models,
       },
       error: null,
     };
     try {
-      log(`[${tag}] loading ${c.thread_url} (blind ${c.blind_n}, before ${c.cutoff_date})`);
-      const proposal = await load(c.thread_url, { blind: c.blind_n, before: c.cutoff_date, offline: o.offline });
+      log(`[${tag}] loading ${c.thread_url} (first ${c.blind_n} message(s); precedents before ${c.cutoff_date})`);
+      // Messages: blind_n only (first N of the flat thread). cutoff_date is the
+      // precedent cutoff only: set after loading so it filters no message.
+      const proposal = await load(c.thread_url, { blind: c.blind_n, offline: o.offline });
+      proposal.filters.before = c.cutoff_date;
       const r = await roast(proposal, {
         backend, models, backendName: o.dryRun ? "dry-run" : backendName, hint: null, enrich: true,
         mode: "review", rounds: o.rounds ?? 0, log: (m) => log(`[${tag}] ${m}`),

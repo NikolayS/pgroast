@@ -7,7 +7,7 @@ import { flatUrl } from "../corpus/util.ts";
 import { CliBackend, DryRunBackend, modelsFromEnv, pickBackend, type BackendName, type LlmBackend } from "../roast/llm.ts";
 import type { Roast } from "../roast/schema.ts";
 import { msgidOf, type EvalCase } from "./cases.ts";
-import { runJudge } from "./judge.ts";
+import { runClassify, runJudge, type ClassifyItem } from "./judge.ts";
 import { RESULTS_DIR, type CaseMeta } from "./run.ts";
 import { headline, scoreCase, type CaseScore, type CorpusThreadRow, type Headline, type JudgeItem } from "./score.ts";
 
@@ -53,6 +53,9 @@ export interface Report {
   repeats: number;
   headline: Headline;
   by_post_training_cutoff: { true: Headline; false: Headline; unknown: Headline };
+  by_outcome: Record<string, Headline>;
+  /** by the most fundamental level of the decisive objection (idea / design / implementation / unclassified) */
+  by_decisive_level: Record<string, Headline>;
   by_repeat: Headline[] | null;
   agreement: { case_id: string; verdicts: (string | null)[]; modal_share: number }[] | null;
   scores: CaseScore[];
@@ -87,31 +90,53 @@ export async function scoreRun(o: ScoreOptions): Promise<Report> {
       let judge: JudgeItem[] | null = null;
       let judgeCalls = 0;
       let judgeCost: number | null = null;
+      let classify: ClassifyItem[] | null = null;
       if (r && c.decisive_objections.length) {
-        const cached = readJson<{ items: JudgeItem[]; calls: number; cost_usd: number | null }>(join(dir, "judge.json"));
-        if (cached) {
-          ({ items: judge, calls: judgeCalls, cost_usd: judgeCost } = cached);
+        const dry = r.backend === "dry-run";
+        const mk = () => o.judgeBackend?.(dir, dry) ?? (dry
+          ? new DryRunBackend({ transcriptDir: join(dir, "judge-llm"), print: () => undefined })
+          : new CliBackend({ backend: pickBackend(o.backend), transcriptDir: join(dir, "judge-llm"), log }));
+        const model = modelsFromEnv(process.env, dry ? "claude" : pickBackend(o.backend)).critic;
+        // 1. level classification: sees the case only, never the roast; runs first
+        const cc = readJson<{ items: ClassifyItem[]; calls: number; cost_usd: number | null }>(join(dir, "classify.json"));
+        if (cc) {
+          classify = cc.items;
+          judgeCalls += cc.calls;
+          judgeCost = cc.cost_usd;
         } else if (o.judge !== false) {
-          const dry = r.backend === "dry-run";
-          const backend = o.judgeBackend?.(dir, dry) ?? (dry
-            ? new DryRunBackend({ transcriptDir: join(dir, "judge-llm"), print: () => undefined })
-            : new CliBackend({ backend: pickBackend(o.backend), transcriptDir: join(dir, "judge-llm"), log }));
-          const model = modelsFromEnv(process.env, dry ? "claude" : pickBackend(o.backend)).critic;
+          const b = mk();
           try {
-            judge = await runJudge(c, r, backend, model);
-            judgeCalls = backend.stats().calls;
-            judgeCost = backend.stats().costUsd;
-            writeFileSync(join(dir, "judge.json"), JSON.stringify({ items: judge, calls: judgeCalls, cost_usd: judgeCost, model, dry_run: dry }, null, 2) + "\n");
+            classify = await runClassify(c, b, model);
+            writeFileSync(join(dir, "classify.json"), JSON.stringify({ items: classify, calls: b.stats().calls, cost_usd: b.stats().costUsd, model, dry_run: dry }, null, 2) + "\n");
+          } catch (e) {
+            log(`[${c.id}] classify failed: ${(e as Error).message}`);
+          }
+          judgeCalls += b.stats().calls;
+          judgeCost = b.stats().costUsd;
+        }
+        // 2. judge: roast objections vs decisive objections
+        const cached = readJson<{ items: JudgeItem[]; calls: number; cost_usd: number | null }>(join(dir, "judge.json"));
+        const addCost = (x: number | null) => { judgeCost = judgeCost === null && x === null ? null : (judgeCost ?? 0) + (x ?? 0); };
+        if (cached) {
+          judge = cached.items;
+          judgeCalls += cached.calls;
+          addCost(cached.cost_usd);
+        } else if (o.judge !== false) {
+          const b = mk();
+          try {
+            judge = await runJudge(c, r, b, model);
+            writeFileSync(join(dir, "judge.json"), JSON.stringify({ items: judge, calls: b.stats().calls, cost_usd: b.stats().costUsd, model, dry_run: dry }, null, 2) + "\n");
             log(`[${c.id}${dirs.length > 1 ? `/r${k}` : ""}] judged`);
           } catch (e) {
             log(`[${c.id}] judge failed: ${(e as Error).message}`);
-            judgeCalls = backend.stats().calls;
           }
+          judgeCalls += b.stats().calls;
+          addCost(b.stats().costUsd);
         }
       }
       scores.push(scoreCase(c, r, judge, corpusRows, {
         repeat: k, error: r ? null : (err?.error?.split("\n")[0] ?? "no roast.json (not run yet)"),
-        judgeCalls, judgeCost, wallMs: meta?.wall_ms ?? null,
+        judgeCalls, judgeCost, wallMs: meta?.wall_ms ?? null, classify,
       }));
     }
   }
@@ -138,6 +163,9 @@ export async function scoreRun(o: ScoreOptions): Promise<Report> {
     repeats,
     headline: headline(scores),
     by_post_training_cutoff: { true: headline(pick(true)), false: headline(pick(false)), unknown: headline(pick(null)) },
+    by_outcome: Object.fromEntries(["rejected", "accepted", "reverted"].map((k) => [k, headline(scores.filter((s) => s.outcome === k))])),
+    by_decisive_level: Object.fromEntries(["idea", "design", "implementation", "unclassified"].map((k) =>
+      [k, headline(scores.filter((s) => (s.decisive_level ?? "unclassified") === k))])),
     by_repeat: byRepeat,
     agreement,
     scores,
@@ -175,22 +203,31 @@ export function renderReport(rep: Report, cases: EvalCase[]): string {
   md += `- **(d) false-alarm rate on accepted cases**: ${pct(H.false_alarm_rate)}\n\n`;
   md += `### Split by post_training_cutoff\n\nThe models may remember how famous old threads ended; post-cutoff cases cannot be recalled.\n\n`;
   md += headlineTable([["all", H], ["post-cutoff (true)", rep.by_post_training_cutoff.true], ["pre-cutoff (false)", rep.by_post_training_cutoff.false], ...(rep.by_post_training_cutoff.unknown.cases ? [["unknown", rep.by_post_training_cutoff.unknown] as [string, Headline]] : [])]);
+  md += `\n### Split by outcome\n\n` + headlineTable(Object.entries(rep.by_outcome).filter(([, h]) => h.cases));
+  md += `\n### Split by level of the decisive objection\n\nLevel from a separate classify call that saw only the case, never the roast (idea = rubric 1a/1b, design = 2, implementation = 3-5). An implementation-level reason (a bug, a buildfarm failure) is usually invisible to an idea-level review of the first few emails; those cases are shown apart, not averaged in.\n\n`;
+  md += headlineTable(Object.entries(rep.by_decisive_level).filter(([, h]) => h.cases));
+  const inWin = rep.scores.filter((s) => s.decisive_in_window);
+  if (inWin.length) {
+    md += `\n> **Decisive objection inside the shown window** (position <= blind_n; the roast could read it): ${[...new Set(inWin.map((s) => s.case_id))].join(", ")}. A "found" here may be reading, not foresight.\n`;
+  }
   if (rep.by_repeat) {
     md += `\n### Per repeat\n\n` + headlineTable(rep.by_repeat.map((h, i) => [`r${i + 1}`, h] as [string, Headline]));
     md += `\nVerdict agreement across repeats:\n\n| case | verdicts | modal share |\n|---|---|---:|\n`;
     md += rep.agreement!.map((a) => `| ${a.case_id} | ${a.verdicts.map((v) => v ?? "error").join(", ")} | ${Math.round(a.modal_share * 100)}% |`).join("\n") + "\n";
   }
-  md += `\n## Cases\n\n| case | outcome | post-cutoff | verdict | (a) lenient | strict | (b) decisive | bucket | (c) earlier | fatal surviving | calls (roast+judge) | cost | wall |\n|---|---|---|---|---|---|---|---|---|---:|---|---:|---:|\n`;
+  md += `\n## Cases\n\n| case | outcome | post-cutoff | decisive level | verdict | (a) lenient | strict | (b) decisive | bucket | (c) earlier | fatal surviving | calls (roast+judge) | cost | wall |\n|---|---|---|---|---|---|---|---|---|---|---:|---|---:|---:|\n`;
   for (const s of rep.scores) {
-    const tag = rep.repeats > 1 ? `${s.case_id}/r${s.repeat}` : s.case_id;
+    const tag = (rep.repeats > 1 ? `${s.case_id}/r${s.repeat}` : s.case_id) + (s.decisive_in_window ? " ⚑" : "");
+    const lvl = s.decisive_level ?? "–";
     if (s.error) {
-      md += `| ${tag} | ${s.outcome} | ${yn(s.post_training_cutoff)} | ERROR: ${s.error.replace(/\|/g, "/").slice(0, 80)} | | | | | | | ${s.cost.roast_calls}+${s.cost.judge_calls} | | |\n`;
+      md += `| ${tag} | ${s.outcome} | ${yn(s.post_training_cutoff)} | ${lvl} | ERROR: ${s.error.replace(/\|/g, "/").slice(0, 80)} | | | | | | | ${s.cost.roast_calls}+${s.cost.judge_calls} | | |\n`;
       continue;
     }
     const d = s.decisive!;
-    md += `| ${tag} | ${s.outcome} | ${yn(s.post_training_cutoff)} | ${s.verdict} (${s.confidence}) | ${yn(s.verdict_lenient)} | ${yn(s.verdict_strict)} | ${d.status === "scored" ? d.result : d.status} | ${d.bucket ?? "–"} | ${s.earlier!.status} | ${s.surviving_fatal} | ${s.cost.roast_calls}+${s.cost.judge_calls} | ${s.cost.cost_usd === null ? "–" : `$${s.cost.cost_usd.toFixed(2)}`} | ${s.cost.wall_ms === null ? "–" : `${Math.round(s.cost.wall_ms / 1000)} s`} |\n`;
+    md += `| ${tag} | ${s.outcome} | ${yn(s.post_training_cutoff)} | ${lvl} | ${s.verdict} (${s.confidence}) | ${yn(s.verdict_lenient)} | ${yn(s.verdict_strict)} | ${d.status === "scored" ? d.result : d.status} | ${d.bucket ?? "–"} | ${s.earlier!.status} | ${s.surviving_fatal} | ${s.cost.roast_calls}+${s.cost.judge_calls} | ${s.cost.cost_usd === null ? "–" : `$${s.cost.cost_usd.toFixed(2)}`} | ${s.cost.wall_ms === null ? "–" : `${Math.round(s.cost.wall_ms / 1000)} s`} |\n`;
   }
   const t = rep.totals;
+  md += `\n⚑ = decisive objection inside the shown window.\n`;
   md += `\nTotals: ${t.roast_calls} roast calls + ${t.judge_calls} judge calls; cost ${t.cost_usd === null ? "not reported" : `$${t.cost_usd}`}; wall ${Math.round(t.wall_ms / 60000)} min (sum over cases).\n`;
 
   md += `\n## Misses\n\n`;
@@ -201,9 +238,10 @@ export function renderReport(rep: Report, cases: EvalCase[]): string {
     md += `### ${s.case_id}${rep.repeats > 1 ? ` r${s.repeat}` : ""}: ${c.title}\n\n`;
     if (s.verdict_lenient === false) md += `- **Verdict**: ${s.verdict}, but the outcome was ${s.outcome}.${s.false_alarm ? ` False alarm (${s.surviving_fatal} surviving fatal).` : ""}\n`;
     if (s.decisive?.status === "scored" && !s.decisive.found_surviving) {
-      md += `- **Decisive objection**: ${s.decisive.result}${s.decisive.bucket ? ` (best match ${s.decisive.objection_id}, ${s.decisive.bucket})` : ""}. ${s.decisive.reason}\n`;
+      md += `- **Decisive objection** (${s.decisive_level ?? "unclassified"}-level${s.decisive_in_window ? ", inside the shown window" : ""}): ${s.decisive.result}${s.decisive.bucket ? ` (best match ${s.decisive.objection_id}, ${s.decisive.bucket})` : ""}. ${s.decisive.reason}\n`;
       for (const [i, d] of c.decisive_objections.entries()) {
-        md += `  - D${i + 1} ${d.who ?? ""}${d.date ? `, ${d.date}` : ""}: "${String(d.quote ?? "").replace(/\s+/g, " ").slice(0, 300)}"${d.message_url ? ` ([message](${d.message_url}))` : ""}\n`;
+        const lv = s.decisive_levels.find((x) => x.decisive_index === i + 1)?.level;
+        md += `  - D${i + 1}${lv ? ` [${lv}]` : ""} ${d.who ?? ""}${d.date ? `, ${d.date}` : ""}: "${String(d.quote ?? "").replace(/\s+/g, " ").slice(0, 300)}"${d.message_url ? ` ([message](${d.message_url}))` : d.source ? ` (source: ${String(d.source).slice(0, 120)})` : ""}\n`;
       }
     }
     if (s.earlier?.status === "not_found" || s.earlier?.status === "retrieved_only") {

@@ -55,6 +55,20 @@ describe("cases", () => {
   });
 });
 
+describe("window flag and source quotes", () => {
+  test("decisive objection inside the shown window", async () => {
+    const { decisiveInWindow } = await import("../src/eval/cases.ts");
+    expect(decisiveInWindow({ ...CASE, decisive_objection_position: 5, blind_n: 6 })).toBe(true);
+    expect(decisiveInWindow({ ...CASE, decisive_objection_position: 7, blind_n: 6 })).toBe(false);
+    expect(decisiveInWindow({ ...CASE, decisive_objection_position: null })).toBe(false);
+  });
+  test("objection without message_url shows its source", async () => {
+    const { decisiveList } = await import("../src/eval/judge.ts");
+    const c = { ...CASE, decisive_objections: [{ who: "X", message_url: null, source: "revert commit abc123 message", quote: "it broke" }] } as unknown as EvalCase;
+    expect(decisiveList(c)).toContain("(source: revert commit abc123 message)");
+  });
+});
+
 describe("(a) verdict", () => {
   test("mapping fixed in docs/eval.md", () => {
     expect(verdictMatch("rejected", "NEEDS-DESIGN-DISCUSSION")).toEqual({ lenient: true, strict: false });
@@ -143,27 +157,40 @@ describe("scoreRun end to end (fake judge, injected corpus rows)", () => {
     mkdirSync(dir, { recursive: true });
     writeFileSync(join(dir, "roast.json"), JSON.stringify(roast({ prior_attempts: [{ thread_urls: [FLAT + "old@x.org"] }] })));
     let calls = 0;
-    const fake = (): LlmBackend => ({
+    const labels: string[] = [];
+    const fake = (): LlmBackend => {
+      let mine = 0;
+      return {
       dryRun: false,
-      stats: () => ({ calls, costUsd: 0.25 }),
-      complete: async <T,>() => {
+      stats: () => ({ calls: mine, costUsd: 0.25 }),
+      complete: async <T,>(a: { label: string; prompt: string }) => {
         calls++;
+        mine++;
+        labels.push(a.label);
+        if (a.label === "classify") {
+          expect(a.prompt).not.toContain("prior-1"); // the classifier never sees the roast
+          return { items: [{ decisive_index: 1, level: "idea", reason: "core is unwanted" }, { decisive_index: 2, level: "implementation", reason: "bug" }] } as T;
+        }
         return { items: [{ decisive_index: 1, result: "found", objection_id: "prior-1", reason: "same: use COPY" }] } as T;
       },
-    });
+      };
+    };
     const rows = [{ id: "cf:1", date: "2019-05-01", first_date: "2019-01-01", thread_urls: [FLAT + "old@x.org"] }];
     const rep = await scoreRun({ runId, cases: [CASE], judgeBackend: fake, corpusRows: rows, log: () => undefined });
-    expect(calls).toBe(1);
-    expect(rep.scores[0]).toMatchObject({ verdict_lenient: true, verdict_strict: true, surviving_fatal: 2 });
+    expect(labels).toEqual(["classify", "judge"]);
+    expect(rep.scores[0]).toMatchObject({ verdict_lenient: true, verdict_strict: true, surviving_fatal: 2, decisive_level: "idea", decisive_in_window: false });
     expect(rep.scores[0]!.decisive).toMatchObject({ result: "found", bucket: "listed" });
     expect(rep.scores[0]!.earlier!.status).toBe("found");
-    expect(rep.scores[0]!.cost).toMatchObject({ roast_calls: 10, judge_calls: 1, cost_usd: 1.75 });
+    expect(rep.scores[0]!.cost).toMatchObject({ roast_calls: 10, judge_calls: 2, cost_usd: 2 });
+    expect(rep.by_decisive_level.idea!.cases).toBe(1);
+    expect(rep.by_outcome.rejected!.verdict_lenient.num).toBe(1);
     expect(JSON.parse(readFileSync(join(dir, "judge.json"), "utf8")).items.length).toBe(1);
-    // second scoring uses the cached judge reply
+    // second scoring uses the cached classify and judge replies
     await scoreRun({ runId, cases: [CASE], judgeBackend: fake, corpusRows: rows, log: () => undefined });
-    expect(calls).toBe(1);
+    expect(calls).toBe(2);
     const md = renderReport(rep, [CASE]);
     expect(md).toContain("(a) verdict match**: 1/1 (100%) lenient");
-    expect(md).toContain("| c1 | rejected | no | LIKELY-REJECT (high) | yes | yes | found | listed | found | 2 | 10+1 | $1.75 | 60 s |");
+    expect(md).toContain("| c1 | rejected | no | idea | LIKELY-REJECT (high) | yes | yes | found | listed | found | 2 | 10+2 | $2.00 | 60 s |");
+    expect(md).toContain("Split by level of the decisive objection");
   });
 });

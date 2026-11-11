@@ -31,14 +31,34 @@ The gold data is never shown to the roast pipeline. It is read only by
 ## Run
 
 For each selected case, the runner calls the roast pipeline in-process
-(`runRoast` in `src/roast/pipeline.ts`). It uses exactly the options of
+(`runRoast` in `src/roast/pipeline.ts`), as
 
 ```
-bun run src/cli.ts <thread_url> --blind <blind_n> --before <cutoff_date> [--rounds N]
+bun run src/cli.ts <thread_url> --blind <blind_n> [--rounds N]
 ```
 
-That means review mode, precedent enrichment on, no hint, and the default
-models from the environment (Opus or Mythos only on the claude backend).
+would. That means review mode, precedent enrichment on, no hint, and the
+default models from the environment (Opus or Mythos only on the claude
+backend).
+
+- **Messages:** `blind_n` only, the first N messages of the flat thread.
+  `cutoff_date` is **not** applied to messages. In 9 cases the decisive
+  objection came the same day as the proposal, so a strict date filter would
+  either show nothing or show the objection.
+- **Precedents:** `cutoff_date` is the precedent cutoff (the roast's
+  `before`). It is set on the loaded proposal after the messages are chosen,
+  so it filters no message. The pipeline's own rules also apply: a row with
+  any date on or after the cutoff is dropped, the case's own thread and
+  CommitFest entry are dropped, and undated wiki rows are not used. The
+  review date shown to the model is the date of the last visible message.
+- **Caveat:** where `cutoff_date` is long after the shown window (for
+  example `sqljson-pg15`: messages from 2018, cutoff 2022), precedents dated
+  between the window and the cutoff are allowed. This is the case file's
+  choice, not the runner's.
+
+(Changed on 2026-11-11 on the lead's instruction, before any real result.
+The first version passed `cutoff_date` as `--before`, which also filtered
+messages.)
 
 - `--rounds N` passes through to the pipeline: extra reflection rounds,
   0..6, default 0, the same as `src/cli.ts --rounds`.
@@ -79,7 +99,9 @@ to it.
 Each case gets one judge call, made through the roast LLM backend with the
 critic model and no tools. The judge sees:
 
-- the case's `decisive_objections` (who, date, quote, category);
+- the case's `decisive_objections` (who, date, quote, category, and
+  `source` when there is no `message_url`, for example a quote from a revert
+  commit message);
 - every objection the roast produced, with its id, title, severity,
   category, failure scenario and argument. The buckets are `listed`
   (`objections`, the ranked steelman), `other_surviving`, `refuted`, and
@@ -112,6 +134,27 @@ For `accepted` cases with no decisive objection, (b) is "n/a".
 the judge reply in `<run>/<case>/judge.json` and does not call again; delete
 that file to re-judge. On a dry-run roast the judge also runs on the
 `DryRunBackend`.
+
+### Level of the decisive objection (judge-independent label)
+
+Before the judge runs, a separate **classify** call (critic model, no
+tools) labels each decisive objection as `idea` (rubric levels 1a/1b),
+`design` (level 2) or `implementation` (levels 3–5, per
+`prompts/committer-paranoia.md`). This call sees only the case's title and
+decisive objections, **never the roast**.
+
+The case label is the most fundamental level among its decisive objections.
+Every headline number is also reported per label. An implementation-level
+revert reason, which an idea-level tool reading 6 early emails could not
+have seen, shows up as such instead of being hidden in an average. The
+reply is cached in `classify.json`.
+
+**Window flag:** if `decisive_objection_position <= blind_n`, the decisive
+message was inside the shown window (currently only
+`data-checksums-default-on`: position 5, 6 messages shown). The case is
+marked ⚑, because a "found" there may be reading, not foresight.
+
+(Added on 2026-11-11 on the lead's instruction, before any real result.)
 
 ### (c) Earlier attempt found (deterministic)
 
@@ -154,12 +197,31 @@ accepted cases.
 - four headline numbers: (a) lenient verdict accuracy (strict next to it),
   (b) decisive objection found rate, (c) earlier attempt found rate, and
   (d) false-alarm rate;
-- the same four numbers split by `post_training_cutoff` true and false. The
-  models may remember how famous old threads ended, and this split shows how
-  much that matters (docs/design.md, "Known weaknesses");
+- the same four numbers split three ways:
+  - by `post_training_cutoff` true and false. The models may remember how
+    famous old threads ended, and this split shows how much that matters
+    (docs/design.md, "Known weaknesses");
+  - by outcome;
+  - by the decisive objection's level (idea, design or implementation);
 - the misses: for each case that failed (a), (b) or (c), what was missed,
   with the gold quote and link;
 - with `--repeat K > 1`, each repeat is scored on its own, and per-case
   verdict agreement across repeats is shown.
 
 `docs/eval-report.md` is updated only on request.
+
+## Cost of a full run
+
+For the 18 cases at `--rounds 0`:
+
+| stage | calls per case |
+|---|---|
+| roast: brief 1 + relevance 1 + 7 roasters + critic 1 + synthesis 1 | 11 |
+| enrichment of precedent threads | at most 8; cached in `precedent_enrichment` across runs, so a re-run makes fewer |
+| repair calls (invalid JSON) | at most 1 per stage, usually 0 |
+| scoring: classify 1 + judge 1 | 2 |
+
+That is about 13 to 21 calls per case, or **about 234 to 378 calls** for the
+whole run. Each `--rounds` step adds more roaster and critic calls per case.
+The dry run (`dryrun-2`, 18 cases, stub model) made 11 roast calls per case;
+enrichment does not run in dry-run mode.

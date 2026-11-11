@@ -2,7 +2,8 @@
 // any result existed. Nothing here calls a model or the network.
 
 import type { FinalObjection, Roast, Verdict } from "../roast/schema.ts";
-import { msgidOf, type EvalCase, type Outcome } from "./cases.ts";
+import { decisiveInWindow, msgidOf, type EvalCase, type Outcome } from "./cases.ts";
+import { caseLevel, type ClassifyItem, type DecisiveLevel } from "./judge.ts";
 
 // ---------------------------------------------------------------- (a) verdict
 
@@ -180,6 +181,11 @@ export interface CaseScore {
   outcome: Outcome;
   post_training_cutoff: boolean | null;
   repeat: number;
+  /** most fundamental level among the decisive objections (classify call, made without the roast) */
+  decisive_level: DecisiveLevel | null;
+  decisive_levels: ClassifyItem[];
+  /** the decisive message is inside the shown window (position <= blind_n) */
+  decisive_in_window: boolean;
   verdict: Verdict | null;
   confidence: string | null;
   error: string | null;
@@ -193,9 +199,11 @@ export interface CaseScore {
 }
 
 export function scoreCase(c: EvalCase, r: Roast | null, judge: JudgeItem[] | null, corpusRows: CorpusThreadRow[],
-  extra: { repeat: number; error?: string | null; judgeCalls?: number; judgeCost?: number | null; wallMs?: number | null }): CaseScore {
+  extra: { repeat: number; error?: string | null; judgeCalls?: number; judgeCost?: number | null; wallMs?: number | null; classify?: ClassifyItem[] | null }): CaseScore {
+  const levels = extra.classify ?? [];
   const base = {
     case_id: c.id, title: c.title, outcome: c.outcome, post_training_cutoff: c.post_training_cutoff, repeat: extra.repeat,
+    decisive_level: caseLevel(levels), decisive_levels: levels, decisive_in_window: decisiveInWindow(c),
   };
   if (!r) {
     return {

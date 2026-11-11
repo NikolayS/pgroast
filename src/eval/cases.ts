@@ -17,6 +17,8 @@ export interface DecisiveObjection {
   message_url?: string;
   quote?: string;
   category?: string;
+  /** where the quote comes from when there is no message_url (e.g. a revert commit message) */
+  source?: string;
   [k: string]: unknown;
 }
 
@@ -38,6 +40,8 @@ export interface EvalCase {
   post_training_cutoff: boolean | null;
   commit?: string | null;
   revert_commit?: string | null;
+  /** 1-based position of the decisive message in the flat thread, if known. */
+  decisive_objection_position?: number | null;
   /** Hint for directed precedent lookup, only if the case file provides one. */
   hint?: string | null;
   [k: string]: unknown;
@@ -82,6 +86,7 @@ export function parseCases(json: unknown): { cases: EvalCase[]; problems: string
       earlier_attempts: (Array.isArray(c.earlier_attempts) ? (c.earlier_attempts as EarlierAttempt[]) : [])
         .filter((e) => e && typeof e.thread_url === "string" && e.thread_url),
       post_training_cutoff: typeof ptc === "boolean" ? ptc : null,
+      decisive_objection_position: Number.isInteger(c.decisive_objection_position) ? (c.decisive_objection_position as number) : null,
     });
   });
   return { cases, problems };
@@ -105,4 +110,9 @@ export function msgidOf(urlOrId: string): string | null {
   s = s.replace(/\/+$/, "");
   const c = canonMsgid(s);
   return c.includes("@") ? c : null;
+}
+
+/** True when the decisive objection's message is inside the shown window (position <= blind_n). */
+export function decisiveInWindow(c: EvalCase): boolean {
+  return c.decisive_objection_position != null && c.decisive_objection_position <= c.blind_n;
 }
