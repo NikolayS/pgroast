@@ -1,0 +1,694 @@
+<!DOCTYPE html>
+<html class="client-nojs" lang="en" dir="ltr">
+<head>
+<meta charset="UTF-8">
+<title>Not Worth Doing - PostgreSQL wiki</title>
+<script>document.documentElement.className="client-js";RLCONF={"wgBreakFrames":false,"wgSeparatorTransformTable":["",""],"wgDigitTransformTable":["",""],"wgDefaultDateFormat":"dmy","wgMonthNames":["","January","February","March","April","May","June","July","August","September","October","November","December"],"wgRequestId":"bb2d596bb7b9b00fbac59b3a","wgCanonicalNamespace":"","wgCanonicalSpecialPageName":false,"wgNamespaceNumber":0,"wgPageName":"Not_Worth_Doing","wgTitle":"Not Worth Doing","wgCurRevisionId":37828,"wgRevisionId":37828,"wgArticleId":3752,"wgIsArticle":true,"wgIsRedirect":false,"wgAction":"view","wgUserName":null,"wgUserGroups":["*"],"wgCategories":[],"wgPageViewLanguage":"en","wgPageContentLanguage":"en","wgPageContentModel":"wikitext","wgRelevantPageName":"Not_Worth_Doing","wgRelevantArticleId":3752,"wgIsProbablyEditable":false,"wgRelevantPageIsProbablyEditable":false,"wgRestrictionEdit":[],"wgRestrictionMove":[]};RLSTATE={"site.styles":"ready","user.styles":"ready","user":"ready","user.options":"loading","skins.monobook.styles":"ready"};
+RLPAGEMODULES=["site","mediawiki.page.ready","mediawiki.toc","skins.monobook.scripts"];</script>
+<script>(RLQ=window.RLQ||[]).push(function(){mw.loader.impl(function(){return["user.options@12s5i",function($,jQuery,require,module){mw.user.tokens.set({"patrolToken":"+\\","watchToken":"+\\","csrfToken":"+\\"});
+}];});});</script>
+<link rel="stylesheet" href="/load.php?lang=en&amp;modules=skins.monobook.styles&amp;only=styles&amp;skin=monobook">
+<script async="" src="/load.php?lang=en&amp;modules=startup&amp;only=scripts&amp;raw=1&amp;skin=monobook"></script>
+<meta name="ResourceLoaderDynamicStyles" content="">
+<link rel="stylesheet" href="/load.php?lang=en&amp;modules=site.styles&amp;only=styles&amp;skin=monobook">
+<meta name="generator" content="MediaWiki 1.43.9">
+<meta name="robots" content="max-image-preview:standard">
+<meta name="format-detection" content="telephone=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, minimum-scale=0.25, maximum-scale=5.0">
+<link rel="search" type="application/opensearchdescription+xml" href="/rest.php/v1/search" title="PostgreSQL wiki (en)">
+<link rel="EditURI" type="application/rsd+xml" href="https://wiki.postgresql.org/api.php?action=rsd">
+<link rel="alternate" type="application/atom+xml" title="PostgreSQL wiki Atom feed" href="/index.php?title=Special:RecentChanges&amp;feed=atom">
+</head>
+<body class="mediawiki ltr sitedir-ltr mw-hide-empty-elt ns-0 ns-subject page-Not_Worth_Doing rootpage-Not_Worth_Doing skin-monobook action-view skin--responsive"><div id="globalWrapper">
+	<div id="column-content">
+		<div id="content" class="mw-body" role="main">
+			<a id="top"></a>
+			<div id="siteNotice"><div id="localNotice" data-nosnippet=""><div class="sitenotice" lang="en" dir="ltr"><p><b><a rel="nofollow" class="external text" href="https://wiki.postgresql.org/wiki/WikiEditing">Want to edit, but don't see an edit button when logged in?  Click here.</a></b>
+</p></div></div></div>
+			<div class="mw-indicators">
+			</div>
+			<h1 id="firstHeading" class="firstHeading mw-first-heading"><span class="mw-page-title-main">Not Worth Doing</span></h1>
+			<div id="bodyContent" class="monobook-body">
+				<div id="siteSub">From PostgreSQL wiki</div>
+				<div id="contentSub" ><div id="mw-content-subtitle"></div></div>
+				
+				<div id="jump-to-nav"></div><a href="#column-one" class="mw-jump-link">Jump to navigation</a><a href="#searchInput" class="mw-jump-link">Jump to search</a>
+				<!-- start content -->
+				<div id="mw-content-text" class="mw-body-content"><div class="mw-content-ltr mw-parser-output" lang="en" dir="ltr"><div style="margin: 1ex 1em; float: right;">
+<div id="toc" class="toc" role="navigation" aria-labelledby="mw-toc-heading"><input type="checkbox" role="button" id="toctogglecheckbox" class="toctogglecheckbox" style="display:none" /><div class="toctitle" lang="en" dir="ltr"><h2 id="mw-toc-heading">Contents</h2><span class="toctogglespan"><label class="toctogglelabel" for="toctogglecheckbox"></label></span></div>
+<ul>
+<li class="toclevel-1 tocsection-1"><a href="#Administration"><span class="tocnumber">1</span> <span class="toctext">Administration</span></a>
+<ul>
+<li class="toclevel-2 tocsection-2"><a href="#Configuration_files"><span class="tocnumber">1.1</span> <span class="toctext">Configuration files</span></a></li>
+<li class="toclevel-2 tocsection-3"><a href="#Tablespaces"><span class="tocnumber">1.2</span> <span class="toctext">Tablespaces</span></a></li>
+<li class="toclevel-2 tocsection-4"><a href="#Statistics_Collector"><span class="tocnumber">1.3</span> <span class="toctext">Statistics Collector</span></a></li>
+<li class="toclevel-2 tocsection-5"><a href="#Point-In-Time_Recovery_(PITR)"><span class="tocnumber">1.4</span> <span class="toctext">Point-In-Time Recovery (PITR)</span></a></li>
+<li class="toclevel-2 tocsection-6"><a href="#Standby_server_mode"><span class="tocnumber">1.5</span> <span class="toctext">Standby server mode</span></a></li>
+</ul>
+</li>
+<li class="toclevel-1 tocsection-7"><a href="#Data_Types"><span class="tocnumber">2</span> <span class="toctext">Data Types</span></a>
+<ul>
+<li class="toclevel-2 tocsection-8"><a href="#Domains"><span class="tocnumber">2.1</span> <span class="toctext">Domains</span></a></li>
+<li class="toclevel-2 tocsection-9"><a href="#Dates_and_Times"><span class="tocnumber">2.2</span> <span class="toctext">Dates and Times</span></a></li>
+<li class="toclevel-2 tocsection-10"><a href="#Arrays"><span class="tocnumber">2.3</span> <span class="toctext">Arrays</span></a></li>
+<li class="toclevel-2 tocsection-11"><a href="#MONEY_Data_Type"><span class="tocnumber">2.4</span> <span class="toctext">MONEY Data Type</span></a></li>
+<li class="toclevel-2 tocsection-12"><a href="#Text_Search"><span class="tocnumber">2.5</span> <span class="toctext">Text Search</span></a></li>
+<li class="toclevel-2 tocsection-13"><a href="#XML"><span class="tocnumber">2.6</span> <span class="toctext">XML</span></a></li>
+</ul>
+</li>
+<li class="toclevel-1 tocsection-14"><a href="#Functions"><span class="tocnumber">3</span> <span class="toctext">Functions</span></a></li>
+<li class="toclevel-1 tocsection-15"><a href="#Character_Formatting"><span class="tocnumber">4</span> <span class="toctext">Character Formatting</span></a></li>
+<li class="toclevel-1 tocsection-16"><a href="#Multi-Language_Support"><span class="tocnumber">5</span> <span class="toctext">Multi-Language Support</span></a></li>
+<li class="toclevel-1 tocsection-17"><a href="#Views_and_Rules"><span class="tocnumber">6</span> <span class="toctext">Views and Rules</span></a></li>
+<li class="toclevel-1 tocsection-18"><a href="#SQL_Commands"><span class="tocnumber">7</span> <span class="toctext">SQL Commands</span></a></li>
+<li class="toclevel-1 tocsection-19"><a href="#Vacuum"><span class="tocnumber">8</span> <span class="toctext">Vacuum</span></a></li>
+<li class="toclevel-1 tocsection-20"><a href="#Optimizer_/_Executor"><span class="tocnumber">9</span> <span class="toctext">Optimizer / Executor</span></a></li>
+<li class="toclevel-1 tocsection-21"><a href="#Server-Side_Languages"><span class="tocnumber">10</span> <span class="toctext">Server-Side Languages</span></a></li>
+<li class="toclevel-1 tocsection-22"><a href="#Clients"><span class="tocnumber">11</span> <span class="toctext">Clients</span></a>
+<ul>
+<li class="toclevel-2 tocsection-23"><a href="#psql"><span class="tocnumber">11.1</span> <span class="toctext">psql</span></a></li>
+</ul>
+</li>
+<li class="toclevel-1 tocsection-24"><a href="#Miscellaneous_Performance"><span class="tocnumber">12</span> <span class="toctext">Miscellaneous Performance</span></a></li>
+<li class="toclevel-1 tocsection-25"><a href="#Exotic_Features"><span class="tocnumber">13</span> <span class="toctext">Exotic Features</span></a></li>
+<li class="toclevel-1 tocsection-26"><a href="#Features_We_Do_Not_Want"><span class="tocnumber">14</span> <span class="toctext">Features We Do <i>Not</i> Want</span></a></li>
+</ul>
+</div>
+
+</div>
+<p>This list contains items that were formerly on the <a href="/wiki/Todo" title="Todo">Todo</a> list. 
+</p><p><b>Please do not add items here without discussion on the <a href="/wiki/Mailing_Lists" title="Mailing Lists">mailing list</a>.</b>
+</p>
+<h2><span class="mw-headline" id="Administration">Administration</span></h2>
+<dl><dt style="position: relative; font-weight: normal;"><span typeof="mw:File"><a href="/wiki/File:UntickedTick.svg" class="mw-file-description" title="Incomplete item"><img alt="Incomplete item" src="/images/thumb/d/dd/UntickedTick.svg/10px-UntickedTick.svg.png" decoding="async" width="10" height="10" class="mw-file-element" srcset="/images/thumb/d/dd/UntickedTick.svg/15px-UntickedTick.svg.png 1.5x, /images/thumb/d/dd/UntickedTick.svg/20px-UntickedTick.svg.png 2x" /></a></span>&#160;Allow custom variables to appear in pg_settings()
+<ul><li><a rel="nofollow" class="external text" href="http://archives.postgresql.org/pgsql-hackers/2008-06/msg00850.php">Re: count(*) performance improvement ideas</a></li></ul>
+
+</dt><dd>
+
+</dd></dl>
+<dl><dt style="position: relative; font-weight: normal;"><span typeof="mw:File"><a href="/wiki/File:UntickedTick.svg" class="mw-file-description" title="Incomplete item"><img alt="Incomplete item" src="/images/thumb/d/dd/UntickedTick.svg/10px-UntickedTick.svg.png" decoding="async" width="10" height="10" class="mw-file-element" srcset="/images/thumb/d/dd/UntickedTick.svg/15px-UntickedTick.svg.png 1.5x, /images/thumb/d/dd/UntickedTick.svg/20px-UntickedTick.svg.png 2x" /></a></span>&#160;Have custom variables be transaction-safe
+<ul><li><a rel="nofollow" class="external text" href="https://www.postgresql.org/message-id/4B577E9F.8000505@dunslane.net">Custom GUCs still a bit broken</a></li>
+<li><a rel="nofollow" class="external text" href="https://www.postgresql.org/message-id/alpine.DEB.2.20.1701081007440.10378@lancre">proposal: session server side variables</a></li></ul>
+
+</dt><dd>
+
+</dd></dl>
+<dl><dt style="position: relative; font-weight: normal;"><span typeof="mw:File"><a href="/wiki/File:UntickedTick.svg" class="mw-file-description" title="Incomplete item"><img alt="Incomplete item" src="/images/thumb/d/dd/UntickedTick.svg/10px-UntickedTick.svg.png" decoding="async" width="10" height="10" class="mw-file-element" srcset="/images/thumb/d/dd/UntickedTick.svg/15px-UntickedTick.svg.png 1.5x, /images/thumb/d/dd/UntickedTick.svg/20px-UntickedTick.svg.png 2x" /></a></span>&#160;Implement the SQL-standard mechanism whereby REVOKE ROLE revokes only the privilege granted by the invoking role, and not those granted by other roles
+<ul><li><a rel="nofollow" class="external text" href="http://archives.postgresql.org/pgsql-bugs/2007-05/msg00010.php">Re: Grantor name gets lost when grantor role dropped</a></li></ul>
+
+</dt><dd>
+
+</dd></dl>
+<h3><span class="mw-headline" id="Configuration_files">Configuration files</span></h3>
+<div>
+<dl><dt style="position: relative; font-weight: normal;"><span typeof="mw:File"><a href="/wiki/File:UntickedTick.svg" class="mw-file-description" title="Incomplete item"><img alt="Incomplete item" src="/images/thumb/d/dd/UntickedTick.svg/10px-UntickedTick.svg.png" decoding="async" width="10" height="10" class="mw-file-element" srcset="/images/thumb/d/dd/UntickedTick.svg/15px-UntickedTick.svg.png 1.5x, /images/thumb/d/dd/UntickedTick.svg/20px-UntickedTick.svg.png 2x" /></a></span>&#160;Normalizing fractions in postgresql.conf, perhaps using '%'
+<ul><li><a rel="nofollow" class="external text" href="http://archives.postgresql.org/pgsql-hackers/2007-06/msg00550.php">Fractions in GUC variables</a></li></ul>
+
+</dt><dd>
+
+</dd></dl>
+<dl><dt style="position: relative; font-weight: normal;"><span typeof="mw:File"><a href="/wiki/File:UntickedTick.svg" class="mw-file-description" title="Incomplete item"><img alt="Incomplete item" src="/images/thumb/d/dd/UntickedTick.svg/10px-UntickedTick.svg.png" decoding="async" width="10" height="10" class="mw-file-element" srcset="/images/thumb/d/dd/UntickedTick.svg/15px-UntickedTick.svg.png 1.5x, /images/thumb/d/dd/UntickedTick.svg/20px-UntickedTick.svg.png 2x" /></a></span>&#160;Add external tool to auto-tune some postgresql.conf parameters
+<ul><li><a rel="nofollow" class="external text" href="http://archives.postgresql.org/pgsql-hackers/2008-06/msg00000.php">Re: Overhauling GUCS</a></li>
+<li><a rel="nofollow" class="external text" href="http://archives.postgresql.org/pgsql-hackers/2008-11/msg00033.php">Simple postgresql.conf wizard</a></li></ul>
+
+</dt><dd>
+
+</dd></dl>
+<dl><dt style="position: relative; font-weight: normal;"><span typeof="mw:File"><a href="/wiki/File:UntickedTick.svg" class="mw-file-description" title="Incomplete item"><img alt="Incomplete item" src="/images/thumb/d/dd/UntickedTick.svg/10px-UntickedTick.svg.png" decoding="async" width="10" height="10" class="mw-file-element" srcset="/images/thumb/d/dd/UntickedTick.svg/15px-UntickedTick.svg.png 1.5x, /images/thumb/d/dd/UntickedTick.svg/20px-UntickedTick.svg.png 2x" /></a></span>&#160;Create utility to compute accurate random_page_cost value
+<ul><li><a rel="nofollow" class="external free" href="http://archives.postgresql.org/pgsql-performance/2011-04/msg00162.php">http://archives.postgresql.org/pgsql-performance/2011-04/msg00162.php</a></li>
+<li><a rel="nofollow" class="external free" href="http://archives.postgresql.org/pgsql-performance/2011-04/msg00362.php">http://archives.postgresql.org/pgsql-performance/2011-04/msg00362.php</a></li></ul>
+
+</dt><dd>
+
+</dd></dl>
+<dl><dt style="position: relative; font-weight: normal;"><span typeof="mw:File"><a href="/wiki/File:UntickedTick.svg" class="mw-file-description" title="Incomplete item"><img alt="Incomplete item" src="/images/thumb/d/dd/UntickedTick.svg/10px-UntickedTick.svg.png" decoding="async" width="10" height="10" class="mw-file-element" srcset="/images/thumb/d/dd/UntickedTick.svg/15px-UntickedTick.svg.png 1.5x, /images/thumb/d/dd/UntickedTick.svg/20px-UntickedTick.svg.png 2x" /></a></span>&#160;Allow synchronous_standby_names to be disabled after communication failure with all synchronous standby servers exceeds some timeout
+
+</dt><dd>
+This also requires successful execution of a synchronous notification command.
+<ul><li><a rel="nofollow" class="external free" href="http://archives.postgresql.org/pgsql-hackers/2012-07/msg00409.php">http://archives.postgresql.org/pgsql-hackers/2012-07/msg00409.php</a></li>
+<li><a rel="nofollow" class="external text" href="http://www.postgresql.org/message-id/BF2827DCCE55594C8D7A8F7FFD3AB7713DD9A622@SZXEML508-MBX.china.huawei.com">Standalone synchronous master</a></li>
+<li><a rel="nofollow" class="external free" href="http://archives.postgresql.org/pgsql-hackers/2011-12/msg01224.php">http://archives.postgresql.org/pgsql-hackers/2011-12/msg01224.php</a></li></ul>
+
+</dd></dl>
+<dl><dt style="position: relative; font-weight: normal;"><span typeof="mw:File"><a href="/wiki/File:UntickedTick.svg" class="mw-file-description" title="Incomplete item"><img alt="Incomplete item" src="/images/thumb/d/dd/UntickedTick.svg/10px-UntickedTick.svg.png" decoding="async" width="10" height="10" class="mw-file-element" srcset="/images/thumb/d/dd/UntickedTick.svg/15px-UntickedTick.svg.png 1.5x, /images/thumb/d/dd/UntickedTick.svg/20px-UntickedTick.svg.png 2x" /></a></span>&#160;Adjust rounding behavior for numeric GUC values
+<ul><li><a rel="nofollow" class="external free" href="http://www.postgresql.org/message-id/53BE3815.4010203@po.ntts.co.jp">http://www.postgresql.org/message-id/53BE3815.4010203@po.ntts.co.jp</a></li></ul>
+
+</dt><dd>
+
+</dd></dl>
+<h3><span class="mw-headline" id="Tablespaces">Tablespaces</span></h3>
+<div>
+<dl><dt style="position: relative; font-weight: normal;"><span typeof="mw:File"><a href="/wiki/File:UntickedTick.svg" class="mw-file-description" title="Incomplete item"><img alt="Incomplete item" src="/images/thumb/d/dd/UntickedTick.svg/10px-UntickedTick.svg.png" decoding="async" width="10" height="10" class="mw-file-element" srcset="/images/thumb/d/dd/UntickedTick.svg/15px-UntickedTick.svg.png 1.5x, /images/thumb/d/dd/UntickedTick.svg/20px-UntickedTick.svg.png 2x" /></a></span>&#160;Allow per-tablespace quotas
+</dt><dd>
+
+</dd></dl>
+<dl><dt style="position: relative; font-weight: normal;"><span typeof="mw:File"><a href="/wiki/File:UntickedTick.svg" class="mw-file-description" title="Incomplete item"><img alt="Incomplete item" src="/images/thumb/d/dd/UntickedTick.svg/10px-UntickedTick.svg.png" decoding="async" width="10" height="10" class="mw-file-element" srcset="/images/thumb/d/dd/UntickedTick.svg/15px-UntickedTick.svg.png 1.5x, /images/thumb/d/dd/UntickedTick.svg/20px-UntickedTick.svg.png 2x" /></a></span>&#160;Allow tablespaces on RAM-based partitions for temporary objects
+<ul><li><a rel="nofollow" class="external text" href="https://www.postgresql.org/message-id/20170529185308.GB28209@momjian.us">Use of non-restart-safe storage by temp_tablespaces</a></li></ul>
+
+</dt><dd>
+
+</dd></dl>
+<dl><dt style="position: relative; font-weight: normal;"><span typeof="mw:File"><a href="/wiki/File:UntickedTick.svg" class="mw-file-description" title="Incomplete item"><img alt="Incomplete item" src="/images/thumb/d/dd/UntickedTick.svg/10px-UntickedTick.svg.png" decoding="async" width="10" height="10" class="mw-file-element" srcset="/images/thumb/d/dd/UntickedTick.svg/15px-UntickedTick.svg.png 1.5x, /images/thumb/d/dd/UntickedTick.svg/20px-UntickedTick.svg.png 2x" /></a></span>&#160;Close race in DROP TABLESPACE on Windows
+<ul><li><a rel="nofollow" class="external free" href="http://www.postgresql.org/message-id/20141108050423.GA642055@tornado.leadboat.com">http://www.postgresql.org/message-id/20141108050423.GA642055@tornado.leadboat.com</a></li></ul>
+
+</dt><dd>
+
+</dd></dl>
+<h3><span class="mw-headline" id="Statistics_Collector">Statistics Collector</span></h3>
+<div>
+<dl><dt style="position: relative; font-weight: normal;"><span typeof="mw:File"><a href="/wiki/File:UntickedTick.svg" class="mw-file-description" title="Incomplete item"><img alt="Incomplete item" src="/images/thumb/d/dd/UntickedTick.svg/10px-UntickedTick.svg.png" decoding="async" width="10" height="10" class="mw-file-element" srcset="/images/thumb/d/dd/UntickedTick.svg/15px-UntickedTick.svg.png 1.5x, /images/thumb/d/dd/UntickedTick.svg/20px-UntickedTick.svg.png 2x" /></a></span>&#160;Track number of WAL files ready to be archived in pg_stat_archiver  
+<ul><li><a rel="nofollow" class="external text" href="http://www.postgresql.org/message-id/CAB7nPqSCrcZGGy_SmpT7ubSzVGNMtphYU1JJZYyapHuN46E-Tw@mail.gmail.com">pg_stat_archiver missing feature</a></li>
+<li><a rel="nofollow" class="external text" href="http://www.postgresql.org/message-id/53F5AB0A.5060502@dalibo.com">Track number of files ready to be archived in pg_stat_archiver</a></li></ul>
+
+</dt><dd>
+
+</dd></dl>
+<h3><span id="Point-In-Time_Recovery_.28PITR.29"></span><span class="mw-headline" id="Point-In-Time_Recovery_(PITR)">Point-In-Time Recovery (PITR)</span></h3>
+<div>
+<dl><dt style="position: relative; font-weight: normal;"><span typeof="mw:File"><a href="/wiki/File:UntickedTick.svg" class="mw-file-description" title="Incomplete item"><img alt="Incomplete item" src="/images/thumb/d/dd/UntickedTick.svg/10px-UntickedTick.svg.png" decoding="async" width="10" height="10" class="mw-file-element" srcset="/images/thumb/d/dd/UntickedTick.svg/15px-UntickedTick.svg.png 1.5x, /images/thumb/d/dd/UntickedTick.svg/20px-UntickedTick.svg.png 2x" /></a></span>&#160;Allow archive_mode to be changed without server restart?
+<ul><li><a rel="nofollow" class="external text" href="http://archives.postgresql.org/pgsql-hackers/2008-10/msg01655.php">Enabling archive_mode without restart</a></li></ul>
+
+</dt><dd>
+
+</dd></dl>
+</div>
+<h3><span class="mw-headline" id="Standby_server_mode">Standby server mode</span></h3>
+<div>
+<dl><dt style="position: relative; font-weight: normal;"><span typeof="mw:File"><a href="/wiki/File:UntickedTick.svg" class="mw-file-description" title="Incomplete item"><img alt="Incomplete item" src="/images/thumb/d/dd/UntickedTick.svg/10px-UntickedTick.svg.png" decoding="async" width="10" height="10" class="mw-file-element" srcset="/images/thumb/d/dd/UntickedTick.svg/15px-UntickedTick.svg.png 1.5x, /images/thumb/d/dd/UntickedTick.svg/20px-UntickedTick.svg.png 2x" /></a></span>&#160; Allow pg_xlogfile_name() to be used in recovery mode
+<ul><li><a rel="nofollow" class="external text" href="http://archives.postgresql.org/message-id/3f0b79eb1001190135vd9f62f1sa7868abc1ea61d12@mail.gmail.com">Streaming replication and pg_xlogfile_name()</a></li></ul>
+
+</dt><dd>
+
+</dd></dl>
+<dl><dt style="position: relative; font-weight: normal;"><span typeof="mw:File"><a href="/wiki/File:UntickedTick.svg" class="mw-file-description" title="Incomplete item"><img alt="Incomplete item" src="/images/thumb/d/dd/UntickedTick.svg/10px-UntickedTick.svg.png" decoding="async" width="10" height="10" class="mw-file-element" srcset="/images/thumb/d/dd/UntickedTick.svg/15px-UntickedTick.svg.png 1.5x, /images/thumb/d/dd/UntickedTick.svg/20px-UntickedTick.svg.png 2x" /></a></span>&#160; Change walsender so that it applies per-role settings
+<ul><li><a rel="nofollow" class="external free" href="http://archives.postgresql.org/pgsql-hackers/2010-09/msg00642.php">http://archives.postgresql.org/pgsql-hackers/2010-09/msg00642.php</a></li></ul>
+
+</dt><dd>
+
+</dd></dl>
+</div>
+<h2><span class="mw-headline" id="Data_Types">Data Types</span></h2>
+<dl><dt style="position: relative; font-weight: normal;"><span typeof="mw:File"><a href="/wiki/File:UntickedTick.svg" class="mw-file-description" title="Incomplete item"><img alt="Incomplete item" src="/images/thumb/d/dd/UntickedTick.svg/10px-UntickedTick.svg.png" decoding="async" width="10" height="10" class="mw-file-element" srcset="/images/thumb/d/dd/UntickedTick.svg/15px-UntickedTick.svg.png 1.5x, /images/thumb/d/dd/UntickedTick.svg/20px-UntickedTick.svg.png 2x" /></a></span>&#160;Fix data types where equality comparison is not intuitive, e.g. box
+<ul><li><a rel="nofollow" class="external free" href="http://archives.postgresql.org/pgsql-hackers/2011-10/msg01643.php">http://archives.postgresql.org/pgsql-hackers/2011-10/msg01643.php</a></li></ul>
+
+</dt><dd>
+
+</dd></dl>
+<dl><dt style="position: relative; font-weight: normal;"><span typeof="mw:File"><a href="/wiki/File:UntickedTick.svg" class="mw-file-description" title="Incomplete item"><img alt="Incomplete item" src="/images/thumb/d/dd/UntickedTick.svg/10px-UntickedTick.svg.png" decoding="async" width="10" height="10" class="mw-file-element" srcset="/images/thumb/d/dd/UntickedTick.svg/15px-UntickedTick.svg.png 1.5x, /images/thumb/d/dd/UntickedTick.svg/20px-UntickedTick.svg.png 2x" /></a></span>&#160; Add IMMUTABLE column attribute
+<ul><li><a rel="nofollow" class="external free" href="http://archives.postgresql.org/pgsql-hackers/2011-11/msg00623.php">http://archives.postgresql.org/pgsql-hackers/2011-11/msg00623.php</a></li></ul>
+
+</dt><dd>
+
+</dd></dl>
+<h3><span class="mw-headline" id="Domains">Domains</span></h3>
+<div>
+<dl><dt style="position: relative; font-weight: normal;"><span typeof="mw:File"><a href="/wiki/File:UntickedTick.svg" class="mw-file-description" title="Incomplete item"><img alt="Incomplete item" src="/images/thumb/d/dd/UntickedTick.svg/10px-UntickedTick.svg.png" decoding="async" width="10" height="10" class="mw-file-element" srcset="/images/thumb/d/dd/UntickedTick.svg/15px-UntickedTick.svg.png 1.5x, /images/thumb/d/dd/UntickedTick.svg/20px-UntickedTick.svg.png 2x" /></a></span>&#160;Allow functions defined as casts to domains to be called during casting
+<ul><li><a rel="nofollow" class="external text" href="http://archives.postgresql.org/pgsql-hackers/2006-05/msg00072.php">bug? non working casts for domain</a></li>
+<li><a rel="nofollow" class="external text" href="http://archives.postgresql.org/pgsql-hackers/2006-09/msg01681.php">TODO: Fix CREATE CAST on DOMAINs</a></li></ul>
+
+</dt><dd>
+
+</dd></dl>
+<dl><dt style="position: relative; font-weight: normal;"><span typeof="mw:File"><a href="/wiki/File:UntickedTick.svg" class="mw-file-description" title="Incomplete item"><img alt="Incomplete item" src="/images/thumb/d/dd/UntickedTick.svg/10px-UntickedTick.svg.png" decoding="async" width="10" height="10" class="mw-file-element" srcset="/images/thumb/d/dd/UntickedTick.svg/15px-UntickedTick.svg.png 1.5x, /images/thumb/d/dd/UntickedTick.svg/20px-UntickedTick.svg.png 2x" /></a></span>&#160;Allow values to be cast to domain types
+<ul><li><a rel="nofollow" class="external text" href="http://archives.postgresql.org/pgsql-hackers/2003-06/msg01206.php">Domain casting still doesn't work right</a></li>
+<li><a rel="nofollow" class="external text" href="http://archives.postgresql.org/pgsql-hackers/2007-08/msg00289.php">domain casting?</a></li>
+<li><a rel="nofollow" class="external free" href="http://archives.postgresql.org/pgsql-hackers/2011-05/msg00812.php">http://archives.postgresql.org/pgsql-hackers/2011-05/msg00812.php</a></li></ul>
+
+</dt><dd>
+
+</dd></dl>
+<dl><dt style="position: relative; font-weight: normal;"><span typeof="mw:File"><a href="/wiki/File:UntickedTick.svg" class="mw-file-description" title="Incomplete item"><img alt="Incomplete item" src="/images/thumb/d/dd/UntickedTick.svg/10px-UntickedTick.svg.png" decoding="async" width="10" height="10" class="mw-file-element" srcset="/images/thumb/d/dd/UntickedTick.svg/15px-UntickedTick.svg.png 1.5x, /images/thumb/d/dd/UntickedTick.svg/20px-UntickedTick.svg.png 2x" /></a></span>&#160;Make domains work better with polymorphic functions
+<ul><li><a rel="nofollow" class="external text" href="http://archives.postgresql.org/message-id/4887.1228700773@sss.pgh.pa.us">Polymorphic types vs. domains</a></li>
+<li><a rel="nofollow" class="external text" href="http://archives.postgresql.org/message-id/15535.1238774571@sss.pgh.pa.us">some difficulties with fixing it</a></li></ul>
+
+</dt><dd>
+
+</dd></dl>
+</div>
+<h3><span class="mw-headline" id="Dates_and_Times">Dates and Times</span></h3>
+<div>
+<dl><dt style="position: relative; font-weight: normal;"><span typeof="mw:File"><a href="/wiki/File:UntickedTick.svg" class="mw-file-description" title="Incomplete item"><img alt="Incomplete item" src="/images/thumb/d/dd/UntickedTick.svg/10px-UntickedTick.svg.png" decoding="async" width="10" height="10" class="mw-file-element" srcset="/images/thumb/d/dd/UntickedTick.svg/15px-UntickedTick.svg.png 1.5x, /images/thumb/d/dd/UntickedTick.svg/20px-UntickedTick.svg.png 2x" /></a></span>&#160;Allow TIMESTAMP WITH TIME ZONE to store the original timezone information, either zone name or offset from UTC
+
+</dt><dd>
+If the TIMESTAMP value is stored with a time zone name, interval computations should adjust based on the time zone rules. 
+<ul><li><a rel="nofollow" class="external text" href="https://www.postgresql.org/message-id/Pine.LNX.4.44.0410211300430.2015-100000@zigo.dhs.org">timestamp with time zone a la sql99</a></li></ul>
+
+</dd></dl>
+<dl><dt style="position: relative; font-weight: normal;"><span typeof="mw:File"><a href="/wiki/File:UntickedTick.svg" class="mw-file-description" title="Incomplete item"><img alt="Incomplete item" src="/images/thumb/d/dd/UntickedTick.svg/10px-UntickedTick.svg.png" decoding="async" width="10" height="10" class="mw-file-element" srcset="/images/thumb/d/dd/UntickedTick.svg/15px-UntickedTick.svg.png 1.5x, /images/thumb/d/dd/UntickedTick.svg/20px-UntickedTick.svg.png 2x" /></a></span>&#160;Have timestamp subtraction not call justify_hours()?
+<ul><li><a rel="nofollow" class="external text" href="https://www.postgresql.org/message-id/21619.1160067054@sss.pgh.pa.us">timestamp subtraction (was Re: formatting intervals with to_char)</a></li></ul>
+
+</dt><dd>
+
+</dd></dl>
+<dl><dt style="position: relative; font-weight: normal;"><span typeof="mw:File"><a href="/wiki/File:UntickedTick.svg" class="mw-file-description" title="Incomplete item"><img alt="Incomplete item" src="/images/thumb/d/dd/UntickedTick.svg/10px-UntickedTick.svg.png" decoding="async" width="10" height="10" class="mw-file-element" srcset="/images/thumb/d/dd/UntickedTick.svg/15px-UntickedTick.svg.png 1.5x, /images/thumb/d/dd/UntickedTick.svg/20px-UntickedTick.svg.png 2x" /></a></span>&#160;Allow a comma to denote fractional seconds in ISO-8601-compliant times (and timestamps)
+<ul><li><a rel="nofollow" class="external free" href="https://www.postgresql.org/message-id/7D5AC9AB-238D-4FE7-8857-18D98190A4D9@justatheory.com">https://www.postgresql.org/message-id/7D5AC9AB-238D-4FE7-8857-18D98190A4D9@justatheory.com</a></li>
+<li><a rel="nofollow" class="external free" href="https://www.postgresql.org/message-id/19944.1529810240%40sss.pgh.pa.us">https://www.postgresql.org/message-id/19944.1529810240%40sss.pgh.pa.us</a></li></ul>
+
+</dt><dd>
+
+</dd></dl>
+</div>
+<h3><span class="mw-headline" id="Arrays">Arrays</span></h3>
+<div>
+<dl><dt style="position: relative; font-weight: normal;"><span typeof="mw:File"><a href="/wiki/File:UntickedTick.svg" class="mw-file-description" title="Incomplete item"><img alt="Incomplete item" src="/images/thumb/d/dd/UntickedTick.svg/10px-UntickedTick.svg.png" decoding="async" width="10" height="10" class="mw-file-element" srcset="/images/thumb/d/dd/UntickedTick.svg/15px-UntickedTick.svg.png 1.5x, /images/thumb/d/dd/UntickedTick.svg/20px-UntickedTick.svg.png 2x" /></a></span>&#160;Add function to detect if an array is empty
+<ul><li><a rel="nofollow" class="external text" href="http://archives.postgresql.org/pgsql-hackers/2008-11/msg00475.php">Re: array_length()</a></li></ul>
+
+</dt><dd>
+
+</dd></dl>
+<dl><dt style="position: relative; font-weight: normal;"><span typeof="mw:File"><a href="/wiki/File:UntickedTick.svg" class="mw-file-description" title="Incomplete item"><img alt="Incomplete item" src="/images/thumb/d/dd/UntickedTick.svg/10px-UntickedTick.svg.png" decoding="async" width="10" height="10" class="mw-file-element" srcset="/images/thumb/d/dd/UntickedTick.svg/15px-UntickedTick.svg.png 1.5x, /images/thumb/d/dd/UntickedTick.svg/20px-UntickedTick.svg.png 2x" /></a></span>&#160;Improve handling of NULLs in arrays
+<ul><li><a rel="nofollow" class="external text" href="http://archives.postgresql.org/pgsql-bugs/2008-11/msg00009.php">BUG #4509: array_cat's null behaviour is inconsistent</a></li>
+<li><a rel="nofollow" class="external free" href="http://archives.postgresql.org/pgsql-hackers/2010-11/msg01040.php">http://archives.postgresql.org/pgsql-hackers/2010-11/msg01040.php</a></li></ul>
+
+</dt><dd>
+
+</dd></dl>
+</div>
+<h3><span class="mw-headline" id="MONEY_Data_Type">MONEY Data Type</span></h3>
+<div>
+<dl><dt style="position: relative; font-weight: normal;"><span typeof="mw:File"><a href="/wiki/File:UntickedTick.svg" class="mw-file-description" title="Incomplete item"><img alt="Incomplete item" src="/images/thumb/d/dd/UntickedTick.svg/10px-UntickedTick.svg.png" decoding="async" width="10" height="10" class="mw-file-element" srcset="/images/thumb/d/dd/UntickedTick.svg/15px-UntickedTick.svg.png 1.5x, /images/thumb/d/dd/UntickedTick.svg/20px-UntickedTick.svg.png 2x" /></a></span>&#160;Add locale-aware MONEY type, and support multiple currencies
+<ul><li><a rel="nofollow" class="external text" href="http://archives.postgresql.org/pgsql-general/2005-08/msg01432.php">A real currency type</a></li>
+<li><a rel="nofollow" class="external text" href="http://archives.postgresql.org/pgsql-hackers/2007-03/msg01181.php">Money type todos?</a></li></ul>
+
+</dt><dd>
+
+</dd></dl>
+<dl><dt style="position: relative; font-weight: normal;"><span typeof="mw:File"><a href="/wiki/File:UntickedTick.svg" class="mw-file-description" title="Incomplete item"><img alt="Incomplete item" src="/images/thumb/d/dd/UntickedTick.svg/10px-UntickedTick.svg.png" decoding="async" width="10" height="10" class="mw-file-element" srcset="/images/thumb/d/dd/UntickedTick.svg/15px-UntickedTick.svg.png 1.5x, /images/thumb/d/dd/UntickedTick.svg/20px-UntickedTick.svg.png 2x" /></a></span>&#160;MONEY dumps in a locale-specific format making it difficult to restore to a system with a different locale
+</dt><dd>
+
+</dd></dl>
+</div>
+<h3><span class="mw-headline" id="Text_Search">Text Search</span></h3>
+<div>
+<dl><dt style="position: relative; font-weight: normal;"><span typeof="mw:File"><a href="/wiki/File:UntickedTick.svg" class="mw-file-description" title="Incomplete item"><img alt="Incomplete item" src="/images/thumb/d/dd/UntickedTick.svg/10px-UntickedTick.svg.png" decoding="async" width="10" height="10" class="mw-file-element" srcset="/images/thumb/d/dd/UntickedTick.svg/15px-UntickedTick.svg.png 1.5x, /images/thumb/d/dd/UntickedTick.svg/20px-UntickedTick.svg.png 2x" /></a></span>&#160;Allow dictionaries to change the token that is passed on to later dictionaries
+<ul><li><a rel="nofollow" class="external text" href="http://archives.postgresql.org/pgsql-patches/2007-11/msg00081.php">a tsearch2 (8.2.4) dictionary that only filters out stopwords</a></li></ul>
+
+</dt><dd>
+
+</dd></dl>
+<dl><dt style="position: relative; font-weight: normal;"><span typeof="mw:File"><a href="/wiki/File:UntickedTick.svg" class="mw-file-description" title="Incomplete item"><img alt="Incomplete item" src="/images/thumb/d/dd/UntickedTick.svg/10px-UntickedTick.svg.png" decoding="async" width="10" height="10" class="mw-file-element" srcset="/images/thumb/d/dd/UntickedTick.svg/15px-UntickedTick.svg.png 1.5x, /images/thumb/d/dd/UntickedTick.svg/20px-UntickedTick.svg.png 2x" /></a></span>&#160;A function-based API for '@@' searches
+<ul><li><a rel="nofollow" class="external text" href="http://archives.postgresql.org/pgsql-hackers/2007-11/msg00511.php">Some recent advances in
+full-text search</a></li></ul>
+
+</dt><dd>
+
+</dd></dl>
+<dl><dt style="position: relative; font-weight: normal;"><span typeof="mw:File"><a href="/wiki/File:UntickedTick.svg" class="mw-file-description" title="Incomplete item"><img alt="Incomplete item" src="/images/thumb/d/dd/UntickedTick.svg/10px-UntickedTick.svg.png" decoding="async" width="10" height="10" class="mw-file-element" srcset="/images/thumb/d/dd/UntickedTick.svg/15px-UntickedTick.svg.png 1.5x, /images/thumb/d/dd/UntickedTick.svg/20px-UntickedTick.svg.png 2x" /></a></span>&#160;Improve text search error messages
+<ul><li><a rel="nofollow" class="external text" href="http://archives.postgresql.org/pgsql-hackers/2007-10/msg00966.php">Poorly designed tsearch NOTICEs</a></li></ul>
+
+</dt><dd>
+
+</dd></dl>
+<dl><dt style="position: relative; font-weight: normal;"><span typeof="mw:File"><a href="/wiki/File:UntickedTick.svg" class="mw-file-description" title="Incomplete item"><img alt="Incomplete item" src="/images/thumb/d/dd/UntickedTick.svg/10px-UntickedTick.svg.png" decoding="async" width="10" height="10" class="mw-file-element" srcset="/images/thumb/d/dd/UntickedTick.svg/15px-UntickedTick.svg.png 1.5x, /images/thumb/d/dd/UntickedTick.svg/20px-UntickedTick.svg.png 2x" /></a></span>&#160;tsearch and tsdicts regression tests fail in Turkish locale on glibc
+<ul><li><a rel="nofollow" class="external text" href="http://archives.postgresql.org/message-id/49749645.5070801@gmx.net">tsearch with Turkish locale</a></li></ul>
+
+</dt><dd>
+
+</dd></dl>
+<dl><dt style="position: relative; font-weight: normal;"><span typeof="mw:File"><a href="/wiki/File:UntickedTick.svg" class="mw-file-description" title="Incomplete item"><img alt="Incomplete item" src="/images/thumb/d/dd/UntickedTick.svg/10px-UntickedTick.svg.png" decoding="async" width="10" height="10" class="mw-file-element" srcset="/images/thumb/d/dd/UntickedTick.svg/15px-UntickedTick.svg.png 1.5x, /images/thumb/d/dd/UntickedTick.svg/20px-UntickedTick.svg.png 2x" /></a></span>&#160;Improve handling of dash and plus signs in email address user names, and perhaps improve URL parsing
+<ul><li><a rel="nofollow" class="external free" href="http://archives.postgresql.org/pgsql-hackers/2010-10/msg00772.php">http://archives.postgresql.org/pgsql-hackers/2010-10/msg00772.php</a></li>
+<li><a rel="nofollow" class="external text" href="http://archives.postgresql.org/message-id/E1Ri8il-0008Ct-9p@wrigleys.postgresql.org">tsearch does not recognize all valid emails</a></li></ul>
+
+</dt><dd>
+
+</dd></dl>
+</div>
+<h3><span class="mw-headline" id="XML">XML</span></h3>
+<div>
+<dl><dt style="position: relative; font-weight: normal;"><span typeof="mw:File"><a href="/wiki/File:UntickedTick.svg" class="mw-file-description" title="Incomplete item"><img alt="Incomplete item" src="/images/thumb/d/dd/UntickedTick.svg/10px-UntickedTick.svg.png" decoding="async" width="10" height="10" class="mw-file-element" srcset="/images/thumb/d/dd/UntickedTick.svg/15px-UntickedTick.svg.png 1.5x, /images/thumb/d/dd/UntickedTick.svg/20px-UntickedTick.svg.png 2x" /></a></span>&#160;Allow XML arrays to be cast to other data types
+<ul><li><a rel="nofollow" class="external text" href="http://archives.postgresql.org/pgsql-hackers/2007-09/msg00981.php">proposal casting from XML[] to int[], numeric[], text[]</a></li></ul>
+
+</dt><dd>
+
+</dd></dl>
+<dl><dt style="position: relative; font-weight: normal;"><span typeof="mw:File"><a href="/wiki/File:UntickedTick.svg" class="mw-file-description" title="Incomplete item"><img alt="Incomplete item" src="/images/thumb/d/dd/UntickedTick.svg/10px-UntickedTick.svg.png" decoding="async" width="10" height="10" class="mw-file-element" srcset="/images/thumb/d/dd/UntickedTick.svg/15px-UntickedTick.svg.png 1.5x, /images/thumb/d/dd/UntickedTick.svg/20px-UntickedTick.svg.png 2x" /></a></span>&#160;Allow reliable XML operation non-UTF8 server encodings (xpath(), in particular, is known to not work)
+<ul><li><a rel="nofollow" class="external text" href="http://archives.postgresql.org/pgsql-bugs/2009-01/msg00135.php">BUG #4622: xpath only work in utf-8 server encoding</a></li>
+<li><a rel="nofollow" class="external free" href="http://archives.postgresql.org/message-id/4110.1238973350@sss.pgh.pa.us">http://archives.postgresql.org/message-id/4110.1238973350@sss.pgh.pa.us</a></li></ul>
+</dt><dd>
+
+</dd></dl>
+<dl><dt style="position: relative; font-weight: normal;"><span typeof="mw:File"><a href="/wiki/File:UntickedTick.svg" class="mw-file-description" title="Incomplete item"><img alt="Incomplete item" src="/images/thumb/d/dd/UntickedTick.svg/10px-UntickedTick.svg.png" decoding="async" width="10" height="10" class="mw-file-element" srcset="/images/thumb/d/dd/UntickedTick.svg/15px-UntickedTick.svg.png 1.5x, /images/thumb/d/dd/UntickedTick.svg/20px-UntickedTick.svg.png 2x" /></a></span>&#160;Move XSLT from contrib/xml2 to a more reasonable location
+<ul><li><a rel="nofollow" class="external free" href="http://archives.postgresql.org/pgsql-hackers/2010-08/msg00539.php">http://archives.postgresql.org/pgsql-hackers/2010-08/msg00539.php</a></li></ul>
+
+</dt><dd>
+
+</dd></dl>
+<dl><dt style="position: relative; font-weight: normal;"><span typeof="mw:File"><a href="/wiki/File:UntickedTick.svg" class="mw-file-description" title="Incomplete item"><img alt="Incomplete item" src="/images/thumb/d/dd/UntickedTick.svg/10px-UntickedTick.svg.png" decoding="async" width="10" height="10" class="mw-file-element" srcset="/images/thumb/d/dd/UntickedTick.svg/15px-UntickedTick.svg.png 1.5x, /images/thumb/d/dd/UntickedTick.svg/20px-UntickedTick.svg.png 2x" /></a></span>&#160;Improve the XSLT parameter passing API
+<ul><li><a rel="nofollow" class="external free" href="http://archives.postgresql.org/pgsql-hackers/2010-08/msg00416.php">http://archives.postgresql.org/pgsql-hackers/2010-08/msg00416.php</a></li></ul>
+
+</dt><dd>
+
+</dd></dl>
+<dl><dt style="position: relative; font-weight: normal;"><span typeof="mw:File"><a href="/wiki/File:UntickedTick.svg" class="mw-file-description" title="Incomplete item"><img alt="Incomplete item" src="/images/thumb/d/dd/UntickedTick.svg/10px-UntickedTick.svg.png" decoding="async" width="10" height="10" class="mw-file-element" srcset="/images/thumb/d/dd/UntickedTick.svg/15px-UntickedTick.svg.png 1.5x, /images/thumb/d/dd/UntickedTick.svg/20px-UntickedTick.svg.png 2x" /></a></span>&#160;xpath_table needs to be implemented/implementable to get rid of contrib/xml2 <a rel="nofollow" class="external autonumber" href="http://archives.postgresql.org/pgsql-general/2008-05/msg00823.php">[1]</a>
+</dt><dd>
+
+</dd></dl>
+<dl><dt style="position: relative; font-weight: normal;"><span typeof="mw:File"><a href="/wiki/File:UntickedTick.svg" class="mw-file-description" title="Incomplete item"><img alt="Incomplete item" src="/images/thumb/d/dd/UntickedTick.svg/10px-UntickedTick.svg.png" decoding="async" width="10" height="10" class="mw-file-element" srcset="/images/thumb/d/dd/UntickedTick.svg/15px-UntickedTick.svg.png 1.5x, /images/thumb/d/dd/UntickedTick.svg/20px-UntickedTick.svg.png 2x" /></a></span>&#160;xpath_table is pretty broken anyway <a rel="nofollow" class="external autonumber" href="http://archives.postgresql.org/pgsql-hackers/2010-02/msg02424.php">[2]</a>
+</dt><dd>
+
+</dd></dl>
+<dl><dt style="position: relative; font-weight: normal;"><span typeof="mw:File"><a href="/wiki/File:UntickedTick.svg" class="mw-file-description" title="Incomplete item"><img alt="Incomplete item" src="/images/thumb/d/dd/UntickedTick.svg/10px-UntickedTick.svg.png" decoding="async" width="10" height="10" class="mw-file-element" srcset="/images/thumb/d/dd/UntickedTick.svg/15px-UntickedTick.svg.png 1.5x, /images/thumb/d/dd/UntickedTick.svg/20px-UntickedTick.svg.png 2x" /></a></span>&#160;better handling of XPath data types <a rel="nofollow" class="external autonumber" href="http://archives.postgresql.org/pgsql-hackers/2008-06/msg00616.php">[3]</a> <a rel="nofollow" class="external autonumber" href="http://archives.postgresql.org/message-id/004a01c90e90$4b986d90$e2c948b0$@anstett@iaas.uni-stuttgart.de">[4]</a>
+</dt><dd>
+
+</dd></dl>
+<dl><dt style="position: relative; font-weight: normal;"><span typeof="mw:File"><a href="/wiki/File:UntickedTick.svg" class="mw-file-description" title="Incomplete item"><img alt="Incomplete item" src="/images/thumb/d/dd/UntickedTick.svg/10px-UntickedTick.svg.png" decoding="async" width="10" height="10" class="mw-file-element" srcset="/images/thumb/d/dd/UntickedTick.svg/15px-UntickedTick.svg.png 1.5x, /images/thumb/d/dd/UntickedTick.svg/20px-UntickedTick.svg.png 2x" /></a></span>&#160;Improve handling of PIs and DTDs in xmlconcat() <a rel="nofollow" class="external autonumber" href="http://archives.postgresql.org/message-id/200904211211.n3LCB09p008988@wwwmaster.postgresql.org">[5]</a>
+</dt><dd>
+
+</dd></dl>
+<dl><dt style="position: relative; font-weight: normal;"><span typeof="mw:File"><a href="/wiki/File:UntickedTick.svg" class="mw-file-description" title="Incomplete item"><img alt="Incomplete item" src="/images/thumb/d/dd/UntickedTick.svg/10px-UntickedTick.svg.png" decoding="async" width="10" height="10" class="mw-file-element" srcset="/images/thumb/d/dd/UntickedTick.svg/15px-UntickedTick.svg.png 1.5x, /images/thumb/d/dd/UntickedTick.svg/20px-UntickedTick.svg.png 2x" /></a></span>&#160;Restructure XML and /contrib/xml2 functionality
+<ul><li><a rel="nofollow" class="external free" href="http://archives.postgresql.org/pgsql-hackers/2011-02/msg02314.php">http://archives.postgresql.org/pgsql-hackers/2011-02/msg02314.php</a></li></ul>
+
+</dt><dd>
+
+</dd></dl>
+</div>
+<h2><span class="mw-headline" id="Functions">Functions</span></h2>
+<dl><dt style="position: relative; font-weight: normal;"><span typeof="mw:File"><a href="/wiki/File:UntickedTick.svg" class="mw-file-description" title="Incomplete item"><img alt="Incomplete item" src="/images/thumb/d/dd/UntickedTick.svg/10px-UntickedTick.svg.png" decoding="async" width="10" height="10" class="mw-file-element" srcset="/images/thumb/d/dd/UntickedTick.svg/15px-UntickedTick.svg.png 1.5x, /images/thumb/d/dd/UntickedTick.svg/20px-UntickedTick.svg.png 2x" /></a></span>&#160;Enforce typmod for function inputs, function results and parameters for spi_prepare'd statements called from PLs
+<ul><li><a rel="nofollow" class="external text" href="http://archives.postgresql.org/pgsql-hackers/2007-01/msg01403.php">Re: BUG #2917: spi_prepare doesn't accept typename aliases</a></li>
+<li><a rel="nofollow" class="external text" href="http://archives.postgresql.org/pgsql-hackers/2009-11/msg01160.php">RFC for adding typmods to functions</a></li></ul>
+
+</dt><dd>
+
+</dd></dl>
+<dl><dt style="position: relative; font-weight: normal;"><span typeof="mw:File"><a href="/wiki/File:UntickedTick.svg" class="mw-file-description" title="Incomplete item"><img alt="Incomplete item" src="/images/thumb/d/dd/UntickedTick.svg/10px-UntickedTick.svg.png" decoding="async" width="10" height="10" class="mw-file-element" srcset="/images/thumb/d/dd/UntickedTick.svg/15px-UntickedTick.svg.png 1.5x, /images/thumb/d/dd/UntickedTick.svg/20px-UntickedTick.svg.png 2x" /></a></span>&#160;Reduce memory usage of aggregates in set returning functions
+<ul><li><a rel="nofollow" class="external text" href="http://archives.postgresql.org/pgsql-performance/2008-01/msg00031.php">Re: Performance of aggregates over set-returning functions</a></li></ul>
+
+</dt><dd>
+
+</dd></dl>
+<h2><span class="mw-headline" id="Character_Formatting">Character Formatting</span></h2>
+<dl><dt style="position: relative; font-weight: normal;"><span typeof="mw:File"><a href="/wiki/File:UntickedTick.svg" class="mw-file-description" title="Incomplete item"><img alt="Incomplete item" src="/images/thumb/d/dd/UntickedTick.svg/10px-UntickedTick.svg.png" decoding="async" width="10" height="10" class="mw-file-element" srcset="/images/thumb/d/dd/UntickedTick.svg/15px-UntickedTick.svg.png 1.5x, /images/thumb/d/dd/UntickedTick.svg/20px-UntickedTick.svg.png 2x" /></a></span>&#160;Add missing parameter handling in to_char()
+<ul><li><a rel="nofollow" class="external text" href="http://archives.postgresql.org/pgsql-hackers/2005-12/msg00948.php">Re: to_char and i18n</a></li></ul>
+
+</dt><dd>
+
+</dd></dl>
+<dl><dt style="position: relative; font-weight: normal;"><span typeof="mw:File"><a href="/wiki/File:UntickedTick.svg" class="mw-file-description" title="Incomplete item"><img alt="Incomplete item" src="/images/thumb/d/dd/UntickedTick.svg/10px-UntickedTick.svg.png" decoding="async" width="10" height="10" class="mw-file-element" srcset="/images/thumb/d/dd/UntickedTick.svg/15px-UntickedTick.svg.png 1.5x, /images/thumb/d/dd/UntickedTick.svg/20px-UntickedTick.svg.png 2x" /></a></span>&#160;Throw an error from to_char() instead of printing a string of "#" when a number doesn't fit in the desired output format.
+<ul><li>discussed in <a rel="nofollow" class="external text" href="http://archives.postgresql.org/message-id/37ed240d0907290836w42187222n18664dfcbcb445b1@mail.gmail.com">"to_char, support for EEEE format"</a></li></ul>
+
+</dt><dd>
+
+</dd></dl>
+<dl><dt style="position: relative; font-weight: normal;"><span typeof="mw:File"><a href="/wiki/File:UntickedTick.svg" class="mw-file-description" title="Incomplete item"><img alt="Incomplete item" src="/images/thumb/d/dd/UntickedTick.svg/10px-UntickedTick.svg.png" decoding="async" width="10" height="10" class="mw-file-element" srcset="/images/thumb/d/dd/UntickedTick.svg/15px-UntickedTick.svg.png 1.5x, /images/thumb/d/dd/UntickedTick.svg/20px-UntickedTick.svg.png 2x" /></a></span>&#160;Fix to_number() handling for values not matching the format string
+<ul><li><a rel="nofollow" class="external text" href="http://archives.postgresql.org/pgsql-hackers/2009-09/msg01447.php">Re: numeric_to_number() function skipping some digits</a></li></ul>
+
+</dt><dd>
+
+</dd></dl>
+<h2><span class="mw-headline" id="Multi-Language_Support">Multi-Language Support</span></h2>
+<dl><dt style="position: relative; font-weight: normal;"><span typeof="mw:File"><a href="/wiki/File:UntickedTick.svg" class="mw-file-description" title="Incomplete item"><img alt="Incomplete item" src="/images/thumb/d/dd/UntickedTick.svg/10px-UntickedTick.svg.png" decoding="async" width="10" height="10" class="mw-file-element" srcset="/images/thumb/d/dd/UntickedTick.svg/15px-UntickedTick.svg.png 1.5x, /images/thumb/d/dd/UntickedTick.svg/20px-UntickedTick.svg.png 2x" /></a></span>&#160;Add a cares-about-collation column to pg_proc, so that unresolved-collation errors can be thrown at parse time
+<ul><li><a rel="nofollow" class="external text" href="http://archives.postgresql.org/pgsql-hackers/2011-03/msg01520.php">Open issues for collations</a></li></ul>
+
+</dt><dd>
+
+</dd></dl>
+<dl><dt style="position: relative; font-weight: normal;"><span typeof="mw:File"><a href="/wiki/File:UntickedTick.svg" class="mw-file-description" title="Incomplete item"><img alt="Incomplete item" src="/images/thumb/d/dd/UntickedTick.svg/10px-UntickedTick.svg.png" decoding="async" width="10" height="10" class="mw-file-element" srcset="/images/thumb/d/dd/UntickedTick.svg/15px-UntickedTick.svg.png 1.5x, /images/thumb/d/dd/UntickedTick.svg/20px-UntickedTick.svg.png 2x" /></a></span>&#160;Add octet_length_server() and octet_length_client()
+</dt><dd>
+
+</dd></dl>
+<dl><dt style="position: relative; font-weight: normal;"><span typeof="mw:File"><a href="/wiki/File:UntickedTick.svg" class="mw-file-description" title="Incomplete item"><img alt="Incomplete item" src="/images/thumb/d/dd/UntickedTick.svg/10px-UntickedTick.svg.png" decoding="async" width="10" height="10" class="mw-file-element" srcset="/images/thumb/d/dd/UntickedTick.svg/15px-UntickedTick.svg.png 1.5x, /images/thumb/d/dd/UntickedTick.svg/20px-UntickedTick.svg.png 2x" /></a></span>&#160;Make octet_length_client() the same as octet_length()?
+</dt><dd>
+
+</dd></dl>
+<dl><dt style="position: relative; font-weight: normal;"><span typeof="mw:File"><a href="/wiki/File:UntickedTick.svg" class="mw-file-description" title="Incomplete item"><img alt="Incomplete item" src="/images/thumb/d/dd/UntickedTick.svg/10px-UntickedTick.svg.png" decoding="async" width="10" height="10" class="mw-file-element" srcset="/images/thumb/d/dd/UntickedTick.svg/15px-UntickedTick.svg.png 1.5x, /images/thumb/d/dd/UntickedTick.svg/20px-UntickedTick.svg.png 2x" /></a></span>&#160;Fix problems with wrong runtime encoding conversion for NLS message files
+</dt><dd>
+
+</dd></dl>
+<h2><span class="mw-headline" id="Views_and_Rules">Views and Rules</span></h2>
+<dl><dt style="position: relative; font-weight: normal;"><span typeof="mw:File"><a href="/wiki/File:UntickedTick.svg" class="mw-file-description" title="Incomplete item"><img alt="Incomplete item" src="/images/thumb/d/dd/UntickedTick.svg/10px-UntickedTick.svg.png" decoding="async" width="10" height="10" class="mw-file-element" srcset="/images/thumb/d/dd/UntickedTick.svg/15px-UntickedTick.svg.png 1.5x, /images/thumb/d/dd/UntickedTick.svg/20px-UntickedTick.svg.png 2x" /></a></span>&#160;Allow VIEW/RULE recompilation when the underlying tables change
+<ul><li><a rel="nofollow" class="external text" href="http://archives.postgresql.org/pgsql-hackers/2009-12/msg01723.php">Re: About "Allow VIEW/RULE recompilation when the underlying tables change"</a></li>
+<li><a rel="nofollow" class="external text" href="http://archives.postgresql.org/pgsql-hackers/2009-12/msg01724.php">Re: About "Allow VIEW/RULE recompilation when the underlying tables change2"</a></li>
+<li><a rel="nofollow" class="external text" href="http://archives.postgresql.org/message-id/CACk%3DU9NFSzWrEba8G5dZ%3DTZLy3_hx3QXGyCcKVWT%3D4iA1FjMuA@mail.gmail.com">VIEW still referring to old name of field</a></li>
+<li><a rel="nofollow" class="external text" href="http://www.postgresql.org/message-id/87mwe4k46y.fsf@commandprompt.com">Re-create dependent views on ALTER TABLE ALTER COLUMN ... TYPE?</a></li></ul>
+
+</dt><dd>
+
+</dd></dl>
+<dl><dt style="position: relative; font-weight: normal;"><span typeof="mw:File"><a href="/wiki/File:UntickedTick.svg" class="mw-file-description" title="Incomplete item"><img alt="Incomplete item" src="/images/thumb/d/dd/UntickedTick.svg/10px-UntickedTick.svg.png" decoding="async" width="10" height="10" class="mw-file-element" srcset="/images/thumb/d/dd/UntickedTick.svg/15px-UntickedTick.svg.png 1.5x, /images/thumb/d/dd/UntickedTick.svg/20px-UntickedTick.svg.png 2x" /></a></span>&#160;Make it possible to use RETURNING together with conditional DO INSTEAD rules, such as for partitioning setups
+<ul><li><a rel="nofollow" class="external text" href="http://archives.postgresql.org/pgsql-hackers/2007-09/msg00577.php">RETURNING and DO INSTEAD ... Intentional or not?</a></li></ul>
+
+</dt><dd>
+
+</dd></dl>
+<h2><span class="mw-headline" id="SQL_Commands">SQL Commands</span></h2>
+<dl><dt style="position: relative; font-weight: normal;"><span typeof="mw:File"><a href="/wiki/File:UntickedTick.svg" class="mw-file-description" title="Incomplete item"><img alt="Incomplete item" src="/images/thumb/d/dd/UntickedTick.svg/10px-UntickedTick.svg.png" decoding="async" width="10" height="10" class="mw-file-element" srcset="/images/thumb/d/dd/UntickedTick.svg/15px-UntickedTick.svg.png 1.5x, /images/thumb/d/dd/UntickedTick.svg/20px-UntickedTick.svg.png 2x" /></a></span>&#160;Add a GUC variable to warn about non-standard SQL usage in queries
+</dt><dd>
+
+</dd></dl>
+<dl><dt style="position: relative; font-weight: normal;"><span typeof="mw:File"><a href="/wiki/File:UntickedTick.svg" class="mw-file-description" title="Incomplete item"><img alt="Incomplete item" src="/images/thumb/d/dd/UntickedTick.svg/10px-UntickedTick.svg.png" decoding="async" width="10" height="10" class="mw-file-element" srcset="/images/thumb/d/dd/UntickedTick.svg/15px-UntickedTick.svg.png 1.5x, /images/thumb/d/dd/UntickedTick.svg/20px-UntickedTick.svg.png 2x" /></a></span>&#160;Add NOVICE output level for helpful messages
+
+</dt><dd>
+For example, have it warn about unjoined tables.  This could also control automatic sequence/index creation messages.
+
+</dd></dl>
+<dl><dt style="position: relative; font-weight: normal;"><span typeof="mw:File"><a href="/wiki/File:UntickedTick.svg" class="mw-file-description" title="Incomplete item"><img alt="Incomplete item" src="/images/thumb/d/dd/UntickedTick.svg/10px-UntickedTick.svg.png" decoding="async" width="10" height="10" class="mw-file-element" srcset="/images/thumb/d/dd/UntickedTick.svg/15px-UntickedTick.svg.png 1.5x, /images/thumb/d/dd/UntickedTick.svg/20px-UntickedTick.svg.png 2x" /></a></span>&#160;Allow DISTINCT to work in multiple-argument aggregate calls
+</dt><dd>
+
+</dd></dl>
+<dl><dt style="position: relative; font-weight: normal;"><span typeof="mw:File"><a href="/wiki/File:UntickedTick.svg" class="mw-file-description" title="Incomplete item"><img alt="Incomplete item" src="/images/thumb/d/dd/UntickedTick.svg/10px-UntickedTick.svg.png" decoding="async" width="10" height="10" class="mw-file-element" srcset="/images/thumb/d/dd/UntickedTick.svg/15px-UntickedTick.svg.png 1.5x, /images/thumb/d/dd/UntickedTick.svg/20px-UntickedTick.svg.png 2x" /></a></span>&#160;Allow DELETE and UPDATE to be used with LIMIT and ORDER BY
+<ul><li><a rel="nofollow" class="external free" href="http://archives.postgresql.org/pgadmin-hackers/2010-04/msg00078.php">http://archives.postgresql.org/pgadmin-hackers/2010-04/msg00078.php</a></li>
+<li><a rel="nofollow" class="external free" href="http://archives.postgresql.org/pgsql-hackers/2010-11/msg01997.php">http://archives.postgresql.org/pgsql-hackers/2010-11/msg01997.php</a></li></ul>
+
+</dt><dd>
+
+</dd></dl>
+<h2><span class="mw-headline" id="Vacuum">Vacuum</span></h2>
+<dl><dt style="position: relative; font-weight: normal;"><span typeof="mw:File"><a href="/wiki/File:UntickedTick.svg" class="mw-file-description" title="Incomplete item"><img alt="Incomplete item" src="/images/thumb/d/dd/UntickedTick.svg/10px-UntickedTick.svg.png" decoding="async" width="10" height="10" class="mw-file-element" srcset="/images/thumb/d/dd/UntickedTick.svg/15px-UntickedTick.svg.png 1.5x, /images/thumb/d/dd/UntickedTick.svg/20px-UntickedTick.svg.png 2x" /></a></span>&#160;Auto-fill the free space map by scanning the buffer cache or by checking pages written by the background writer
+<ul><li><a rel="nofollow" class="external text" href="http://archives.postgresql.org/pgsql-hackers/2006-02/msg01125.php">Dead Space Map</a></li>
+<li><a rel="nofollow" class="external text" href="http://archives.postgresql.org/pgsql-hackers/2006-03/msg00011.php">Re: Automatic free space map filling</a></li></ul>
+
+</dt><dd>
+
+</dd></dl>
+<h2><span id="Optimizer_.2F_Executor"></span><span class="mw-headline" id="Optimizer_/_Executor">Optimizer / Executor</span></h2>
+<dl><dt style="position: relative; font-weight: normal;"><span typeof="mw:File"><a href="/wiki/File:UntickedTick.svg" class="mw-file-description" title="Incomplete item"><img alt="Incomplete item" src="/images/thumb/d/dd/UntickedTick.svg/10px-UntickedTick.svg.png" decoding="async" width="10" height="10" class="mw-file-element" srcset="/images/thumb/d/dd/UntickedTick.svg/15px-UntickedTick.svg.png 1.5x, /images/thumb/d/dd/UntickedTick.svg/20px-UntickedTick.svg.png 2x" /></a></span>&#160;Increasing the default values of from_collapse_limit, join_collapse_limit, and/or geqo_threshold
+<ul><li><a rel="nofollow" class="external text" href="http://archives.postgresql.org/message-id/4136ffa0905210551u22eeb31bn5655dbe7c9a3aed5@mail.gmail.com">from_collapse_limit vs. geqo_threshold</a></li></ul>
+
+</dt><dd>
+
+</dd></dl>
+<dl><dt style="position: relative; font-weight: normal;"><span typeof="mw:File"><a href="/wiki/File:UntickedTick.svg" class="mw-file-description" title="Incomplete item"><img alt="Incomplete item" src="/images/thumb/d/dd/UntickedTick.svg/10px-UntickedTick.svg.png" decoding="async" width="10" height="10" class="mw-file-element" srcset="/images/thumb/d/dd/UntickedTick.svg/15px-UntickedTick.svg.png 1.5x, /images/thumb/d/dd/UntickedTick.svg/20px-UntickedTick.svg.png 2x" /></a></span>&#160;Improve use of expression indexes for ORDER BY 
+<ul><li><a rel="nofollow" class="external text" href="http://archives.postgresql.org/pgsql-hackers/2009-08/msg01553.php">Resjunk sort columns, Heikki's index-only quals patch, and bug #5000</a></li></ul>
+
+</dt><dd>
+
+</dd></dl>
+<dl><dt style="position: relative; font-weight: normal;"><span typeof="mw:File"><a href="/wiki/File:UntickedTick.svg" class="mw-file-description" title="Incomplete item"><img alt="Incomplete item" src="/images/thumb/d/dd/UntickedTick.svg/10px-UntickedTick.svg.png" decoding="async" width="10" height="10" class="mw-file-element" srcset="/images/thumb/d/dd/UntickedTick.svg/15px-UntickedTick.svg.png 1.5x, /images/thumb/d/dd/UntickedTick.svg/20px-UntickedTick.svg.png 2x" /></a></span>&#160;Modify the planner to better estimate caching effects
+<ul><li><a rel="nofollow" class="external free" href="http://archives.postgresql.org/pgsql-performance/2010-11/msg00117.php">http://archives.postgresql.org/pgsql-performance/2010-11/msg00117.php</a></li></ul>
+
+</dt><dd>
+
+</dd></dl>
+<dl><dt style="position: relative; font-weight: normal;"><span typeof="mw:File"><a href="/wiki/File:UntickedTick.svg" class="mw-file-description" title="Incomplete item"><img alt="Incomplete item" src="/images/thumb/d/dd/UntickedTick.svg/10px-UntickedTick.svg.png" decoding="async" width="10" height="10" class="mw-file-element" srcset="/images/thumb/d/dd/UntickedTick.svg/15px-UntickedTick.svg.png 1.5x, /images/thumb/d/dd/UntickedTick.svg/20px-UntickedTick.svg.png 2x" /></a></span>&#160;Allow shared buffer cache contents to affect index cost computations
+<ul><li><a rel="nofollow" class="external free" href="http://archives.postgresql.org/pgsql-hackers/2011-06/msg01140.php">http://archives.postgresql.org/pgsql-hackers/2011-06/msg01140.php</a></li></ul>
+
+</dt><dd>
+
+</dd></dl>
+<h2><span class="mw-headline" id="Server-Side_Languages">Server-Side Languages</span></h2>
+<dl><dt style="position: relative; font-weight: normal;"><span typeof="mw:File"><a href="/wiki/File:UntickedTick.svg" class="mw-file-description" title="Incomplete item"><img alt="Incomplete item" src="/images/thumb/d/dd/UntickedTick.svg/10px-UntickedTick.svg.png" decoding="async" width="10" height="10" class="mw-file-element" srcset="/images/thumb/d/dd/UntickedTick.svg/15px-UntickedTick.svg.png 1.5x, /images/thumb/d/dd/UntickedTick.svg/20px-UntickedTick.svg.png 2x" /></a></span>&#160;Allow regex operations in PL/Perl using UTF8 characters in non-UTF8 encoded databases
+</dt><dd>
+
+</dd></dl>
+<h2><span class="mw-headline" id="Clients">Clients</span></h2>
+<h3><span class="mw-headline" id="psql">psql</span></h3>
+<div>
+<dl><dt style="position: relative; font-weight: normal;"><span typeof="mw:File"><a href="/wiki/File:UntickedTick.svg" class="mw-file-description" title="Incomplete item"><img alt="Incomplete item" src="/images/thumb/d/dd/UntickedTick.svg/10px-UntickedTick.svg.png" decoding="async" width="10" height="10" class="mw-file-element" srcset="/images/thumb/d/dd/UntickedTick.svg/15px-UntickedTick.svg.png 1.5x, /images/thumb/d/dd/UntickedTick.svg/20px-UntickedTick.svg.png 2x" /></a></span>&#160;Add option to print advice for people familiar with other databases
+<ul><li><a rel="nofollow" class="external text" href="http://archives.postgresql.org/pgsql-hackers/2010-01/msg01845.php">MySQL-ism help patch for psql</a></li></ul>
+
+</dt><dd>
+
+</dd></dl>
+</div>
+<h2><span class="mw-headline" id="Miscellaneous_Performance">Miscellaneous Performance</span></h2>
+<dl><dt style="position: relative; font-weight: normal;"><span typeof="mw:File"><a href="/wiki/File:UntickedTick.svg" class="mw-file-description" title="Incomplete item"><img alt="Incomplete item" src="/images/thumb/d/dd/UntickedTick.svg/10px-UntickedTick.svg.png" decoding="async" width="10" height="10" class="mw-file-element" srcset="/images/thumb/d/dd/UntickedTick.svg/15px-UntickedTick.svg.png 1.5x, /images/thumb/d/dd/UntickedTick.svg/20px-UntickedTick.svg.png 2x" /></a></span>&#160;Rather than mmap()-ing in 8k pages, mmap()'ing entire files into a backend.
+
+</dt><dd>
+Doing I/O to large tables would consume a lot of address space or require frequent mapping/unmapping.  Extending the file also causes mapping problems that might require mapping only individual pages, leading to thousands of mappings.  Another problem is that there is no way to _prevent_ I/O to disk from the dirty shared buffers so changes could hit disk before WAL is written.
+<ul><li><a rel="nofollow" class="external free" href="http://archives.postgresql.org/pgsql-hackers/2011-03/msg01239.php">http://archives.postgresql.org/pgsql-hackers/2011-03/msg01239.php</a></li></ul>
+
+</dd></dl>
+<h2><span class="mw-headline" id="Exotic_Features">Exotic Features</span></h2>
+<dl><dt style="position: relative; font-weight: normal;"><span typeof="mw:File"><a href="/wiki/File:UntickedTick.svg" class="mw-file-description" title="Incomplete item"><img alt="Incomplete item" src="/images/thumb/d/dd/UntickedTick.svg/10px-UntickedTick.svg.png" decoding="async" width="10" height="10" class="mw-file-element" srcset="/images/thumb/d/dd/UntickedTick.svg/15px-UntickedTick.svg.png 1.5x, /images/thumb/d/dd/UntickedTick.svg/20px-UntickedTick.svg.png 2x" /></a></span>&#160;Allowing control of upper/lower case folding of unquoted identifiers
+<ul><li><a rel="nofollow" class="external text" href="http://archives.postgresql.org/pgsql-hackers/2004-04/msg00818.php">Bringing PostgreSQL torwards the standard regarding case folding</a></li>
+<li><a rel="nofollow" class="external text" href="http://archives.postgresql.org/pgsql-hackers/2006-10/msg01527.php">Re: [SQL] Case Preservation disregarding case sensitivity?</a></li>
+<li><a rel="nofollow" class="external text" href="http://archives.postgresql.org/pgsql-hackers/2008-03/msg00849.php">TODO Item: Consider allowing control of upper/lower case folding of unquoted,  identifiers</a></li>
+<li><a rel="nofollow" class="external text" href="http://archives.postgresql.org/pgsql-hackers/2008-07/msg00415.php">Identifier case folding notes</a></li>
+<li><a rel="nofollow" class="external text" href="http://archives.postgresql.org/pgsql-hackers/2008-07/msg00415.php">Identifier case folding notes</a></li>
+<li><a rel="nofollow" class="external text" href="https://www.postgresql.org/message-id/ACF85C502E55A143AB9F4ECFE960660A17282D@mailserver2.local.mstarlabs.com">Cluster wide option to control symbol case folding</a></li></ul>
+
+</dt><dd>
+
+</dd></dl>
+<h2><span class="mw-headline" id="Features_We_Do_Not_Want">Features We Do <i>Not</i> Want</span></h2>
+<dl><dt style="position: relative; font-weight: normal;"><span typeof="mw:File"><a href="/wiki/File:UntickedTick.svg" class="mw-file-description" title="Incomplete item"><img alt="Incomplete item" src="/images/thumb/d/dd/UntickedTick.svg/10px-UntickedTick.svg.png" decoding="async" width="10" height="10" class="mw-file-element" srcset="/images/thumb/d/dd/UntickedTick.svg/15px-UntickedTick.svg.png 1.5x, /images/thumb/d/dd/UntickedTick.svg/20px-UntickedTick.svg.png 2x" /></a></span>&#160;Rewrite the code in a different language
+<ul><li><a rel="nofollow" class="external free" href="https://www.postgresql.org/message-id/CAASwCXdQUiuUnhycdRvrUmHuzk5PsaGxr54U4t34teQjcjb%3DAQ%40mail.gmail.com">https://www.postgresql.org/message-id/CAASwCXdQUiuUnhycdRvrUmHuzk5PsaGxr54U4t34teQjcjb%3DAQ%40mail.gmail.com</a></li>
+<li><a rel="nofollow" class="external free" href="https://www.postgresql.org/message-id/CANvSX4wsVhDrqy4Ku81wHs%2D%2DaViYthJ_G5G-2VeZ%3DJboEE9TNQ%40mail.gmail.com">https://www.postgresql.org/message-id/CANvSX4wsVhDrqy4Ku81wHs%2D%2DaViYthJ_G5G-2VeZ%3DJboEE9TNQ%40mail.gmail.com</a></li></ul>
+
+</dt><dd>
+
+</dd></dl>
+<p><br />
+</p>
+<dl><dt style="position: relative; font-weight: normal;"><span typeof="mw:File"><a href="/wiki/File:UntickedTick.svg" class="mw-file-description" title="Incomplete item"><img alt="Incomplete item" src="/images/thumb/d/dd/UntickedTick.svg/10px-UntickedTick.svg.png" decoding="async" width="10" height="10" class="mw-file-element" srcset="/images/thumb/d/dd/UntickedTick.svg/15px-UntickedTick.svg.png 1.5x, /images/thumb/d/dd/UntickedTick.svg/20px-UntickedTick.svg.png 2x" /></a></span>&#160;"Oracle-style" optimizer hints
+
+</dt><dd>
+Optimizer hints, as implemented in Oracle and other RDBMSes, are used to work around problems in the optimizer and introduce upgrade and maintenance issues.  We would rather have such problems reported and fixed.  We have discussed a more sophisticated system of per-class cost adjustment instead, but a specification remains to be developed. See <a href="/wiki/OptimizerHintsDiscussion" title="OptimizerHintsDiscussion">Optimizer Hints Discussion</a> for further information.
+</dd></dl>
+<dl><dt style="position: relative; font-weight: normal;"><span typeof="mw:File"><a href="/wiki/File:UntickedTick.svg" class="mw-file-description" title="Incomplete item"><img alt="Incomplete item" src="/images/thumb/d/dd/UntickedTick.svg/10px-UntickedTick.svg.png" decoding="async" width="10" height="10" class="mw-file-element" srcset="/images/thumb/d/dd/UntickedTick.svg/15px-UntickedTick.svg.png 1.5x, /images/thumb/d/dd/UntickedTick.svg/20px-UntickedTick.svg.png 2x" /></a></span>&#160;Embedded server
+
+</dt><dd>
+While PostgreSQL clients runs fine in limited-resource environments, the server requires multiple processes and a stable pool of resources to run reliably and efficiently. Stripping down the PostgreSQL server to run in the same process address space as the client application would add too much complexity and failure cases. Besides, there are several very mature embedded SQL databases already available.
+</dd></dl>
+<dl><dt style="position: relative; font-weight: normal;"><span typeof="mw:File"><a href="/wiki/File:UntickedTick.svg" class="mw-file-description" title="Incomplete item"><img alt="Incomplete item" src="/images/thumb/d/dd/UntickedTick.svg/10px-UntickedTick.svg.png" decoding="async" width="10" height="10" class="mw-file-element" srcset="/images/thumb/d/dd/UntickedTick.svg/15px-UntickedTick.svg.png 1.5x, /images/thumb/d/dd/UntickedTick.svg/20px-UntickedTick.svg.png 2x" /></a></span>&#160;Obfuscated function source code
+
+</dt><dd>
+Obfuscating function source code has minimal protective benefits because anyone with super-user access can find a way to view the code. At the same time, it would greatly complicate backups and other administrative tasks. To prevent non-super-users from viewing function source code, remove SELECT permission on pg_proc.
+<ul><li><a rel="nofollow" class="external text" href="http://archives.postgresql.org/pgsql-general/2008-09/msg00668.php">Obfuscated stored procedures (was Re: Oracle and Postgresql)</a></li></ul>
+
+</dd></dl>
+<dl><dt style="position: relative; font-weight: normal;"><span typeof="mw:File"><a href="/wiki/File:UntickedTick.svg" class="mw-file-description" title="Incomplete item"><img alt="Incomplete item" src="/images/thumb/d/dd/UntickedTick.svg/10px-UntickedTick.svg.png" decoding="async" width="10" height="10" class="mw-file-element" srcset="/images/thumb/d/dd/UntickedTick.svg/15px-UntickedTick.svg.png 1.5x, /images/thumb/d/dd/UntickedTick.svg/20px-UntickedTick.svg.png 2x" /></a></span>&#160;Indeterminate behavior for the GROUP BY clause
+
+</dt><dd>
+At least one other database product allows specification of a subset of the result columns which GROUP BY would need to be able to provide predictable results; the server is free to return any value from the group.  This is not viewed as a desirable feature.  PostgreSQL 9.1 allows result columns that are not referenced by GROUP BY if a primary key for the same table is referenced in GROUP BY.
+<ul><li><a rel="nofollow" class="external text" href="http://archives.postgresql.org/pgsql-hackers/2010-03/msg00297.php">Re: SQL compatibility reminder: MySQL vs PostgreSQL</a></li></ul>
+
+</dd></dl>
+<dl><dt style="position: relative; font-weight: normal;"><span typeof="mw:File"><a href="/wiki/File:UntickedTick.svg" class="mw-file-description" title="Incomplete item"><img alt="Incomplete item" src="/images/thumb/d/dd/UntickedTick.svg/10px-UntickedTick.svg.png" decoding="async" width="10" height="10" class="mw-file-element" srcset="/images/thumb/d/dd/UntickedTick.svg/15px-UntickedTick.svg.png 1.5x, /images/thumb/d/dd/UntickedTick.svg/20px-UntickedTick.svg.png 2x" /></a></span>&#160;On-disk bitmap indexes
+
+</dt><dd>
+The rigidity of on-disk bitmap indexes, and the existence of GIN and in-memory bitmaps make this undesirable.
+<ul><li><a rel="nofollow" class="external text" href="http://archives.postgresql.org/pgsql-patches/2005-07/msg00512.php">Re: Bitmap index AM</a></li>
+<li><a rel="nofollow" class="external text" href="http://archives.postgresql.org/pgsql-hackers/2006-12/msg01107.php">Bitmap index thoughts</a></li>
+<li><a rel="nofollow" class="external text" href="http://archives.postgresql.org/pgsql-hackers/2007-03/msg00265.php">Stream bitmaps</a></li>
+<li><a rel="nofollow" class="external text" href="http://archives.postgresql.org/pgsql-hackers/2007-03/msg01214.php">Re: Bitmapscan changes - Requesting further feedback</a></li>
+<li><a rel="nofollow" class="external text" href="http://archives.postgresql.org/pgsql-patches/2007-05/msg00013.php">Updated bitmap index patch</a></li>
+<li><a rel="nofollow" class="external text" href="http://archives.postgresql.org/pgsql-hackers/2007-07/msg00741.php">Reviewing new index types (was Re: [PATCHES] Updated bitmap indexpatch)</a></li>
+<li><a rel="nofollow" class="external text" href="http://archives.postgresql.org/pgsql-hackers/2008-10/msg01023.php">Bitmap Indexes: request for feedback</a></li>
+<li><a rel="nofollow" class="external text" href="http://archives.postgresql.org/message-id/800923.27831.qm@web29010.mail.ird.yahoo.com">bitmap indexes - performance</a></li>
+<li><a rel="nofollow" class="external text" href="http://www.postgresql.org/message-id/20130914181424.GA24448@toroid.org">[PATCH] bitmap indexes</a></li></ul>
+
+</dd></dl></div></div></div>
+<!-- 
+NewPP limit report
+Cached time: 20261111110109
+Cache expiry: 86400
+Reduced expiry: false
+Complications: [show‐toc]
+CPU time usage: 0.169 seconds
+Real time usage: 0.218 seconds
+Preprocessor visited node count: 1591/1000000
+Post‐expand include size: 54864/2097152 bytes
+Template argument size: 37256/2097152 bytes
+Highest expansion depth: 9/100
+Expensive parser function count: 0/100
+Unstrip recursion depth: 0/20
+Unstrip post‐expand size: 1962/5000000 bytes
+-->
+<!--
+Transclusion expansion time report (%,ms,calls,template)
+100.00%   86.608      1 -total
+ 74.87%   64.842     71 Template:TodoItem
+ 53.77%   46.571     71 Template:TodoItemBase
+ 17.23%   14.923      2 Template:MessageLink
+  9.92%    8.589     71 Template:TodoPending
+  8.39%    7.263      2 Template:MessageURL
+  8.09%    7.010      9 Template:TodoEndSubsection
+  7.82%    6.771     12 Template:TodoSubsection
+-->
+
+<!-- Saved in parser cache with key wikidb-mediawiki-:pcache:idhash:3752-0!canonical and timestamp 20261111110109 and revision id 37828. Rendering was triggered because: page-view
+ -->
+</div>
+<div class="printfooter" data-nosnippet="">Retrieved from "<a dir="ltr" href="https://wiki.postgresql.org/index.php?title=Not_Worth_Doing&amp;oldid=37828">https://wiki.postgresql.org/index.php?title=Not_Worth_Doing&amp;oldid=37828</a>"</div></div>
+				<div id="catlinks" class="catlinks catlinks-allhidden" data-mw="interface"></div>
+				<!-- end content -->
+				<div class="visualClear"></div>
+			</div>
+		</div>
+		<div class="visualClear"></div>
+	</div>
+	<div id="column-one" >
+		<h2>Navigation menu</h2>
+		<div role="navigation" class="portlet" id="p-cactions" aria-labelledby="p-cactions-label">
+			<h3 id="p-cactions-label" >Page actions</h3>
+			<div class="pBody">
+				<ul >
+				<li id="ca-nstab-main" class="selected mw-list-item"><a href="/wiki/Not_Worth_Doing" title="View the content page [c]" accesskey="c">Page</a></li><li id="ca-talk" class="new mw-list-item"><a href="/index.php?title=Talk:Not_Worth_Doing&amp;action=edit&amp;redlink=1" rel="discussion" class="new" title="Discussion about the content page (page does not exist) [t]" accesskey="t">Discussion</a></li><li id="ca-view" class="selected mw-list-item"><a href="/wiki/Not_Worth_Doing">Read</a></li><li id="ca-viewsource" class="mw-list-item"><a href="/index.php?title=Not_Worth_Doing&amp;action=edit" title="This page is protected.&#10;You can view its source [e]" accesskey="e">View source</a></li><li id="ca-history" class="mw-list-item"><a href="/index.php?title=Not_Worth_Doing&amp;action=history" title="Past revisions of this page [h]" accesskey="h">History</a></li>
+				
+				</ul>
+			</div>
+		</div>
+		
+<div role="navigation" class="portlet mw-portlet mw-portlet-cactions-mobile"
+	id="p-cactions-mobile" aria-labelledby="p-cactions-mobile-label">
+	<h3 id="p-cactions-mobile-label" >Page actions</h3>
+	<div class="pBody">
+		<ul ><li id="main-mobile" class="selected mw-list-item"><a href="/wiki/Not_Worth_Doing" title="Page">Page</a></li><li id="talk-mobile" class="new mw-list-item"><a href="/index.php?title=Talk:Not_Worth_Doing&amp;action=edit&amp;redlink=1" title=" (page does not exist)" class="new">Discussion</a></li><li id="ca-more" class="mw-list-item"><a href="#p-cactions">More</a></li><li id="ca-tools" class="mw-list-item"><a href="#p-tb" title="Tools">Tools</a></li></ul>
+		
+	</div>
+</div>
+
+		<div role="navigation" class="portlet" id="p-personal" aria-labelledby="p-personal-label">
+			<h3 id="p-personal-label" >Personal tools</h3>
+			<div class="pBody">
+				<ul >
+				<li id="pt-login" class="mw-list-item"><a href="/index.php?title=Special:UserLogin&amp;returnto=Not+Worth+Doing" title="You must log in to edit any pages on this site. [o]" accesskey="o">Log in</a></li>
+				</ul>
+			</div>
+		</div>
+		<div class="portlet" id="p-logo" role="banner">
+			<a href="/wiki/Main_Page" class="mw-wiki-logo"></a>
+		</div>
+		<div id="sidebar">
+		
+<div role="navigation" class="portlet mw-portlet mw-portlet-navigation"
+	id="p-navigation" aria-labelledby="p-navigation-label">
+	<h3 id="p-navigation-label" >Navigation</h3>
+	<div class="pBody">
+		<ul ><li id="n-mainpage" class="mw-list-item"><a href="/wiki/Main_Page" title="Visit the main page [z]" accesskey="z">Main Page</a></li><li id="n-randompage" class="mw-list-item"><a href="/wiki/Special:Random" title="Load a random page [x]" accesskey="x">Random page</a></li><li id="n-recentchanges" class="mw-list-item"><a href="/wiki/Special:RecentChanges" title="A list of recent changes in the wiki [r]" accesskey="r">Recent changes</a></li><li id="n-help" class="mw-list-item"><a href="https://www.mediawiki.org/wiki/Special:MyLanguage/Help:Contents" title="The place to find out">Help</a></li></ul>
+		
+	</div>
+</div>
+
+		<div role="search" class="portlet" id="p-search">
+			<h3 id="p-search-label" ><label for="searchInput">Search</label></h3>
+			<div class="pBody" id="searchBody">
+				<form action="/index.php" id="searchform"><input type="hidden" value="Special:Search" name="title"><input type="search" name="search" placeholder="Search PostgreSQL wiki" aria-label="Search PostgreSQL wiki" autocapitalize="sentences" title="Search PostgreSQL wiki [f]" accesskey="f" id="searchInput"><input type="submit" name="go" value="Go" title="Go to a page with this exact name if it exists" class="searchButton" id="searchButton"> <input type="submit" name="fulltext" value="Search" title="Search the pages for this text" class="searchButton mw-fallbackSearchButton" id="mw-searchButton"></form>
+			</div>
+		</div>
+		
+<div role="navigation" class="portlet mw-portlet mw-portlet-tb"
+	id="p-tb" aria-labelledby="p-tb-label">
+	<h3 id="p-tb-label" >Tools</h3>
+	<div class="pBody">
+		<ul ><li id="t-whatlinkshere" class="mw-list-item"><a href="/wiki/Special:WhatLinksHere/Not_Worth_Doing" title="A list of all wiki pages that link here [j]" accesskey="j">What links here</a></li><li id="t-recentchangeslinked" class="mw-list-item"><a href="/wiki/Special:RecentChangesLinked/Not_Worth_Doing" rel="nofollow" title="Recent changes in pages linked from this page [k]" accesskey="k">Related changes</a></li><li id="t-specialpages" class="mw-list-item"><a href="/wiki/Special:SpecialPages" title="A list of all special pages [q]" accesskey="q">Special pages</a></li><li id="t-print" class="mw-list-item"><a href="javascript:print();" rel="alternate" title="Printable version of this page [p]" accesskey="p">Printable version</a></li><li id="t-permalink" class="mw-list-item"><a href="/index.php?title=Not_Worth_Doing&amp;oldid=37828" title="Permanent link to this revision of this page">Permanent link</a></li><li id="t-info" class="mw-list-item"><a href="/index.php?title=Not_Worth_Doing&amp;action=info" title="More information about this page">Page information</a></li></ul>
+		
+	</div>
+</div>
+
+		
+		</div>
+		<a href="#sidebar" title="Jump to navigation"
+			class="menu-toggle" id="sidebar-toggle"></a>
+		<a href="#p-personal" title="user tools"
+			class="menu-toggle" id="p-personal-toggle"></a>
+		<a href="#globalWrapper" title="back to top"
+			class="menu-toggle" id="globalWrapper-toggle"></a>
+	</div>
+	<!-- end of the left (by default at least) column -->
+	<div class="visualClear"></div>
+	<div id="footer" class="mw-footer" role="contentinfo"
+		>
+		<div id="f-poweredbyico" class="footer-icons">
+			<a href="https://www.mediawiki.org/" class="cdx-button cdx-button--fake-button cdx-button--size-large cdx-button--fake-button--enabled"><img src="/resources/assets/poweredby_mediawiki.svg" alt="Powered by MediaWiki" width="88" height="31" loading="lazy"></a>
+		</div>
+		<ul id="f-list">
+			<li id="lastmod"> This page was last edited on 17 May 2023, at 02:44.</li>
+			<li id="privacy"><a href="/wiki/PostgreSQL_wiki:Privacy_policy">Privacy policy</a></li><li id="about"><a href="/wiki/PostgreSQL_wiki:About">About PostgreSQL wiki</a></li><li id="disclaimers"><a href="/wiki/PostgreSQL_wiki:General_disclaimer">Disclaimers</a></li>
+		</ul>
+	</div>
+</div>
+<script>(RLQ=window.RLQ||[]).push(function(){mw.config.set({"wgBackendResponseTime":510,"wgPageParseReport":{"limitreport":{"cputime":"0.169","walltime":"0.218","ppvisitednodes":{"value":1591,"limit":1000000},"postexpandincludesize":{"value":54864,"limit":2097152},"templateargumentsize":{"value":37256,"limit":2097152},"expansiondepth":{"value":9,"limit":100},"expensivefunctioncount":{"value":0,"limit":100},"unstrip-depth":{"value":0,"limit":20},"unstrip-size":{"value":1962,"limit":5000000},"timingprofile":["100.00%   86.608      1 -total"," 74.87%   64.842     71 Template:TodoItem"," 53.77%   46.571     71 Template:TodoItemBase"," 17.23%   14.923      2 Template:MessageLink","  9.92%    8.589     71 Template:TodoPending","  8.39%    7.263      2 Template:MessageURL","  8.09%    7.010      9 Template:TodoEndSubsection","  7.82%    6.771     12 Template:TodoSubsection"]},"cachereport":{"timestamp":"20261111110109","ttl":86400,"transientcontent":false}}});});</script>
+</body>
+</html>

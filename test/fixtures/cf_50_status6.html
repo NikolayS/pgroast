@@ -1,0 +1,578 @@
+
+
+
+ <!DOCTYPE html>
+ <html>
+  <head>
+   <title>Commitfest 2024-11 (2024-11-01 – 2024-11-30)</title>
+   <meta name="description" content="The PostgreSQL Commitfest app tracks patches and reviews as part of the PostgreSQL development process." />
+   <meta property="og:title" content="Commitfest 2024-11 (2024-11-01 – 2024-11-30)" />
+   <meta property="og:description" content="The PostgreSQL Commitfest app tracks patches and reviews as part of the PostgreSQL development process." />
+   <meta property="og:type" content="website" />
+   <meta property="og:site_name" content="PostgreSQL Commitfest" />
+   <meta property="og:url" content="https://commitfest.postgresql.org/50/?status=6" />
+   <link rel="stylesheet" href="/media/commitfest/css/jquery-ui.css" type="text/css">
+   <link rel="stylesheet" href="/media/commitfest/css/bootstrap.css?v=5.3.7" />
+   <link rel="stylesheet" href="/media/commitfest/css/bootstrap-icons.css" />
+   <link rel="stylesheet" href="/media/commitfest/css/selectize.bootstrap5.css" />
+   <link rel="stylesheet" href="/media/commitfest/css/commitfest.css?v=cc40062c-7766-416a-be78-99b5cec5e916" />
+   <link rel="shortcut icon" href="/media/commitfest/favicon.ico" />
+   
+   
+  </head>
+  <body>
+  <!-- Main Navigation -->
+   <nav class="navbar navbar-expand-sm navbar-dark bg-dark mb-3">
+    <div class="container-fluid">
+     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNavbar" aria-controls="mainNavbar" aria-expanded="false" aria-label="Toggle navigation">
+      <span class="navbar-toggler-icon"></span>
+     </button>
+     <div class="collapse navbar-collapse" id="mainNavbar">
+      <div class="navbar-content-wrapper">
+       <ul class="navbar-nav me-auto mb-2 mb-sm-0">
+        <li class="nav-item">
+         <a class="nav-link" href="/">Home</a>
+        </li>
+        <li class="nav-item">
+         <a class="nav-link" href="/63/new/">New Patch</a>
+        </li>
+        <li class="nav-item">
+         <a class="nav-link" href="/current/">Current CF</a>
+        </li>
+        <li class="nav-item">
+         <a class="nav-link" href="/open/">Open CF</a>
+        </li>
+        <li class="nav-item">
+         <a class="nav-link" href="/draft/">Draft CF</a>
+        </li>
+        <li class="nav-item dropdown">
+         <a class="nav-link dropdown-toggle" href="#" id="moreDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+          More
+         </a>
+         <ul class="dropdown-menu" aria-labelledby="moreDropdown">
+          <li><a class="dropdown-item" href="/activity/">Activity Log</a></li>
+          <li><a class="dropdown-item" href="/archive/">All Commitfests</a></li>
+         </ul>
+        </li>
+        <li class="nav-item">
+         <a class="nav-link" href="/help/">Help</a>
+        </li>
+       </ul>
+       <div class="navbar-actions d-flex gap-2 align-items-center">
+        <form method="GET" action="/search/">
+         <div class="input-group" style="width: 300px;">
+          <input type="text" class="form-control" name="searchterm" placeholder="Email Message-ID or keywords">
+          <button type="submit" class="btn btn-secondary">
+           <i class="bi bi-search"></i>
+          </button>
+         </div>
+        </form>
+        <a class="btn btn-secondary" href="https://github.com/postgres/pgcommitfest" target="_blank"><img class="github-logo" src="/media/commitfest/github-mark.svg"/> Contribute</a>
+       </div>
+      </div>
+     </div>
+    </div>
+   </nav>
+
+   <div class="container-fluid">
+
+    <nav aria-label="breadcrumb">
+     <ol class="breadcrumb">
+      
+       <li class="breadcrumb-item"><a href="/">Home</a></li>
+       
+       <li class="breadcrumb-item active" aria-current="page">Commitfest 2024-11 (2024-11-01 – 2024-11-30)</li>
+      
+     </ol>
+     <div class="float-end">
+      
+       <a href="/account/login/?next=/50/">Log in</a>
+      
+       | <a href="activity/">Activity log</a>
+     </div>
+    </nav>
+
+    
+     <h1>Commitfest 2024-11 (2024-11-01 – 2024-11-30)</h1>
+    
+
+    
+
+    
+
+ 
+  <div class="alert alert-warning" role="alert">
+   <strong>This commitfest is closed.</strong> Open patches in this commitfest are no longer being picked up by CI. If you want CI to run on your patch, move it to an open commitfest.
+  </div>
+ 
+
+ <button type="button" class="btn btn-secondary active" id="filterButton" onClick="togglePatchFilterButton('filterButton', 'collapseFilters')">Search/filter</button>
+ <a class="btn btn-secondary" href="?reviewer=-2">No reviewers</a>
+ <a class="btn btn-secondary" href="?author=-3">My patches</a>
+ <a class="btn btn-secondary" href="?reviewer=-3">My reviews</a>
+ 
+ 
+<div id="collapseFilters" class="collapse show">
+ <form id="filterform" method="GET" action="." style="margin-bottom: 0px">
+  <table class="table" style="margin-bottom: 0px">
+   <thead>
+    <tr>
+     
+      
+       <td>Text</td>
+      
+     
+      
+       <td>Status</td>
+      
+     
+      
+       <td>Target version</td>
+      
+     
+      
+       <td>Tag (type to search)</td>
+      
+     
+      
+       <td>Author (type to search)</td>
+      
+     
+      
+       <td>Reviewer (type to search)</td>
+      
+     
+      
+       <td></td>
+      
+     
+	    
+     <td></td>
+    </tr>
+   </thead>
+   <tbody>
+    <tr>
+     
+      <td>
+       <input type="text" name="text" maxlength="50" class="form-control" id="id_text">
+      </td>
+     
+      <td>
+       <select name="status" class="form-control" id="id_status">
+  <option value="-1">* All</option>
+
+  <option value="1">Needs review</option>
+
+  <option value="2">Waiting on Author</option>
+
+  <option value="3">Ready for Committer</option>
+
+  <option value="4">Committed</option>
+
+  <option value="5">Moved to different CF</option>
+
+  <option value="6" selected>Rejected</option>
+
+  <option value="7">Returned with feedback</option>
+
+  <option value="8">Withdrawn</option>
+
+</select>
+      </td>
+     
+      <td>
+       <select name="targetversion" class="form-control" id="id_targetversion">
+  <option value="-1">* All</option>
+
+  <option value="-2">* None</option>
+
+  <option value="1">stable</option>
+
+  <option value="10">20</option>
+
+  <option value="9">19</option>
+
+  <option value="8">18</option>
+
+  <option value="7">17</option>
+
+  <option value="6">16</option>
+
+  <option value="5">15</option>
+
+  <option value="4">14</option>
+
+  <option value="3">13</option>
+
+  <option value="2">12</option>
+
+</select>
+      </td>
+     
+      <td>
+       <select name="tag" id="id_tag" multiple>
+  <option value="36">AIO</option>
+
+  <option value="2">Backport</option>
+
+  <option value="1">Bugfix</option>
+
+  <option value="19">CI</option>
+
+  <option value="17">Comments Only</option>
+
+  <option value="27">dblink</option>
+
+  <option value="41">DDL</option>
+
+  <option value="42">Deprecation</option>
+
+  <option value="38">Devtools</option>
+
+  <option value="18">Docs Only</option>
+
+  <option value="32">Extensions</option>
+
+  <option value="33">Flakyfix</option>
+
+  <option value="10">Good First Review</option>
+
+  <option value="22">GUC</option>
+
+  <option value="9">Help - Benchmarks</option>
+
+  <option value="7">Help - Bikeshedding</option>
+
+  <option value="8">Help - Docs</option>
+
+  <option value="30">Help - Stuck Rebasing</option>
+
+  <option value="6">Help - User Testing</option>
+
+  <option value="11">libpq</option>
+
+  <option value="14">Logical Replication</option>
+
+  <option value="5">Missing Benchmarks</option>
+
+  <option value="4">Missing Docs</option>
+
+  <option value="3">Missing Tests</option>
+
+  <option value="43">Modernization</option>
+
+  <option value="21">Monitoring</option>
+
+  <option value="34">Multithreading</option>
+
+  <option value="31">My First Patch</option>
+
+  <option value="35">[oauth]</option>
+
+  <option value="13">Performance</option>
+
+  <option value="44">PGConf.dev</option>
+
+  <option value="15">Physical Replication</option>
+
+  <option value="25">PL/Perl</option>
+
+  <option value="23">PL/pgSQL</option>
+
+  <option value="24">PL/Python</option>
+
+  <option value="26">PL/Tcl</option>
+
+  <option value="28">postgres_fdw</option>
+
+  <option value="12">psql</option>
+
+  <option value="16">Refactoring Only</option>
+
+  <option value="29">Security</option>
+
+  <option value="39">SQL Commands</option>
+
+  <option value="40">System Administration</option>
+
+  <option value="20">Testing</option>
+
+  <option value="37">Windows</option>
+
+</select>
+      </td>
+     
+      <td>
+       <select name="author" class="input-medium" id="id_author">
+  <option value="-1">* All</option>
+
+  <option value="-2">* None</option>
+
+  <option value="-3">* Yourself</option>
+
+</select>
+      </td>
+     
+      <td>
+       <select name="reviewer" class="input-medium" id="id_reviewer">
+  <option value="-1">* All</option>
+
+  <option value="-2">* None</option>
+
+  <option value="-3">* Yourself</option>
+
+</select>
+      </td>
+     
+      <td>
+       <input type="hidden" name="sortkey" class="form-control" id="id_sortkey">
+      </td>
+     
+     <td>
+      <input type="submit" class="btn btn-secondary" value="Filter">
+      <a class="btn btn-secondary" href=".">Clear</a>
+     </td>
+    </tr>
+   </tbody>
+  </table>
+ </form>
+</div>
+
+
+ <p>
+  <br/>
+  <b>Status summary: </b><a href="?status=4">Committed</a>: 78. <a href="?status=5">Moved to next CF</a>: 237. <a href="?status=8">Withdrawn</a>: 11. <a href="?status=6">Rejected</a>: 2. <a href="?status=7">Returned with Feedback</a>: 8. <a href="?status=-1">Total</a>: 336. 
+ </p>
+
+ 
+  
+   
+   <h3>Closed patches</h3>
+   <table class="table table-striped table-bordered table-hover">
+    <thead>
+     <tr>
+      <th><a href="#" style="color:#333333;" onclick="return sortpatches(5);">Patch</a></th>
+      <th><a href="#" style="color:#333333;" onclick="return sortpatches(4);">ID</a></th>
+      <th>Status</th>
+      <th>Tags</th>
+      <th>Ver</th>
+      <th><a href="#" style="color:#333333;" onclick="return sortpatches(7);">CI status</a></th>
+      <th><a href="#" style="color:#333333;" onclick="return sortpatches(6);">Stats</a></th>
+      <th>Author</th>
+      <th>Reviewers</th>
+      <th><a href="#" style="color:#333333;" onclick="return sortpatches(9);">Committer</a></th>
+      <th><a href="#" style="color:#333333;" onclick="return sortpatches(3);">Num cfs</a></th>
+      <th><a href="#" style="color:#333333;" onclick="return sortpatches(2);">Latest mail</a></th>
+      
+     </tr>
+    </thead>
+    <tbody>
+  
+
+  <tr>
+   <td class="wrap-text patch-column"><a href="/patch/5253/">Support Int64 GUCs</a></td>
+   <td>5253</td>
+   <td><span class="badge bg-danger">Rejected</span></td>
+   <td style="width: min-content;">
+    
+   </td>
+   <td></td>
+   <td class="cfbot-summary">
+    
+     
+      <span class="badge bg-secondary">Not processed</span>
+     
+     </td>
+     <td>
+      
+     </td>
+    
+    <td class="wrap-text">Aleksander Alekseev (a.alekseev), Maxim Orlov (m.orlov)</td>
+    <td class="wrap-text">Nathan Bossart (bossartn)</td>
+    <td class="wrap-text"></td>
+    <td>1</td>
+    <td style="white-space: nowrap;" title="2024-09-29 21:31:33">2 years ago</td>
+    
+   </tr>
+   
+ 
+  
+
+  <tr>
+   <td class="wrap-text patch-column"><a href="/patch/5340/">Useless field ispartitioned in CreateStmtContext</a></td>
+   <td>5340</td>
+   <td><span class="badge bg-danger">Rejected</span></td>
+   <td style="width: min-content;">
+    
+     <a href="?tag=16">
+      <span class="badge" style="background-color: #1a5fb4;" title="Only refactors code without changing functionality">Refactoring Only</span>
+     </a>
+    
+   </td>
+   <td></td>
+   <td class="cfbot-summary">
+    
+     
+      <span class="badge bg-secondary">Not processed</span>
+     
+     </td>
+     <td>
+      
+     </td>
+    
+    <td class="wrap-text">hugo zhang (2689496754.qq.com)</td>
+    <td class="wrap-text">Kirill Reshke (reshke), Alena Rybakina (alenka)</td>
+    <td class="wrap-text"></td>
+    <td>1</td>
+    <td style="white-space: nowrap;" title="2024-11-28 15:18:21">1 year ago</td>
+    
+   </tr>
+   
+    </tbody>
+    </table>
+   
+ 
+
+ <div>
+  
+  
+ </div>
+
+   </div>
+   <script src="/media/commitfest/js/jquery.js"></script>
+   <script src="/media/commitfest/js/jquery-ui.js"></script>
+   <script src="/media/commitfest/js/bootstrap.js?v=5.3.7"></script>
+   <script src="/media/commitfest/js/selectize.min.js"></script>
+   <script src="/media/commitfest/js/commitfest.js?v=cc40062c-7766-416a-be78-99b5cec5e916"></script>
+   
+ <script>
+ 
+  
+   $('#id_author').selectize({
+    plugins: ['remove_button'],
+    valueField: 'id',
+    labelField: 'value',
+    searchField: 'value',
+    
+     load: function(query, callback) {
+      if (!query.length) return callback();
+      $.ajax({
+       'url': '/lookups/user?cf=50',
+       'type': 'GET',
+       'dataType': 'json',
+       'data': {
+        'query': query,
+       },
+       'error': function() { callback();},
+       'success': function(res) { callback(res.values);},
+      });
+     },
+    
+    onFocus: function() {
+     if (this.$input.is('[multiple]')) {
+      return;
+     }
+     this.lastValue = this.getValue();
+     this.clear(false);
+    },
+    onBlur: function() {
+     if (this.$input.is('[multiple]')) {
+      return;
+     }
+     if(this.getValue() == '') {
+      this.setValue(this.lastValue);
+     }
+    },
+   });
+  
+ 
+  
+   $('#id_reviewer').selectize({
+    plugins: ['remove_button'],
+    valueField: 'id',
+    labelField: 'value',
+    searchField: 'value',
+    
+     load: function(query, callback) {
+      if (!query.length) return callback();
+      $.ajax({
+       'url': '/lookups/user?cf=50',
+       'type': 'GET',
+       'dataType': 'json',
+       'data': {
+        'query': query,
+       },
+       'error': function() { callback();},
+       'success': function(res) { callback(res.values);},
+      });
+     },
+    
+    onFocus: function() {
+     if (this.$input.is('[multiple]')) {
+      return;
+     }
+     this.lastValue = this.getValue();
+     this.clear(false);
+    },
+    onBlur: function() {
+     if (this.$input.is('[multiple]')) {
+      return;
+     }
+     if(this.getValue() == '') {
+      this.setValue(this.lastValue);
+     }
+    },
+   });
+  
+ 
+  
+   $('#id_tag').selectize({
+    plugins: ['remove_button'],
+    valueField: 'id',
+    labelField: 'name',
+    searchField: ['name', 'description'],
+    placeholder: 'Select tags (type to search by name or description)...',
+    
+     options: [{"id": 36, "name": "AIO", "color": "#1a5fb4", "description": "Async IO"}, {"id": 2, "name": "Backport", "color": "#3d3846", "description": "Once merged should be backported to old branches"}, {"id": 1, "name": "Bugfix", "color": "#a51d2d", "description": "Fixes a bug"}, {"id": 19, "name": "CI", "color": "#1a5fb4", "description": "Makes changes to the CI configuration or scripts"}, {"id": 17, "name": "Comments Only", "color": "#1a5fb4", "description": "Only updates code comments"}, {"id": 27, "name": "dblink", "color": "#1a5fb4", "description": "Involves changes to dblink"}, {"id": 41, "name": "DDL", "color": "#662ca0", "description": "related to DDL commands"}, {"id": 42, "name": "Deprecation", "color": "#3d3846", "description": "Removes features or APIs"}, {"id": 38, "name": "Devtools", "color": "#1c71d8", "description": "Improves tooling that Postgres developers often use."}, {"id": 18, "name": "Docs Only", "color": "#1a5fb4", "description": "Only updates user facing documentation"}, {"id": 32, "name": "Extensions", "color": "#1a5fb4", "description": "Improves extensibility of Postgres by e.g. adding new hooks"}, {"id": 33, "name": "Flakyfix", "color": "#a51d2d", "description": "Fixes a randomly failing test"}, {"id": 10, "name": "Good First Review", "color": "#613583", "description": "An easy to review patch for a new reviewer"}, {"id": 22, "name": "GUC", "color": "#1a5fb4", "description": "Adds/modifies configuration parameters (GUCs)"}, {"id": 9, "name": "Help - Benchmarks", "color": "#07732e", "description": "Reviewers are requested to help discuss or do benchmarks and discuss performance impact"}, {"id": 7, "name": "Help - Bikeshedding", "color": "#07732e", "description": "Reviewers are requested to propose or vote on stylistic changes like a user facing function name"}, {"id": 8, "name": "Help - Docs", "color": "#07732e", "description": "Reviewers are requested to help review or write documentation"}, {"id": 30, "name": "Help - Stuck Rebasing", "color": "#07732e", "description": "The author has had to rebase the patchset many times without any reviewer input."}, {"id": 6, "name": "Help - User Testing", "color": "#07732e", "description": "Reviewers are requested to try out the patch and provide user feedback on UX/UI"}, {"id": 11, "name": "libpq", "color": "#1a5fb4", "description": "Makes changes to libpq"}, {"id": 14, "name": "Logical Replication", "color": "#1a5fb4", "description": "Makes changes to logical replication"}, {"id": 5, "name": "Missing Benchmarks", "color": "#c66424", "description": "Author should do additional benchmarks"}, {"id": 4, "name": "Missing Docs", "color": "#c66424", "description": "Author should add documentation"}, {"id": 3, "name": "Missing Tests", "color": "#c66424", "description": "Author should add tests"}, {"id": 43, "name": "Modernization", "color": "#00800e", "description": "Things that modernize the codebase e.g. C11"}, {"id": 21, "name": "Monitoring", "color": "#1a5fb4", "description": "Adds new monitoring features or improves existing ones"}, {"id": 34, "name": "Multithreading", "color": "#000000", "description": "Related to multithreaded server project or thread-safety in general"}, {"id": 31, "name": "My First Patch", "color": "#613583", "description": "This is the author's first Commitfest entry!"}, {"id": 35, "name": "[oauth]", "color": "#333333", "description": "This patch is part of the [oauth] working group experiment."}, {"id": 13, "name": "Performance", "color": "#1a5fb4", "description": "Improves performance"}, {"id": 44, "name": "PGConf.dev", "color": "#033c6b", "description": "part of the PGConf.dev in-person commitfest \u2014 see https://wiki.postgresql.org/wiki/PGConf.dev_2026_In-Person_Commitfest"}, {"id": 15, "name": "Physical Replication", "color": "#1a5fb4", "description": "Makes changes to physical replication"}, {"id": 25, "name": "PL/Perl", "color": "#1a5fb4", "description": "Involves changes to PL/Perl"}, {"id": 23, "name": "PL/pgSQL", "color": "#1a5fb4", "description": "Involves changes to PL/pgSQL"}, {"id": 24, "name": "PL/Python", "color": "#1a5fb4", "description": "Involves changes to PL/Python"}, {"id": 26, "name": "PL/Tcl", "color": "#1a5fb4", "description": "Involves changes to PL/Perl"}, {"id": 28, "name": "postgres_fdw", "color": "#1a5fb4", "description": "Involves changes to postgres_fdw"}, {"id": 12, "name": "psql", "color": "#1a5fb4", "description": "Involves changes to psql"}, {"id": 16, "name": "Refactoring Only", "color": "#1a5fb4", "description": "Only refactors code without changing functionality"}, {"id": 29, "name": "Security", "color": "#a51d2d", "description": "Improves security"}, {"id": 39, "name": "SQL Commands", "color": "#198754", "description": "SQL command implementation and enhancement"}, {"id": 40, "name": "System Administration", "color": "#495057", "description": "System administration and configuration"}, {"id": 20, "name": "Testing", "color": "#1a5fb4", "description": "Adds/modifies tests or improves our testing frameworks"}, {"id": 37, "name": "Windows", "color": "#f25022", "description": "Fixing behaviour on the only non-UNIX OS that we support"}],
+    
+    render: {
+     option: function(item, escape) {
+      return '<div class="option">' +
+      '<span class="tag-color" style="background-color: ' + escape(item.color) + '; width: 12px; height: 12px; display: inline-block; border-radius: 2px; margin-right: 6px;"></span>' +
+      '<strong>' + escape(item.name) + '</strong>' +
+      (item.description ? '<br><small class="text-muted">' + escape(item.description) + '</small>' : '') +
+      '</div>';
+     },
+     item: function(item, escape) {
+      return '<div class="item">' +
+      '<span class="tag-color" style="background-color: ' + escape(item.color) + '; width: 10px; height: 10px; display: inline-block; border-radius: 2px; margin-right: 4px; vertical-align: middle;"></span>' +
+      escape(item.name) +
+      '</div>';
+     }
+    },
+    onDropdownOpen: function() {
+     var self = this;
+     var $dropdown = self.$dropdown;
+     var $options = $dropdown.find('[data-selectable]');
+     var totalOptions = self.options ? Object.keys(self.options).length : 0;
+     var visibleOptions = $options.length;
+
+     // Add footer hint if there are more options than visible (due to search filtering or scrolling)
+     if (totalOptions > 6 && !$dropdown.find('.selectize-scroll-hint').length) {
+      $dropdown.append('<div class="selectize-scroll-hint text-center text-muted small py-2 px-3" style="border-top: 1px solid #dee2e6; background-color: #f8f9fa;">' +
+       '⬇ Scroll to see all ' + totalOptions + ' tags, or type to search' +
+       '</div>');
+     }
+    }
+   });
+  
+ 
+</script>
+
+
+ <script>
+  
+ </script>
+
+
+</html>

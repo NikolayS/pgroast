@@ -1,0 +1,238 @@
+
+
+
+ <!DOCTYPE html>
+ <html>
+  <head>
+   <title>Commitfest history</title>
+   <meta name="description" content="The PostgreSQL Commitfest app tracks patches and reviews as part of the PostgreSQL development process." />
+   <meta property="og:title" content="Commitfest history" />
+   <meta property="og:description" content="The PostgreSQL Commitfest app tracks patches and reviews as part of the PostgreSQL development process." />
+   <meta property="og:type" content="website" />
+   <meta property="og:site_name" content="PostgreSQL Commitfest" />
+   <meta property="og:url" content="https://commitfest.postgresql.org/archive/" />
+   <link rel="stylesheet" href="/media/commitfest/css/jquery-ui.css" type="text/css">
+   <link rel="stylesheet" href="/media/commitfest/css/bootstrap.css?v=5.3.7" />
+   <link rel="stylesheet" href="/media/commitfest/css/bootstrap-icons.css" />
+   <link rel="stylesheet" href="/media/commitfest/css/selectize.bootstrap5.css" />
+   <link rel="stylesheet" href="/media/commitfest/css/commitfest.css?v=9a8f9543-5b06-4325-8d74-328d033a989d" />
+   <link rel="shortcut icon" href="/media/commitfest/favicon.ico" />
+   
+   
+  </head>
+  <body>
+  <!-- Main Navigation -->
+   <nav class="navbar navbar-expand-sm navbar-dark bg-dark mb-3">
+    <div class="container-fluid">
+     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNavbar" aria-controls="mainNavbar" aria-expanded="false" aria-label="Toggle navigation">
+      <span class="navbar-toggler-icon"></span>
+     </button>
+     <div class="collapse navbar-collapse" id="mainNavbar">
+      <div class="navbar-content-wrapper">
+       <ul class="navbar-nav me-auto mb-2 mb-sm-0">
+        <li class="nav-item">
+         <a class="nav-link" href="/">Home</a>
+        </li>
+        <li class="nav-item">
+         <a class="nav-link" href="/63/new/">New Patch</a>
+        </li>
+        <li class="nav-item">
+         <a class="nav-link" href="/current/">Current CF</a>
+        </li>
+        <li class="nav-item">
+         <a class="nav-link" href="/open/">Open CF</a>
+        </li>
+        <li class="nav-item">
+         <a class="nav-link" href="/draft/">Draft CF</a>
+        </li>
+        <li class="nav-item dropdown">
+         <a class="nav-link dropdown-toggle active" href="#" id="moreDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+          More
+         </a>
+         <ul class="dropdown-menu" aria-labelledby="moreDropdown">
+          <li><a class="dropdown-item" href="/activity/">Activity Log</a></li>
+          <li><a class="dropdown-item" href="/archive/">All Commitfests</a></li>
+         </ul>
+        </li>
+        <li class="nav-item">
+         <a class="nav-link" href="/help/">Help</a>
+        </li>
+       </ul>
+       <div class="navbar-actions d-flex gap-2 align-items-center">
+        <form method="GET" action="/search/">
+         <div class="input-group" style="width: 300px;">
+          <input type="text" class="form-control" name="searchterm" placeholder="Email Message-ID or keywords">
+          <button type="submit" class="btn btn-secondary">
+           <i class="bi bi-search"></i>
+          </button>
+         </div>
+        </form>
+        <a class="btn btn-secondary" href="https://github.com/postgres/pgcommitfest" target="_blank"><img class="github-logo" src="/media/commitfest/github-mark.svg"/> Contribute</a>
+       </div>
+      </div>
+     </div>
+    </div>
+   </nav>
+
+   <div class="container-fluid">
+
+    <nav aria-label="breadcrumb">
+     <ol class="breadcrumb">
+      
+       <li class="breadcrumb-item"><a href="/">Home</a></li>
+       
+       <li class="breadcrumb-item active" aria-current="page">Commitfest history</li>
+      
+     </ol>
+     <div class="float-end">
+      
+       <a href="/account/login/?next=/archive/">Log in</a>
+      
+       | <a href="/activity/">Activity log</a>
+     </div>
+    </nav>
+
+    
+     <h1>Commitfest history</h1>
+    
+
+    
+
+    
+ <p><a href="/commitfests.ics">Subscribe to Commitfest dates (ICS)</a></p>
+ <ul>
+  
+   <li><a href="/60/">PG20-Drafts</a> (Open - 2026-03-01 – 2027-02-28)</li>
+  
+   <li><a href="/63/">PG20-4</a> (Open - 2027-01-01 – 2027-01-31)</li>
+  
+   <li><a href="/62/">PG20-3</a> (In Progress - 2026-11-01 – 2026-11-30)</li>
+  
+   <li><a href="/61/">PG20-2</a> (Closed - 2026-09-01 – 2026-09-30)</li>
+  
+   <li><a href="/59/">PG20-1</a> (Closed - 2026-07-01 – 2026-07-31)</li>
+  
+   <li><a href="/58/">PG19-Final</a> (Closed - 2026-03-01 – 2026-04-09)</li>
+  
+   <li><a href="/54/">PG19-Drafts</a> (Closed - 2025-06-22 – 2026-02-28)</li>
+  
+   <li><a href="/57/">PG19-4</a> (Closed - 2026-01-01 – 2026-01-31)</li>
+  
+   <li><a href="/56/">PG19-3</a> (Closed - 2025-11-01 – 2025-11-30)</li>
+  
+   <li><a href="/55/">PG19-2</a> (Closed - 2025-09-01 – 2025-09-30)</li>
+  
+   <li><a href="/53/">PG19-1</a> (Closed - 2025-07-01 – 2025-07-31)</li>
+  
+   <li><a href="/52/">2025-03</a> (Closed - 2025-03-01 – 2025-04-08)</li>
+  
+   <li><a href="/51/">2025-01</a> (Closed - 2025-01-01 – 2025-01-31)</li>
+  
+   <li><a href="/50/">2024-11</a> (Closed - 2024-11-01 – 2024-11-30)</li>
+  
+   <li><a href="/49/">2024-09</a> (Closed - 2024-09-01 – 2024-09-30)</li>
+  
+   <li><a href="/48/">2024-07</a> (Closed - 2024-07-01 – 2024-07-31)</li>
+  
+   <li><a href="/47/">2024-03</a> (Closed - 2024-03-01 – 2024-04-08)</li>
+  
+   <li><a href="/46/">2024-01</a> (Closed - 2024-01-01 – 2024-01-31)</li>
+  
+   <li><a href="/45/">2023-11</a> (Closed - 2023-11-01 – 2023-12-04)</li>
+  
+   <li><a href="/44/">2023-09</a> (Closed - 2023-09-01 – 2023-09-30)</li>
+  
+   <li><a href="/43/">2023-07</a> (Closed - 2023-07-01 – 2023-07-31)</li>
+  
+   <li><a href="/42/">2023-03</a> (Closed - 2023-03-01 – 2023-04-08)</li>
+  
+   <li><a href="/41/">2023-01</a> (Closed - 2023-01-01 – 2023-01-31)</li>
+  
+   <li><a href="/40/">2022-11</a> (Closed - 2022-11-01 – 2022-11-30)</li>
+  
+   <li><a href="/39/">2022-09</a> (Closed - 2022-09-01 – 2022-09-30)</li>
+  
+   <li><a href="/38/">2022-07</a> (Closed - 2022-07-01 – 2022-07-31)</li>
+  
+   <li><a href="/37/">2022-03</a> (Closed - 2022-03-01 – 2022-03-31)</li>
+  
+   <li><a href="/36/">2022-01</a> (Closed - 2022-01-01 – 2022-01-31)</li>
+  
+   <li><a href="/35/">2021-11</a> (Closed - 2021-11-01 – 2021-11-30)</li>
+  
+   <li><a href="/34/">2021-09</a> (Closed - 2021-09-01 – 2021-09-30)</li>
+  
+   <li><a href="/33/">2021-07</a> (Closed - 2021-07-01 – 2021-07-31)</li>
+  
+   <li><a href="/32/">2021-03</a> (Closed - 2021-03-01 – 2021-03-31)</li>
+  
+   <li><a href="/31/">2021-01</a> (Closed - 2021-01-01 – 2021-01-31)</li>
+  
+   <li><a href="/30/">2020-11</a> (Closed - 2020-11-01 – 2020-11-30)</li>
+  
+   <li><a href="/29/">2020-09</a> (Closed - 2020-09-01 – 2020-09-30)</li>
+  
+   <li><a href="/28/">2020-07</a> (Closed - 2020-07-01 – 2020-07-31)</li>
+  
+   <li><a href="/27/">2020-03</a> (Closed - 2020-03-01 – 2020-03-31)</li>
+  
+   <li><a href="/26/">2020-01</a> (Closed - 2020-01-01 – 2020-01-31)</li>
+  
+   <li><a href="/25/">2019-11</a> (Closed - 2019-11-01 – 2019-11-30)</li>
+  
+   <li><a href="/24/">2019-09</a> (Closed - 2019-09-01 – 2019-09-30)</li>
+  
+   <li><a href="/23/">2019-07</a> (Closed - 2019-07-01 – 2019-07-31)</li>
+  
+   <li><a href="/22/">2019-03</a> (Closed - 2019-03-01 – 2019-03-31)</li>
+  
+   <li><a href="/21/">2019-01</a> (Closed - 2019-01-01 – 2019-01-31)</li>
+  
+   <li><a href="/20/">2018-11</a> (Closed - 2018-11-01 – 2018-11-30)</li>
+  
+   <li><a href="/19/">2018-09</a> (Closed - 2018-09-01 – 2018-09-30)</li>
+  
+   <li><a href="/18/">2018-07</a> (Closed - 2018-07-01 – 2018-07-31)</li>
+  
+   <li><a href="/17/">2018-03</a> (Closed - 2018-03-01 – 2018-03-31)</li>
+  
+   <li><a href="/16/">2018-01</a> (Closed - 2018-01-01 – 2018-01-31)</li>
+  
+   <li><a href="/15/">2017-11</a> (Closed - 2017-11-01 – 2017-11-30)</li>
+  
+   <li><a href="/14/">2017-09</a> (Closed - 2017-09-01 – 2017-09-30)</li>
+  
+   <li><a href="/13/">2017-03</a> (Closed - 2017-03-01 – 2017-03-31)</li>
+  
+   <li><a href="/12/">2017-01</a> (Closed - 2017-01-01 – 2017-01-31)</li>
+  
+   <li><a href="/11/">2016-11</a> (Closed - 2016-11-01 – 2016-11-30)</li>
+  
+   <li><a href="/10/">2016-09</a> (Closed - 2016-09-01 – 2016-09-30)</li>
+  
+   <li><a href="/9/">2016-03</a> (Closed - 2016-03-01 – 2016-03-31)</li>
+  
+   <li><a href="/8/">2016-01</a> (Closed - 2016-01-02 – 2016-02-08)</li>
+  
+   <li><a href="/7/">2015-11</a> (Closed - 2015-11-01 – 2015-11-30)</li>
+  
+   <li><a href="/6/">2015-09</a> (Closed - 2015-09-01 – 2015-09-30)</li>
+  
+   <li><a href="/5/">2015-07</a> (Closed - 2015-07-01 – 2015-07-31)</li>
+  
+   <li><a href="/4/">2015-02</a> (Closed - 2015-02-15 – 2015-05-15)</li>
+  
+   <li><a href="/3/">2014-12</a> (Closed - 2014-12-15 – 2015-01-15)</li>
+  
+ </ul>
+ <br/>
+
+   </div>
+   <script src="/media/commitfest/js/jquery.js"></script>
+   <script src="/media/commitfest/js/jquery-ui.js"></script>
+   <script src="/media/commitfest/js/bootstrap.js?v=5.3.7"></script>
+   <script src="/media/commitfest/js/selectize.min.js"></script>
+   <script src="/media/commitfest/js/commitfest.js?v=9a8f9543-5b06-4325-8d74-328d033a989d"></script>
+   
+
+</html>
