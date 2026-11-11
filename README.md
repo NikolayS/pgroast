@@ -66,21 +66,35 @@ The precedent index holds 2,547 rows: CommitFest entries that ended Rejected, Re
 
 Full design: [docs/design.md](docs/design.md).
 
-## Setup
+## Requirements
 
-You need:
+1. **An AI coding CLI, installed and signed in with your subscription.** One of:
+   - [Claude Code](https://claude.com/claude-code): install it, run `claude` once and sign in (`/login`). The account needs access to Opus, and to Mythos 5.2 or Fable 5.2.
+   - Codex CLI: install it and run `codex login`.
 
-- [Bun](https://bun.sh) 1.3.5 or later. There are no npm dependencies.
-- Postgres 18 with a database `pgroast` (`PGROAST_DSN`; the default is the local socket).
-- A signed-in [Claude Code](https://claude.com/claude-code) CLI (`claude`) or Codex CLI (`codex`). The subscription login is used. API keys are never read and are removed from the child environment.
-- A clone of the Postgres repository, only if you rebuild the index (`PGROAST_PG_REPO`).
+   PG Roast starts that CLI for every model call, so the calls count toward the limits of the account the CLI is signed in to. A roast is 12 to 20 calls. No API key is needed or used: `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`, `OPENAI_API_KEY` and `CODEX_API_KEY` are removed from the CLI's environment, and a call fails if the CLI reports that it is using a key.
+2. **[Bun](https://bun.sh) 1.3.5 or later.** There are no npm dependencies.
+3. **Postgres 18** with `psql` on the PATH, for the precedent index (database `pgroast`; `PGROAST_DSN` if it is not on the local socket).
+4. A clone of the Postgres repository, only if you rebuild the index (`PGROAST_PG_REPO`).
+
+## Quick start
 
 ```
+git clone https://github.com/NikolayS/pgroast && cd pgroast
 createdb pgroast && gunzip -c data/precedents.sql.gz | psql -d pgroast
-bun run src/cli.ts doctor
+bun run src/cli.ts doctor            # checks both CLIs and their login
+bun run src/cli.ts <cf-id|thread-url>
 ```
 
-On the claude backend only Opus, Mythos and Fable models are accepted (Fable 5.2 is the same underlying model as Mythos 5.2) (`PGROAST_ROASTER_MODEL`, `PGROAST_CRITIC_MODEL`).
+`doctor` makes one small call on each installed CLI and says which backends are usable. If it reports a sign-in problem, run `claude` (then `/login`) or `codex login` and try again.
+
+Models on the claude backend: roasters run on `opus` (`PGROAST_ROASTER_MODEL`), critic and synthesis on `claude-mythos-5-2` (`PGROAST_CRITIC_MODEL`). If your account does not have Mythos 5.2, use Fable 5.2, which is the same underlying model:
+
+```
+export PGROAST_CRITIC_MODEL=claude-fable-5-2
+```
+
+Only Opus, Mythos and Fable models are accepted on the claude backend. To use Codex instead, pass `--backend codex`.
 
 ## Run
 
