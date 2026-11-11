@@ -1,10 +1,10 @@
 // Git source: commits whose message has a line starting with "Revert"
 // (git log --grep='^Revert' -i) in the local Postgres clone. Read-only.
 
-import { resolve } from "node:path";
+import { resolve as pathResolve } from "node:path";
 import { extractMsgids, flatUrl, touchPoints, type PrecedentRecord } from "./util.ts";
 
-export const PG_REPO = process.env.PGROAST_PG_REPO ?? resolve(import.meta.dir, "..", "..", "..", "postgres");
+export const PG_REPO = process.env.PGROAST_PG_REPO ?? pathResolve(import.meta.dir, "..", "..", "..", "postgres");
 export const GITWEB = "https://git.postgresql.org/gitweb/?p=postgresql.git;a=commit;h=";
 
 export async function git(...args: string[]): Promise<{ out: string; code: number }> {
