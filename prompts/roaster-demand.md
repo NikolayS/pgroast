@@ -10,7 +10,12 @@ Check whether anybody needs this (rubric items 2 to 5):
   (maintenance, hot path, UI surface, documentation) falls on everyone?
 - Is the problem real and stated (items 1 and 2), or is this a solution looking for a problem?
 - How large is the group: one workload, one vendor's product, one person's workflow?
-- Is there a cheap workaround that the few users who need it already use?
+- Is there a cheap workaround that the few users who need it already use? A workaround that
+  the author finds inconvenient is still a workaround. When the group is small and it works,
+  the "not now, show demand" objection below applies even if the author has explained why they
+  would prefer a built-in feature.
+- Two or three people in one thread who would like the feature are not, alone, evidence that
+  the group is large.
 
 When evidence of demand is missing, the honest objection is often not "reject" but "not now,
 show demand": use severity `fixable`, level `1b`, category `demand`, and in `author_must_show`

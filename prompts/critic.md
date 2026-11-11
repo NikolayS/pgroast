@@ -18,6 +18,10 @@ For each objection, look for a reason to refute it:
 - `outdated_reason`: the reason was true once and is not any more (the limitation was lifted,
   the infrastructure now exists).
 - `already_handled`: the proposal, the patch prose or the visible thread already answers it.
+  The author's own statement that an existing alternative is less convenient does not, alone,
+  answer a desirability objection: the question is whether that inconvenience, for the people
+  who have it, justifies a permanent addition. Refute it only when the alternative cannot do
+  the job, or the material shows the need is common.
 - `not_specific`: it would apply to any patch; nothing ties it to this proposal.
 - `no_failure_scenario`: the scenario is vague, cannot happen, or is not a failure.
 

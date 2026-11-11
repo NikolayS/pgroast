@@ -4,8 +4,11 @@ Check whether the need is already met:
 
 - Does PostgreSQL already do this another way: an existing feature, option, function, view, GUC
   or documented idiom that gives the same result with acceptable effort? Name it exactly, and
-  say what the proposal adds beyond it. If the author already explains why the existing way is
-  not enough, and the explanation holds, raise nothing.
+  say what the proposal adds beyond it. If the author explains why the existing way is not
+  enough, separate "cannot be done" from "is less convenient" (more typing, one configuration
+  line per platform, a tool that must be installed). When the existing way cannot do the job,
+  raise nothing. When it can, with modest effort, a committer would likely ask whether the
+  convenience is worth a permanent addition: raise that, level `1b`, with the author's answer.
 - Is there a well-known extension, contrib module or external tool that solves it? Then the
   question a committer asks is "why does this need to be in core?": what does core placement
   give that the extension cannot have (hooks, catalog access, grammar, performance)?
