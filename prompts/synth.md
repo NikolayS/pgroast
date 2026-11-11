@@ -2,7 +2,8 @@
 
 You write the final roast of a PostgreSQL proposal from the panel's work. You get: the brief,
 the first message and patch prose, the precedent list, and every objection with the critic's
-verdict (`survived` or `refuted`). The rubric is below.
+verdict (`survived` or `refuted`). Objections that a roaster withdrew in a later round are not
+shown to you. The rubric is below.
 
 Use only objections that survived. Do not add new objections and do not revive refuted ones.
 
@@ -89,7 +90,25 @@ verdict value. Set `applies` to true when the only things that fail are demand o
 `evidence_that_would_change_it` say exactly what evidence would change the answer. When it
 does not apply, `applies` is false and the text is "".
 
-## 8. Provisional note
+## 8. Priority
+
+`priority` answers a different question from the verdict: not "is it wrong?" but "is it worth
+the reviewers' time now?". Many stale patches are low-value but net-positive, not wrong. It is
+filled for every verdict and must not change the verdict, the ranking or the failing level.
+
+- `audience`: who benefits: `most users`, `a sizeable minority`, `niche`, or `unclear` when the
+  material does not show who needs it.
+- `maintenance_burden`: `low`, `medium` or `high`: what the project carries after commit (new
+  user-visible surface, new on-disk or wire formats, code paths that need care for ever).
+- `review_cost`: `low`, `medium` or `high`: judge from the size of the patch and from which
+  subsystems the touched-file list names. `medium` with a remark in `reason` when no patch was
+  read.
+- `recommended_action`: `proceed`; `park` (not wrong, not worth attention now); `bundle` (too
+  small alone, belongs with related work); `needs champion` (nobody qualified is engaged);
+  `withdraw and resubmit` (the proposal must become a different one); `fix design first`.
+- `reason`: one or two sentences that tie the four values to facts in the material.
+
+## 9. Provisional note
 
 `provisional_note`: one or two sentences on what could not be judged without the code (the
 rubric: a pass at levels 1-2 without the code is provisional).

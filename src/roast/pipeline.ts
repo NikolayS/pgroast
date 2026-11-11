@@ -5,6 +5,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { REPO_ROOT } from "../thread/fetch.ts";
 import type { ProposalInput, Thread } from "../thread/types.ts";
+import { loadInvariantFiles, renderInvariants, selectInvariants, type InvariantFile } from "./invariants.ts";
 import { ENRICH_SCHEMA, RELEVANCE_SCHEMA, enrichPrecedents, openPgEnrichmentStore, type EnrichmentStore } from "./enrich.ts";
 import type { LlmBackend } from "./llm.ts";
 import { materialRawText, renderMaterial } from "./material.ts";
@@ -17,9 +18,12 @@ import {
   DISCLOSURE,
   LEVELS,
   LEVEL_NAMES,
+  REFLECT_SCHEMA,
   ROASTER_SCHEMA,
   SCHEMA_VERSION,
+  SUPERVISOR_SCHEMA,
   SYNTH_SCHEMA,
+  SYNTH_SELF_SCHEMA,
   TOUCH_POINTS,
   levelRank,
   type Angle,
@@ -30,8 +34,13 @@ import {
   type Level,
   type Precedent,
   type PriorAttempt,
+  type RawObjection,
   type RawPriorAttempt,
+  type ReflectOutput,
   type Roast,
+  type RoundRecord,
+  type SelfAdvice,
+  type SupervisorOutput,
   type RoasterOutput,
   type SanitizerReport,
   type SynthOutput,
@@ -42,6 +51,12 @@ import {
 export interface RunOptions {
   backend: LlmBackend;
   models: { roaster: string; critic: string; synth: string; brief: string };
+  /** "self" = the author's own pre-flight check: same pipeline, other framing. */
+  mode?: "review" | "self";
+  /** Extra rounds after the first pass (default 0). 1 = "What did you forget?", 2 = + "Are you happy with the results?", 3+ = supervisor follow-ups. */
+  rounds?: number;
+  /** Injected for tests; default = the files under invariants/. */
+  invariants?: InvariantFile[];
   /** Recorded in roast.json: "claude" | "codex". */
   backendName?: string;
   hint?: string | null;
@@ -74,7 +89,14 @@ export interface Prompts {
   synth: string;
   enrich: string;
   relevance: string;
+  reflect: string;
+  supervisor: string;
+  synthSelf: string;
 }
+
+/** The two reflection questions, verbatim from the issue. */
+export const FORGOT_PROMPT = "What did you forget?";
+export const HAPPY_PROMPT = "Are you happy with the results?";
 
 export function loadPrompts(dir: string = join(REPO_ROOT, "prompts")): Prompts {
   const read = (f: string) => readFileSync(join(dir, f), "utf8").trim();
@@ -88,6 +110,9 @@ export function loadPrompts(dir: string = join(REPO_ROOT, "prompts")): Prompts {
     synth: read("synth.md"),
     enrich: read("enrich.md"),
     relevance: read("relevance.md"),
+    reflect: read("reflect.md"),
+    supervisor: read("supervisor.md"),
+    synthSelf: read("synth-self.md"),
   };
 }
 
@@ -134,14 +159,25 @@ function withRubric(head: string, rubric: string, tail: string): string {
   return `${head}\n\n---\n\n# Rubric (prompts/committer-paranoia.md, verbatim)\n\n${rubric}\n\n---\n\n${tail}`;
 }
 
-export function roasterSystem(p: Prompts, angle: Angle): string {
-  return withRubric(p.roasterCommon, p.rubric, `${p.angles[angle]}\n\n${outputContract(ROASTER_SCHEMA, true)}`);
+/** Angles that get the subsystem invariants (the critic gets them too). */
+export const INVARIANT_ANGLES: readonly Angle[] = ["replication-ondisk", "maintenance-fit"];
+
+const withInvariants = (angle: Angle, invariants: string) => (invariants && INVARIANT_ANGLES.includes(angle) ? `\n\n${invariants}` : "");
+
+export function roasterSystem(p: Prompts, angle: Angle, invariants = ""): string {
+  return withRubric(p.roasterCommon, p.rubric, `${p.angles[angle]}${withInvariants(angle, invariants)}\n\n${outputContract(ROASTER_SCHEMA, true)}`);
 }
-export function criticSystem(p: Prompts): string {
-  return withRubric(p.critic, p.rubric, outputContract(CRITIC_SCHEMA, false));
+export function reflectSystem(p: Prompts, angle: Angle, invariants = ""): string {
+  return withRubric(p.roasterCommon, p.rubric, `${p.angles[angle]}${withInvariants(angle, invariants)}\n\n${p.reflect}\n\n${outputContract(REFLECT_SCHEMA, true)}`);
 }
-export function synthSystem(p: Prompts): string {
-  return withRubric(p.synth, p.rubric, outputContract(SYNTH_SCHEMA, true));
+export function criticSystem(p: Prompts, invariants = ""): string {
+  return withRubric(p.critic, p.rubric, `${invariants ? `${invariants}\n\n` : ""}${outputContract(CRITIC_SCHEMA, false)}`);
+}
+export function synthSystem(p: Prompts, self = false): string {
+  return withRubric(p.synth, p.rubric, `${self ? `${p.synthSelf}\n\n` : ""}${outputContract(self ? SYNTH_SELF_SCHEMA : SYNTH_SCHEMA, true)}`);
+}
+export function supervisorSystem(p: Prompts): string {
+  return `${p.supervisor}\n\n${outputContract(SUPERVISOR_SCHEMA, false)}`;
 }
 export function briefSystem(p: Prompts): string {
   return `${p.brief}\n\n${outputContract(BRIEF_SCHEMA, false)}`;
@@ -167,7 +203,9 @@ export function slugFor(p: ProposalInput): string {
   const base =
     p.ref.kind === "cf"
       ? `cf-${p.ref.id}`
-      : "msg-" +
+      : p.ref.kind === "local"
+        ? "self-" + p.ref.name.replace(/\.[A-Za-z0-9]+$/, "").replace(/[^A-Za-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40)
+        : "msg-" +
         p.thread.rootMessageId
           .replace(/@.*$/, "")
           .replace(/[^A-Za-z0-9]+/g, "-")
@@ -201,6 +239,7 @@ export interface Assembled {
   objections: FinalObjection[];
   other_surviving: FinalObjection[];
   refuted: FinalObjection[];
+  withdrawn: FinalObjection[];
   touch_points: TouchPointResult[];
   prior_attempts: PriorAttempt[];
 }
@@ -254,6 +293,7 @@ export function assemble(a: AssembleArgs): Assembled {
   const { synth, warnings } = a;
   const survived = a.objections.filter((o) => o.status === "survived");
   const refuted = a.objections.filter((o) => o.status === "refuted");
+  const withdrawn = a.objections.filter((o) => o.status === "withdrawn");
   const byId = new Map(survived.map((o) => [o.id, o]));
 
   // Ranked list: surviving objections only, no duplicates, at most 5.
@@ -347,7 +387,7 @@ export function assemble(a: AssembleArgs): Assembled {
     return { id: t.id, label: t.label, hit, reason };
   });
 
-  return { verdict, failing_level: failing, levels, objections: ranked, other_surviving: other, refuted, touch_points: touch, prior_attempts: prior };
+  return { verdict, failing_level: failing, levels, objections: ranked, other_surviving: other, refuted, withdrawn, touch_points: touch, prior_attempts: prior };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -377,6 +417,15 @@ export async function runRoast(proposal: ProposalInput, opts: RunOptions): Promi
   allowed.addFromText(threadText);
   allowed.addFromText(prompts.rubric);
 
+  // Subsystem invariants: files whose path prefixes match what the patch touches.
+  const touched = [...new Set(proposal.patchProse.flatMap((pp) => pp.files))];
+  const invariantFiles = selectInvariants(touched, opts.invariants ?? loadInvariantFiles());
+  const invariantsText = renderInvariants(invariantFiles);
+  for (const f of invariantFiles) for (const u of f.sourceUrls) allowed.add(u);
+  if (invariantFiles.length) log(`invariants: ${invariantFiles.map((f) => f.file).join(", ")}`);
+  const selfMode = opts.mode === "self";
+  const maxRounds = Math.max(0, Math.floor(opts.rounds ?? 0));
+
   // a. Brief
   log("brief ...");
   let brief = await backend.complete<Brief>({
@@ -403,7 +452,7 @@ export async function runRoast(proposal: ProposalInput, opts: RunOptions): Promi
     includeUndated: !evalMode,
     self: {
       cfId: proposal.cf?.id ?? null,
-      messageIds: [proposal.thread.rootMessageId, ...(proposal.cf?.threads.map((t) => t.messageId) ?? [])],
+      messageIds: [proposal.thread.rootMessageId, ...(proposal.cf?.threads.map((t) => t.messageId) ?? [])].filter(Boolean),
     },
     search: opts.search,
     limit: opts.enrich === false ? (opts.precedentLimit ?? 15) : 24,
@@ -425,7 +474,7 @@ export async function runRoast(proposal: ProposalInput, opts: RunOptions): Promi
       store,
       max: opts.enrichMax ?? 8,
       evalMode,
-      selfMessageIds: [proposal.thread.rootMessageId, ...(proposal.cf?.threads.map((t) => t.messageId) ?? [])],
+      selfMessageIds: [proposal.thread.rootMessageId, ...(proposal.cf?.threads.map((t) => t.messageId) ?? [])].filter(Boolean),
       loadThreadFn: opts.enrichLoadThread,
       closersFn: opts.enrichClosers,
       log,
@@ -486,64 +535,49 @@ export async function runRoast(proposal: ProposalInput, opts: RunOptions): Promi
   const msgByIndex = new Map(proposal.thread.messages.map((m) => [m.index, m]));
   const roasterNotes: Roast["roaster_notes"] = [];
   const objections: FinalObjection[] = [];
+  const rounds: RoundRecord[] = [];
   let roasterPrior: RawPriorAttempt[] = [];
 
-  const outputs = await Promise.all(
-    angles.map(async (angle) => {
-      try {
-        const out = await backend.complete<RoasterOutput>({
-          label: `roaster-${angle}`,
-          model: models.roaster,
-          system: roasterSystem(prompts, angle),
-          prompt: `${shared}\n\n# Task\n\nRoast this proposal from your angle (${angle}). Zero objections is a valid answer. JSON only.`,
-          schema: ROASTER_SCHEMA,
-        });
-        return { angle, out, error: null as string | null };
-      } catch (e) {
-        return { angle, out: null, error: (e as Error).message };
-      }
-    }),
-  );
-  if (outputs.every((o) => o.error)) throw new Error(`every roaster failed; first error: ${outputs[0]!.error}`);
-
-  for (const { angle, out, error } of outputs) {
-    if (!out) {
-      warnings.push(`roaster "${angle}" failed and is missing from this roast: ${error}`);
-      roasterNotes.push({ angle, objections: 0, note: `FAILED: ${error}` });
-      continue;
-    }
-    const stage = `roaster-${angle}`;
-    const clean = scrubUrls(out, allowed, stage, report);
-    clean.objections.forEach((o, i) => {
-      const precedent_ids = filterPrecedentIds(o.precedent_ids, knownPrecedents, stage, report);
-      const refs = filterThreadRefs(o.thread_message_refs, visible, stage, report);
-      objections.push({
-        ...o,
-        precedent_ids,
-        thread_message_refs: refs,
-        touch_points: [...new Set(o.touch_points)],
-        id: `${angle}-${i + 1}`,
+  /** Sanitise one raw objection and resolve its references. Links come from code. */
+  const resolve = (o: RawObjection, stage: string) => {
+    const precedent_ids = filterPrecedentIds(o.precedent_ids, knownPrecedents, stage, report);
+    const refs = filterThreadRefs(o.thread_message_refs, visible, stage, report);
+    return {
+      ...o,
+      precedent_ids,
+      thread_message_refs: refs,
+      touch_points: [...new Set(o.touch_points)],
+      precedents: precedent_ids.map((id) => {
+        const p = knownPrecedents.get(id)!;
+        return { id, title: p.title, url: p.url, thread_urls: p.thread_urls, date: p.date, status: p.status };
+      }),
+      thread_refs: refs.map((n) => {
+        const m = msgByIndex.get(n)!;
+        return { index: n, from: m.from.replace(/\s*<[^>]*>\s*$/, ""), date: m.date, url: m.url };
+      }),
+    };
+  };
+  const addObjections = (angle: Angle, raws: RawObjection[], round: number, stage: string): FinalObjection[] => {
+    const added: FinalObjection[] = [];
+    for (const o of raws) {
+      const n = objections.filter((x) => x.angle === angle && x.round === round).length + 1;
+      const fo: FinalObjection = {
+        ...resolve(o, stage),
+        id: round === 0 ? `${angle}-${n}` : `${angle}-r${round}-${n}`,
         angle,
+        round,
+        revised_in_round: null,
         status: "survived",
+        withdrawal: null,
         critic: { refutation_kind: "none", reasoning: "", original_severity: null },
-        precedents: precedent_ids.map((id) => {
-          const p = knownPrecedents.get(id)!;
-          return { id, title: p.title, url: p.url, thread_urls: p.thread_urls, date: p.date, status: p.status };
-        }),
-        thread_refs: refs.map((n) => {
-          const m = msgByIndex.get(n)!;
-          return { index: n, from: m.from.replace(/\s*<[^>]*>\s*$/, ""), date: m.date, url: m.url };
-        }),
         not_ranked_reason: null,
-      });
-    });
-    if (angle === "prior-attempts") roasterPrior = clean.prior_attempts;
-    else if (clean.prior_attempts.length) warnings.push(`roaster "${angle}" returned prior attempts; ignored (only the prior-attempts roaster may)`);
-    roasterNotes.push({ angle, objections: clean.objections.length, note: clean.no_objection_note });
-  }
-  log(`objections raised: ${objections.length}`);
+      };
+      objections.push(fo);
+      added.push(fo);
+    }
+    return added;
+  };
 
-  // d. Critic
   const forPrompt = (o: FinalObjection) => ({
     id: o.id,
     angle: o.angle,
@@ -559,22 +593,39 @@ export async function runRoast(proposal: ProposalInput, opts: RunOptions): Promi
     thread_message_refs: o.thread_message_refs,
     author_must_show: o.author_must_show,
   });
-  if (objections.length > 0 || backend.dryRun) {
-    log("critic ...");
+  const withVerdict = (o: FinalObjection) => ({
+    ...forPrompt(o),
+    round: o.round,
+    status: o.status,
+    critic_reasoning: o.critic.reasoning,
+    severity_before_critic: o.critic.original_severity,
+    ...(o.withdrawal ? { withdrawn_because: o.withdrawal.reason } : {}),
+  });
+
+  /** d. Critic: tries to refute the given objections; one verdict each. */
+  const runCritic = async (targets: FinalObjection[], label: string): Promise<void> => {
+    if (targets.length === 0 && !backend.dryRun) return;
+    log(`${label} ...`);
+    const earlier = objections.filter((o) => !targets.includes(o) && o.status !== "withdrawn");
     const critic = scrubUrls(
       await backend.complete<CriticOutput>({
-        label: "critic",
+        label,
         model: models.critic,
-        system: criticSystem(prompts),
-        prompt: `${shared}\n\n# Objections to refute\n\n${JSON.stringify(objections.map(forPrompt), null, 1)}\n\n# Task\n\nTry to refute each objection. One verdict per id: ${objections.map((o) => o.id).join(", ") || "(none)"}. JSON only.`,
+        system: criticSystem(prompts, invariantsText),
+        prompt: [
+          shared,
+          ...(earlier.length && targets.length ? [`# Objections already checked in earlier rounds (for duplicate detection only; give no verdict on these)\n\n${JSON.stringify(earlier.map((o) => ({ id: o.id, title: o.title, status: o.status })), null, 1)}`] : []),
+          `# Objections to refute\n\n${JSON.stringify(targets.map(forPrompt), null, 1)}`,
+          `# Task\n\nTry to refute each objection. One verdict per id: ${targets.map((o) => o.id).join(", ") || "(none)"}. JSON only.`,
+        ].join("\n\n"),
         schema: CRITIC_SCHEMA,
       }),
       allowed,
-      "critic",
+      label,
       report,
     );
     const verdicts = new Map(critic.verdicts.map((v) => [v.objection_id.trim(), v]));
-    for (const o of objections) {
+    for (const o of targets) {
       const v = verdicts.get(o.id);
       if (!v) {
         warnings.push(`the critic gave no verdict on ${o.id}; kept as survived, unchecked`);
@@ -589,18 +640,203 @@ export async function runRoast(proposal: ProposalInput, opts: RunOptions): Promi
         o.severity = v.adjusted_severity;
       }
     }
+    const ok = targets.filter((o) => o.status === "survived").length;
+    log(`${label}: ${ok} survived, ${targets.length - ok} refuted`);
+  };
+
+  // Round 0: the first pass.
+  let callsBefore = backend.stats().calls;
+  const outputs = await Promise.all(
+    angles.map(async (angle) => {
+      try {
+        const out = await backend.complete<RoasterOutput>({
+          label: `roaster-${angle}`,
+          model: models.roaster,
+          system: roasterSystem(prompts, angle, invariantsText),
+          prompt: `${shared}\n\n# Task\n\nRoast this proposal from your angle (${angle}). Zero objections is a valid answer. JSON only.`,
+          schema: ROASTER_SCHEMA,
+        });
+        return { angle, out, error: null as string | null };
+      } catch (e) {
+        return { angle, out: null, error: (e as Error).message };
+      }
+    }),
+  );
+  if (outputs.every((o) => o.error)) throw new Error(`every roaster failed; first error: ${outputs[0]!.error}`);
+
+  const ran: Angle[] = [];
+  for (const { angle, out, error } of outputs) {
+    if (!out) {
+      warnings.push(`roaster "${angle}" failed and is missing from this roast: ${error}`);
+      roasterNotes.push({ angle, objections: 0, note: `FAILED: ${error}` });
+      continue;
+    }
+    ran.push(angle);
+    const stage = `roaster-${angle}`;
+    const clean = scrubUrls(out, allowed, stage, report);
+    addObjections(angle, clean.objections, 0, stage);
+    if (angle === "prior-attempts") roasterPrior = clean.prior_attempts;
+    else if (clean.prior_attempts.length) warnings.push(`roaster "${angle}" returned prior attempts; ignored (only the prior-attempts roaster may)`);
+    roasterNotes.push({ angle, objections: clean.objections.length, note: clean.no_objection_note });
   }
-  const survivedCount = objections.filter((o) => o.status === "survived").length;
-  log(`critic: ${survivedCount} survived, ${objections.length - survivedCount} refuted`);
+  log(`objections raised: ${objections.length}`);
+  await runCritic([...objections], "critic");
+  rounds.push({
+    round: 0,
+    kind: "initial",
+    llm_calls: backend.stats().calls - callsBefore,
+    new_objections: objections.length,
+    new_survived: objections.filter((o) => o.status === "survived").length,
+    revised: 0,
+    withdrawn: 0,
+    follow_ups: [],
+    note: "",
+  });
+
+  // Extra rounds (--rounds N). Same evidence rules, same no-tools guarantee; a round may add nothing.
+  const answersOf = (angle: Angle) => ({
+    objections: objections.filter((o) => o.angle === angle).map(withVerdict),
+    note: roasterNotes.find((n) => n.angle === angle)?.note ?? "",
+  });
+  for (let round = 1; round <= maxRounds; round++) {
+    callsBefore = backend.stats().calls;
+    const fresh: FinalObjection[] = [];
+    const rec: RoundRecord = { round, kind: round === 1 ? "what_did_you_forget" : round === 2 ? "are_you_happy" : "supervisor", llm_calls: 0, new_objections: 0, new_survived: 0, revised: 0, withdrawn: 0, follow_ups: [], note: "" };
+
+    if (round <= 2) {
+      // Reflection: every roaster that ran gets one short question about its own answer.
+      const question = round === 1 ? FORGOT_PROMPT : HAPPY_PROMPT;
+      log(`round ${round}: "${question}" ...`);
+      const replies = await Promise.all(
+        ran.map(async (angle) => {
+          try {
+            const out = await backend.complete<ReflectOutput>({
+              label: `round${round}-${angle}`,
+              model: models.roaster,
+              system: reflectSystem(prompts, angle, invariantsText),
+              prompt: `${shared}\n\n# Your answers so far (angle: ${angle})${round >= 2 ? ", with the critic's verdicts" : ""}\n\n${JSON.stringify(answersOf(angle), null, 1)}\n\n# Question\n\n${question}`,
+              schema: REFLECT_SCHEMA,
+            });
+            return { angle, out };
+          } catch (e) {
+            warnings.push(`round ${round}: roaster "${angle}" failed: ${(e as Error).message.split("\n")[0]}`);
+            return { angle, out: null };
+          }
+        }),
+      );
+      for (const { angle, out } of replies) {
+        if (!out) continue;
+        const stage = `round${round}-${angle}`;
+        const clean = scrubUrls(out, allowed, stage, report);
+        fresh.push(...addObjections(angle, clean.objections, round, stage));
+        if (round >= 2) {
+          const own = (id: string) => objections.find((o) => o.id === id.trim() && o.angle === angle && o.status !== "withdrawn");
+          for (const w of clean.withdrawn) {
+            const o = own(w.objection_id);
+            if (!o) {
+              warnings.push(`round ${round}: "${angle}" tried to withdraw "${w.objection_id}", which is not an open objection of its own; ignored`);
+              continue;
+            }
+            // Recorded with its reason, never deleted.
+            o.status = "withdrawn";
+            o.withdrawal = { round, reason: w.reason };
+            rec.withdrawn++;
+          }
+          for (const rv of clean.revised) {
+            const o = own(rv.objection_id);
+            if (!o) {
+              warnings.push(`round ${round}: "${angle}" tried to revise "${rv.objection_id}", which is not an open objection of its own; ignored`);
+              continue;
+            }
+            Object.assign(o, resolve(rv.objection, stage), { revised_in_round: round, status: "survived", critic: { refutation_kind: "none", reasoning: "", original_severity: null } });
+            if (!fresh.includes(o)) fresh.push(o);
+            rec.revised++;
+          }
+        } else if (clean.withdrawn.length || clean.revised.length) {
+          warnings.push(`round 1: "${angle}" returned revisions or withdrawals; ignored (round 1 only adds)`);
+        }
+        if (clean.note.trim()) rec.note += `${angle}: ${clean.note.trim()} `;
+      }
+    } else {
+      // Supervisor: names what nobody examined; an empty list ends the loop.
+      log(`round ${round}: supervisor ...`);
+      let sup: SupervisorOutput;
+      try {
+        sup = scrubUrls(
+          await backend.complete<SupervisorOutput>({
+            label: `round${round}-supervisor`,
+            model: models.critic,
+            system: supervisorSystem(prompts),
+            prompt: [
+              head,
+              `# Brief\n\n${JSON.stringify(brief, null, 1)}`,
+              `# Files touched by the patch\n\n${touched.length ? touched.map((f) => `- ${f}`).join("\n") : "(no patch read)"}`,
+              `# Objections so far\n\n${JSON.stringify(objections.map(withVerdict), null, 1)}`,
+              `# Roaster notes\n\n${roasterNotes.map((n) => `- ${n.angle}: ${n.objections} objection(s) in the first pass. ${n.note}`).join("\n")}`,
+              `# Angles you can send back\n\n${ran.join(", ")}`,
+              "# Task\n\nName up to 3 uncovered areas, or none. JSON only.",
+            ].join("\n\n"),
+            schema: SUPERVISOR_SCHEMA,
+          }),
+          allowed,
+          `round${round}-supervisor`,
+          report,
+        );
+      } catch (e) {
+        warnings.push(`round ${round}: the supervisor failed: ${(e as Error).message.split("\n")[0]}; rounds stopped`);
+        break;
+      }
+      rec.note = sup.coverage_note;
+      const follow = sup.follow_ups.filter((f) => ran.includes(f.angle)).slice(0, 3);
+      rec.follow_ups = follow.map((f) => ({ angle: f.angle, uncovered_area: f.uncovered_area }));
+      const replies = await Promise.all(
+        follow.map(async (f, i) => {
+          try {
+            const out = await backend.complete<RoasterOutput>({
+              label: `round${round}-followup${i + 1}-${f.angle}`,
+              model: models.roaster,
+              system: roasterSystem(prompts, f.angle, invariantsText),
+              prompt: `${shared}\n\n# Your answers so far (angle: ${f.angle})\n\n${JSON.stringify(answersOf(f.angle), null, 1)}\n\n# Follow-up from the supervisor\n\nArea not covered: ${f.uncovered_area}\n\n${f.instruction}\n\n# Task\n\nExamine this area only, from your angle (${f.angle}). Return only new objections about it; do not repeat earlier ones. An empty list is a valid answer: say in no_objection_note what you checked. JSON only.`,
+              schema: ROASTER_SCHEMA,
+            });
+            return { f, out };
+          } catch (e) {
+            warnings.push(`round ${round}: follow-up for "${f.angle}" failed: ${(e as Error).message.split("\n")[0]}`);
+            return { f, out: null };
+          }
+        }),
+      );
+      for (const { f, out } of replies) {
+        if (!out) continue;
+        const stage = `round${round}-${f.angle}`;
+        fresh.push(...addObjections(f.angle, scrubUrls(out, allowed, stage, report).objections, round, stage));
+      }
+      if (follow.length === 0) {
+        rec.llm_calls = backend.stats().calls - callsBefore;
+        rounds.push(rec);
+        log(`round ${round}: the supervisor found the coverage adequate; rounds end`);
+        break;
+      }
+    }
+
+    const added = fresh.filter((o) => o.round === round);
+    await runCritic(fresh, `critic-round${round}`);
+    rec.new_objections = added.length;
+    rec.new_survived = added.filter((o) => o.status === "survived").length;
+    rec.llm_calls = backend.stats().calls - callsBefore;
+    rounds.push(rec);
+    log(`round ${round}: ${rec.new_objections} new (${rec.new_survived} survived), ${rec.revised} revised, ${rec.withdrawn} withdrawn`);
+  }
 
   // e. Synthesis
   log("synthesis ...");
   const synthMaterial = renderMaterial(proposal, { maxMessages: 3, maxThreadChars: 40_000 });
+  const live = objections.filter((o) => o.status !== "withdrawn");
   const synth = scrubUrls(
     await backend.complete<SynthOutput>({
       label: "synth",
       model: models.synth,
-      system: synthSystem(prompts),
+      system: synthSystem(prompts, selfMode),
       prompt: [
         head,
         `# Brief\n\n${JSON.stringify(brief, null, 1)}`,
@@ -608,14 +844,14 @@ export async function runRoast(proposal: ProposalInput, opts: RunOptions): Promi
         `# Precedents (retrieved by code)\n\n${precedentText}`,
         `# Prior attempts proposed by the prior-attempts roaster\n\n${JSON.stringify(roasterPrior, null, 1)}`,
         `# Objections with the critic's verdicts\n\n${JSON.stringify(
-          objections.map((o) => ({ ...forPrompt(o), critic_verdict: o.status, critic_reasoning: o.critic.reasoning, severity_before_critic: o.critic.original_severity })),
+          live.map((o) => ({ ...forPrompt(o), critic_verdict: o.status, critic_reasoning: o.critic.reasoning, severity_before_critic: o.critic.original_severity })),
           null,
           1,
         )}`,
         `# Roaster notes\n\n${roasterNotes.map((n) => `- ${n.angle}: ${n.objections} objection(s). ${n.note}`).join("\n")}`,
-        "# Task\n\nWrite the synthesis. JSON only.",
+        `# Task\n\nWrite the synthesis${selfMode ? " for the author (self mode)" : ""}. JSON only.`,
       ].join("\n\n"),
-      schema: SYNTH_SCHEMA,
+      schema: selfMode ? SYNTH_SELF_SCHEMA : SYNTH_SCHEMA,
     }),
     allowed,
     "synth",
@@ -634,6 +870,17 @@ export async function runRoast(proposal: ProposalInput, opts: RunOptions): Promi
   }
   if (notNow.applies && !notNow.evidence_that_would_change_it.trim()) {
     warnings.push('synthesis set "not now" without saying what evidence would change it');
+  }
+
+  // Self mode: advice per surviving objection, in the model's order; unknown ids are dropped.
+  const selfAdvice: SelfAdvice[] = [];
+  if (selfMode) {
+    const surviving = new Set([...asm.objections, ...asm.other_surviving].map((o) => o.id));
+    for (const a of synth.self_advice ?? []) {
+      const id = a.objection_id.trim();
+      if (surviving.has(id) && !selfAdvice.some((x) => x.objection_id === id)) selfAdvice.push({ ...a, objection_id: id });
+      else if (!surviving.has(id)) warnings.push(`self advice for "${a.objection_id}", which is not a surviving objection; dropped`);
+    }
   }
 
   const st = backend.stats();
@@ -663,6 +910,7 @@ export async function runRoast(proposal: ProposalInput, opts: RunOptions): Promi
       hint: opts.hint ?? null,
       attachments_read: proposal.patchProse.map((p) => p.attachment.name),
     },
+    mode: selfMode ? "self" : "review",
     backend: opts.backendName ?? (backend.dryRun ? "dry-run" : "claude"),
     models,
     verdict: asm.verdict,
@@ -675,10 +923,13 @@ export async function runRoast(proposal: ProposalInput, opts: RunOptions): Promi
     objections: asm.objections,
     other_surviving: asm.other_surviving,
     refuted: asm.refuted,
+    withdrawn: asm.withdrawn,
     touch_points: asm.touch_points,
     questions: synth.questions.slice(0, 5),
     committability: synth.committability,
     not_now: notNow,
+    priority: synth.priority,
+    self_advice: selfAdvice,
     provisional_note: synth.provisional_note,
     disclosure: DISCLOSURE,
     precedents_retrieved: pool,
@@ -686,6 +937,9 @@ export async function runRoast(proposal: ProposalInput, opts: RunOptions): Promi
     precedent_cutoff: cutoff,
     precedent_backend: retrieved.backend,
     roaster_notes: roasterNotes,
+    rounds_requested: maxRounds,
+    rounds,
+    invariants_loaded: invariantFiles.map((f) => f.file),
     warnings,
     sanitizer: report,
     stats: { llm_calls: st.calls, wall_ms: Date.now() - t0, cost_usd: st.costUsd, dry_run: backend.dryRun },

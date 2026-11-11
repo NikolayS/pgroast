@@ -194,8 +194,10 @@ export async function loadProposal(arg: string, opts: LoadOptions = {}): Promise
       );
     }
     cf = redactCf(full, filters);
-  } else {
+  } else if (ref.kind === "msgid") {
     messageId = ref.messageId;
+  } else {
+    throw new Error("a local draft is loaded with loadLocalProposal(), not from the archives");
   }
 
   const full = await loadThread(messageId, opts);

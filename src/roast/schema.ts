@@ -172,6 +172,60 @@ export interface NotNow {
   evidence_that_would_change_it: string;
 }
 
+export const AUDIENCES = ["most users", "a sizeable minority", "niche", "unclear"] as const;
+export const GRADES = ["low", "medium", "high"] as const;
+export const ACTIONS = ["proceed", "park", "bundle", "needs champion", "withdraw and resubmit", "fix design first"] as const;
+
+/**
+ * Value / priority, apart from the verdict: most stale patches are low-value but net-positive,
+ * not wrong. Never an input to the verdict rules.
+ */
+export interface Priority {
+  audience: (typeof AUDIENCES)[number];
+  maintenance_burden: (typeof GRADES)[number];
+  /** From the patch size and the subsystems in the touched-file list. */
+  review_cost: (typeof GRADES)[number];
+  recommended_action: (typeof ACTIONS)[number];
+  reason: string;
+}
+
+/** Self mode: what the author should do about one surviving objection before sending. */
+export interface SelfAdvice {
+  objection_id: string;
+  action: "fix" | "rebut";
+  how: string;
+}
+
+/** A reflection round's answer of one roaster. */
+export interface ReflectOutput {
+  objections: RawObjection[];
+  revised: { objection_id: string; objection: RawObjection }[];
+  withdrawn: { objection_id: string; reason: string }[];
+  note: string;
+}
+
+export interface SupervisorOutput {
+  follow_ups: { angle: Angle; uncovered_area: string; instruction: string }[];
+  coverage_note: string;
+}
+
+export type RoundKind = "initial" | "what_did_you_forget" | "are_you_happy" | "supervisor";
+
+/** One round of the run, for measuring what each round adds. */
+export interface RoundRecord {
+  round: number;
+  kind: RoundKind;
+  llm_calls: number;
+  new_objections: number;
+  /** Of the new objections, how many survived the critic. */
+  new_survived: number;
+  revised: number;
+  withdrawn: number;
+  /** Supervisor rounds: the follow-ups issued. */
+  follow_ups: { angle: Angle; uncovered_area: string }[];
+  note: string;
+}
+
 export interface SynthOutput {
   verdict: Verdict;
   confidence: Confidence;
@@ -185,6 +239,9 @@ export interface SynthOutput {
   prior_attempts: RawPriorAttempt[];
   committability: Committability;
   not_now: NotNow;
+  priority: Priority;
+  /** Self mode only. */
+  self_advice?: SelfAdvice[];
   /** What could not be judged without reading the code. */
   provisional_note: string;
 }
@@ -236,7 +293,13 @@ export interface FinalObjection extends RawObjection {
   /** Run-local id, e.g. "security-1". */
   id: string;
   angle: Angle;
-  status: "survived" | "refuted";
+  /** 0 = first pass; 1 = "What did you forget?"; 2 = "Are you happy with the results?"; 3+ = supervisor follow-ups. */
+  round: number;
+  /** Set when the roaster restated the objection in a later round. */
+  revised_in_round: number | null;
+  status: "survived" | "refuted" | "withdrawn";
+  /** Set when the roaster took the objection back; withdrawn objections are kept, not deleted. */
+  withdrawal: { round: number; reason: string } | null;
   critic: {
     refutation_kind: RefutationKind;
     reasoning: string;
@@ -320,6 +383,8 @@ export interface Roast {
   tool: string;
   generated_at: string;
   input: RoastInputInfo;
+  /** "review" = someone else's proposal; "self" = the author's own pre-flight check. */
+  mode: "review" | "self";
   /** "claude" | "codex" | "dry-run" | "test". */
   backend: string;
   models: { roaster: string; critic: string; synth: string; brief: string };
@@ -339,10 +404,15 @@ export interface Roast {
   /** Survived the critic but not listed in the steelman. */
   other_surviving: FinalObjection[];
   refuted: FinalObjection[];
+  /** Taken back by their own roaster in a reflection round, with the reason. */
+  withdrawn: FinalObjection[];
   touch_points: TouchPointResult[];
   questions: string[];
   committability: Committability;
   not_now: NotNow;
+  priority: Priority;
+  /** Self mode: advice per surviving objection; empty otherwise. */
+  self_advice: SelfAdvice[];
   provisional_note: string;
   disclosure: string;
 
@@ -365,6 +435,11 @@ export interface Roast {
     relevant: number;
   } | null;
   roaster_notes: { angle: Angle; objections: number; note: string }[];
+  /** --rounds N as requested, and what each round did. */
+  rounds_requested: number;
+  rounds: RoundRecord[];
+  /** Subsystem invariant files given to the roasters (paths relative to the repository). */
+  invariants_loaded: string[];
   warnings: string[];
   sanitizer: SanitizerReport;
   stats: { llm_calls: number; wall_ms: number; cost_usd: number | null; dry_run: boolean };
@@ -546,6 +621,55 @@ export const SYNTH_SCHEMA: JsonSchema = {
         evidence_that_would_change_it: str,
       },
     },
+    priority: {
+      type: "object",
+      properties: {
+        audience: { type: "string", enum: AUDIENCES },
+        maintenance_burden: { type: "string", enum: GRADES },
+        review_cost: { type: "string", enum: GRADES },
+        recommended_action: { type: "string", enum: ACTIONS },
+        reason: nonEmpty,
+      },
+    },
     provisional_note: str,
+  },
+};
+
+export const SYNTH_SELF_SCHEMA: JsonSchema = {
+  type: "object",
+  properties: {
+    ...(SYNTH_SCHEMA as { properties: Record<string, JsonSchema> }).properties,
+    self_advice: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: { objection_id: nonEmpty, action: { type: "string", enum: ["fix", "rebut"] }, how: nonEmpty },
+      },
+    },
+  },
+};
+
+export const REFLECT_SCHEMA: JsonSchema = {
+  type: "object",
+  properties: {
+    objections: { type: "array", items: OBJECTION_SCHEMA, maxItems: 3 },
+    revised: { type: "array", items: { type: "object", properties: { objection_id: nonEmpty, objection: OBJECTION_SCHEMA } } },
+    withdrawn: { type: "array", items: { type: "object", properties: { objection_id: nonEmpty, reason: nonEmpty } } },
+    note: str,
+  },
+};
+
+export const SUPERVISOR_SCHEMA: JsonSchema = {
+  type: "object",
+  properties: {
+    follow_ups: {
+      type: "array",
+      maxItems: 3,
+      items: {
+        type: "object",
+        properties: { angle: { type: "string", enum: ANGLES }, uncovered_area: nonEmpty, instruction: nonEmpty },
+      },
+    },
+    coverage_note: str,
   },
 };

@@ -1,7 +1,8 @@
 # PG Roast: design of the roast pipeline
 
-PG Roast judges an idea, not code. Input: one CommitFest entry or one pgsql-hackers thread.
-Output: two local files, `roast.json` and `roast.md`. It never posts anything anywhere.
+PG Roast judges an idea, not code. Input: one CommitFest entry, one pgsql-hackers thread, or
+(self mode) a draft email on disk. Output: local files, `roast.json`, `roast.md` and
+`roast-summary.txt`. It never posts anything anywhere.
 
 This document covers the thread input layer (`src/thread`), the roast pipeline (`src/roast`)
 and the CLI (`src/cli.ts`). The precedent corpus is described in `docs/corpus.md`; the review
@@ -10,7 +11,8 @@ rubric is `prompts/committer-paranoia.md` (notes: `docs/haas-paranoia-notes.md`)
 ## Usage
 
 ```
-bun run src/cli.ts <cf-id|cf-url|message-id|thread-url> [--blind N] [--before DATE] [--hint TEXT] [--out DIR] [--backend claude|codex] [--dry-run] [--offline]
+bun run src/cli.ts <cf-id|cf-url|message-id|thread-url> [--blind N] [--before DATE] [--hint TEXT] [--out DIR] [--backend claude|codex] [--rounds N] [--self] [--no-enrich] [--dry-run] [--offline]
+bun run src/cli.ts --self --proposal FILE [--patch FILE ...]
 bun run src/cli.ts doctor
 ```
 
@@ -21,6 +23,10 @@ bun run src/cli.ts doctor
 | `--hint TEXT` | directed precedent lookup ("the 2018 suggestion of doing X") |
 | `--out DIR` | output directory; default `out/<slug>` (`cf-7608`, `cf-5253-blind5`, `msg-<id>`) |
 | `--backend claude\|codex` | which installed CLI runs the model; default `PGROAST_BACKEND`, else claude if on PATH, else codex |
+| `--self` | your own proposal before you send it; see "Self mode" |
+| `--proposal FILE`, `--patch FILE` | with `--self`: a draft email on disk and, optionally, patch files (repeatable) |
+| `--rounds N` | extra rounds after the first pass, default 0; see "Rounds" |
+| `--no-enrich` | skip the reading of precedent threads and the relevance pass |
 | `--dry-run` | build and print every prompt, call no model; outputs hold placeholders |
 | `--offline` | use only cached pages |
 
@@ -41,6 +47,8 @@ Output directory:
 ```
 out/<slug>/roast.json     the result (type Roast, src/roast/schema.ts)
 out/<slug>/roast.md       rendered from roast.json by code
+out/<slug>/roast-summary.txt   at most 10 plain-text lines, built by code; first line
+                          "DRAFT — rewrite in your own words before using; AI-generated"
 out/<slug>/llm/NN-<stage>.prompt.txt | .response.txt | .meta.json   every prompt and reply
 ```
 
@@ -52,8 +60,12 @@ input ──> thread loader ──> brief (LLM) ──> retrieval (code) ──>
                 roast.md <── render (code) <── assembly (code) <── synthesis (LLM) <── critic (LLM)
 ```
 
-10 LLM calls for one roast (9 when no roaster raises anything: the critic is skipped), plus at
-most one repair call per stage when a reply is not valid JSON.
+10 LLM calls for the core of one roast (9 when no roaster raises anything: the critic is
+skipped), plus at most one repair call per stage when a reply is not valid JSON. Precedent
+enrichment adds up to 8 calls the first time a thread is seen (0 from cache) and 1 relevance
+call. `--rounds` adds more (see "Rounds").
+
+Roast output of a live proposal stays local: `out/` is ignored by git and is never committed.
 
 ### 0. Thread loader (`src/thread`)
 
@@ -105,6 +117,38 @@ Cutoff: `before` = the `--before` date, or else the date of the thread's first m
 passed to the backend and checked again in the adapter: a row with any date on or after the
 cutoff is dropped. Undated rows (wiki "not wanted" items) are used only in a normal run, never
 with `--blind` / `--before`. The proposal's own CommitFest entry and thread are removed.
+
+### b2. Lazy enrichment (`src/roast/enrich.ts`, up to 8 calls, roaster model)
+
+Most CommitFest rows record an outcome and no reason. So, at roast time, the top candidates
+(the pool is widened to 24) that have a thread and no recorded reason are read: at most 8 per
+run, one call per thread, prompt `prompts/enrich.md`. The model returns a summary of the
+proposal, why it was not accepted, who objected, one key sentence and the number of the
+message it is in. Code then checks the record:
+
+- the key sentence must occur verbatim in the named message's own text (quoted lines are
+  excluded; no ellipsis); else it is dropped. The message link is built by code;
+- objector names must be senders in that thread; others are dropped.
+
+Long threads: the first 3 messages, the last 8 and the messages of the people who closed the
+entry, within 60 000 characters; gaps are marked.
+
+The record is stored once in table `precedent_enrichment` (same database; key: thread URL and
+decision date) and reused by every later roast. Cutoff rules: only messages dated on or before
+the precedent's decision date are read, so a record holds nothing newer than what the retrieval
+cutoff already admits; a precedent decided after the cutoff never reaches this step; undated
+rows are not enriched with `--blind` / `--before`; the proposal's own thread is never read.
+
+A reason that comes from enrichment is labelled "AI summary of its thread" in the prompts and
+in `roast.md`, and is never accepted as the source of a quote: only the verified key sentence is.
+
+### b3. Relevance pass (1 call, roaster model)
+
+Keyword search returns much noise. One call (`prompts/relevance.md`) gets the brief and the
+candidate list and returns the ids of the candidates that are about the same or a similar idea.
+Only those (at most 15) are shown to the roasters; the rest stay in `precedents_retrieved`
+with `relevant: false`. If the call fails, the roasters get the top candidates unfiltered and
+a warning says so.
 
 ### c. Roasters (7 calls, roaster model, in parallel, concurrency 3)
 
@@ -161,6 +205,61 @@ Verdict, committability and "not now" are three separate things (rubric, last se
 `roast.md` is rendered from `roast.json` by `render.ts`. There is no second model call, so the
 two files cannot disagree. Refuted objections stay in the JSON (`refuted`) and are listed at
 the end of the Markdown with the critic's reason.
+
+`priority` (in the synthesis reply) answers "is it worth the reviewers' time now?", apart from
+the verdict: `audience` (`most users` | `a sizeable minority` | `niche` | `unclear`),
+`maintenance_burden` and `review_cost` (`low` | `medium` | `high`; review cost from the patch
+size and the subsystems in the touched-file list), `recommended_action` (`proceed` | `park` |
+`bundle` | `needs champion` | `withdraw and resubmit` | `fix design first`) and `reason`. It is
+copied to the output as is. No verdict rule reads it.
+
+`roast-summary.txt` is built by `renderSummary()` from the same JSON: the draft header, title,
+verdict, the top three objections, the first prior attempt, the first question, the priority
+line and "not now" when it applies; never more than 10 lines, no markup, no model call.
+
+## Rounds (`--rounds N`, default 0)
+
+"Go deeper" passes after the first pass. Every extra round is followed by one critic call on
+what the round added or changed, and is recorded in `rounds[]` (calls, new objections, how many
+of them survived, revisions, withdrawals), so the gain of each round can be measured.
+
+| Round | What happens |
+|---|---|
+| 1 | each roaster gets its own earlier answer and exactly the question "What did you forget?". It can only add objections. |
+| 2 | each roaster gets its answers so far with the critic's verdicts and exactly "Are you happy with the results?". It can add, restate (`revised_in_round`) or withdraw its own objections. A withdrawn objection is kept in `withdrawn[]` with the round and the reason; it is not shown to the synthesis. |
+| 3 and later | a supervisor call (`prompts/supervisor.md`, critic model) reads the brief, all objections and the roasters' notes and names up to 3 areas nobody examined, each with the roaster to send back. Those roasters run again on that area only. An empty list ends the rounds. |
+
+Both questions are constants (`FORGOT_PROMPT`, `HAPPY_PROMPT`). An objection carries the `round`
+in which it was raised; ids of later rounds look like `demand-r1-1`. A roaster can revise or
+withdraw only its own objections. Later rounds run under the same rules as the first: no tools,
+same sanitizer, same evidence rules, and "nothing to add" is a valid answer. Cost: rounds 1 and
+2 are 8 calls each (7 roasters and the critic); a supervisor round is 2 to 5.
+
+## Subsystem invariants (`src/roast/invariants.ts`)
+
+`invariants/<subsystem>.md` files hold rules harvested from senior reviewers, each with a
+source link. A file is selected when one of its `paths:` prefixes (YAML front matter) matches a
+file in the patch's touched-file list; without a patch nothing is selected. Selected files are
+included verbatim, under the heading "Subsystem invariants to check explicitly", in the system
+prompts of the `replication-ondisk` and `maintenance-fit` roasters and of the critic. The Source
+links are read from the file by code and added to the allowed-URL set, so a roaster can cite
+them; any other link is still removed. `invariants_loaded` lists the files in `roast.json`, and
+`roast.md` names them in its header.
+
+## Self mode (`--self`)
+
+The author's own check before sending. The pipeline, the evidence rules and the verdict rules
+are the same; only the framing changes:
+
+- the synthesis prompt gets `prompts/synth-self.md`: it addresses the author, and returns
+  `self_advice[]`: for every surviving objection `fix` (change the proposal) or `rebut` (answer
+  it in the cover letter) and how. Advice for an id that is not a surviving objection is dropped;
+- `roast.md` leads with "Objections to address before you send", shows the advice and the
+  precedent threads to cite with each objection, and moves the verdict down ("How a reviewer
+  would likely classify it"). The verdict stays in `roast.json`;
+- `--self --proposal FILE [--patch FILE ...]` (`src/thread/local.ts`) roasts a draft that has
+  no thread yet: the file is the single message; from a patch file only the commit message,
+  file list and doc hunks are read, as for attachments; a file without a diff is not read.
 
 ## LLM backend (`src/roast/llm.ts`)
 
@@ -237,13 +336,20 @@ The eval runner should import from this file: `Roast`, `FinalObjection`, `PriorA
 | `verdict` | `LIKELY-REJECT` \| `NEEDS-DESIGN-DISCUSSION` \| `NEEDS-COMMITTER-EYES` \| `NO-FUNDAMENTAL-OBJECTION` |
 | `confidence` | `low` \| `medium` \| `high` |
 | `verdict_reasoning`, `failing_level`, `levels` | why; first failing pyramid level or null; per level `passed` \| `failed` \| `not_evaluated` |
+| `mode` | `review` \| `self` |
 | `backend`, `models` | which CLI and which models ran |
 | `input` | argument, CommitFest entry (redacted in eval modes), thread URL, messages read / total, `blind`, `before`, `hint`, attachments read |
 | `brief` | the neutral restatement and the search queries |
-| `prior_attempts[]` | `url`, `thread_urls`, `date`, `first_date`, `status`, `who_objected`, `quote` (or null = unavailable), `relation`, `what_is_different`; empty = no precedent found |
-| `objections[]` | the ranked steelman: `id`, `angle`, `title`, `level`, `rubric_item`, `category`, `touch_points`, `severity`, `failure_scenario`, `argument`, `author_must_show`, `precedents[]` (links from the DB), `thread_refs[]`, `critic` |
+| `prior_attempts[]` | `url`, `thread_urls`, `date`, `first_date`, `status`, `who_objected`, `reason`, `enriched`, `quote` (or null = unavailable), `quote_url`, `relation`, `what_is_different`; empty = no precedent found |
+| `objections[]` | the ranked steelman: `id`, `angle`, `round`, `revised_in_round`, `title`, `level`, `rubric_item`, `category`, `touch_points`, `severity`, `failure_scenario`, `argument`, `author_must_show`, `precedents[]` (links from the DB), `thread_refs[]`, `critic` |
 | `other_surviving[]` | survived the critic, not listed (`not_ranked_reason`) |
 | `refuted[]` | with `critic.refutation_kind` and `critic.reasoning` |
+| `withdrawn[]` | taken back by their own roaster in round 2: `withdrawal {round, reason}` |
+| `priority` | `audience`, `maintenance_burden`, `review_cost`, `recommended_action`, `reason` |
+| `self_advice[]` | self mode: `objection_id`, `action` (`fix` \| `rebut`), `how` |
+| `rounds_requested`, `rounds[]` | per round: `kind`, `llm_calls`, `new_objections`, `new_survived`, `revised`, `withdrawn`, `follow_ups` |
+| `invariants_loaded[]` | invariant files given to the roasters |
+| `enrichment` | counts: candidates, from cache, new calls, failed, quotes verified / dropped, relevance pass |
 | `touch_points[15]` | `id`, `label`, `hit`, `reason` |
 | `questions[≤5]` | questions the author must answer before anyone reviews code |
 | `committability` | `owner` (`qualified committer engaged` \| `silent` \| `none obvious`), `owner_note`, `liability`, `author_follow_up` |
@@ -276,14 +382,16 @@ What is guaranteed by code, whatever the model writes:
    scheme, and scheme-less forms of postgresql.org archives, postgr.es, commitfest, git, wiki,
    github, youtube). A URL stays only if it is in the allowed set: the thread, its messages,
    links written inside the visible thread text and patch prose, the CommitFest entry, the
-   retrieved precedents, links in the rubric. Otherwise it is replaced by
+   retrieved precedents, links in the rubric, Source links of the loaded invariant files. Otherwise it is replaced by
    `[link removed: not in the retrieved set]` and recorded (`sanitizer.urls_removed`; this audit
    list is the only place where a removed URL still appears).
 4. **Thread references are by message number**; code turns a number into the permalink.
    Numbers outside the visible thread are dropped.
 5. **Quotes are verified.** A prior attempt's quote is kept only if it occurs verbatim
    (whitespace, quote style and case folded; `...` allowed between parts) in the corpus row or
-   in the visible thread. Otherwise the output says "quote unavailable".
+   in the visible thread, or is the key sentence that enrichment verified against a message of
+   the precedent's thread (then it links to that message). An AI summary is never a quote
+   source. Otherwise the output says "quote unavailable".
 6. **"Who objected" and dates of a prior attempt are copied from the corpus row.** When the row
    has none, the output says "not recorded in the corpus".
 7. **"No precedent found" is distinct from "not searched".** When the corpus is unavailable the
@@ -323,9 +431,11 @@ What is not guaranteed:
     exists: a proposal that was rejected in 2015 and committed in 2022 may be judged by what the
     model knows of today's PostgreSQL.
 - **Corpus coverage decides the "prior attempts" section.** Retrieval is keyword search over
-  titles, summaries and recorded reasons. Many CommitFest rows have no recorded objection text,
-  so a real prior attempt can be found and still show "quote unavailable" and "who objected:
-  not recorded". Ideas that died on the list without a CommitFest entry are not in the corpus.
+  titles, summaries and recorded reasons. Many CommitFest rows have no recorded objection text;
+  enrichment reads only the top 8 such threads per run, and of a long thread only the start, the
+  end and the closers' messages, so the real reason can sit in a part that was not read. The
+  summary is a model's reading of the thread: the link and the verified sentence are facts, the
+  summary is not. Ideas that died on the list without a CommitFest entry are not in the corpus.
   Prior discussions that the thread itself links to are visible to the roasters (and their links
   are allowed), but they are not listed as structured prior attempts.
 - **Only one thread per CommitFest entry** is read (the earliest). Long-lived entries with
@@ -337,12 +447,15 @@ What is not guaranteed:
   deleted.
 - **Levels 1-2 without the code are provisional** (the rubric says so). The synthesis has a
   `provisional_note` for it; a design flaw that only shows in the code will be missed.
-- **One critic, one pass.** The critic and the synthesis run on the same model family as the
-  roasters and share its blind spots. There is no vote and no second run; results vary between
-  runs.
+- **One critic.** The critic and the synthesis run on the same model family as the roasters and
+  share its blind spots. There is no vote; results vary between runs. `--rounds` adds passes,
+  and a reflection question also invites a model to produce something: whether rounds add
+  surviving objections or noise is what `rounds[]` is there to measure.
+- **Invariants are only as good as the files.** A subsystem without a file gets no such check,
+  and selection needs a patch: a proposal sent without one loads nothing.
 - **`--before` uses UTC dates** from the archive; a message sent late in the evening in a
   western time zone is dated the next day.
-- **Cost.** 10 calls, each with the rubric and the full material in the prompt. A short thread
+- **Cost.** 10 calls (up to 19 with enrichment on a cold cache), each with the rubric and the full material in the prompt. A short thread
   takes a few minutes; a 100-message thread is roughly 40 000 input tokens per call.
 
 ## Tests

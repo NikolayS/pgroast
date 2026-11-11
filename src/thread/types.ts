@@ -97,7 +97,11 @@ export interface LoadOptions {
   noAttachments?: boolean;
 }
 
-export type InputRef = { kind: "cf"; id: number } | { kind: "msgid"; messageId: string };
+export type InputRef =
+  | { kind: "cf"; id: number }
+  | { kind: "msgid"; messageId: string }
+  /** A draft on disk (self mode): no thread exists yet. */
+  | { kind: "local"; name: string };
 
 export interface ProposalInput {
   /** The CLI argument as given. */

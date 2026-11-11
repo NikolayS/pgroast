@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { mkdtempSync, readdirSync, readFileSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parseArgs } from "../src/cli.ts";
@@ -24,9 +24,11 @@ import {
   type LlmBackend,
 } from "../src/roast/llm.ts";
 import { renderMaterial, trimQuotes } from "../src/roast/material.ts";
-import { assemble, describeSchema, loadPrompts, roasterSystem, runRoast, slugFor } from "../src/roast/pipeline.ts";
+import { assemble, describeSchema, FORGOT_PROMPT, HAPPY_PROMPT, loadPrompts, roasterSystem, runRoast, slugFor } from "../src/roast/pipeline.ts";
+import { loadInvariantFiles, parseInvariantFile, selectInvariants } from "../src/roast/invariants.ts";
+import { loadLocalProposal } from "../src/thread/local.ts";
 import { messageIdOfUrl, normalisePrecedent, recencyBoost, retrievePrecedents, type RawPrecedent, type SearchArgs } from "../src/roast/precedents.ts";
-import { renderMarkdown } from "../src/roast/render.ts";
+import { renderMarkdown, renderSummary, SUMMARY_HEADER } from "../src/roast/render.ts";
 import { AllowedUrls, emptyReport, filterPrecedentIds, REMOVED_LINK, scrubUrls, verifyQuote } from "../src/roast/sanitize.ts";
 import {
   ANGLES,
@@ -38,6 +40,7 @@ import {
   TOUCH_POINT_IDS,
   TOUCH_POINTS,
   validate,
+  VERDICTS,
   type Brief,
   type CriticOutput,
   type FinalObjection,
@@ -607,6 +610,7 @@ function fakeAnswers(a: CompleteArgs): unknown {
       ],
       committability: { owner: "silent", owner_note: "someone who knows guc.c", liability: "the GUC API, forever", author_follow_up: "no sign either way" },
       not_now: { applies: true, evidence_that_would_change_it: "Two extensions that need it." },
+      priority: { audience: "niche", maintenance_burden: "medium", review_cost: "high", recommended_action: "needs champion", reason: "Few settings need it; guc.c is widely used." },
       provisional_note: "Code not read.",
     } satisfies SynthOutput;
   }
@@ -876,6 +880,9 @@ describe("assemble guards", () => {
     ...obj({}),
     id: "x-1",
     angle: "demand",
+    round: 0,
+    revised_in_round: null,
+    withdrawal: null,
     status: "survived",
     critic: { refutation_kind: "none", reasoning: "", original_severity: null },
     precedents: [],
@@ -1007,5 +1014,236 @@ describe("dry run and misc", () => {
     expect(() => parseArgs(["1", "--blind", "0"])).toThrow();
     expect(() => parseArgs(["1", "--before", "soon"])).toThrow();
     expect(() => parseArgs(["1", "--post"])).toThrow(/unknown option/);
+    expect(parseArgs(["7608", "--self", "--rounds", "2"])).toMatchObject({ input: "7608", self: true, rounds: 2 });
+    expect(parseArgs(["--self", "--proposal", "d.txt", "--patch", "a.patch", "--patch=b.patch"])).toMatchObject({ self: true, proposal: "d.txt", patches: ["a.patch", "b.patch"] });
+    expect(() => parseArgs(["--proposal", "d.txt"])).toThrow(/--self/);
+    expect(() => parseArgs(["1", "--self", "--proposal", "d.txt"])).toThrow(/not both/);
+    expect(() => parseArgs(["1", "--patch", "a.patch"])).toThrow(/--proposal/);
+    expect(() => parseArgs(["--self", "--proposal", "d.txt", "--blind", "3"])).toThrow(/draft/);
+    expect(() => parseArgs(["1", "--rounds", "-1"])).toThrow();
+  });
+});
+
+// ----------------------------------------------------------------------------- rounds, invariants, self mode
+
+const INVARIANT = parseInvariantFile(
+  "invariants/testsub.md",
+  `---
+subsystem: testsub
+paths:
+  - src/backend/access/nbtree/
+  - src/include/access/nbtree.h
+---
+
+# testsub invariants
+
+## Tell VACUUM about deferred work
+- Rule: record deferred cleanup in the metapage.
+- Failure when broken: bloat comes back.
+- Source: https://example.org/inv-source (a reviewer, 2026-11-11)
+`,
+)!;
+
+describe("rounds, invariants and self mode (fake model)", () => {
+  const p: ProposalInput = {
+    ...proposal(5),
+    patchProse: [
+      {
+        attachment: { name: "v1-0001.patch", url: "https://www.postgresql.org/message-id/attachment/1/v1-0001.patch", contentType: "text/x-patch", sizeText: "1 KB", sizeBytes: 1024 },
+        fromMessageIndex: 1,
+        commitMessages: [{ subject: "Add a thing.", body: "" }],
+        files: ["src/backend/access/nbtree/nbtpage.c", "doc/src/sgml/config.sgml"],
+        docHunks: [],
+        truncated: false,
+      },
+    ],
+  };
+  const none = { objections: [], revised: [], withdrawn: [], note: "" };
+  const backend = new FakeBackend((a) => {
+    if (a.label === "round1-demand") return { ...none, objections: [obj({ title: "Nobody measured it", level: "1b", category: "demand", touch_points: [] })], note: "Looked again at the numbers." };
+    if (a.label === "round1-maintenance-fit") return { ...none, withdrawn: [{ objection_id: "maintenance-fit-1", reason: "too early" }] };
+    if (a.label === "round2-maintenance-fit") return { ...none, withdrawn: [{ objection_id: "maintenance-fit-1", reason: "The critic is right: the old API can stay." }] };
+    if (a.label === "round2-prior-attempts") {
+      return {
+        ...none,
+        revised: [{ objection_id: "prior-attempts-1", objection: obj({ title: "Same idea was rejected; say what changed", level: "1b", category: "prior_rejection", severity: "fixable", precedent_ids: ["P1"], argument: "See https://example.org/inv-source and https://example.org/invented." }) }],
+        withdrawn: [{ objection_id: "demand-1", reason: "not mine" }],
+      };
+    }
+    if (/^round[12]-/.test(a.label)) return none;
+    if (a.label === "critic-round1") return { verdicts: [{ objection_id: "demand-r1-1", verdict: "survived", refutation_kind: "none", reasoning: "Fair.", adjusted_severity: null }] };
+    if (a.label === "critic-round2") return { verdicts: [{ objection_id: "prior-attempts-1", verdict: "survived", refutation_kind: "none", reasoning: "Still stands.", adjusted_severity: null }] };
+    if (a.label === "round3-supervisor") {
+      return {
+        follow_ups: [
+          { angle: "demand", uncovered_area: "what other databases do", instruction: "Check whether the material says what other systems offer." },
+          { angle: "security", uncovered_area: "privileges", instruction: "Check." }, // that roaster failed in round 0: dropped
+        ],
+        coverage_note: "Nobody compared with other systems.",
+      };
+    }
+    if (a.label === "round3-followup1-demand") return { objections: [obj({ title: "Other systems do not have it either", level: "1b", category: "demand", touch_points: [] })], prior_attempts: [], no_objection_note: "" };
+    if (a.label === "critic-round3") return { verdicts: [{ objection_id: "demand-r3-1", verdict: "refuted", refutation_kind: "not_specific", reasoning: "Says nothing about this proposal.", adjusted_severity: null }] };
+    if (a.label === "round4-supervisor") return { follow_ups: [], coverage_note: "Covered." };
+    if (a.label === "synth") {
+      return {
+        ...(fakeAnswers(a) as object),
+        self_advice: [
+          { objection_id: "prior-attempts-1", action: "rebut", how: "Say in the cover letter what changed since the earlier thread." },
+          { objection_id: "maintenance-fit-1", action: "fix", how: "x" }, // withdrawn: dropped
+        ],
+      };
+    }
+    return fakeAnswers(a);
+  });
+  const run = runRoast(p, {
+    enrich: false,
+    backend,
+    models: modelsFromEnv({}),
+    search: async () => PRECEDENTS,
+    log: () => undefined,
+    rounds: 6,
+    mode: "self",
+    invariants: [INVARIANT],
+    now: () => new Date("2026-11-11T00:00:00Z"),
+  });
+  const call = (label: string) => backend.calls.find((c) => c.label === label)!;
+
+  test("round 1 and 2 ask the two questions verbatim, with the roaster's own answers", async () => {
+    await run;
+    expect(FORGOT_PROMPT).toBe("What did you forget?");
+    expect(HAPPY_PROMPT).toBe("Are you happy with the results?");
+    expect(call("round1-demand").prompt.endsWith("# Question\n\nWhat did you forget?")).toBe(true);
+    expect(call("round2-demand").prompt.endsWith("# Question\n\nAre you happy with the results?")).toBe(true);
+    expect(call("round1-demand").prompt).toContain("No user asked for it");
+    expect(call("round1-demand").prompt).not.toContain("Extensions break"); // another roaster's objection
+    expect(call("round2-demand").prompt).toContain("Nobody measured it"); // its own round-1 addition
+    expect(call("round2-maintenance-fit").prompt).toContain('"status": "refuted"');
+    expect(backend.calls.some((c) => c.label === "round1-security")).toBe(false); // failed in round 0
+    for (const c of backend.calls) expect(/^(brief|relevance|roaster-|critic|round\d+-|synth)/.test(c.label)).toBe(true);
+  });
+
+  test("each round is recorded: calls, new objections, what survived, revisions, withdrawals", async () => {
+    const r = await run;
+    expect(r.rounds_requested).toBe(6);
+    expect(r.rounds.map((x) => [x.round, x.kind, x.llm_calls, x.new_objections, x.new_survived, x.revised, x.withdrawn])).toEqual([
+      [0, "initial", 8, 4, 3, 0, 0],
+      [1, "what_did_you_forget", 7, 1, 1, 0, 0],
+      [2, "are_you_happy", 7, 0, 0, 1, 1],
+      [3, "supervisor", 3, 1, 0, 0, 0],
+      [4, "supervisor", 1, 0, 0, 0, 0], // empty list: the loop ends before rounds 5 and 6
+    ]);
+    expect(r.rounds[3]!.follow_ups).toEqual([{ angle: "demand", uncovered_area: "what other databases do" }]);
+    expect(r.stats.llm_calls).toBe(1 + 8 + 7 + 7 + 3 + 1 + 1); // brief, rounds 0-4, synthesis
+    const all = [...r.objections, ...r.other_surviving, ...r.refuted, ...r.withdrawn];
+    expect(all.find((o) => o.id === "demand-r1-1")).toMatchObject({ round: 1, status: "survived" });
+    expect(all.find((o) => o.id === "demand-r3-1")).toMatchObject({ round: 3, status: "refuted" });
+    expect(all.find((o) => o.id === "demand-1")).toMatchObject({ round: 0, withdrawal: null });
+  });
+
+  test("withdrawal is recorded with its reason, not deleted; a roaster cannot touch others' objections", async () => {
+    const r = await run;
+    expect(r.withdrawn.map((o) => o.id)).toEqual(["maintenance-fit-1"]);
+    expect(r.withdrawn[0]).toMatchObject({ status: "withdrawn", withdrawal: { round: 2, reason: "The critic is right: the old API can stay." } });
+    expect(r.objections.some((o) => o.id === "maintenance-fit-1")).toBe(false);
+    expect(call("synth").prompt).not.toContain('"id": "maintenance-fit-1"');
+    const w = r.warnings.join("\n");
+    expect(w).toContain('round 1: "maintenance-fit" returned revisions or withdrawals; ignored');
+    expect(w).toContain('"prior-attempts" tried to withdraw "demand-1"');
+    const revised = r.objections.find((o) => o.id === "prior-attempts-1")!;
+    expect(revised).toMatchObject({ round: 0, revised_in_round: 2, severity: "fixable", title: "Same idea was rejected; say what changed" });
+    expect(call("critic-round2").prompt).toContain("One verdict per id: prior-attempts-1.");
+  });
+
+  test("invariants: chosen by touched path, given verbatim to two roasters and the critic, source link allowed", async () => {
+    const r = await run;
+    expect(r.invariants_loaded).toEqual(["invariants/testsub.md"]);
+    for (const l of ["roaster-replication-ondisk", "roaster-maintenance-fit", "critic", "round1-maintenance-fit", "critic-round2"]) {
+      expect(call(l).system).toContain("## Subsystem invariants to check explicitly");
+      expect(call(l).system).toContain(INVARIANT.text);
+    }
+    for (const l of ["roaster-demand", "roaster-prior-attempts", "synth", "round3-supervisor"]) expect(call(l).system).not.toContain("Subsystem invariants");
+    const revised = r.objections.find((o) => o.id === "prior-attempts-1")!;
+    expect(revised.argument).toContain("https://example.org/inv-source"); // read from the file by code
+    expect(revised.argument).not.toContain("https://example.org/invented");
+    expect(selectInvariants(["src/backend/access/heap/heapam.c"], [INVARIANT])).toEqual([]);
+    expect(selectInvariants([], [INVARIANT])).toEqual([]);
+    expect(selectInvariants(["src/include/access/nbtree.h"], [INVARIANT]).length).toBe(1);
+    expect(parseInvariantFile("x.md", "# no front matter")).toBeNull();
+    const real = loadInvariantFiles();
+    expect(real.some((f) => f.file === "invariants/README.md")).toBe(false);
+    for (const f of real) expect(f.paths.length).toBeGreaterThan(0);
+  });
+
+  test("self mode: same verdict rules, advice per surviving objection, verdict lower in the markdown", async () => {
+    const r = await run;
+    expect(r.mode).toBe("self");
+    expect(VERDICTS).toContain(r.verdict);
+    expect(r.self_advice).toEqual([{ objection_id: "prior-attempts-1", action: "rebut", how: "Say in the cover letter what changed since the earlier thread." }]);
+    expect(call("synth").system).toContain("## Self mode: the reader is the author");
+    expect(call("roaster-demand").system).not.toContain("Self mode");
+    const md = renderMarkdown(r);
+    expect(md).toContain("# PG Roast (self check):");
+    expect(md).toContain("## 3. Objections to address before you send");
+    expect(md).toContain("**Before you send: rebut it in the cover letter.** Say in the cover letter what changed");
+    expect(md).toContain("Threads to cite or to distinguish yourself from: [");
+    expect(md).not.toContain("## 1. Verdict");
+    expect(md.indexOf("## How a reviewer would likely classify it")).toBeGreaterThan(md.indexOf("## Priority"));
+    expect(md.indexOf("## Priority")).toBeGreaterThan(md.indexOf("## 3. Objections to address"));
+    expect(md).toContain("### Withdrawn by their own roaster");
+    expect(md).toContain("| 2 | \"Are you happy with the results?\" | 7 | 0 | 0 | 1 | 1 |");
+    expect(md).toContain("- Subsystem invariants checked: invariants/testsub.md");
+    expect(md).toContain("- **Recommended action:** needs champion");
+  });
+
+  test("roast-summary.txt: at most 10 plain lines, the draft header first, built by code", async () => {
+    const r = await run;
+    const before = backend.calls.length;
+    const txt = renderSummary(r);
+    expect(backend.calls.length).toBe(before);
+    const lines = txt.trimEnd().split("\n");
+    expect(lines[0]).toBe(SUMMARY_HEADER);
+    expect(SUMMARY_HEADER).toBe("DRAFT — rewrite in your own words before using; AI-generated");
+    expect(lines.length).toBeLessThanOrEqual(10);
+    expect(txt).not.toMatch(/[*#`\[\]]{2}|^#|\]\(/m);
+    expect(txt).toContain(`Verdict (merits of the idea only, no code read): ${r.verdict}`);
+    expect(txt).toContain("(rebut in the cover letter)");
+    expect(txt).toContain("Priority: needs champion; audience niche;");
+    const many = { ...r, objections: [...r.objections, ...r.objections, ...r.objections], questions: ["q?"], not_now: { applies: true, evidence_that_would_change_it: "e" } };
+    expect(renderSummary(many).trimEnd().split("\n").length).toBeLessThanOrEqual(10);
+  });
+
+  test("default is zero extra rounds and review mode", async () => {
+    const b = new FakeBackend(fakeAnswers);
+    const r = await runRoast(proposal(5), { enrich: false, backend: b, models: modelsFromEnv({}), search: async () => PRECEDENTS, log: () => undefined, invariants: [INVARIANT] });
+    expect(r.rounds.length).toBe(1);
+    expect(r.rounds_requested).toBe(0);
+    expect(r.mode).toBe("review");
+    expect(r.self_advice).toEqual([]);
+    expect(r.invariants_loaded).toEqual([]); // no patch, no touched files
+    expect(r.priority.recommended_action).toBe("needs champion");
+    expect(b.calls.some((c) => c.label.startsWith("round"))).toBe(false);
+    const md = renderMarkdown(r);
+    expect(md).toContain("## 1. Verdict");
+    expect(md).toContain("## Priority");
+    expect(md).not.toContain("### Rounds");
+  });
+
+  test("a draft on disk: one message, patch prose only, never code", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "pgroast-self-"));
+    writeFileSync(join(dir, "draft.txt"), "Subject: [PATCH] Add foo\n\nHi hackers,\n\nI propose foo.\n");
+    writeFileSync(join(dir, "code.c"), "int main(void) { return secret_code(); }\n");
+    const lp = loadLocalProposal(join(dir, "draft.txt"), [join(FIX, "sample.patch"), join(dir, "code.c")], new Date("2026-11-11T00:00:00Z"));
+    expect(lp.thread.subject).toBe("[PATCH] Add foo");
+    expect(lp.thread.messages.length).toBe(1);
+    expect(lp.patchProse.map((x) => x.attachment.name)).toEqual(["sample.patch"]);
+    expect(lp.warnings.join(" ")).toContain("code.c is not a patch");
+    expect(slugFor(lp)).toBe("self-draft");
+    const b = new FakeBackend((a) => (a.label === "brief" ? BRIEF : stubFor(a.schema)));
+    const r = await runRoast(lp, { enrich: false, backend: b, models: modelsFromEnv({}), search: async () => [], log: () => undefined, mode: "self", invariants: [] });
+    for (const c of b.calls) expect(c.prompt).not.toContain("secret_code");
+    expect(b.calls[0]!.prompt).toContain("I propose foo.");
+    expect(renderMarkdown(r)).toContain("- Draft, not sent: draft.txt");
+    expect(renderMarkdown(r)).not.toContain("]()");
   });
 });
