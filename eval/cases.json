@@ -9,7 +9,7 @@
   "first_message_id": "CACLU5mSRwHr_8z=enMj-nXF1tmC7+Jn5heZQNiKuLyxYUtL2fg@mail.gmail.com",
   "first_message_date": "2023-02-22",
   "cf_url": "https://commitfest.postgresql.org/patch/4227/",
-  "cutoff_date": "2023-02-22",
+  "cutoff_date": "2023-02-23",
   "decisive_objections": [
    {
     "who": "Tom Lane",
@@ -37,7 +37,7 @@
   "commit": null,
   "revert_commit": null,
   "outcome_summary": "Kirk proposed a fixed %T prompt escape printing the client's current time as HH24:MI:SS (explicitly no date, no format options). Tom Lane objected immediately that %`date` already covers it, that one hard-wired format won't fit the next user, and that prompt-escape namespace is scarce; in April Greg Stark and Tom Lane added that one timestamp format can't satisfy everyone and that timestamps belong on command tags / \\echo output rather than the prompt. CF 4227 (v2/v3 patch) was closed Returned with feedback in CF 2023-07 (Daniel Gustafsson: it had not built since the March CF) and was never resubmitted.",
-  "notes": "Shape differs slightly from the brief: Kirk's version is %T = current client time HH24:MI:SS in the psql PROMPT only; he explicitly rejected adding the date. Command-output timestamps were Greg Stark's counter-suggestion (2023-04-09), not Kirk's proposal. Formal CF status is 'Returned with feedback' (closing reason given: patch did not build), not 'Rejected'; the substantive objections are Tom's and Greg's. The same thread also spawned Kirk's companion proposal ':SQL_EXEC_TIME (like :ROW_COUNT)' (2023-02-23, subject change mid-thread). CUTOFF CAVEAT: Tom's objection came 38 minutes after the proposal on the same day (archive shows 17:17:46 vs 17:55:25), so with day granularity cutoff_date equals first_message_date: the tool must be given the first message itself plus nothing else; a timestamp cutoff of 2023-02-22T17:55 (archive time) would be precise. Nikolay Samokhvalov (the user) replied in-thread and is listed as a CF reviewer. Blind: message 2 is Nikolay Samokhvalov's supportive reply; Tom Lane's objection is message 3, so blind_n=2.",
+  "notes": "Shape differs slightly from the brief: Kirk's version is %T = current client time HH24:MI:SS in the psql PROMPT only; he explicitly rejected adding the date. Command-output timestamps were Greg Stark's counter-suggestion (2023-04-09), not Kirk's proposal. Formal CF status is 'Returned with feedback' (closing reason given: patch did not build), not 'Rejected'; the substantive objections are Tom's and Greg's. The same thread also spawned Kirk's companion proposal ':SQL_EXEC_TIME (like :ROW_COUNT)' (2023-02-23, subject change mid-thread). CUTOFF CAVEAT: Tom's objection came 38 minutes after the proposal on the same day (archive shows 17:17:46 vs 17:55:25), so with day granularity cutoff_date equals first_message_date: the tool must be given the first message itself plus nothing else; a timestamp cutoff of 2023-02-22T17:55 (archive time) would be precise. Nikolay Samokhvalov (the user) replied in-thread and is listed as a CF reviewer. Blind: message 2 is Nikolay Samokhvalov's supportive reply; Tom Lane's objection is message 3, so blind_n=2. CUTOFF FIX: cutoff_date moved to the day after the first message because the eval runner filters strictly before cutoff_date on UTC dates and the old value left zero messages. Consequence: in date mode the same-day decisive objection IS visible (leak); use blind mode (blind_n) for this case.",
   "thread_message_count": 35,
   "blind_n": 2,
   "decisive_objection_position": 3,
@@ -53,7 +53,7 @@
   "first_message_id": "CACLU5mS07WGPpq6=m8aC5tUMusNpL8FhBPnYem86iSawEgcavw@mail.gmail.com",
   "first_message_date": "2025-08-15",
   "cf_url": null,
-  "cutoff_date": "2025-08-15",
+  "cutoff_date": "2025-08-16",
   "decisive_objections": [
    {
     "who": "Tom Lane",
@@ -112,7 +112,7 @@
   "commit": null,
   "revert_commit": null,
   "outcome_summary": "Kirk asked for feedback on a per-table WHERE/LIMIT filter file applied to pg_dump's COPY. Within an hour Tom Lane redirected him to partitioning plus existing exclusion options, and Greg Sabino Mullane argued for dumping a view instead of a new filter-file flag; no patch or CF entry followed and the thread went quiet after 2025-08-26. In June 2026 Kirk pivoted to a narrower patch ('[PATCH v1] Allow excluded tables to remain in the pg_restore data-loading path for directory-format dumps', CACLU5mTrtt2ocj_UhVC2_4tjXRi7oMCxK17WjoeX7khwRvZjxQ@mail.gmail.com) that adds empty placeholder data files instead of any WHERE clause.",
-  "notes": "Archive contradicts the brief's framing in two ways: (1) Kirk's 2025 post was an RFC/PoC asking for design input (no patch attached, no CF entry found), so 'rejected' means 'redirected and abandoned', not a formal rejection; (2) the idea Kirk pursued afterwards (2026) is a placeholder-file patch, not WHERE filtering, and that 2026 thread was still open as of 2026-07-01 (one reply, Andrey Borodin, positive). Andrey Borodin's 2026-07-01 reply (502B3804-007B-4B3D-B6F2-F9632EBECF7C@yandex-team.ru) gives a good recap of the history; the earlier_attempts list was cross-checked against the fetched threads. cf_url null: CF search requires login, and no CF link appears in the thread. CUTOFF CAVEAT: Tom replied 26 minutes after the proposal (same day), so cutoff_date = first_message_date; feed only the first message. Greg Stark's 'pg_dump round-trip' category is approximate (his point is about the dump interface, a view keeps the restore path standard). Blind: Tom Lane's redirect is the very first reply (position 2), so blind_n=1 (proposal only).",
+  "notes": "Archive contradicts the brief's framing in two ways: (1) Kirk's 2025 post was an RFC/PoC asking for design input (no patch attached, no CF entry found), so 'rejected' means 'redirected and abandoned', not a formal rejection; (2) the idea Kirk pursued afterwards (2026) is a placeholder-file patch, not WHERE filtering, and that 2026 thread was still open as of 2026-07-01 (one reply, Andrey Borodin, positive). Andrey Borodin's 2026-07-01 reply (502B3804-007B-4B3D-B6F2-F9632EBECF7C@yandex-team.ru) gives a good recap of the history; the earlier_attempts list was cross-checked against the fetched threads. cf_url null: CF search requires login, and no CF link appears in the thread. CUTOFF CAVEAT: Tom replied 26 minutes after the proposal (same day), so cutoff_date = first_message_date; feed only the first message. Greg Stark's 'pg_dump round-trip' category is approximate (his point is about the dump interface, a view keeps the restore path standard). Blind: Tom Lane's redirect is the very first reply (position 2), so blind_n=1 (proposal only). CUTOFF FIX: cutoff_date moved to the day after the first message because the eval runner filters strictly before cutoff_date on UTC dates and the old value left zero messages. Consequence: in date mode the same-day decisive objection IS visible (leak); use blind mode (blind_n) for this case.",
   "thread_message_count": 7,
   "blind_n": 1,
   "decisive_objection_position": 2,
@@ -179,7 +179,7 @@
   "first_message_id": "be81d947-f4fe-c062-f107-0f05f8f87ca8@migops.com",
   "first_message_date": "2021-10-14",
   "cf_url": "https://commitfest.postgresql.org/patch/3361/",
-  "cutoff_date": "2021-10-14",
+  "cutoff_date": "2021-10-15",
   "decisive_objections": [
    {
     "who": "Aleksander Alekseev",
@@ -214,7 +214,7 @@
   "commit": null,
   "revert_commit": null,
   "outcome_summary": "Gilles Darold posted a working patch for columns excluded from SELECT * expansion. Tom Lane objected to the misleading 'hidden' terminology (implies security), the position-dependent syntax, the non-standard information_schema change, and the unclear semantics for t.*, row_to_json(t), and composite rowtypes; Bruce Momjian said the feature is not generally desired. Gilles gave up on 2021-10-28 and CF 3361 was closed as Rejected in CF 2021-11.",
-  "notes": "Clean case: CF status literally 'Rejected'. Bruce Momjian 2021-10-28 (20211028143113.GA32290@momjian.us): 'I want to state I still think this feature is not generally desired, and is better implemented at the query level.' Gilles's reply 2021-10-28 concedes. Related later idea: 'Proposal: SELECT * EXCLUDE (...) command' (Hunaid Sohail, 2026-01-08, CAMWA6yb9GGiJbe9iU88yjurVQCsFgZvW7xSxa0aFLC0Wtz4Aqg@mail.gmail.com) is still under discussion as of 2026-10-30, so it is not used as a case. earlier_attempts: none searched exhaustively. CUTOFF CAVEAT: the thread got ~25 replies on day one including Tom's objections, so cutoff_date = first_message_date; feed only the first message. Blind: Aleksander Alekseev's -1 is the very first reply (position 2), so blind_n=1 (proposal only); Tom Lane's objections are at positions 15, 18 and 20.",
+  "notes": "Clean case: CF status literally 'Rejected'. Bruce Momjian 2021-10-28 (20211028143113.GA32290@momjian.us): 'I want to state I still think this feature is not generally desired, and is better implemented at the query level.' Gilles's reply 2021-10-28 concedes. Related later idea: 'Proposal: SELECT * EXCLUDE (...) command' (Hunaid Sohail, 2026-01-08, CAMWA6yb9GGiJbe9iU88yjurVQCsFgZvW7xSxa0aFLC0Wtz4Aqg@mail.gmail.com) is still under discussion as of 2026-10-30, so it is not used as a case. earlier_attempts: none searched exhaustively. CUTOFF CAVEAT: the thread got ~25 replies on day one including Tom's objections, so cutoff_date = first_message_date; feed only the first message. Blind: Aleksander Alekseev's -1 is the very first reply (position 2), so blind_n=1 (proposal only); Tom Lane's objections are at positions 15, 18 and 20. CUTOFF FIX: cutoff_date moved to the day after the first message because the eval runner filters strictly before cutoff_date on UTC dates and the old value left zero messages. Consequence: in date mode the same-day decisive objection IS visible (leak); use blind mode (blind_n) for this case.",
   "thread_message_count": 58,
   "blind_n": 1,
   "decisive_objection_position": 2,
@@ -230,7 +230,7 @@
   "first_message_id": "20211217094718.0d4d1c9eea684d09d8111c5d@sraoss.co.jp",
   "first_message_date": "2021-12-17",
   "cf_url": null,
-  "cutoff_date": "2021-12-17",
+  "cutoff_date": "2021-12-18",
   "decisive_objections": [
    {
     "who": "Tom Lane",
@@ -283,7 +283,7 @@
   "commit": null,
   "revert_commit": null,
   "outcome_summary": "Yugo Nagata posted a concept patch for DELETE ... ORDER BY ... LIMIT/OFFSET (MySQL-style). Tom Lane replied within hours that the idea had been rejected before: a partial DELETE is nondeterministic (underspecified sort order, LIMIT cutting peer groups, and EvalPlanQual re-checking rows after sorting), and the ctid-subquery workaround exists. Greg Stark and Corey Huinker argued for it, but nothing was committed.",
-  "notes": "No CF entry found (cf_url null; CF search needs login, none linked in thread). 'Rejected' = turned down on the list, no formal CF status. Category is approximate: the objection is about DML semantics/determinism; the closest listed category is 'SQL standard/syntax' (also non-standard syntax). David G. Johnston (same day) added that the use cases were not compelling. Earlier attempts are listed with their first message dates; their exact closing status was not individually verified beyond 'never committed'. CUTOFF CAVEAT: Tom's objection came the same day (archive 00:47 vs 03:17), so cutoff_date = first_message_date. Blind: message 2 is the proposer's own follow-up; Tom Lane's rejection is position 3, so blind_n=2.",
+  "notes": "No CF entry found (cf_url null; CF search needs login, none linked in thread). 'Rejected' = turned down on the list, no formal CF status. Category is approximate: the objection is about DML semantics/determinism; the closest listed category is 'SQL standard/syntax' (also non-standard syntax). David G. Johnston (same day) added that the use cases were not compelling. Earlier attempts are listed with their first message dates; their exact closing status was not individually verified beyond 'never committed'. CUTOFF CAVEAT: Tom's objection came the same day (archive 00:47 vs 03:17), so cutoff_date = first_message_date. Blind: message 2 is the proposer's own follow-up; Tom Lane's rejection is position 3, so blind_n=2. CUTOFF FIX: cutoff_date moved to the day after the first message because the eval runner filters strictly before cutoff_date on UTC dates and the old value left zero messages. Consequence: in date mode the same-day decisive objection IS visible (leak); use blind mode (blind_n) for this case.",
   "thread_message_count": 9,
   "blind_n": 2,
   "decisive_objection_position": 3,
