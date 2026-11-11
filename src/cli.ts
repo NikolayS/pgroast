@@ -3,6 +3,7 @@
 //         [--backend claude|codex] [--rounds N] [--self] [--dry-run]
 // pgroast --self --proposal FILE [--patch FILE ...]
 // pgroast page <roast.json> [--out FILE] [--site DIR [--base-url URL]]
+// pgroast pushback <cf-id|cf-url|thread-url> [--out DIR] [--backend claude|codex] [--dry-run] [--offline]
 // pgroast doctor
 //
 // Writes roast.md, roast.json and roast-summary.txt to a local directory. It never posts
@@ -15,6 +16,7 @@ import { dirname, join, resolve } from "node:path";
 import { DEFAULT_DSN, parseDsn } from "./corpus/db.ts";
 import { renderPage, safeUrl, siteFiles } from "./roast/page.ts";
 import type { Roast } from "./roast/schema.ts";
+import { loadPushbackInput, pushbackSlug, renderPushbackMarkdown, runPushback } from "./roast/pushback.ts";
 import { DEFAULT_OUT_ROOT, REPO_ROOT, stats as fetchStats } from "./thread/fetch.ts";
 import { loadProposal, validateDate } from "./thread/load.ts";
 import { loadLocalProposal } from "./thread/local.ts";
@@ -27,6 +29,7 @@ import { renderCompactMarkdown, renderMarkdown, renderSummary } from "./roast/re
 const USAGE = `Usage: bun run src/cli.ts <cf-id|cf-url|message-id|thread-url> [options]
        bun run src/cli.ts --self --proposal FILE [--patch FILE ...]
        bun run src/cli.ts page <roast.json> [--out FILE] [--site DIR [--base-url URL]]
+       bun run src/cli.ts pushback <cf-id|cf-url|thread-url> [--out DIR] [--backend NAME] [--dry-run] [--offline]
        bun run src/cli.ts doctor      check the installed CLIs and their login
        bun run src/cli.ts init-db     create the precedent database and load the shipped index
 
@@ -49,6 +52,12 @@ const USAGE = `Usage: bun run src/cli.ts <cf-id|cf-url|message-id|thread-url> [o
   --dry-run        print the prompts, call no model
   --offline        use only cached pages
   -h, --help
+
+pushback: for a long-stuck entry, "what is the real pushback?". Reads the whole thread (every
+thread of the CommitFest entry) in parts, one model call per part plus one to merge, and writes
+pushback.md and pushback.json: the blocking objections with verified quotes and message links,
+who raised them, whether they were resolved, when the thread last moved, and a bucket.
+--dry-run prints the number of parts and calls and calls no model.
 
 page: renders a finished roast.json, with no model call, to one self-contained HTML file
 (default: roast.html next to the JSON; --out FILE), or with --site DIR to a static layout:
@@ -83,6 +92,7 @@ export interface CliArgs {
   patches?: string[];
   rounds?: number;
   page?: { json: string; out?: string; site?: string; baseUrl?: string };
+  pushback?: boolean;
   dryRun: boolean;
   offline: boolean;
 }
@@ -91,6 +101,10 @@ export function parseArgs(argv: string[]): CliArgs | "help" {
   const a: CliArgs = { input: "", dryRun: false, offline: false };
   if (argv[0] === "page") return parsePageArgs(argv.slice(1));
   const rest = [...argv];
+  if (rest[0] === "pushback") {
+    rest.shift();
+    a.pushback = true;
+  }
   const value = (flag: string, inline: string | undefined): string => {
     const v = inline ?? rest.shift();
     if (v == null || v === "") throw new Error(`${flag} needs a value`);
@@ -155,6 +169,14 @@ export function parseArgs(argv: string[]): CliArgs | "help" {
         if (a.input) throw new Error(`unexpected argument "${tok}"`);
         a.input = tok;
     }
+  }
+  if (a.pushback) {
+    if (!a.input) throw new Error("pushback needs a CommitFest patch id or URL, or a thread URL");
+    for (const [k, name] of [["blind", "--blind"], ["before", "--before"], ["hint", "--hint"], ["self", "--self"], ["proposal", "--proposal"], ["rounds", "--rounds"], ["noEnrich", "--no-enrich"]] as const) {
+      if (a[k] != null) throw new Error(`${name} does not apply to pushback (it reads the whole thread)`);
+    }
+    if (a.patches?.length) throw new Error("--patch does not apply to pushback");
+    return a;
   }
   if (a.input === "doctor") a.doctor = true;
   if (a.input === "init-db") a.initDb = true;
@@ -296,6 +318,30 @@ async function main(): Promise<number> {
   const log = (m: string) => console.error(m);
   const backendName: BackendName = args.dryRun ? (args.backend ?? "claude") : pickBackend(args.backend);
   const models = modelsFromEnv(process.env, backendName);
+
+  if (args.pushback) {
+    log(`reading ${args.input} (whole thread) ...`);
+    const input = await loadPushbackInput(args.input, { offline: args.offline, noAttachments: true });
+    const outDir = resolve(args.out ?? join(DEFAULT_OUT_ROOT, pushbackSlug(input)));
+    mkdirSync(outDir, { recursive: true });
+    const transcriptDir = join(outDir, "llm");
+    const backend = args.dryRun ? new DryRunBackend({ transcriptDir, print: () => undefined }) : new CliBackend({ backend: backendName, transcriptDir, log });
+    const result = await runPushback(input, { backend, models: { map: models.roaster, reduce: models.critic }, backendName: args.dryRun ? "dry-run" : backendName, log });
+    result.stats.wall_ms = Date.now() - t0;
+    writeFileSync(join(outDir, "pushback.json"), JSON.stringify(result, null, 2) + "\n");
+    writeFileSync(join(outDir, "pushback.md"), renderPushbackMarkdown(result));
+    log("");
+    if (args.dryRun) log(`dry run: no model was called; prompts are in ${transcriptDir}`);
+    else {
+      log(`bucket: ${result.bucket}`);
+      log(`objections: ${result.objections.length} (${result.objections.filter((o) => o.blocking).length} blocking), from ${result.candidates.length} candidates`);
+      for (const w of result.warnings) log(`warning: ${w}`);
+    }
+    log(`model calls: ${result.stats.llm_calls}; parts: ${result.stats.chunks}; wall time: ${Math.round(result.stats.wall_ms / 1000)} s`);
+    log(`wrote ${join(outDir, "pushback.md")}`);
+    log(`wrote ${join(outDir, "pushback.json")}`);
+    return 0;
+  }
 
   log(`reading ${args.proposal ?? args.input} ...`);
   const proposal = args.proposal

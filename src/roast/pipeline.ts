@@ -151,7 +151,7 @@ export function describeSchema(s: JsonSchema, indent = ""): string {
 
 const TOUCH_POINT_LIST = TOUCH_POINTS.map((t) => `- \`${t.id}\`: ${t.label}`).join("\n");
 
-function outputContract(schema: JsonSchema, withTouchPoints: boolean): string {
+export function outputContract(schema: JsonSchema, withTouchPoints: boolean): string {
   return [
     "## Output contract",
     "",

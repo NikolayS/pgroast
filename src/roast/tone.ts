@@ -161,14 +161,23 @@ export interface ToneRepairOptions {
  * Lint; on hits, one repair call for the flagged sentences only; lint again. Changes the roast
  * in place and returns the record for roast.json. Without `repair` (or in a dry run) it only lints.
  */
-export async function toneCheck(r: Roast, repair?: ToneRepairOptions): Promise<ToneLint> {
-  const first = lintRoast(r);
+export function toneCheck(r: Roast, repair?: ToneRepairOptions): Promise<ToneLint> {
+  return toneCheckFields(() => proseFields(r), repair);
+}
+
+/** The same check over any set of prose fields (the pushback report uses it too). */
+export async function toneCheckFields(getFields: () => ProseField[], repair?: ToneRepairOptions): Promise<ToneLint> {
+  const lint = () => {
+    const fields = getFields();
+    return { fields: fields.length, hits: fields.flatMap(lintField) };
+  };
+  const first = lint();
   const result: ToneLint = { fields_checked: first.fields, hits_found: first.hits.length, sentences_rewritten: 0, repair_call: "not needed", remaining: first.hits };
   if (first.hits.length === 0) return result;
   if (!repair || repair.backend.dryRun) return { ...result, repair_call: "skipped" };
 
   // One item per flagged sentence of a field.
-  const fields = new Map(proseFields(r).map((f) => [f.path, f]));
+  const fields = new Map(getFields().map((f) => [f.path, f]));
   const items: { n: number; path: string; sentence: string; flagged: string[] }[] = [];
   for (const h of first.hits) {
     const item = items.find((x) => x.path === h.path && x.sentence === h.sentence);
@@ -202,6 +211,6 @@ export async function toneCheck(r: Roast, repair?: ToneRepairOptions): Promise<T
     repair.log?.(`tone repair failed: ${(e as Error).message.split("\n")[0]}`);
     result.repair_call = "failed";
   }
-  result.remaining = lintRoast(r).hits;
+  result.remaining = lint().hits;
   return result;
 }

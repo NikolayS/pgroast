@@ -160,6 +160,10 @@ function cfFields(html: string): Map<string, string> {
   for (const m of main.matchAll(/<th[^>]*>([\s\S]*?)<\/th>\s*<td[^>]*>([\s\S]*?)(?=<th[^>]*>|$)/gi)) {
     out.set(stripTags(m[1]!), m[2]!);
   }
+  // "Emails" is the last row before "History" and can hold a nested table (annotations) with
+  // its own <th> cells: take the whole rest of the main table for it.
+  const emailsAt = main.search(/<th>\s*Emails\s*<\/th>/i);
+  if (emailsAt >= 0) out.set("Emails", main.slice(emailsAt).replace(/^<th>\s*Emails\s*<\/th>\s*<td[^>]*>/i, ""));
   return out;
 }
 
