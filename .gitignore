@@ -4,3 +4,9 @@ node_modules/
 __pycache__/
 *.pyc
 out/
+
+# eval outputs: keep only the final reports
+eval/results/**
+!eval/results/*/
+!eval/results/*/report.md
+!eval/results/*/report.json

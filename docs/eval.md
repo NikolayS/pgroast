@@ -7,8 +7,8 @@ the change is recorded here with its date and reason, and every run is
 rescored.
 
 ```
-bun run src/eval/cli.ts run   [--run-id ID] [--case ID ...] [--rounds N] [--concurrency 2] [--dry-run] [--backend claude|codex]
-bun run src/eval/cli.ts score <run-id> [--no-judge]
+bun run src/eval/cli.ts run   [--run-id ID] [--case ID ...] [--rounds N] [--repeat K] [--concurrency 2] [--dry-run] [--backend claude|codex] [--offline] [--cases FILE]
+bun run src/eval/cli.ts score <run-id> [--no-judge] [--case ID ...] [--cases FILE]
 bun run src/eval/cli.ts list                     # cases and existing runs
 ```
 
@@ -30,14 +30,24 @@ The gold data is never shown to the roast pipeline. It is read only by
 
 ## Run
 
-For each selected case and each round `r` (`--rounds N`, default 1), the
-runner calls the roast pipeline in-process (`src/roast/pipeline.ts`
-`runRoast`). It uses the same options as
-`bun run src/cli.ts <thread_url> --blind <blind_n> --before <cutoff_date>`
-(precedent enrichment on, default models from the environment, Opus or Mythos
-only). Output goes to
-`eval/results/<run-id>/<case-id>[/r<round>]/roast.json`, `roast.md` and
-`llm/`, plus `case-meta.json` (wall time, calls, cost, errors).
+For each selected case, the runner calls the roast pipeline in-process
+(`runRoast` in `src/roast/pipeline.ts`). It uses exactly the options of
+
+```
+bun run src/cli.ts <thread_url> --blind <blind_n> --before <cutoff_date> [--rounds N]
+```
+
+That means review mode, precedent enrichment on, no hint, and the default
+models from the environment (Opus or Mythos only on the claude backend).
+
+- `--rounds N` passes through to the pipeline: extra reflection rounds,
+  0..6, default 0, the same as `src/cli.ts --rounds`.
+- `--repeat K` runs every case K times (`r1..rK`) to measure run-to-run
+  variance.
+
+Output goes to `eval/results/<run-id>/<case-id>[/r<k>]/`: `roast.json`,
+`roast.md`, `llm/` (every prompt and reply) and `case-meta.json` (options,
+wall time, calls, cost, error).
 
 - **Resumable.** A case or round whose `roast.json` already exists in that
   run is skipped. A failed case writes `error.json` and is retried on the
@@ -70,12 +80,20 @@ Each case gets one judge call, made through the roast LLM backend with the
 critic model and no tools. The judge sees:
 
 - the case's `decisive_objections` (who, date, quote, category);
-- every objection the roast produced, labelled with its id and its bucket:
-  `listed` (`objections`, the ranked steelman), `other_surviving`, or
-  `refuted`.
+- every objection the roast produced, with its id, title, severity,
+  category, failure scenario and argument. The buckets are `listed`
+  (`objections`, the ranked steelman), `other_surviving`, `refuted`, and
+  `withdrawn` (taken back in a reflection round). Buckets are **not** shown
+  to the judge, so that a "refuted" label cannot bias it. (Clarified on
+  2026-11-11, before any result existed.)
 
-It answers `found`, `partially` or `not_found`, with the matching objection
-id and a one-line reason. Code then looks up the bucket of that id, so the
+For each decisive objection, it answers `found`, `partially` or
+`not_found`, with the matching objection id and a one-line reason. The case
+result is the best item: found over partially, and then the higher bucket
+(listed > other_surviving > refuted > withdrawn).
+
+If the judge cites an id that is not in the roast, the item counts as
+`not_found`. Code then looks up the bucket of that id, so the
 bucket is not the model's claim. The rules the judge is given:
 
 - **found**: the roast states the same core reason (same mechanism or
@@ -91,7 +109,9 @@ error, not a roaster miss (docs/design.md).
 For `accepted` cases with no decisive objection, (b) is "n/a".
 
 `--no-judge` skips the judge call (b becomes `not_scored`). `score` caches
-the judge reply in `<run>/<case>/judge.json` and does not call again.
+the judge reply in `<run>/<case>/judge.json` and does not call again; delete
+that file to re-judge. On a dry-run roast the judge also runs on the
+`DryRunBackend`.
 
 ### (c) Earlier attempt found (deterministic)
 
@@ -139,7 +159,7 @@ accepted cases.
   much that matters (docs/design.md, "Known weaknesses");
 - the misses: for each case that failed (a), (b) or (c), what was missed,
   with the gold quote and link;
-- with `--rounds N > 1`, each round is scored on its own, and per-case
-  agreement across rounds is shown.
+- with `--repeat K > 1`, each repeat is scored on its own, and per-case
+  verdict agreement across repeats is shown.
 
 `docs/eval-report.md` is updated only on request.
