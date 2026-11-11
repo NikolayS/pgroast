@@ -149,7 +149,7 @@ export function scoreEarlier(c: EvalCase, r: Roast, corpusRows: CorpusThreadRow[
   const inCorpus = wanted.filter((m) => rowsByMsgid.has(m)).map((m) => ({
     msgid: m,
     rows: rowsByMsgid.get(m)!.map((x) => x.id),
-    retrievable_before_cutoff: rowsByMsgid.get(m)!.some((x) => datedBefore(x, c.cutoff_date)),
+    retrievable_before_cutoff: rowsByMsgid.get(m)!.some((x) => datedBefore(x, r.precedent_cutoff || c.cutoff_date)),
   }));
   const ids = (urls: string[]) => urls.map(msgidOf).filter((x): x is string => !!x);
   const prior = new Set((r.prior_attempts ?? []).flatMap((p) => ids(p.thread_urls ?? [])));
@@ -186,6 +186,8 @@ export interface CaseScore {
   decisive_levels: ClassifyItem[];
   /** the decisive message is inside the shown window (position <= blind_n) */
   decisive_in_window: boolean;
+  /** cutoff dates as used by the run (from case-meta.json / roast.json) */
+  cutoffs: { case_cutoff_date: string; last_shown_date: string | null; precedent_cutoff: string | null };
   verdict: Verdict | null;
   confidence: string | null;
   error: string | null;
@@ -199,11 +201,17 @@ export interface CaseScore {
 }
 
 export function scoreCase(c: EvalCase, r: Roast | null, judge: JudgeItem[] | null, corpusRows: CorpusThreadRow[],
-  extra: { repeat: number; error?: string | null; judgeCalls?: number; judgeCost?: number | null; wallMs?: number | null; classify?: ClassifyItem[] | null }): CaseScore {
+  extra: { repeat: number; error?: string | null; judgeCalls?: number; judgeCost?: number | null; wallMs?: number | null; classify?: ClassifyItem[] | null;
+    lastShown?: string | null; precedentCutoff?: string | null }): CaseScore {
   const levels = extra.classify ?? [];
   const base = {
     case_id: c.id, title: c.title, outcome: c.outcome, post_training_cutoff: c.post_training_cutoff, repeat: extra.repeat,
     decisive_level: caseLevel(levels), decisive_levels: levels, decisive_in_window: decisiveInWindow(c),
+    cutoffs: {
+      case_cutoff_date: c.cutoff_date,
+      last_shown_date: extra.lastShown ?? null,
+      precedent_cutoff: extra.precedentCutoff ?? r?.precedent_cutoff ?? null,
+    },
   };
   if (!r) {
     return {

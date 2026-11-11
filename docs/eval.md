@@ -45,20 +45,38 @@ backend).
   `cutoff_date` is **not** applied to messages. In 9 cases the decisive
   objection came the same day as the proposal, so a strict date filter would
   either show nothing or show the objection.
-- **Precedents:** `cutoff_date` is the precedent cutoff (the roast's
-  `before`). It is set on the loaded proposal after the messages are chosen,
-  so it filters no message. The pipeline's own rules also apply: a row with
-  any date on or after the cutoff is dropped, the case's own thread and
-  CommitFest entry are dropped, and undated wiki rows are not used. The
-  review date shown to the model is the date of the last visible message.
-- **Caveat:** where `cutoff_date` is long after the shown window (for
-  example `sqljson-pg15`: messages from 2018, cutoff 2022), precedents dated
-  between the window and the cutoff are allowed. This is the case file's
-  choice, not the runner's.
+- **Precedents:** the precedent cutoff (the roast's `before`) is
 
-(Changed on 2026-11-11 on the lead's instruction, before any real result.
-The first version passed `cutoff_date` as `--before`, which also filtered
-messages.)
+  ```
+  precedent_cutoff = min(cutoff_date, UTC date of the last shown message + 1 day)
+  ```
+
+  So a case whose shown window is from 2018 gets no precedent from
+  2019–2022. Without this, it could receive the same feature's own later CF
+  entries under other titles, or its reverts. The cutoff is set on the
+  loaded proposal after the messages are chosen, so it filters no message.
+  The pipeline's own rules also apply: a row with any date on or after the
+  cutoff is dropped, the case's own thread and CommitFest entry are dropped,
+  and undated wiki rows are not used.
+- **Review date:** the date shown to the model is the date of the last
+  visible message.
+- **Where the dates are recorded:** all three dates (`case_cutoff_date`,
+  `last_shown_date`, `precedent_cutoff`) are in each case's
+  `case-meta.json` and in `report.json`, under `scores[].cutoffs`. The
+  report's case table shows the cutoff used, and both inputs when the window
+  made it earlier. Earlier-attempt check (c) judges "retrievable before
+  cutoff" against the same effective cutoff.
+
+  In the 18-case dry run (`dryrun-3`), the window made the cutoff earlier in
+  9 cases (for example `sqljson-pg15`: 2022-03-03 → 2018-03-14). No
+  retrieved precedent was dated on or after the cutoff used.
+
+(Changed twice on 2026-11-11 on the lead's instruction, before any real
+result:
+1. The first version passed `cutoff_date` as `--before`, which also filtered
+   messages.
+2. The second version used `cutoff_date` alone as the precedent cutoff, which
+   let in precedents dated after the shown window.)
 
 - `--rounds N` passes through to the pipeline: extra reflection rounds,
   0..6, default 0, the same as `src/cli.ts --rounds`.

@@ -1,8 +1,8 @@
 // Eval runner: roast each case in blind mode, as
 //   bun run src/cli.ts <thread_url> --blind <blind_n> [--rounds N]
-// would, with one difference: cutoff_date is the precedent cutoff (roast
-// `before`) but is NOT applied to the thread messages (the lead's rule: the
-// decisive objection often came the same day). Writes to
+// would. Messages: blind_n only. Precedent cutoff (roast `before`, set after
+// loading so it filters no message) = min(cutoff_date, last shown message
+// date + 1 day). Writes to
 // eval/results/<run-id>/<case-id>[/r<k>]/. Resumable.
 
 import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
@@ -33,6 +33,29 @@ export interface RunEvalOptions {
   loadFn?: typeof loadProposal;
 }
 
+export interface PrecedentCutoff {
+  /** the case file's cutoff_date */
+  case_cutoff_date: string;
+  /** UTC date of the last message shown to the roast */
+  last_shown_date: string;
+  /** what the roast used: the earlier of case_cutoff_date and last_shown_date + 1 day */
+  precedent_cutoff: string;
+}
+
+/**
+ * Precedent cutoff = min(cutoff_date, last shown message date + 1 day), so a
+ * case whose shown window is from 2018 gets no precedent dated 2019 or later.
+ * Precedents are kept only if every date they have is strictly before it.
+ */
+export function precedentCutoff(caseCutoff: string, lastShownIso: string): PrecedentCutoff {
+  const last = lastShownIso.slice(0, 10);
+  const d = new Date(last + "T00:00:00Z");
+  d.setUTCDate(d.getUTCDate() + 1);
+  const dayAfter = d.toISOString().slice(0, 10);
+  const cc = caseCutoff.slice(0, 10);
+  return { case_cutoff_date: cc, last_shown_date: last, precedent_cutoff: cc < dayAfter ? cc : dayAfter };
+}
+
 export function caseDir(runId: string, caseId: string, repeat: number, repeats: number): string {
   return repeats > 1 ? join(RESULTS_DIR, runId, caseId, `r${repeat}`) : join(RESULTS_DIR, runId, caseId);
 }
@@ -44,7 +67,9 @@ export interface CaseMeta {
   wall_ms: number;
   llm_calls: number;
   cost_usd: number | null;
-  options: { thread_url: string; blind: number; precedent_before: string; message_filter: string; rounds: number; hint: string | null; backend: string; models: unknown };
+  options: {
+    thread_url: string; blind: number; message_filter: string; rounds: number; hint: string | null; backend: string; models: unknown;
+  } & Partial<PrecedentCutoff>;
   error: string | null;
 }
 
@@ -78,18 +103,22 @@ export async function runEval(o: RunEvalOptions): Promise<{ done: number; skippe
     const meta: CaseMeta = {
       case_id: c.id, repeat: k, started_at: new Date(t0).toISOString(), wall_ms: 0, llm_calls: 0, cost_usd: null,
       options: {
-        thread_url: c.thread_url, blind: c.blind_n, precedent_before: c.cutoff_date,
+        thread_url: c.thread_url, blind: c.blind_n,
         message_filter: "blind only (first N messages); cutoff_date not applied to messages", rounds: o.rounds ?? 0,
         hint: null, backend: o.dryRun ? "dry-run" : backendName, models,
       },
       error: null,
     };
     try {
-      log(`[${tag}] loading ${c.thread_url} (first ${c.blind_n} message(s); precedents before ${c.cutoff_date})`);
+      log(`[${tag}] loading ${c.thread_url} (first ${c.blind_n} message(s))`);
       // Messages: blind_n only (first N of the flat thread). cutoff_date is the
       // precedent cutoff only: set after loading so it filters no message.
       const proposal = await load(c.thread_url, { blind: c.blind_n, offline: o.offline });
-      proposal.filters.before = c.cutoff_date;
+      const lastShown = proposal.thread.messages.at(-1)?.date ?? proposal.threadStart;
+      const pc = precedentCutoff(c.cutoff_date, lastShown);
+      proposal.filters.before = pc.precedent_cutoff;
+      Object.assign(meta.options, pc);
+      log(`[${tag}] precedent cutoff ${pc.precedent_cutoff} (case cutoff ${pc.case_cutoff_date}, last shown message ${pc.last_shown_date})`);
       const r = await roast(proposal, {
         backend, models, backendName: o.dryRun ? "dry-run" : backendName, hint: null, enrich: true,
         mode: "review", rounds: o.rounds ?? 0, log: (m) => log(`[${tag}] ${m}`),

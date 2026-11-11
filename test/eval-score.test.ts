@@ -7,7 +7,7 @@ import type { Roast } from "../src/roast/schema.ts";
 import { msgidOf, parseCases, type EvalCase } from "../src/eval/cases.ts";
 import { judgePrompt } from "../src/eval/judge.ts";
 import { renderReport, scoreRun } from "../src/eval/report.ts";
-import { RESULTS_DIR } from "../src/eval/run.ts";
+import { precedentCutoff, RESULTS_DIR } from "../src/eval/run.ts";
 import { headline, scoreCase, scoreDecisive, scoreEarlier, survivingFatal, verdictMatch, type CorpusThreadRow } from "../src/eval/score.ts";
 
 const FLAT = "https://www.postgresql.org/message-id/flat/";
@@ -52,6 +52,27 @@ describe("cases", () => {
     expect(msgidOf("https://www.postgresql.org/message-id/old@x.org?foo#bar")).toBe("old@x.org");
     expect(msgidOf("<old@x.org>")).toBe("old@x.org");
     expect(msgidOf("https://example.com/nothing")).toBeNull();
+  });
+});
+
+describe("precedent cutoff", () => {
+  test("earlier of case cutoff and last shown message + 1 day", () => {
+    // shown window from 2018, case cutoff 2022: the window wins
+    expect(precedentCutoff("2022-03-03", "2018-01-10T21:05:00Z")).toEqual({
+      case_cutoff_date: "2022-03-03", last_shown_date: "2018-01-10", precedent_cutoff: "2018-01-11",
+    });
+    // same-day decisive objection: case cutoff = day after, equal to window + 1
+    expect(precedentCutoff("2023-02-23", "2023-02-22T17:17:46Z").precedent_cutoff).toBe("2023-02-23");
+    // case cutoff earlier than the window: the case cutoff wins
+    expect(precedentCutoff("2024-12-07", "2024-12-20T00:00:00Z").precedent_cutoff).toBe("2024-12-07");
+    // month and year rollover
+    expect(precedentCutoff("2030-01-01", "2025-12-31T23:59:59Z").precedent_cutoff).toBe("2026-01-01");
+    expect(precedentCutoff("2030-01-01", "2024-02-28T10:00:00Z").precedent_cutoff).toBe("2024-02-29");
+  });
+  test("(c) retrievable_before_cutoff uses the roast's effective cutoff", () => {
+    const rows = [{ id: "cf:1", date: "2019-05-01", first_date: "2019-01-01", thread_urls: [FLAT + "old@x.org"] }];
+    expect(scoreEarlier(CASE, roast({ precedent_cutoff: "2019-03-01" }), rows).in_corpus[0]!.retrievable_before_cutoff).toBe(false);
+    expect(scoreEarlier(CASE, roast({ precedent_cutoff: "2019-06-01" }), rows).in_corpus[0]!.retrievable_before_cutoff).toBe(true);
   });
 });
 
@@ -190,7 +211,7 @@ describe("scoreRun end to end (fake judge, injected corpus rows)", () => {
     expect(calls).toBe(2);
     const md = renderReport(rep, [CASE]);
     expect(md).toContain("(a) verdict match**: 1/1 (100%) lenient");
-    expect(md).toContain("| c1 | rejected | no | idea | LIKELY-REJECT (high) | yes | yes | found | listed | found | 2 | 10+2 | $2.00 | 60 s |");
+    expect(md).toContain("| c1 | rejected | no | ? (case 2020-01-01) | idea | LIKELY-REJECT (high) | yes | yes | found | listed | found | 2 | 10+2 | $2.00 | 60 s |");
     expect(md).toContain("Split by level of the decisive objection");
   });
 });

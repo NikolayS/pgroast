@@ -137,6 +137,8 @@ export async function scoreRun(o: ScoreOptions): Promise<Report> {
       scores.push(scoreCase(c, r, judge, corpusRows, {
         repeat: k, error: r ? null : (err?.error?.split("\n")[0] ?? "no roast.json (not run yet)"),
         judgeCalls, judgeCost, wallMs: meta?.wall_ms ?? null, classify,
+        lastShown: meta?.options?.last_shown_date ?? null,
+        precedentCutoff: meta?.options?.precedent_cutoff ?? null,
       }));
     }
   }
@@ -215,19 +217,23 @@ export function renderReport(rep: Report, cases: EvalCase[]): string {
     md += `\nVerdict agreement across repeats:\n\n| case | verdicts | modal share |\n|---|---|---:|\n`;
     md += rep.agreement!.map((a) => `| ${a.case_id} | ${a.verdicts.map((v) => v ?? "error").join(", ")} | ${Math.round(a.modal_share * 100)}% |`).join("\n") + "\n";
   }
-  md += `\n## Cases\n\n| case | outcome | post-cutoff | decisive level | verdict | (a) lenient | strict | (b) decisive | bucket | (c) earlier | fatal surviving | calls (roast+judge) | cost | wall |\n|---|---|---|---|---|---|---|---|---|---|---:|---|---:|---:|\n`;
+  md += `\n## Cases\n\n| case | outcome | post-cutoff | precedent cutoff | decisive level | verdict | (a) lenient | strict | (b) decisive | bucket | (c) earlier | fatal surviving | calls (roast+judge) | cost | wall |\n|---|---|---|---|---|---|---|---|---|---|---|---:|---|---:|---:|\n`;
   for (const s of rep.scores) {
     const tag = (rep.repeats > 1 ? `${s.case_id}/r${s.repeat}` : s.case_id) + (s.decisive_in_window ? " ⚑" : "");
     const lvl = s.decisive_level ?? "–";
+    const co = s.cutoffs;
+    const cut = co.precedent_cutoff
+      ? `${co.precedent_cutoff}${co.precedent_cutoff < co.case_cutoff_date ? ` (case ${co.case_cutoff_date}; last shown ${co.last_shown_date ?? "?"})` : ""}`
+      : `? (case ${co.case_cutoff_date})`;
     if (s.error) {
-      md += `| ${tag} | ${s.outcome} | ${yn(s.post_training_cutoff)} | ${lvl} | ERROR: ${s.error.replace(/\|/g, "/").slice(0, 80)} | | | | | | | ${s.cost.roast_calls}+${s.cost.judge_calls} | | |\n`;
+      md += `| ${tag} | ${s.outcome} | ${yn(s.post_training_cutoff)} | ${cut} | ${lvl} | ERROR: ${s.error.replace(/\|/g, "/").slice(0, 80)} | | | | | | | ${s.cost.roast_calls}+${s.cost.judge_calls} | | |\n`;
       continue;
     }
     const d = s.decisive!;
-    md += `| ${tag} | ${s.outcome} | ${yn(s.post_training_cutoff)} | ${lvl} | ${s.verdict} (${s.confidence}) | ${yn(s.verdict_lenient)} | ${yn(s.verdict_strict)} | ${d.status === "scored" ? d.result : d.status} | ${d.bucket ?? "–"} | ${s.earlier!.status} | ${s.surviving_fatal} | ${s.cost.roast_calls}+${s.cost.judge_calls} | ${s.cost.cost_usd === null ? "–" : `$${s.cost.cost_usd.toFixed(2)}`} | ${s.cost.wall_ms === null ? "–" : `${Math.round(s.cost.wall_ms / 1000)} s`} |\n`;
+    md += `| ${tag} | ${s.outcome} | ${yn(s.post_training_cutoff)} | ${cut} | ${lvl} | ${s.verdict} (${s.confidence}) | ${yn(s.verdict_lenient)} | ${yn(s.verdict_strict)} | ${d.status === "scored" ? d.result : d.status} | ${d.bucket ?? "–"} | ${s.earlier!.status} | ${s.surviving_fatal} | ${s.cost.roast_calls}+${s.cost.judge_calls} | ${s.cost.cost_usd === null ? "–" : `$${s.cost.cost_usd.toFixed(2)}`} | ${s.cost.wall_ms === null ? "–" : `${Math.round(s.cost.wall_ms / 1000)} s`} |\n`;
   }
   const t = rep.totals;
-  md += `\n⚑ = decisive objection inside the shown window.\n`;
+  md += `\n⚑ = decisive objection inside the shown window. Precedent cutoff = min(case cutoff_date, last shown message + 1 day); both dates are shown when the window made it earlier.\n`;
   md += `\nTotals: ${t.roast_calls} roast calls + ${t.judge_calls} judge calls; cost ${t.cost_usd === null ? "not reported" : `$${t.cost_usd}`}; wall ${Math.round(t.wall_ms / 60000)} min (sum over cases).\n`;
 
   md += `\n## Misses\n\n`;
