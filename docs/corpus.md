@@ -59,14 +59,20 @@ The only packages are dev dependencies used for the typecheck
   `Symbol not found: _palloc0_mul`. A server restart onto 18.6 fixes this.
   After that, re-run `build` (or create the extension) to enable it.
 
-Export and ship the corpus as one file, then restore it elsewhere:
+Export and ship the corpus as one file (committed as `data/precedents.sql.gz`, about 0.5 MiB):
 
 ```
-pg_dump -h /tmp -d pgroast -Fc --no-owner --no-privileges -t precedent -t build_log -f data/precedents.dump
-createdb pgroast && pg_restore -d pgroast --no-owner data/precedents.dump
+pg_dump -h /tmp -d pgroast --no-owner --no-privileges -t precedent -t build_log | gzip -9 > data/precedents.sql.gz
+createdb pgroast && gunzip -c data/precedents.sql.gz | psql -d pgroast
 ```
 
-`tsv` is a stored generated column, so `pg_restore` recomputes it.
+This is a plain SQL dump, not the custom format, so no role name is
+recorded. The generated columns `tsv` and `tsv_kw` are recomputed on
+restore. After restoring, run `build` once (with or without `--offline`) to
+create pg_trgm if it is available. Only `precedent` and `build_log` are
+dumped. Other tables in the `pgroast` database belong to other components
+(for example `precedent_enrichment`), and `build` never drops or changes
+them.
 
 ## Sources
 
@@ -168,6 +174,7 @@ createdb pgroast && pg_restore -d pgroast --no-owner data/precedents.dump
 | `other_links` | text[] | other real URLs found in the source |
 | `provenance` | jsonb | source, cache URL, exact timestamps (`decided_at`, `first_at`), CF history, reverted commits |
 | `tsv` | tsvector, stored generated | `title` weight A, `summary \|\| tags` weight B, `objection` weight C (`english`); GIN index |
+| `tsv_kw` | tsvector, stored generated | `title` in the `simple` config (keeps SQL keywords that `english` drops); GIN index |
 
 `build_log(kind, built_at, coverage jsonb)` stores the coverage report of
 the last build of each source.
@@ -186,25 +193,29 @@ ABI/extension, and hot-path performance. They are rough hints: for example,
 `YYYY-MM-DD`; `match` ∈ `and | or | trgm`).
 
 1. **AND path**: `websearch_to_tsquery('english', q)`, ranked by
-   `ts_rank_cd(tsv, q, 1)`.
-2. **OR fallback**, if the AND path returns fewer than `limit` rows:
-   - take the query's `english` lexemes;
-   - drop a few weak words (add, support, allow, new, option, use, make,
-     patch, feature);
-   - prefix-match each lexeme and OR them, with
-     `to_tsquery('simple', 'lex1':* | 'lex2':* …)`. The `simple` config keeps
-     the lexemes from being stemmed twice. Only lexemes that match
-     `^[[:alnum:]_.-]+$` are used, so user text never reaches the tsquery
-     syntax.
-   - Each lexeme is expanded with a small curated synonym map
-     (`SYNONYMS` in `search.ts`): planner↔optim(izer);
+   `ts_rank_cd(tsv, q, 1)`. All terms must match.
+2. **OR fallback**, if the AND path returns fewer than `limit` rows: an
+   IDF-weighted term-coverage score. The terms are:
+   - each `english` lexeme of the query, prefix-matched and expanded with a
+     small curated synonym map (`SYNONYMS`: planner↔optim(izer);
      pooler/pool↔pgbouncer, pgpool; posit(ion)↔order, reorder, attnum;
-     timestamp→time, date. `pg` (from `pg_dump`, `pg_ctl`…) is treated as a
-     weak word.
-   - Rows are ranked by the number of distinct query terms they cover (a
-     term counts if it or a synonym matches; a title match, weight A,
-     counts twice), then by `ts_rank_cd`.
-   - Rows from this path come after all AND rows.
+     timestamp→time, date). Weak words are dropped: add, support, allow, new,
+     option, use, make, patch, feature, and `pg` (from `pg_dump`, `pg_ctl`…);
+   - SQL keywords that `english` drops as stop words (where, having, between,
+     into, only, any, all, off, over), matched against `tsv_kw`, the title in
+     the `simple` config. Without this, "pg_dump WHERE" could never find
+     "pg_dump --where option";
+   - underscore identifiers in the query (`pg_dump`, `shared_buffers`), as a
+     phrase on `tsv_kw` (`'pg' <-> 'dump'`).
+
+   Score = Σ over terms of `ln((N+1)/(df+1))` × (matches anywhere + matches
+   in the title), plus `ts_rank_cd`. Rare terms such as "pooler" count more
+   than common ones such as "table". Terms are built only from lexemes,
+   keywords and identifiers matching `[a-z0-9]+`, so user text never reaches
+   tsquery syntax.
+
+   OR rows come after all AND rows. Their scores are on a different scale
+   from AND scores; only the order matters.
 3. **pg_trgm** (when installed): `0.5 * similarity(title, q)` is added to
    the score. Titles with similarity > 0.3 fill any remaining slots.
 
@@ -280,7 +291,9 @@ and exited with status 1.
   5 s to 300 s, at most 6 tries.
 - `--offline` builds from the cache only.
 - The cache file names are the same as the earlier Python prototype's, so
-  pages it crawled were reused, not fetched again.
+  pages it crawled were reused, not fetched again. The full crawl
+  (2026-11-11) made 2,118 requests in about 95 minutes, with no 429 or 5xx
+  responses and no failures.
 
 ## Known gaps
 
@@ -308,3 +321,32 @@ and exited with status 1.
   (see [Database](#database)).
 - **Lexical search only**, with no synonyms. "connection pooler" does not
   find "pgbouncer" unless that word is in the text.
+
+## Build results (2026-11-11)
+
+| kind | status | rows | with thread URL | first_date range | date range |
+|---|---|---:|---:|---|---|
+| cf | Rejected | 251 | 234 | 2011-10-07..2026-09-29 | 2015-01-12..2026-10-20 |
+| cf | Returned with feedback | 1116 | 1002 | 2008-05-31..2026-08-05 | 2015-04-30..2026-11-09 |
+| cf | Withdrawn | 562 | 538 | 2016-05-06..2026-11-08 | 2019-01-04..2026-11-10 |
+| revert | Reverted | 508 | 255 | 1999-02-08..2026-08-25 | 1999-02-08..2026-08-25 |
+| revert | Partially reverted | 39 | 28 | 1999-03-14..2026-03-30 | 2011-11-22..2026-05-15 |
+| do_not_want | Not wanted | 6 | 2 | – | – |
+| do_not_want | Not worth doing | 65 | 11 | – | – |
+| **total** | | **2547** | **2070** | | |
+
+CommitFest coverage:
+
+- 61 CFs (IDs 3..63);
+- 183 of 183 list pages;
+- 1,933 unique patches;
+- 1,933 of 1,933 patch pages fetched (0 failed, 0 unparsed).
+
+1,929 patches are stored. The other 4 have a final status of "Moved to
+different CF" in their highest CF and are dropped.
+
+Every CF row has `date` and `first_date`. 573 of the CF rows have at least
+one touch point.
+
+`selftest`: 2,547 rows; 0 URL violations; 2,464 thread links checked
+against their source.

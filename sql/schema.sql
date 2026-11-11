@@ -29,6 +29,12 @@ create table if not exists precedent (
 );
 
 create index if not exists precedent_tsv_idx on precedent using gin (tsv);
+
+-- Title in the 'simple' config: keeps SQL keywords that 'english' drops as
+-- stop words (WHERE, HAVING, ONLY, ...). Used by the search's OR fallback.
+alter table precedent add column if not exists tsv_kw tsvector
+  generated always as (to_tsvector('simple'::regconfig, title)) stored;
+create index if not exists precedent_tsv_kw_idx on precedent using gin (tsv_kw);
 create index if not exists precedent_kind_idx on precedent (kind);
 create index if not exists precedent_dates_idx on precedent (first_date, date);
 

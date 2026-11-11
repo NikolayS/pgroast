@@ -60,6 +60,46 @@ export const SYNONYMS: Record<string, string[]> = {
   timestamp: ["time", "date"],
 };
 
+// SQL keywords that the english config drops as stop words; when present in
+// the query they are matched against the title in the 'simple' config (tsv_kw).
+export const KEYWORD_STOPWORDS = new Set(["where", "having", "between", "into", "only", "any", "all", "off", "over"]);
+
+export interface OrTerm {
+  /** 'tsv' = weighted english vector; 'kw' = title in the simple config */
+  c: "tsv" | "kw";
+  /** tsquery text (simple config) matching anywhere in the vector */
+  q: string;
+  /** same, title (weight A) only */
+  tq: string;
+  label: string;
+}
+
+/**
+ * Terms of the OR fallback. Built only from english lexemes, SQL keywords and
+ * identifiers that match [a-z0-9]+, so no user text reaches tsquery syntax.
+ */
+export function orTerms(query: string, lexemes: string[]): OrTerm[] {
+  const terms: OrTerm[] = [];
+  for (const l of lexemes) {
+    const group = [l, ...(SYNONYMS[l] ?? [])];
+    terms.push({
+      c: "tsv", label: l,
+      q: group.map((x) => `'${x}':*`).join(" | "),
+      tq: group.map((x) => `'${x}':*A`).join(" | "),
+    });
+  }
+  const words = query.toLowerCase().match(/[a-z0-9_]+/g) ?? [];
+  for (const w of new Set(words)) {
+    if (KEYWORD_STOPWORDS.has(w)) terms.push({ c: "kw", label: w, q: `'${w}'`, tq: `'${w}'` });
+    const parts = w.split("_").filter(Boolean);
+    if (parts.length > 1 && parts.every((x) => /^[a-z0-9]+$/.test(x))) {
+      const ph = parts.map((x) => `'${x}'`).join(" <-> ");
+      terms.push({ c: "kw", label: w, q: ph, tq: ph });
+    }
+  }
+  return terms;
+}
+
 let shared: SQL | null = null;
 let trgmCache: boolean | null = null;
 
@@ -107,25 +147,38 @@ export async function searchPrecedents(o: SearchOptions): Promise<Precedent[]> {
       where l ~ '^[[:alnum:]_.-]+$'`;
     const lexemes = ((lex[0]?.lexemes ?? []) as string[]).filter((l) => !WEAK.has(l));
     const seen = rows.map((r) => r.id as string);
-    if (lexemes.length) {
-      const groups = lexemes.map((l) => [l, ...(SYNONYMS[l] ?? [])]);
-      const orq = [...new Set(groups.flat())].map((l) => `'${l}':*`).join(" | ");
-      const g = JSON.stringify(groups);
-      // rank by how many distinct query terms (with synonyms) a row covers,
-      // title matches counting twice, then by ts_rank_cd
+    const terms = orTerms(q, lexemes);
+    if (terms.length) {
+      // document frequency per term -> idf weight
+      const tj = JSON.stringify(terms);
+      const df = await sql`
+        select (select count(*) from precedent)::float8 as n,
+          coalesce(json_agg((select count(*) from precedent p where
+            case when t->>'c' = 'kw' then p.tsv_kw @@ to_tsquery('simple', t->>'q')
+                 else p.tsv @@ to_tsquery('simple', t->>'q') end) order by o), '[]')::text as df
+        from jsonb_array_elements((${tj}::text)::jsonb) with ordinality as x(t, o)`;
+      const n = Number(df[0]!.n);
+      const dfs = JSON.parse(df[0]!.df) as number[];
+      const weighted = JSON.stringify(terms.map((t, i) => ({ ...t, w: Math.log((n + 1) / ((dfs[i] ?? 0) + 1)) })));
+      // score = sum over terms of idf * (matches anywhere + matches in title) + ts_rank_cd
+      const cover = sql`(select coalesce(sum((t->>'w')::float8 * (
+            (case when t->>'c' = 'kw' then p.tsv_kw @@ to_tsquery('simple', t->>'q')
+                  else p.tsv @@ to_tsquery('simple', t->>'q') end)::int
+          + (case when t->>'c' = 'kw' then p.tsv_kw @@ to_tsquery('simple', t->>'q')
+                  else p.tsv @@ to_tsquery('simple', t->>'tq') end)::int)), 0)
+        from jsonb_array_elements((${weighted}::text)::jsonb) t)`;
+      const anyq = terms.filter((t) => t.c === "tsv").map((t) => t.q).join(" | ");
       const orRows = await sql`
-        select ${cols},
-          (select count(*) from jsonb_array_elements((${g}::text)::jsonb) grp
-            where p.tsv @@ to_tsquery('simple', (select string_agg(quote_literal(x) || ':*', ' | ')
-                                                 from jsonb_array_elements_text(grp) x)))
-          + (select count(*) from jsonb_array_elements((${g}::text)::jsonb) grp
-            where p.tsv @@ to_tsquery('simple', (select string_agg(quote_literal(x) || ':*A', ' | ')
-                                                 from jsonb_array_elements_text(grp) x)))
-          + ts_rank_cd(p.tsv, to_tsquery('simple', ${orq}), 1) + 0.5 * ${trgmExpr} as score, 'or' as match
-        from precedent p
-        where p.tsv @@ to_tsquery('simple', ${orq}) and ${filters}
-          and p.id not in (select jsonb_array_elements_text((${JSON.stringify(seen)}::text)::jsonb))
-        order by score desc, p.id limit ${limit - rows.length}`;
+        select * from (
+          select ${cols}, ${cover}
+            + coalesce(ts_rank_cd(p.tsv, to_tsquery('simple', nullif(${anyq}, '')), 1), 0)
+            + 0.5 * ${trgmExpr} as score, 'or' as match
+          from precedent p
+          where ${filters}
+            and p.id not in (select jsonb_array_elements_text((${JSON.stringify(seen)}::text)::jsonb))
+        ) s
+        where s.score > 0.0001
+        order by score desc, id limit ${limit - rows.length}`;
       rows = rows.concat([...orRows]);
     }
     if (trgm && rows.length < limit) {

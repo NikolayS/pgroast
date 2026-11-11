@@ -123,7 +123,7 @@ export async function collectReverts(opts: { limit?: number }) {
       touchPoints: touchPoints([c.subject, ...revSubjects, c.body].join(" ")),
       otherLinks: tinfo.map((t) => GITWEB + t.hash),
       provenance: {
-        source: "git log " + PG_REPO, commit: c.hash, reverted_by: c.author, reverted_commit_match: how,
+        source: "git log of postgresql.git (local clone)", commit: c.hash, reverted_by: c.author, reverted_commit_match: how,
         decided_at: c.date, first_at: firstDate,
         reverted_commits: tinfo.map((t) => ({ hash: t.hash, subject: t.subject, date: t.date, author: t.author })),
       },
