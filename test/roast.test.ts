@@ -122,9 +122,10 @@ describe("extractJson", () => {
 });
 
 describe("models", () => {
-  test("only Opus and Mythos", () => {
+  test("only Opus, Mythos and Fable", () => {
     expect(assertAllowedModel("opus")).toBe("opus");
     expect(assertAllowedModel("claude-mythos-5-2")).toBe("claude-mythos-5-2");
+    expect(assertAllowedModel("claude-fable-5-2")).toBe("claude-fable-5-2");
     expect(() => assertAllowedModel("sonnet")).toThrow();
     expect(() => assertAllowedModel("claude-haiku-5-5")).toThrow();
     expect(() => assertAllowedModel("gpt-x")).toThrow();

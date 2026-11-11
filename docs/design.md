@@ -40,7 +40,7 @@ Environment: `PGROAST_BACKEND`; `PGROAST_ROASTER_MODEL` (default `opus`; also th
 `PGROAST_CONCURRENCY` (3), `PGROAST_LLM_TIMEOUT_MS` (900000), `PGROAST_CLAUDE_BIN`,
 `PGROAST_CODEX_BIN`, `PGROAST_DSN` (corpus DB).
 
-On the claude backend only Opus and Mythos models are accepted; anything else is an error before
+On the claude backend only Opus, Mythos and Fable models are accepted (Fable 5.2 is the same underlying model as Mythos 5.2); anything else is an error before
 any call is made. No API key is read, needed or used (see "LLM backend").
 
 Output directory:

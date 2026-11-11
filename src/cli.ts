@@ -57,7 +57,7 @@ The model runs through an installed Claude Code or Codex CLI on your subscriptio
 No API key is used: API key variables are removed from the CLI's environment.
 
 Environment: PGROAST_BACKEND; for claude: PGROAST_ROASTER_MODEL (default opus), PGROAST_CRITIC_MODEL
-(default claude-mythos-5-2; also used for synthesis), Opus and Mythos only; for codex:
+(default claude-mythos-5-2; also used for synthesis), Opus, Mythos and Fable only; for codex:
 PGROAST_CODEX_MODEL (default: the CLI's configured model); PGROAST_CONCURRENCY (3),
 PGROAST_LLM_TIMEOUT_MS (900000).
 

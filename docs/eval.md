@@ -38,7 +38,7 @@ bun run src/cli.ts <thread_url> --blind <blind_n> [--rounds N]
 ```
 
 would. That means review mode, precedent enrichment on, no hint, and the
-default models from the environment (Opus or Mythos only on the claude
+default models from the environment (Opus, Mythos or Fable only on the claude
 backend).
 
 - **Messages:** `blind_n` only, the first N messages of the flat thread.

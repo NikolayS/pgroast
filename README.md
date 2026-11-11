@@ -80,7 +80,7 @@ createdb pgroast && gunzip -c data/precedents.sql.gz | psql -d pgroast
 bun run src/cli.ts doctor
 ```
 
-On the claude backend only Opus and Mythos models are accepted (`PGROAST_ROASTER_MODEL`, `PGROAST_CRITIC_MODEL`).
+On the claude backend only Opus, Mythos and Fable models are accepted (Fable 5.2 is the same underlying model as Mythos 5.2) (`PGROAST_ROASTER_MODEL`, `PGROAST_CRITIC_MODEL`).
 
 ## Run
 

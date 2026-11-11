@@ -37,10 +37,10 @@ export const DEFAULT_CRITIC_MODEL = "claude-mythos-5-2";
 /** Shown where a model name is needed and the Codex CLI's configured default is used. */
 export const CODEX_DEFAULT = "codex-default";
 
-/** Only Opus and Mythos are allowed on the claude backend. */
+/** Only Opus, Mythos and Fable (the same underlying model as Mythos) are allowed on the claude backend. */
 export function assertAllowedModel(model: string): string {
-  if (!/(opus|mythos)/i.test(model) || /(sonnet|haiku)/i.test(model)) {
-    throw new Error(`model "${model}" is not allowed: on the claude backend PG Roast runs on Opus or Mythos only`);
+  if (!/(opus|mythos|fable)/i.test(model) || /(sonnet|haiku)/i.test(model)) {
+    throw new Error(`model "${model}" is not allowed: on the claude backend PG Roast runs on Opus, Mythos or Fable only`);
   }
   return model;
 }
@@ -55,7 +55,7 @@ export interface Models {
 type Env = Record<string, string | undefined>;
 
 /**
- * claude: PGROAST_ROASTER_MODEL / PGROAST_CRITIC_MODEL, Opus or Mythos only.
+ * claude: PGROAST_ROASTER_MODEL / PGROAST_CRITIC_MODEL, Opus, Mythos or Fable only.
  * codex: PGROAST_CODEX_MODEL for every stage, or the CLI's configured default. No names are guessed.
  */
 export function modelsFromEnv(env: Env = process.env, backend: BackendName = "claude"): Models {
@@ -297,7 +297,7 @@ export function parseClaudeStream(stdout: string): RawReply {
   }
   if (!sawInit) throw new Error("no init event in the claude output; cannot confirm that tools are off");
   if (text == null) throw new Error("no result event in the claude output");
-  if (model && !/(opus|mythos)/i.test(model)) throw new Error(`claude answered with model "${model}", which is not allowed`);
+  if (model && !/(opus|mythos|fable)/i.test(model)) throw new Error(`claude answered with model "${model}", which is not allowed`);
   return { text, costUsd, model, durationMs, usage };
 }
 
