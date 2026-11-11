@@ -79,14 +79,32 @@ Full design: [docs/design.md](docs/design.md).
 
 ## Quick start
 
+With npm (the package starts Bun for you; `bunx pgroast` works the same way):
+
+```
+npx pgroast init-db                  # once: creates the database "pgroast" and loads the index
+npx pgroast doctor                   # checks both CLIs and their login
+npx pgroast <cf-id|thread-url>       # results go to ./pgroast-out/<name>/
+```
+
+From a clone:
+
 ```
 git clone https://github.com/NikolayS/pgroast && cd pgroast
-createdb pgroast && gunzip -c data/precedents.sql.gz | psql -d pgroast
-bun run src/cli.ts doctor            # checks both CLIs and their login
-bun run src/cli.ts <cf-id|thread-url>
+bun run src/cli.ts init-db
+bun run src/cli.ts doctor
+bun run src/cli.ts <cf-id|thread-url>    # results go to out/<name>/
 ```
 
 `doctor` makes one small call on each installed CLI and says which backends are usable. If it reports a sign-in problem, run `claude` (then `/login`) or `codex login` and try again.
+
+Claude Code keeps one login per config directory. If you start `claude` through an alias that sets `CLAUDE_CONFIG_DIR`, a plain `pgroast` run uses a different login, which may be expired even though `claude` works for you. Set the same variable for PG Roast:
+
+```
+CLAUDE_CONFIG_DIR=~/.claude npx pgroast doctor
+```
+
+Fetched pages are cached in `~/.cache/pgroast` when installed from npm and in `data/cache/` in a clone (`PGROAST_CACHE_DIR` overrides both).
 
 Models on the claude backend: roasters run on `opus` (`PGROAST_ROASTER_MODEL`), critic and synthesis on `claude-mythos-5-2` (`PGROAST_CRITIC_MODEL`). If your account does not have Mythos 5.2, use Fable 5.2, which is the same underlying model:
 
@@ -99,18 +117,21 @@ Only Opus, Mythos and Fable models are accepted on the claude backend. To use Co
 ## Run
 
 ```
-bun run src/cli.ts <cf-id|cf-url|message-id|thread-url> [options]
-bun run src/cli.ts --self --proposal FILE [--patch FILE ...]
-bun run src/cli.ts page <roast.json> [--out FILE] [--site DIR [--base-url URL]]
-bun run src/cli.ts doctor
+pgroast <cf-id|cf-url|message-id|thread-url> [options]
+pgroast --self --proposal FILE [--patch FILE ...]
+pgroast page <roast.json> [--out FILE] [--site DIR [--base-url URL]]
+pgroast doctor
+pgroast init-db
 ```
+
+`pgroast` here is `npx pgroast`, or `bun run src/cli.ts` in a clone.
 
 | Option | Meaning |
 |---|---|
 | `--blind N` | read only the first N messages of the thread |
 | `--before YYYY-MM-DD` | read only messages before the date (UTC); also the precedent cutoff |
 | `--hint TEXT` | directed precedent lookup |
-| `--out DIR` | output directory; default `out/<slug>` |
+| `--out DIR` | output directory; default `./pgroast-out/<slug>` (npm) or `out/<slug>` (clone) |
 | `--backend claude\|codex` | which installed CLI runs the model |
 | `--self` | your own proposal before you send it; with `--proposal FILE` for a draft that has no thread yet |
 | `--rounds N` | extra reflection rounds after the first pass, default 0 |

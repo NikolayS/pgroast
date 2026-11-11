@@ -89,6 +89,7 @@ export function renderDoctor(results: DoctorResult[], env: Record<string, string
     if (r.completion === "failed" && r.hint) lines.push(`  -> ${r.hint}`);
     lines.push("");
   }
+  lines.push(`Claude Code login in use: ${env.CLAUDE_CONFIG_DIR ? `CLAUDE_CONFIG_DIR=${env.CLAUDE_CONFIG_DIR}` : "the default one (CLAUDE_CONFIG_DIR is not set)"}. Each config directory has its own login.`);
   const set = API_KEY_VARS.filter((k) => env[k]);
   lines.push(
     set.length

@@ -10,3 +10,4 @@ eval/results/**
 !eval/results/*/
 !eval/results/*/report.md
 !eval/results/*/report.json
+pgroast-out/

@@ -1,8 +1,42 @@
 {
   "name": "pgroast",
   "version": "0.1.0",
-  "private": true,
+  "description": "Adversarial idea and design pre-review for Postgres proposals: prior attempts, the strongest objections, touch points. Local output only.",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/NikolayS/pgroast.git"
+  },
+  "homepage": "https://github.com/NikolayS/pgroast#readme",
+  "bugs": {
+    "url": "https://github.com/NikolayS/pgroast/issues"
+  },
+  "keywords": [
+    "postgres",
+    "postgresql",
+    "pgsql-hackers",
+    "commitfest",
+    "review"
+  ],
   "type": "module",
+  "bin": {
+    "pgroast": "bin/pgroast.mjs"
+  },
+  "files": [
+    "bin/",
+    "src/",
+    "prompts/",
+    "invariants/",
+    "sql/",
+    "data/precedents.sql.gz",
+    "docs/",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "bun": ">=1.3.5",
+    "node": ">=18"
+  },
   "scripts": {
     "corpus:build": "bun run src/corpus/cli.ts build",
     "corpus:search": "bun run src/corpus/cli.ts search",

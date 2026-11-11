@@ -226,6 +226,21 @@ export interface CliDriver {
 }
 
 /**
+ * Claude Code keeps one login per config directory, and "CLAUDE_CONFIG_DIR not set" is a
+ * different login from "CLAUDE_CONFIG_DIR=~/.claude". A shell alias that sets the variable for
+ * interactive use therefore leaves a plain `claude -p` on another, possibly expired, login.
+ */
+export function claudeLoginHint(env: Env = process.env): string {
+  const dir = env.CLAUDE_CONFIG_DIR;
+  return (
+    "run `claude` and sign in with your subscription (/login), then try again. " +
+    (dir
+      ? `This run used the login of CLAUDE_CONFIG_DIR=${dir}`
+      : "CLAUDE_CONFIG_DIR is not set here, so the CLI's default login was used. If `claude` works for you interactively, check whether you start it through an alias that sets CLAUDE_CONFIG_DIR (`alias | grep claude`), and set the same value for pgroast, for example CLAUDE_CONFIG_DIR=~/.claude pgroast ...")
+  );
+}
+
+/**
  * Flags that take every tool away from the model:
  *   --tools ""            no built-in tools
  *   --strict-mcp-config   no MCP servers (none are passed)
@@ -309,7 +324,9 @@ export function claudeDriver(bin = process.env.PGROAST_CLAUDE_BIN ?? "claude"): 
     argv: (a) => claudeArgs(a.model, a.system),
     stdin: (_a, prompt) => prompt,
     parse: parseClaudeStream,
-    loginHint: "run `claude` and sign in with your subscription (/login), then try again",
+    get loginHint() {
+      return claudeLoginHint();
+    },
   };
 }
 

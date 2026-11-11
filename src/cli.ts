@@ -8,11 +8,14 @@
 // Writes roast.md, roast.json and roast-summary.txt to a local directory. It never posts
 // anything anywhere.
 
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { gunzipSync } from "node:zlib";
 import { dirname, join, resolve } from "node:path";
+import { DEFAULT_DSN, parseDsn } from "./corpus/db.ts";
 import { renderPage, safeUrl, siteFiles } from "./roast/page.ts";
 import type { Roast } from "./roast/schema.ts";
-import { REPO_ROOT, stats as fetchStats } from "./thread/fetch.ts";
+import { DEFAULT_OUT_ROOT, REPO_ROOT, stats as fetchStats } from "./thread/fetch.ts";
 import { loadProposal, validateDate } from "./thread/load.ts";
 import { loadLocalProposal } from "./thread/local.ts";
 import { runDoctor } from "./roast/doctor.ts";
@@ -25,6 +28,7 @@ const USAGE = `Usage: bun run src/cli.ts <cf-id|cf-url|message-id|thread-url> [o
        bun run src/cli.ts --self --proposal FILE [--patch FILE ...]
        bun run src/cli.ts page <roast.json> [--out FILE] [--site DIR [--base-url URL]]
        bun run src/cli.ts doctor      check the installed CLIs and their login
+       bun run src/cli.ts init-db     create the precedent database and load the shipped index
 
   --self           your own proposal, before you send it: same roast, written for the author
                    ("objections to address before you send": fix it, or rebut it in the cover
@@ -72,6 +76,7 @@ export interface CliArgs {
   out?: string;
   backend?: BackendName;
   doctor?: boolean;
+  initDb?: boolean;
   noEnrich?: boolean;
   self?: boolean;
   proposal?: string;
@@ -152,6 +157,7 @@ export function parseArgs(argv: string[]): CliArgs | "help" {
     }
   }
   if (a.input === "doctor") a.doctor = true;
+  if (a.input === "init-db") a.initDb = true;
   if (a.proposal) {
     if (!a.self) throw new Error("--proposal is for your own draft: use it with --self");
     if (a.input) throw new Error("give either a thread or --proposal FILE, not both");
@@ -221,6 +227,49 @@ export function runPage(page: NonNullable<CliArgs["page"]>, log: (m: string) => 
   return written;
 }
 
+/**
+ * Create the precedent database and load the shipped index. Uses createdb, gunzip and psql with
+ * the usual libpq environment (PGHOST, PGPORT, PGUSER); the database name is `pgroast`, or
+ * the dbname of PGROAST_DSN.
+ */
+function initDb(): number {
+  const dump = join(REPO_ROOT, "data", "precedents.sql.gz");
+  if (!existsSync(dump)) {
+    console.error(`pgroast: ${dump} is missing`);
+    return 1;
+  }
+  const kv = parseDsn(process.env.PGROAST_DSN ?? DEFAULT_DSN);
+  const db = kv.dbname ?? "pgroast";
+  const env = { ...process.env, ...(kv.host ? { PGHOST: kv.host } : {}), ...(kv.port ? { PGPORT: kv.port } : {}), ...(kv.user ? { PGUSER: kv.user } : {}) };
+  const run = (cmd: string, argv: string[], input?: Buffer) => spawnSync(cmd, argv, { env, input, encoding: "utf8", maxBuffer: 1 << 28 });
+  const has = run("psql", ["-XAtq", "-d", db, "-c", "select to_regclass('public.precedent') is not null"]);
+  if (has.error) {
+    console.error("pgroast: psql was not found on PATH; install the Postgres client tools");
+    return 1;
+  }
+  if (has.status === 0 && has.stdout.trim() === "t") {
+    const n = run("psql", ["-XAtq", "-d", db, "-c", "select count(*) from precedent"]);
+    console.log(`database "${db}" already holds the precedent index (${n.stdout.trim()} rows); nothing to do`);
+    return 0;
+  }
+  if (has.status !== 0) {
+    const c = run("createdb", [db]);
+    if (c.status !== 0) {
+      console.error(`pgroast: createdb ${db} failed: ${(c.stderr || c.error?.message || "").trim()}\nIs Postgres running? Set PGROAST_DSN (for example "dbname=pgroast host=localhost") if it is not on the local socket.`);
+      return 1;
+    }
+    console.log(`created database "${db}"`);
+  }
+  const load = run("psql", ["-Xq", "-v", "ON_ERROR_STOP=1", "-d", db], gunzipSync(readFileSync(dump)));
+  if (load.status !== 0) {
+    console.error(`pgroast: loading the index failed: ${(load.stderr || "").trim().split("\n").slice(0, 5).join("\n")}`);
+    return 1;
+  }
+  const n = run("psql", ["-XAtq", "-d", db, "-c", "select count(*) from precedent"]);
+  console.log(`loaded the precedent index into "${db}": ${n.stdout.trim()} rows`);
+  return 0;
+}
+
 async function main(): Promise<number> {
   let args: CliArgs | "help";
   try {
@@ -237,6 +286,7 @@ async function main(): Promise<number> {
     runPage(args.page, (m) => console.error(m));
     return 0;
   }
+  if (args.initDb) return initDb();
   if (args.doctor) {
     const d = await runDoctor();
     console.log(d.text);
@@ -257,7 +307,7 @@ async function main(): Promise<number> {
       : `thread: "${proposal.thread.subject}", ${proposal.thread.messages.length} of ${proposal.totalMessages} messages, ${proposal.patchProse.length} patch file(s) read; fetched ${fetchStats.fetched}, cached ${fetchStats.cached}`,
   );
 
-  const outDir = resolve(args.out ?? join(REPO_ROOT, "out", slugFor(proposal)));
+  const outDir = resolve(args.out ?? join(DEFAULT_OUT_ROOT, slugFor(proposal)));
   mkdirSync(outDir, { recursive: true });
   const transcriptDir = join(outDir, "llm");
   const backend = args.dryRun ? new DryRunBackend({ transcriptDir }) : new CliBackend({ backend: backendName, transcriptDir, log });

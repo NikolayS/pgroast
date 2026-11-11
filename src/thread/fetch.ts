@@ -9,12 +9,26 @@
 
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 
 export const USER_AGENT = "pgroast/0.1";
 export const MIN_INTERVAL_MS = 1100;
 export const REPO_ROOT = resolve(import.meta.dir, "..", "..");
-export const DEFAULT_CACHE_DIR = join(REPO_ROOT, "data", "cache", "threads");
+/** True when running from an installed package (npx, bunx, global install), not from a clone. */
+export const INSTALLED = /[\\/]node_modules[\\/]/.test(REPO_ROOT);
+/**
+ * Where fetched pages are cached: PGROAST_CACHE_DIR; else data/cache in a clone; else the user's
+ * cache directory, because a package directory is not a place to keep data.
+ */
+export const CACHE_ROOT = process.env.PGROAST_CACHE_DIR
+  ? resolve(process.env.PGROAST_CACHE_DIR)
+  : INSTALLED
+    ? join(process.env.XDG_CACHE_HOME || join(homedir(), ".cache"), "pgroast")
+    : join(REPO_ROOT, "data", "cache");
+export const DEFAULT_CACHE_DIR = join(CACHE_ROOT, "threads");
+/** Where results go by default: out/ in a clone, ./pgroast-out in the current directory when installed. */
+export const DEFAULT_OUT_ROOT = INSTALLED ? resolve("pgroast-out") : join(REPO_ROOT, "out");
 
 /** Hosts this tool is allowed to read. Anything else is refused. */
 export const ALLOWED_HOSTS = new Set(["www.postgresql.org", "postgr.es", "commitfest.postgresql.org"]);
