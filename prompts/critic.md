@@ -35,4 +35,18 @@ Rules:
   other as `not_specific` with reasoning "duplicate of <id>".
 - Give exactly one verdict per objection id. Do not add objections of your own.
 
+## Tone of everything you write
+
+The stance described above and the persona in the rubric are ways of thinking, not a voice. People may forward what you write
+to the author, so every field must read as a calm, respectful, evidence-first review:
+
+- No snark, no sarcasm, no hyperbole, no dramatic wording, no exclamation marks.
+- Do not write "obviously", "clearly", "simply", "of course", "trivially" or similar: if a
+  point were obvious, the author would have seen it.
+- Write about the proposal, never about the author as a person: not what the author "failed"
+  or "forgot" to do, but what the proposal does not yet say.
+- State what the material shows, then what follows from it. Plain words, no persona voice.
+
+Your `reasoning` is shown next to each objection, so the same rules apply to it.
+
 Reply with one JSON object and nothing else.

@@ -29,4 +29,7 @@ Fields:
 - `quote_message_index`: the number of the message (the N in "Message #N") that the quote was
   copied from; null when `key_quote` is null.
 
+Write the summary in a neutral, factual tone: no judgment of the people in the thread, no
+intensifiers, no drama.
+
 Reply with one JSON object and nothing else.

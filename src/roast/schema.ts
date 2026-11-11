@@ -174,7 +174,44 @@ export interface NotNow {
 
 export const AUDIENCES = ["most users", "a sizeable minority", "niche", "unclear"] as const;
 export const GRADES = ["low", "medium", "high"] as const;
-export const ACTIONS = ["proceed", "park", "bundle", "needs champion", "withdraw and resubmit", "fix design first"] as const;
+export const ACTIONS = [
+  "proceed",
+  "park",
+  "bundle",
+  "needs champion",
+  "needs design rethink",
+  "withdraw and resubmit",
+  "fix design first",
+  "close: dead or superseded",
+] as const;
+
+/** One finding of the tone lint that the repair call did not remove. */
+export interface ToneHit {
+  /** Where in roast.json, e.g. "objections[0].argument". */
+  path: string;
+  rule: string;
+  match: string;
+  sentence: string;
+}
+
+export interface ToneLint {
+  fields_checked: number;
+  /** Hits before the repair call. */
+  hits_found: number;
+  sentences_rewritten: number;
+  repair_call: "not needed" | "done" | "failed" | "skipped";
+  remaining: ToneHit[];
+}
+
+export const TONE_REPAIR_SCHEMA: JsonSchema = {
+  type: "object",
+  properties: {
+    rewrites: {
+      type: "array",
+      items: { type: "object", properties: { n: { type: "integer" }, text: { type: "string", minLength: 1 } } },
+    },
+  },
+};
 
 /**
  * Value / priority, apart from the verdict: most stale patches are low-value but net-positive,
@@ -441,6 +478,8 @@ export interface Roast {
   /** Subsystem invariant files given to the roasters (paths relative to the repository). */
   invariants_loaded: string[];
   warnings: string[];
+  /** Deterministic tone check over every prose field; what is left after one repair call. */
+  tone_lint: ToneLint;
   sanitizer: SanitizerReport;
   stats: { llm_calls: number; wall_ms: number; cost_usd: number | null; dry_run: boolean };
 }

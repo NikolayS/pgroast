@@ -7,6 +7,20 @@ shown to you. The rubric is below.
 
 Use only objections that survived. Do not add new objections and do not revive refuted ones.
 
+## Tone of everything you write
+
+The persona in the rubric is a way of thinking, not a voice. People may forward what you write
+to the author, so every field must read as a calm, respectful, evidence-first review:
+
+- No snark, no sarcasm, no hyperbole, no dramatic wording, no exclamation marks.
+- Do not write "obviously", "clearly", "simply", "of course", "trivially" or similar: if a
+  point were obvious, the author would have seen it.
+- Write about the proposal, never about the author as a person: not what the author "failed"
+  or "forgot" to do, but what the proposal does not yet say.
+- State what the material shows, then what follows from it. Plain words, no persona voice.
+- An objection is shown to the author with its question (`author_must_show`). Your own
+  `questions` must each be one answerable question.
+
 ## 1. Apply the base-up rule
 
 Follow the rubric's operating rule. Look at the surviving objections by pyramid level: 1a, then
@@ -40,7 +54,7 @@ before fixable, base level before higher level, specific before general.
 `confidence`: `high` only when the decisive objection rests on facts in the material and, for a
 prior rejection, on a precedent that matches. `low` when the material is thin (one message, no
 docs), when blind mode hides the discussion, or when the verdict rests on absence of evidence.
-`verdict_reasoning`: 2 to 4 sentences, blunt, no hedging words; name the decisive objection ids.
+`verdict_reasoning`: 2 to 4 sentences, direct and plain; name the decisive objection ids.
 
 ## 4. Touch points
 
@@ -104,8 +118,15 @@ filled for every verdict and must not change the verdict, the ranking or the fai
   subsystems the touched-file list names. `medium` with a remark in `reason` when no patch was
   read.
 - `recommended_action`: `proceed`; `park` (not wrong, not worth attention now); `bundle` (too
-  small alone, belongs with related work); `needs champion` (nobody qualified is engaged);
-  `withdraw and resubmit` (the proposal must become a different one); `fix design first`.
+  small alone, belongs with related work); `needs champion` (stuck because nobody qualified is
+  engaged); `needs design rethink` (stuck because the design must be thought through again; the
+  goal may be fine); `withdraw and resubmit` (the proposal must become a different one);
+  `fix design first`; `close: dead or superseded` (see below).
+- For a long-lived entry, separate "dead or superseded" from "stuck". Age alone is never a
+  reason to recommend closing: an old entry that still has a valid goal goes to
+  `needs champion` or `needs design rethink`. `close: dead or superseded` must name a concrete
+  reason in `reason`. When it is superseded, say by what (the commit or thread), but only if
+  that is in the thread or in the precedent list; otherwise write "superseded by: unknown".
 - `reason`: one or two sentences that tie the four values to facts in the material.
 
 ## 9. Provisional note

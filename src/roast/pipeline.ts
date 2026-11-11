@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { REPO_ROOT } from "../thread/fetch.ts";
 import type { ProposalInput, Thread } from "../thread/types.ts";
 import { loadInvariantFiles, renderInvariants, selectInvariants, type InvariantFile } from "./invariants.ts";
+import { toneCheck } from "./tone.ts";
 import { ENRICH_SCHEMA, RELEVANCE_SCHEMA, enrichPrecedents, openPgEnrichmentStore, type EnrichmentStore } from "./enrich.ts";
 import type { LlmBackend } from "./llm.ts";
 import { materialRawText, renderMaterial } from "./material.ts";
@@ -24,6 +25,7 @@ import {
   SUPERVISOR_SCHEMA,
   SYNTH_SCHEMA,
   SYNTH_SELF_SCHEMA,
+  TONE_REPAIR_SCHEMA,
   TOUCH_POINTS,
   levelRank,
   type Angle,
@@ -92,6 +94,7 @@ export interface Prompts {
   reflect: string;
   supervisor: string;
   synthSelf: string;
+  tone: string;
 }
 
 /** The two reflection questions, verbatim from the issue. */
@@ -113,6 +116,7 @@ export function loadPrompts(dir: string = join(REPO_ROOT, "prompts")): Prompts {
     reflect: read("reflect.md"),
     supervisor: read("supervisor.md"),
     synthSelf: read("synth-self.md"),
+    tone: read("tone.md"),
   };
 }
 
@@ -504,7 +508,7 @@ export async function runRoast(proposal: ProposalInput, opts: RunOptions): Promi
         log(`relevance: ${precedents.length} of ${pool.length} candidates kept`);
       }
     } catch (e) {
-      warnings.push(`the relevance pass failed (${(e as Error).message.split("\n")[0]}); the roasters got the top candidates unfiltered`);
+      warnings.push(`the relevance pass failed (${(e as Error).message.split("\n")[0]}); the review used the top candidates unfiltered`);
       if (enrichment) enrichment.relevance_pass = "failed";
     }
   }
@@ -667,7 +671,7 @@ export async function runRoast(proposal: ProposalInput, opts: RunOptions): Promi
   const ran: Angle[] = [];
   for (const { angle, out, error } of outputs) {
     if (!out) {
-      warnings.push(`roaster "${angle}" failed and is missing from this roast: ${error}`);
+      warnings.push(`review angle "${angle}" failed and is missing from this review: ${error}`);
       roasterNotes.push({ angle, objections: 0, note: `FAILED: ${error}` });
       continue;
     }
@@ -676,7 +680,7 @@ export async function runRoast(proposal: ProposalInput, opts: RunOptions): Promi
     const clean = scrubUrls(out, allowed, stage, report);
     addObjections(angle, clean.objections, 0, stage);
     if (angle === "prior-attempts") roasterPrior = clean.prior_attempts;
-    else if (clean.prior_attempts.length) warnings.push(`roaster "${angle}" returned prior attempts; ignored (only the prior-attempts roaster may)`);
+    else if (clean.prior_attempts.length) warnings.push(`review angle "${angle}" returned prior attempts; ignored (only the prior-attempts angle may)`);
     roasterNotes.push({ angle, objections: clean.objections.length, note: clean.no_objection_note });
   }
   log(`objections raised: ${objections.length}`);
@@ -719,7 +723,7 @@ export async function runRoast(proposal: ProposalInput, opts: RunOptions): Promi
             });
             return { angle, out };
           } catch (e) {
-            warnings.push(`round ${round}: roaster "${angle}" failed: ${(e as Error).message.split("\n")[0]}`);
+            warnings.push(`round ${round}: review angle "${angle}" failed: ${(e as Error).message.split("\n")[0]}`);
             return { angle, out: null };
           }
         }),
@@ -883,8 +887,7 @@ export async function runRoast(proposal: ProposalInput, opts: RunOptions): Promi
     }
   }
 
-  const st = backend.stats();
-  return {
+  const roast: Roast = {
     schema_version: SCHEMA_VERSION,
     tool: "pgroast/0.1",
     generated_at: now.toISOString(),
@@ -941,7 +944,28 @@ export async function runRoast(proposal: ProposalInput, opts: RunOptions): Promi
     rounds,
     invariants_loaded: invariantFiles.map((f) => f.file),
     warnings,
+    tone_lint: { fields_checked: 0, hits_found: 0, sentences_rewritten: 0, repair_call: "not needed", remaining: [] },
     sanitizer: report,
-    stats: { llm_calls: st.calls, wall_ms: Date.now() - t0, cost_usd: st.costUsd, dry_run: backend.dryRun },
+    stats: { llm_calls: 0, wall_ms: 0, cost_usd: null, dry_run: backend.dryRun },
   };
+
+  // Tone lint over every prose field, before anything is written; one repair call on a hit.
+  roast.tone_lint = await toneCheck(roast, {
+    backend,
+    model: models.synth,
+    system: `${prompts.tone}\n\n${outputContract(TONE_REPAIR_SCHEMA, false)}`,
+    allowed,
+    report,
+    log,
+  });
+  if (roast.tone_lint.hits_found) {
+    log(`tone lint: ${roast.tone_lint.hits_found} hit(s), ${roast.tone_lint.sentences_rewritten} sentence(s) rewritten, ${roast.tone_lint.remaining.length} left`);
+  }
+  if (roast.tone_lint.remaining.length && !backend.dryRun) {
+    warnings.push(`tone lint: ${roast.tone_lint.remaining.length} finding(s) remain after the repair call; see tone_lint in roast.json before forwarding this text`);
+  }
+
+  const st = backend.stats();
+  roast.stats = { llm_calls: st.calls, wall_ms: Date.now() - t0, cost_usd: st.costUsd, dry_run: backend.dryRun };
+  return roast;
 }

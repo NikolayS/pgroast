@@ -24,11 +24,11 @@ function objectionBlock(o: FinalObjection, n: number, advice?: SelfAdvice): stri
     if (cite.length) lines.push("", `Threads to cite or to distinguish yourself from: ${cite.join(", ")}`);
   }
   lines.push("");
-  const sev = o.critic.original_severity ? `${o.severity} (the roaster said ${o.critic.original_severity}; the critic changed it)` : o.severity;
+  const sev = o.critic.original_severity ? `${o.severity} (first rated ${o.critic.original_severity}; changed in the counter-check)` : o.severity;
   lines.push(`- **Severity:** ${sev}`);
   lines.push(`- **Level:** ${LEVEL_NAMES[o.level]}${o.rubric_item ? ` (rubric item ${o.rubric_item})` : ""}`);
   lines.push(`- **Category:** ${touchLabel(o.category)}${o.touch_points.length ? `; touch points: ${o.touch_points.map(touchLabel).join(", ")}` : ""}`);
-  lines.push(`- **Raised by:** ${o.angle} roaster (\`${o.id}\`${roundNote(o)})`);
+  lines.push(`- **Review angle:** ${o.angle} (\`${o.id}\`${roundNote(o)})`);
   lines.push("");
   lines.push(`**What can go wrong.** ${o.failure_scenario.trim()}`);
   lines.push("");
@@ -48,9 +48,9 @@ function objectionBlock(o: FinalObjection, n: number, advice?: SelfAdvice): stri
     lines.push(`**Thread messages.** ${o.thread_refs.map((r) => ref(`#${r.index} (${r.from}, ${day(r.date)})`, r.url)).join(", ")}`);
     lines.push("");
   }
-  lines.push(`**What the author must show.** ${o.author_must_show.trim()}`);
+  lines.push(`**Question for the author.** ${o.author_must_show.trim()}`);
   lines.push("");
-  lines.push(`**Critic.** Survived. ${o.critic.reasoning.trim()}`);
+  lines.push(`**Counter-check.** The objection held. ${o.critic.reasoning.trim()}`);
   return lines.join("\n");
 }
 
@@ -95,12 +95,12 @@ export function renderMarkdown(r: Roast): string {
   const out: string[] = [];
   const self = r.mode === "self";
   const title = r.input.cf?.title ?? r.brief.title ?? r.input.subject;
-  out.push(`# PG Roast${self ? " (self check)" : ""}: ${oneLine(title)}`);
+  out.push(`# Design pre-review${self ? " (self check)" : ""}: ${oneLine(title)}`);
   out.push("");
   out.push(`> ${r.disclosure}`);
   out.push("");
   if (self) {
-    out.push("This is a private check of your own proposal before you send it. It lists the objections you are most likely to meet, and for each one whether to fix the proposal or to answer the objection in the cover letter. The roast is deliberately one-sided: it argues against the proposal.", "");
+    out.push("This is a private check of your own proposal before you send it. It lists the objections you are most likely to meet, and for each one whether to fix the proposal or to answer the objection in the cover letter. The check is one-sided on purpose: it looks only for objections.", "");
   }
 
   // Input
@@ -164,10 +164,10 @@ export function renderMarkdown(r: Roast): string {
 
   // 3. Steelman
   const adviceFor = (o: FinalObjection) => r.self_advice.find((a) => a.objection_id === o.id);
-  out.push(self ? "## 3. Objections to address before you send" : "## 3. The steelman of the rejection");
+  out.push(self ? "## 3. Objections to address before you send" : "## 3. Objections a reviewer is likely to raise");
   out.push("");
   if (r.objections.length === 0) {
-    out.push("No objection survived the critic strongly enough to list here.");
+    out.push("No objection held up strongly enough in the counter-check to list here.");
     out.push("");
   } else {
     r.objections.forEach((o, i) => out.push(objectionBlock(o, i + 1, self ? adviceFor(o) : undefined), ""));
@@ -211,7 +211,7 @@ export function renderMarkdown(r: Roast): string {
   out.push("## Appendix");
   out.push("");
   if (r.other_surviving.length) {
-    out.push("### Survived the critic, not listed above");
+    out.push("### Held up in the counter-check, not listed above");
     out.push("");
     for (const o of r.other_surviving) {
       out.push(`- \`${o.id}\` (${o.severity}, level ${o.level}${roundNote(o)}) ${oneLine(o.title)}. Not listed: ${o.not_ranked_reason ?? "not ranked"}.`);
@@ -220,7 +220,7 @@ export function renderMarkdown(r: Roast): string {
     }
     out.push("");
   }
-  out.push("### Refuted by the critic");
+  out.push("### Refuted in the counter-check");
   out.push("");
   if (r.refuted.length === 0) out.push("None.");
   for (const o of r.refuted) {
@@ -228,7 +228,7 @@ export function renderMarkdown(r: Roast): string {
   }
   out.push("");
   if (r.withdrawn.length) {
-    out.push("### Withdrawn by their own roaster");
+    out.push("### Withdrawn in a later round");
     out.push("");
     for (const o of r.withdrawn) out.push(`- \`${o.id}\` ${oneLine(o.title)}. Withdrawn in round ${o.withdrawal?.round ?? "?"}: ${oneLine(o.withdrawal?.reason ?? "")}`);
     out.push("");
@@ -245,7 +245,7 @@ export function renderMarkdown(r: Roast): string {
     if (r.rounds.length - 1 < r.rounds_requested) out.push(`- ${r.rounds_requested} extra round(s) requested, ${r.rounds.length - 1} run.`);
     out.push("");
   }
-  out.push("### Roasters");
+  out.push("### Review angles");
   out.push("");
   for (const n of r.roaster_notes) out.push(`- ${n.angle}: ${n.objections} objection(s)${n.note.trim() ? `. ${oneLine(n.note)}` : ""}`);
   out.push("");
@@ -253,7 +253,7 @@ export function renderMarkdown(r: Roast): string {
   out.push("");
   if (r.precedents_retrieved.length === 0) out.push(r.precedent_backend === "none" ? "Search not done." : "None.");
   for (const p of r.precedents_retrieved) {
-    const flags = [p.relevant === true ? "shown to the roasters" : p.relevant === false ? "judged not relevant" : "", p.enriched ? "reason summarised from its thread" : ""].filter(Boolean).join("; ");
+    const flags = [p.relevant === true ? "used in the review" : p.relevant === false ? "judged not relevant" : "", p.enriched ? "reason summarised from its thread" : ""].filter(Boolean).join("; ");
     out.push(`- ${p.id}: ${link(oneLine(p.title), p.url)} (${p.kind}, ${p.status || "?"}, ${day(p.date ?? p.first_date)})${flags ? ` - ${flags}` : ""}`);
   }
   out.push("");
@@ -265,12 +265,15 @@ export function renderMarkdown(r: Roast): string {
   const s = r.sanitizer;
   out.push("### Run");
   out.push("");
-  out.push(`- Backend: ${r.backend} CLI on the subscription login (no API key); models: roasters ${r.models.roaster}, critic ${r.models.critic}, synthesis ${r.models.synth}; no tools given to any of them`);
+  out.push(`- Backend: ${r.backend} CLI on the subscription login (no API key); models: review angles ${r.models.roaster}, counter-check ${r.models.critic}, synthesis ${r.models.synth}; no tools given to any of them`);
   out.push(`- LLM calls: ${r.stats.llm_calls}; wall time: ${Math.round(r.stats.wall_ms / 1000)} s${r.stats.cost_usd != null && !r.stats.dry_run ? `; cost reported by the CLI: $${r.stats.cost_usd.toFixed(2)}` : ""}${r.stats.dry_run ? "; DRY RUN (no model was called; content is placeholder)" : ""}`);
   if (r.enrichment) {
     const e = r.enrichment;
     out.push(`- Precedent enrichment: ${e.candidates} thread(s) lacked a recorded reason: ${e.from_cache} from cache, ${e.new_calls} summarised now, ${e.failed} failed; quotes: ${e.quotes_verified} verified, ${e.quotes_dropped} dropped; relevance pass: ${e.relevance_pass}, ${e.relevant} of ${r.precedents_retrieved.length} kept`);
   }
+  const t = r.tone_lint;
+  out.push(`- Tone check: ${t.fields_checked} text field(s) checked, ${t.hits_found} finding(s), ${t.sentences_rewritten} sentence(s) rewritten (repair call: ${t.repair_call}), ${t.remaining.length} left`);
+  for (const h of t.remaining) out.push(`  - \`${h.path}\`: ${h.rule}${h.match ? ` ("${h.match}")` : ""}`);
   out.push(`- Sanitizer: ${s.urls_removed.length} link(s) removed, ${s.precedent_ids_dropped.length} unknown precedent id(s) dropped, ${s.thread_refs_dropped.length} bad message reference(s) dropped, ${s.quotes_dropped.length} unverifiable quote(s) dropped`);
   out.push(`- Generated: ${r.generated_at} by ${r.tool}`);
   out.push("");
@@ -293,10 +296,10 @@ const clip = (s: string, n: number) => {
 export function renderSummary(r: Roast): string {
   const lines: string[] = [SUMMARY_HEADER];
   const self = r.mode === "self";
-  lines.push(`${self ? "Self check" : "Roast"}: ${clip(r.input.cf?.title ?? r.brief.title ?? r.input.subject, 150)}`);
+  lines.push(`${self ? "Design pre-review (self check)" : "Design pre-review"}: ${clip(r.input.cf?.title ?? r.brief.title ?? r.input.subject, 150)}`);
   lines.push(`Verdict (merits of the idea only, no code read): ${r.verdict}, confidence ${r.confidence}.`);
   const top = r.objections.slice(0, 3);
-  if (top.length === 0) lines.push("No objection survived the critic strongly enough to list.");
+  if (top.length === 0) lines.push("No objection held up strongly enough to list.");
   top.forEach((o, i) => {
     const a = self ? r.self_advice.find((x) => x.objection_id === o.id) : undefined;
     lines.push(`${i + 1}. [${o.severity}] ${clip(o.title, 120)}${a ? ` (${a.action === "fix" ? "fix before sending" : "rebut in the cover letter"})` : ""}`);

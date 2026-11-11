@@ -27,6 +27,7 @@ import { renderMaterial, trimQuotes } from "../src/roast/material.ts";
 import { assemble, describeSchema, FORGOT_PROMPT, HAPPY_PROMPT, loadPrompts, roasterSystem, runRoast, slugFor } from "../src/roast/pipeline.ts";
 import { loadInvariantFiles, parseInvariantFile, selectInvariants } from "../src/roast/invariants.ts";
 import { loadLocalProposal } from "../src/thread/local.ts";
+import { lintRoast, lintText, NO_QUESTION, sentences, toneCheck } from "../src/roast/tone.ts";
 import { messageIdOfUrl, normalisePrecedent, recencyBoost, retrievePrecedents, type RawPrecedent, type SearchArgs } from "../src/roast/precedents.ts";
 import { renderMarkdown, renderSummary, SUMMARY_HEADER } from "../src/roast/render.ts";
 import { AllowedUrls, emptyReport, filterPrecedentIds, REMOVED_LINK, scrubUrls, verifyQuote } from "../src/roast/sanitize.ts";
@@ -498,7 +499,7 @@ function obj(over: Partial<RawObjection>): RawObjection {
     argument: "Message #1 says the GUC structs change.",
     precedent_ids: [],
     thread_message_refs: [1],
-    author_must_show: "A list of affected extensions.",
+    author_must_show: "Which extensions are affected?",
     ...over,
   };
 }
@@ -766,7 +767,7 @@ describe("pipeline (fake model)", () => {
     expect(r.touch_points.find((t) => t.id === "new_guc")).toMatchObject({ hit: true, reason: "adds a GUC type" });
     expect(r.touch_points.find((t) => t.id === "wire_protocol")!.hit).toBe(false);
     expect(r.warnings.some((w) => w.includes('touch point "wire_protocol"'))).toBe(true);
-    expect(r.warnings.some((w) => w.includes('roaster "security" failed'))).toBe(true);
+    expect(r.warnings.some((w) => w.includes('review angle "security" failed'))).toBe(true);
     expect(r.roaster_notes.length).toBe(7);
     expect(r.disclosure).toBe("Prepared by an AI harness; treat as a devil's advocate, not a verdict.");
     expect(r.input.blind).toBe(5);
@@ -777,7 +778,11 @@ describe("pipeline (fake model)", () => {
   test("markdown is rendered from the JSON", async () => {
     const r = await run;
     const md = renderMarkdown(r);
-    expect(md).toContain("# PG Roast: Support Int64 GUCs");
+    expect(md).toContain("# Design pre-review: Support Int64 GUCs");
+    expect(md).toContain("## 3. Objections a reviewer is likely to raise");
+    expect(md).toContain("**Question for the author.** Which extensions are affected?");
+    expect(md).not.toMatch(/steelman|PG Roast|roaster/i);
+    expect(md).toContain("- Tone check: ");
     expect(md.match(new RegExp(DISCLOSURE.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g"))!.length).toBe(2);
     expect(md).toContain("**LIKELY-REJECT** (confidence: medium)");
     expect(md).toContain("### 1. Same idea was rejected for API churn");
@@ -797,7 +802,7 @@ describe("pipeline (fake model)", () => {
     expect(r.not_now.applies).toBe(true);
     expect(r.committability.owner).toBe("silent");
     expect(r.warnings.some((w) => w.includes('"not now" although a fatal objection'))).toBe(true);
-    expect(md).toContain("### Refuted by the critic");
+    expect(md).toContain("### Refuted in the counter-check");
     expect(md).toContain("`maintenance-fit-2` Docs are thin. Refuted (not specific): Applies to any patch.");
     expect(md).toContain("blind mode, first 5");
     expect(md).toContain("(status withheld)");
@@ -1183,14 +1188,14 @@ describe("rounds, invariants and self mode (fake model)", () => {
     expect(call("synth").system).toContain("## Self mode: the reader is the author");
     expect(call("roaster-demand").system).not.toContain("Self mode");
     const md = renderMarkdown(r);
-    expect(md).toContain("# PG Roast (self check):");
+    expect(md).toContain("# Design pre-review (self check):");
     expect(md).toContain("## 3. Objections to address before you send");
     expect(md).toContain("**Before you send: rebut it in the cover letter.** Say in the cover letter what changed");
     expect(md).toContain("Threads to cite or to distinguish yourself from: [");
     expect(md).not.toContain("## 1. Verdict");
     expect(md.indexOf("## How a reviewer would likely classify it")).toBeGreaterThan(md.indexOf("## Priority"));
     expect(md.indexOf("## Priority")).toBeGreaterThan(md.indexOf("## 3. Objections to address"));
-    expect(md).toContain("### Withdrawn by their own roaster");
+    expect(md).toContain("### Withdrawn in a later round");
     expect(md).toContain("| 2 | \"Are you happy with the results?\" | 7 | 0 | 0 | 1 | 1 |");
     expect(md).toContain("- Subsystem invariants checked: invariants/testsub.md");
     expect(md).toContain("- **Recommended action:** needs champion");
@@ -1245,5 +1250,116 @@ describe("rounds, invariants and self mode (fake model)", () => {
     expect(b.calls[0]!.prompt).toContain("I propose foo.");
     expect(renderMarkdown(r)).toContain("- Draft, not sent: draft.txt");
     expect(renderMarkdown(r)).not.toContain("]()");
+  });
+});
+
+// ----------------------------------------------------------------------------- tone
+
+describe("tone lint", () => {
+  const rules = (t: string) => lintText(t).map((h) => `${h.rule}:${h.match.toLowerCase()}`);
+
+  test("flags intensifiers, hyperbole, sarcasm, internal vocabulary, remarks about the author, exclamation marks", () => {
+    expect(rules("This is obviously wrong.")).toEqual(["intensifier:obviously"]);
+    expect(rules("The patch clearly breaks pg_upgrade. Of course it does.")).toEqual(["intensifier:clearly", "intensifier:of course"]);
+    expect(rules("One could simply use a float, trivially.")).toEqual(["intensifier:simply"]); // one hit per rule and sentence
+    expect(rules("That is nonsense, and the design is ridiculous.")).toEqual(["hyperbole:nonsense"]);
+    expect(rules("Good luck getting that past a committer.")).toEqual(["sarcasm:good luck"]);
+    expect(rules("Expect a beat down. This roast is long.")).toEqual(["roast vocabulary:beat down", "roast vocabulary:roast"]);
+    expect(rules("You failed to say who needs it.")).toEqual(["about the author:you failed to"]);
+    expect(rules("The author does not understand WAL.")).toEqual(["about the author:the author does not understand"]);
+    expect(rules("It breaks replication!")).toEqual(["exclamation mark:!"]);
+  });
+
+  test("leaves calm text alone, including != and code spans", () => {
+    for (const t of [
+      "The proposal does not say which settings need more than 31 bits.",
+      "A standby that replays this record with wal_level != logical would see a different page.",
+      "The check `if (!found)` is described in message #3. Which callers rely on it?",
+      "pgroast and pg_upgrade are tool names. A clear statement of the problem is missing.",
+      "",
+    ]) {
+      expect(lintText(t)).toEqual([]);
+    }
+    expect(sentences("One. Two? Three!\nFour")).toEqual(["One.", "Two?", "Three!", "Four"]);
+  });
+
+  const toned = async (answer: (a: CompleteArgs) => unknown) => {
+    const b = new FakeBackend((a) => {
+      if (a.label === "tone-repair") return answer(a);
+      if (a.label === "roaster-demand") {
+        return { objections: [obj({ title: "Obviously nobody needs this!", level: "1b", category: "demand", touch_points: [], author_must_show: "Evidence of demand." })], prior_attempts: [], no_objection_note: "" };
+      }
+      if (a.label.startsWith("roaster-")) return { objections: [], prior_attempts: [], no_objection_note: "" };
+      if (a.label === "critic") return { verdicts: [{ objection_id: "demand-1", verdict: "survived", refutation_kind: "none", reasoning: "It stands. The author is lazy.", adjusted_severity: null }] };
+      if (a.label === "synth") return { ...(fakeAnswers(a) as object), ranked_objection_ids: ["demand-1"], prior_attempts: [], verdict: "NEEDS-DESIGN-DISCUSSION" };
+      return fakeAnswers(a);
+    });
+    const r = await runRoast(proposal(5), { enrich: false, backend: b, models: modelsFromEnv({}), search: async () => [], log: () => undefined });
+    return { r, b };
+  };
+
+  test("one repair call rewrites only the flagged sentences; the rest is listed in roast.json and the run section", async () => {
+    const { r, b } = await toned((a) => {
+      const items = JSON.parse(a.prompt.split("# Flagged sentences\n\n")[1]!.split("\n\n# Task")[0]!) as { n: number; sentence: string; flagged: string[] }[];
+      expect(items.map((i) => i.sentence)).toEqual(["Obviously nobody needs this!", "Evidence of demand.", "The author is lazy."]);
+      expect(items[0]!.flagged).toEqual(['intensifier: "Obviously"', 'exclamation mark: "!"']);
+      expect(items[1]!.flagged).toEqual(["must end with one question the author can answer"]);
+      return {
+        rewrites: [
+          { n: 1, text: "The material does not show who needs this" },
+          { n: 2, text: "Which users asked for it? See https://example.org/made-up" },
+          { n: 3, text: "The proposal is clearly incomplete." }, // still flagged
+          { n: 9, text: "ignored" },
+        ],
+      };
+    });
+    const calls = b.calls.filter((c) => c.label === "tone-repair");
+    expect(calls.length).toBe(1);
+    expect(calls[0]!.model).toBe("claude-mythos-5-2");
+    const o = r.objections[0]!;
+    expect(o.title).toBe("The material does not show who needs this");
+    expect(o.author_must_show).toContain("Which users asked for it?");
+    expect(o.author_must_show).not.toContain("example.org");
+    expect(o.critic.reasoning).toBe("It stands. The proposal is clearly incomplete."); // the unflagged sentence is untouched
+    expect(r.tone_lint).toMatchObject({ hits_found: 4, sentences_rewritten: 3, repair_call: "done" });
+    expect(r.tone_lint.remaining.map((h) => [h.path, h.rule, h.match])).toEqual([
+      ["objections[0].author_must_show", NO_QUESTION, ""], // the scrubbed link left it without a final question mark
+      ["objections[0].critic.reasoning", "intensifier", "clearly"],
+    ]);
+    expect(r.warnings.join(" ")).toContain("tone lint: 2 finding(s) remain");
+    const md = renderMarkdown(r);
+    expect(md).toContain("- Tone check: ");
+    expect(md).toContain('  - `objections[0].critic.reasoning`: intensifier ("clearly")');
+    expect(r.disclosure).toBe("Prepared by an AI harness; treat as a devil's advocate, not a verdict.");
+  });
+
+  test("a failed repair call leaves the text, records every hit; clean text needs no call", async () => {
+    const { r, b } = await toned(() => {
+      throw new Error("boom");
+    });
+    expect(r.tone_lint).toMatchObject({ hits_found: 4, sentences_rewritten: 0, repair_call: "failed" });
+    expect(r.tone_lint.remaining.length).toBe(4);
+    expect(r.objections[0]!.title).toBe("Obviously nobody needs this!");
+    expect(b.calls.filter((c) => c.label === "tone-repair").length).toBe(1);
+
+    const clean = structuredClone(r);
+    clean.objections[0]!.title = "Demand is not shown";
+    clean.objections[0]!.author_must_show = "Who asked for it?";
+    clean.objections[0]!.critic.reasoning = "It stands.";
+    expect(lintRoast(clean).hits).toEqual([]);
+    expect(await toneCheck(clean)).toMatchObject({ hits_found: 0, repair_call: "not needed", remaining: [] });
+    // archive quotes are not ours to rewrite
+    clean.prior_attempts = [{ ...({} as (typeof r.prior_attempts)[number]), quote: "This is a terrible idea!", what_is_different: "x", reason: "Obviously bad", enriched: false }];
+    expect(lintRoast(clean).hits).toEqual([]);
+    clean.prior_attempts[0]!.enriched = true; // an AI summary is ours
+    expect(lintRoast(clean).hits.map((h) => h.path)).toEqual(["prior_attempts[0].reason"]);
+  });
+
+  test("the prompts carry the tone rules", () => {
+    const pr = loadPrompts();
+    for (const t of [pr.roasterCommon, pr.critic, pr.synth]) {
+      expect(t).toContain("## Tone of everything you write");
+      expect(t).toContain("of thinking, not a voice");
+    }
   });
 });

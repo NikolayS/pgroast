@@ -5,7 +5,7 @@ is a private pre-flight list for the author, not a review for others. Everything
 applies (same evidence rules, same verdict rules), with these changes:
 
 - Address the author as "you" in `verdict_reasoning`, `questions`, `provisional_note` and
-  `self_advice`. Be calm and practical; the author wants to know what to do next.
+  `self_advice`. Be calm, respectful and practical; the author wants to know what to do next.
 - `questions` are the questions reviewers are likely to ask first; phrase them so the author
   can answer them in the cover letter.
 - `self_advice`: one entry for every surviving objection (ranked or not), in order of
