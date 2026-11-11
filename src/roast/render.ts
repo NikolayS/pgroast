@@ -112,8 +112,9 @@ export function renderMarkdown(r: Roast): string {
       if (p.thread_urls.length) out.push(`- **Thread:** ${p.thread_urls.map((u) => link(u, u)).join(", ")}`);
       out.push(`- **Date:** ${p.date ? `decided ${day(p.date)}` : "decision date unknown"}${p.first_date ? `; started ${day(p.first_date)}` : ""}`);
       out.push(`- **Outcome:** ${p.status || "unknown"} (${p.kind || "?"})`);
-      out.push(`- **Who objected:** ${p.who_objected.trim() || "not recorded in the corpus"}`);
-      out.push(`- **Reason (quote):** ${p.quote ? `"${oneLine(p.quote)}"` : "quote unavailable"}`);
+      out.push(`- **Who objected:** ${p.who_objected.trim() || "not recorded in the corpus"}${p.who_objected.trim() && p.enriched ? " (senders of the linked thread, picked by the AI summary)" : ""}`);
+      if (p.reason.trim()) out.push(`- **Why it was not accepted${p.enriched ? " (AI summary of the linked thread; check it there)" : " (as recorded in the corpus)"}:** ${oneLine(p.reason)}`);
+      out.push(`- **Reason (quote):** ${p.quote ? `"${oneLine(p.quote)}"${p.quote_url ? ` (${link("message", p.quote_url)})` : ""}` : "quote unavailable"}`);
       out.push(`- **What is different this time:** ${oneLine(p.what_is_different)}`);
       out.push("");
     }
@@ -187,7 +188,8 @@ export function renderMarkdown(r: Roast): string {
   out.push("");
   if (r.precedents_retrieved.length === 0) out.push(r.precedent_backend === "none" ? "Search not done." : "None.");
   for (const p of r.precedents_retrieved) {
-    out.push(`- ${p.id}: ${link(oneLine(p.title), p.url)} (${p.kind}, ${p.status || "?"}, ${day(p.date ?? p.first_date)})`);
+    const flags = [p.relevant === true ? "shown to the roasters" : p.relevant === false ? "judged not relevant" : "", p.enriched ? "reason summarised from its thread" : ""].filter(Boolean).join("; ");
+    out.push(`- ${p.id}: ${link(oneLine(p.title), p.url)} (${p.kind}, ${p.status || "?"}, ${day(p.date ?? p.first_date)})${flags ? ` - ${flags}` : ""}`);
   }
   out.push("");
   if (r.warnings.length) {
@@ -200,6 +202,10 @@ export function renderMarkdown(r: Roast): string {
   out.push("");
   out.push(`- Backend: ${r.backend} CLI on the subscription login (no API key); models: roasters ${r.models.roaster}, critic ${r.models.critic}, synthesis ${r.models.synth}; no tools given to any of them`);
   out.push(`- LLM calls: ${r.stats.llm_calls}; wall time: ${Math.round(r.stats.wall_ms / 1000)} s${r.stats.cost_usd != null && !r.stats.dry_run ? `; cost reported by the CLI: $${r.stats.cost_usd.toFixed(2)}` : ""}${r.stats.dry_run ? "; DRY RUN (no model was called; content is placeholder)" : ""}`);
+  if (r.enrichment) {
+    const e = r.enrichment;
+    out.push(`- Precedent enrichment: ${e.candidates} thread(s) lacked a recorded reason: ${e.from_cache} from cache, ${e.new_calls} summarised now, ${e.failed} failed; quotes: ${e.quotes_verified} verified, ${e.quotes_dropped} dropped; relevance pass: ${e.relevance_pass}, ${e.relevant} of ${r.precedents_retrieved.length} kept`);
+  }
   out.push(`- Sanitizer: ${s.urls_removed.length} link(s) removed, ${s.precedent_ids_dropped.length} unknown precedent id(s) dropped, ${s.thread_refs_dropped.length} bad message reference(s) dropped, ${s.quotes_dropped.length} unverifiable quote(s) dropped`);
   out.push(`- Generated: ${r.generated_at} by ${r.tool}`);
   out.push("");

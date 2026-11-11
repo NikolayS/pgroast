@@ -60,8 +60,10 @@ importance. Derive them from surviving objections and from the brief's `unclear`
 precedent list only (ids like P3). Start from what the prior-attempts roaster proposed; drop
 entries whose match the critic refuted. For each: `relation`, `what_is_different` (or exactly
 "nothing, same idea"), and `quote` = the key sentence copied character for character from the
-precedent row, or null. Code fills in link, date and who objected from the database, and deletes
-any quote it cannot find in the row. Empty list when there is no real match.
+precedent row, or null. When the row has a "key sentence, verbatim from its thread" line, use
+that sentence. A reason marked "AI summary of its thread" is a summary, not a source: never
+quote from it. Code fills in link, date and who objected from the database, and deletes any
+quote it cannot verify. Empty list when there is no real match.
 
 ## 7. Committability and "not now"
 

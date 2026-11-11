@@ -11,8 +11,10 @@ entry to `prior_attempts`:
 - `what_is_different`: what this proposal does differently from that attempt, in one or two
   sentences; or exactly "nothing, same idea".
 - `quote`: the key sentence of the recorded objection or reason, copied character for character
-  from the row. Null if the row records no reason or no sentence carries it. Code checks the
-  quote against the row and deletes it if it is not there, so never paraphrase inside it.
+  from the row. When the row has a "key sentence, verbatim from its thread" line, use that
+  sentence. A reason marked "AI summary of its thread" is a summary, not a source: never quote
+  from it. Null if no sentence carries the reason. Code checks the quote and deletes it if it
+  cannot be verified, so never paraphrase inside it.
 
 Skip rows that only share keywords. An empty `prior_attempts` list is the right answer when the
 list has no real match; the report then says "no precedent found".

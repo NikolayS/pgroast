@@ -8,6 +8,7 @@
     "corpus:search": "bun run src/corpus/cli.ts search",
     "corpus:selftest": "bun run src/corpus/cli.ts selftest",
     "corpus:stats": "bun run src/corpus/cli.ts stats",
+    "roast": "bun run src/cli.ts",
     "test": "bun test",
     "typecheck": "tsc --noEmit"
   },

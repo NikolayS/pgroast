@@ -4,7 +4,8 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { REPO_ROOT } from "../thread/fetch.ts";
-import type { ProposalInput } from "../thread/types.ts";
+import type { ProposalInput, Thread } from "../thread/types.ts";
+import { ENRICH_SCHEMA, RELEVANCE_SCHEMA, enrichPrecedents, openPgEnrichmentStore, type EnrichmentStore } from "./enrich.ts";
 import type { LlmBackend } from "./llm.ts";
 import { materialRawText, renderMaterial } from "./material.ts";
 import { renderPrecedentsForPrompt, retrievePrecedents, type SearchFn } from "./precedents.ts";
@@ -46,6 +47,15 @@ export interface RunOptions {
   hint?: string | null;
   /** Injected precedent search (tests). Default: the corpus adapter. */
   search?: SearchFn;
+  /** false = no enrichment and no relevance pass (--no-enrich). */
+  enrich?: boolean;
+  enrichMax?: number;
+  /** undefined = the table in the corpus database; null = no cache. */
+  enrichStore?: EnrichmentStore | null;
+  enrichLoadThread?: (messageId: string) => Promise<Thread>;
+  enrichClosers?: (p: Precedent) => Promise<string[]>;
+  /** At most this many precedents are shown to the roasters. */
+  precedentLimit?: number;
   promptsDir?: string;
   angles?: readonly Angle[];
   log?: (msg: string) => void;
@@ -62,6 +72,8 @@ export interface Prompts {
   angles: Record<Angle, string>;
   critic: string;
   synth: string;
+  enrich: string;
+  relevance: string;
 }
 
 export function loadPrompts(dir: string = join(REPO_ROOT, "prompts")): Prompts {
@@ -74,6 +86,8 @@ export function loadPrompts(dir: string = join(REPO_ROOT, "prompts")): Prompts {
     angles: Object.fromEntries(ANGLES.map((a) => [a, read(`roaster-${a}.md`)])) as Record<Angle, string>,
     critic: read("critic.md"),
     synth: read("synth.md"),
+    enrich: read("enrich.md"),
+    relevance: read("relevance.md"),
   };
 }
 
@@ -204,8 +218,16 @@ export function resolvePriorAttempts(
     const [id] = filterPrecedentIds([r.precedent_id], known, stage, report);
     if (!id || out.some((o) => o.precedent_id === id)) continue;
     const p = known.get(id)!;
-    const quote = verifyQuote(r.quote, [p.objection, p.summary, p.title, threadText]);
+    // An AI summary is never a quote source: only corpus text, the verified key sentence, the thread.
+    const sources = p.enriched ? [p.key_quote ?? "", threadText] : [p.objection, p.summary, p.title, p.key_quote ?? "", threadText];
+    let quote = verifyQuote(r.quote, sources);
     if (r.quote && !quote) report.quotes_dropped.push({ precedent_id: id, quote: r.quote });
+    let quote_url: string | null = quote && p.key_quote && verifyQuote(quote, [p.key_quote]) ? p.quote_message_url : null;
+    if (!quote && p.key_quote) {
+      // Fall back to the sentence that code verified against the precedent's thread.
+      quote = p.key_quote;
+      quote_url = p.quote_message_url;
+    }
     out.push({
       precedent_id: id,
       source_id: p.source_id,
@@ -218,6 +240,9 @@ export function resolvePriorAttempts(
       first_date: p.first_date,
       who_objected: p.objectors,
       quote,
+      quote_url,
+      enriched: p.enriched,
+      reason: p.objection,
       relation: r.relation,
       what_is_different: r.what_is_different,
     });
@@ -381,20 +406,72 @@ export async function runRoast(proposal: ProposalInput, opts: RunOptions): Promi
       messageIds: [proposal.thread.rootMessageId, ...(proposal.cf?.threads.map((t) => t.messageId) ?? [])],
     },
     search: opts.search,
+    limit: opts.enrich === false ? (opts.precedentLimit ?? 15) : 24,
     log,
   });
   warnings.push(...retrieved.warnings);
-  const precedents = retrieved.precedents;
+  const pool = retrieved.precedents;
+
+  // b2. Lazy enrichment: read the threads of the top candidates that have no recorded reason.
+  let enrichment: Roast["enrichment"] = null;
+  if (pool.length > 0 && opts.enrich !== false && !backend.dryRun) {
+    log("enriching precedents ...");
+    const store = opts.enrichStore === undefined ? await openPgEnrichmentStore() : opts.enrichStore;
+    if (!store) warnings.push("the enrichment table could not be opened: precedent summaries are not cached in this run");
+    const res = await enrichPrecedents(pool, {
+      backend,
+      model: models.roaster,
+      system: `${prompts.enrich}\n\n${outputContract(ENRICH_SCHEMA, false)}`,
+      store,
+      max: opts.enrichMax ?? 8,
+      evalMode,
+      selfMessageIds: [proposal.thread.rootMessageId, ...(proposal.cf?.threads.map((t) => t.messageId) ?? [])],
+      loadThreadFn: opts.enrichLoadThread,
+      closersFn: opts.enrichClosers,
+      log,
+    });
+    if (opts.enrichStore === undefined) await store?.close?.();
+    warnings.push(...res.warnings);
+    enrichment = { ...res.stats, relevance_pass: "skipped", relevant: pool.length };
+    log(`enrichment: ${res.stats.candidates} candidates, ${res.stats.from_cache} from cache, ${res.stats.new_calls} new, ${res.stats.failed} failed`);
+  }
+
+  // b3. Relevance pass: one call, ids only. The roasters see only what it keeps.
+  let precedents = pool.slice(0, opts.precedentLimit ?? 15);
+  if (pool.length > 0 && opts.enrich !== false) {
+    try {
+      const rel = await backend.complete<{ relevant_ids: string[] }>({
+        label: "relevance",
+        model: models.roaster,
+        system: `${prompts.relevance}\n\n${outputContract(RELEVANCE_SCHEMA, false)}`,
+        prompt: `${head}\n\n# Brief\n\n${JSON.stringify(brief, null, 1)}\n\n# Candidates\n\n${renderPrecedentsForPrompt(pool)}\n\n# Task\n\nReturn the ids of the relevant candidates. JSON only.`,
+        schema: RELEVANCE_SCHEMA,
+      });
+      if (!backend.dryRun) {
+        const ids = filterPrecedentIds(rel.relevant_ids, new Map(pool.map((p) => [p.id, p])), "relevance", report);
+        for (const p of pool) p.relevant = ids.includes(p.id);
+        precedents = ids.map((id) => pool.find((p) => p.id === id)!).slice(0, opts.precedentLimit ?? 15);
+        enrichment = { ...(enrichment ?? { candidates: 0, from_cache: 0, new_calls: 0, failed: 0, quotes_verified: 0, quotes_dropped: 0, objectors_dropped: 0 }), relevance_pass: "done", relevant: precedents.length };
+        log(`relevance: ${precedents.length} of ${pool.length} candidates kept`);
+      }
+    } catch (e) {
+      warnings.push(`the relevance pass failed (${(e as Error).message.split("\n")[0]}); the roasters got the top candidates unfiltered`);
+      if (enrichment) enrichment.relevance_pass = "failed";
+    }
+  }
   const knownPrecedents = new Map(precedents.map((p) => [p.id, p]));
   for (const p of precedents) {
     allowed.add(p.url);
     for (const u of p.thread_urls) allowed.add(u);
+    allowed.add(p.quote_message_url);
   }
   const precedentText =
     retrieved.backend === "none"
       ? "The precedent index is not available in this run: no search was done. Do not cite any earlier thread, commit or decision as a precedent, and do not claim that none exists."
-      : renderPrecedentsForPrompt(precedents);
-  log(`precedents: ${precedents.length} kept (backend: ${retrieved.backend})`);
+      : precedents.length === 0 && pool.length > 0
+        ? `The corpus search returned ${pool.length} candidates and none of them is about the same or a similar idea. No precedent found. Do not cite any earlier thread, commit or decision as a precedent.`
+        : renderPrecedentsForPrompt(precedents);
+  log(`precedents: ${precedents.length} shown to the roasters, ${pool.length} retrieved (backend: ${retrieved.backend})`);
 
   const shared = [
     head,
@@ -604,7 +681,8 @@ export async function runRoast(proposal: ProposalInput, opts: RunOptions): Promi
     not_now: notNow,
     provisional_note: synth.provisional_note,
     disclosure: DISCLOSURE,
-    precedents_retrieved: precedents,
+    precedents_retrieved: pool,
+    enrichment,
     precedent_cutoff: cutoff,
     precedent_backend: retrieved.backend,
     roaster_notes: roasterNotes,

@@ -18,8 +18,10 @@ You have one angle (below). Stay inside it; other panel members cover the other 
 3. The visible part of the mailing-list thread. In blind mode this is only the first messages.
 4. The prose of the patch: commit message, list of touched files, documentation hunks.
 5. Precedents: rows retrieved by code from an index of earlier rejected, returned, withdrawn and
-   reverted proposals, each with an id like [P3]. The retrieval is a keyword search: many rows
-   will be irrelevant. Read what a row says before you lean on it.
+   reverted proposals, each with an id like [P3], pre-filtered for relevance. Read what a row
+   says before you lean on it. A reason marked "AI summary of its thread" was written by a
+   model from that thread: treat it as a pointer, weaker than a recorded reason or a verbatim
+   key sentence.
 
 ## Hard rules
 

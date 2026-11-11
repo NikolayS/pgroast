@@ -90,7 +90,9 @@ function asDate(v: unknown): string | null {
 const isHttpUrl = (s: string) => /^https?:\/\/\S+$/.test(s);
 
 /** Map a backend row (snake_case or camelCase) to a Precedent without the run-local id. */
-export function normalisePrecedent(r: RawPrecedent): Omit<Precedent, "id" | "matched_queries" | "from_hint" | "score"> | null {
+export function normalisePrecedent(
+  r: RawPrecedent,
+): Omit<Precedent, "id" | "matched_queries" | "from_hint" | "score" | "enriched" | "key_quote" | "quote_message_url" | "relevant"> | null {
   const url = asString(pick(r, "url", "link")).trim();
   const title = asString(pick(r, "title")).trim();
   // A precedent without a real link is useless here: we never show one.
@@ -214,7 +216,7 @@ export async function retrievePrecedents(args: RetrieveArgs): Promise<RetrieveRe
   const selfCf = args.self?.cfId != null ? String(args.self.cfId) : null;
   const hintYears = new Set(args.hint?.match(/\b(?:19|20)\d{2}\b/g) ?? []);
 
-  type Acc = Omit<Precedent, "id">;
+  type Acc = Omit<Precedent, "id" | "enriched" | "key_quote" | "quote_message_url" | "relevant">;
   const byKey = new Map<string, Acc>();
   const queries: { q: string; hint: boolean }[] = [
     ...(args.hint ? [{ q: args.hint, hint: true }] : []),
@@ -267,7 +269,15 @@ export async function retrievePrecedents(args: RetrieveArgs): Promise<RetrieveRe
   const precedents = [...byKey.values()]
     .sort((a, b) => b.score - a.score || a.source_id.localeCompare(b.source_id))
     .slice(0, limit)
-    .map((p, i) => ({ id: `P${i + 1}`, ...p, score: Math.round(p.score * 1000) / 1000 }));
+    .map((p, i) => ({
+      id: `P${i + 1}`,
+      ...p,
+      score: Math.round(p.score * 1000) / 1000,
+      enriched: false,
+      key_quote: null,
+      quote_message_url: null,
+      relevant: null,
+    }));
   return { precedents, backend: backendName, warnings };
 }
 
@@ -288,7 +298,10 @@ export function renderPrecedentsForPrompt(precedents: Precedent[]): string {
       if (p.objectors) lines.push(`  who objected: ${p.objectors}`);
       if (p.touch_points.length) lines.push(`  touch points: ${p.touch_points.join(", ")}`);
       if (p.summary) lines.push(`  proposal: ${clip(p.summary.replace(/\s+/g, " "), 800)}`);
-      lines.push(`  objection / reason recorded: ${p.objection ? clip(p.objection.replace(/\s+/g, " "), 1500) : "(not recorded in the corpus)"}`);
+      lines.push(
+        `  ${p.enriched ? "why it was not accepted (AI summary of its thread)" : "objection / reason recorded"}: ${p.objection ? clip(p.objection.replace(/\s+/g, " "), 1500) : "(not recorded in the corpus)"}`,
+      );
+      if (p.key_quote) lines.push(`  key sentence, verbatim from its thread: "${p.key_quote.replace(/\s+/g, " ")}"`);
       return lines.join("\n");
     })
     .join("\n\n");

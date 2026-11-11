@@ -48,7 +48,8 @@ import {
 } from "../src/roast/schema.ts";
 import { filterMessages, redactCf } from "../src/thread/load.ts";
 import { parseCommitfestPatch, parseFlatThread } from "../src/thread/parse.ts";
-import type { ProposalInput } from "../src/thread/types.ts";
+import type { ProposalInput, Thread } from "../src/thread/types.ts";
+import { checkEnrichment, enrichPrecedents, MemoryEnrichmentStore, ownText, selectMessages } from "../src/roast/enrich.ts";
 
 const FIX = join(import.meta.dir, "thread-fixtures");
 const flatHtml = readFileSync(join(FIX, "flat_int64_gucs.html"), "utf8");
@@ -499,6 +500,18 @@ function obj(over: Partial<RawObjection>): RawObjection {
   };
 }
 
+const OLD_THREAD: Thread = {
+  threadUrl: "https://www.postgresql.org/message-id/flat/cf778%40example.org",
+  rootMessageId: "cf778@example.org",
+  subject: "Unrelated thing",
+  lists: ["pgsql-hackers"],
+  messages: [
+    { index: 1, messageId: "cf778@example.org", url: "https://www.postgresql.org/message-id/cf778%40example.org", from: "An Author <a(at)example(dot)org>", date: "2011-01-01T10:00:00Z", subject: "Unrelated thing", body: "Here is my patch.", attachments: [] },
+    { index: 2, messageId: "r1@example.org", url: "https://www.postgresql.org/message-id/r1%40example.org", from: "Nathan Reviewer <n(at)example(dot)org>", date: "2011-01-02T10:00:00Z", subject: "Re: Unrelated thing", body: "> Here is my patch.\n\nI do not see what this buys us\nover a float setting.", attachments: [] },
+    { index: 3, messageId: "r2@example.org", url: "https://www.postgresql.org/message-id/r2%40example.org", from: "Late Person <l(at)example(dot)org>", date: "2013-05-05T10:00:00Z", subject: "Re: Unrelated thing", body: "Years later: this was committed after all.", attachments: [] },
+  ],
+};
+
 class FakeBackend implements LlmBackend {
   readonly dryRun = false;
   calls: CompleteArgs[] = [];
@@ -528,6 +541,17 @@ const BRIEF: Brief = {
 
 function fakeAnswers(a: CompleteArgs): unknown {
   if (a.label === "brief") return BRIEF;
+  if (a.label === "relevance") return { relevant_ids: ["P1", "P2", "P77"] };
+  if (a.label === "enrich-P2") {
+    return {
+      proposal_summary: "A thing that is unrelated.",
+      why_not_accepted: "A reviewer saw no use for it.",
+      objectors: ["Nathan Reviewer", "Tom Lane"],
+      key_quote: "I do not see what this buys us over a float setting.",
+      quote_message_index: 2,
+    };
+  }
+  if (a.label.startsWith("enrich-")) throw new Error(`unexpected enrichment ${a.label}`);
   if (a.label === "roaster-prior-attempts") {
     return {
       objections: [
@@ -593,7 +617,15 @@ describe("pipeline (fake model)", () => {
   const p = proposal(5);
   const searches: SearchArgs[] = [];
   const backend = new FakeBackend(fakeAnswers);
+  const store = new MemoryEnrichmentStore();
+  const enrichPrompts: string[] = [];
   const run = runRoast(p, {
+    enrichStore: store,
+    enrichLoadThread: async (id) => {
+      if (id !== "cf778@example.org") throw new Error(`unexpected thread ${id}`);
+      return OLD_THREAD;
+    },
+    enrichClosers: async () => [],
     backend,
     models: modelsFromEnv({}),
     hint: "the 2018 suggestion",
@@ -604,8 +636,9 @@ describe("pipeline (fake model)", () => {
 
   test("stages: 1 brief, 7 roasters, 1 critic, 1 synthesis; the right models", async () => {
     const r = await run;
-    expect(backend.calls.map((c) => c.label).sort()).toEqual(["brief", "critic", ...ANGLES.map((a) => `roaster-${a}`), "synth"].sort());
-    expect(r.stats.llm_calls).toBe(10);
+    expect(backend.calls.map((c) => c.label).sort()).toEqual(["brief", "critic", "enrich-P2", "relevance", ...ANGLES.map((a) => `roaster-${a}`), "synth"].sort());
+    expect(r.stats.llm_calls).toBe(12);
+    void enrichPrompts;
     for (const c of backend.calls) {
       expect(c.model).toBe(c.label === "critic" || c.label === "synth" ? "claude-mythos-5-2" : "opus");
     }
@@ -614,7 +647,7 @@ describe("pipeline (fake model)", () => {
   test("prompts carry the rubric verbatim, the angle, the precedents by id, and no links", async () => {
     await run;
     const rubric = readFileSync(join(import.meta.dir, "..", "prompts", "committer-paranoia.md"), "utf8").trim();
-    for (const c of backend.calls.filter((c) => c.label !== "brief")) expect(c.system).toContain(rubric);
+    for (const c of backend.calls.filter((c) => /^(roaster-|critic|synth)/.test(c.label))) expect(c.system).toContain(rubric);
     const sec = backend.calls.find((c) => c.label === "roaster-security")!;
     expect(sec.system).toContain("Your angle: security and privileges");
     expect(sec.system).toContain("Zero objections is a valid answer");
@@ -656,7 +689,7 @@ describe("pipeline (fake model)", () => {
     expect(o.thread_message_refs).toEqual([1]);
     expect(o.thread_refs[0]!.url).toBe(p.thread.messages[0]!.url);
     expect(r.sanitizer.urls_removed.length).toBe(1);
-    expect(r.sanitizer.precedent_ids_dropped.map((d) => d.id)).toEqual(["P9", "P44"]);
+    expect(r.sanitizer.precedent_ids_dropped.map((d) => d.id)).toEqual(["P77", "P9", "P44"]);
     expect(r.sanitizer.thread_refs_dropped.map((d) => d.index)).toEqual([99]);
     // the removed link survives only in the audit list
     expect(JSON.stringify({ ...r, sanitizer: null })).not.toContain("INVENTED");
@@ -671,8 +704,35 @@ describe("pipeline (fake model)", () => {
     expect(a!.who_objected).toBe("Tom Lane");
     expect(a!.date).toBe("2019-03-01");
     expect(a!.quote).toBe("We would be breaking the GUC API for a handful of settings.");
-    expect(b!.quote).toBeNull();
+    expect(a!.enriched).toBe(false);
+    expect(a!.quote_url).toBeNull();
+    // P2 had no recorded reason: it was enriched from its thread, and the invented quote was
+    // replaced by the sentence that code verified against message #2.
+    expect(b!.enriched).toBe(true);
+    expect(b!.reason).toBe("A reviewer saw no use for it.");
+    expect(b!.who_objected).toBe("Tom Lane"); // the corpus value wins over the summary's
+    expect(b!.quote).toBe("I do not see what this buys us over a float setting.");
+    expect(b!.quote_url).toBe("https://www.postgresql.org/message-id/r1%40example.org");
     expect(r.sanitizer.quotes_dropped.length).toBe(1);
+  });
+
+  test("enrichment: one call per thread, cut at the decision date, cached, checked by code", async () => {
+    const r = await run;
+    expect(r.enrichment).toMatchObject({ candidates: 1, from_cache: 0, new_calls: 1, failed: 0, quotes_verified: 1, objectors_dropped: 1, relevance_pass: "done", relevant: 2 });
+    const call = backend.calls.find((c) => c.label === "enrich-P2")!;
+    expect(call.model).toBe("opus");
+    expect(call.prompt).toContain("### Message #2 | Nathan Reviewer | 2011-01-02");
+    expect(call.prompt).not.toContain("committed after all"); // dated after the decision (2012-01-01)
+    expect(call.prompt).toContain("Messages shown: 2 of 2.");
+    const row = [...store.rows.values()][0]!;
+    expect(row).toMatchObject({ raw_ref: "cf:778", as_of: "2012-01-01", objectors: ["Nathan Reviewer"], quote_message_url: "https://www.postgresql.org/message-id/r1%40example.org" });
+    const p2 = r.precedents_retrieved.find((x) => x.id === "P2")!;
+    expect(p2).toMatchObject({ enriched: true, relevant: true });
+    expect(r.precedents_retrieved.find((x) => x.id === "P1")).toMatchObject({ enriched: false, relevant: true });
+    const sec = backend.calls.find((c) => c.label === "roaster-security")!;
+    expect(sec.prompt).toContain("why it was not accepted (AI summary of its thread): A reviewer saw no use for it.");
+    expect(sec.prompt).toContain('key sentence, verbatim from its thread: "I do not see what this buys us over a float setting."');
+    expect(renderMarkdown(r)).toContain("(AI summary of the linked thread; check it there):** A reviewer saw no use for it.");
   });
 
   test("critic verdicts: refuted kept apart, severity adjusted, missing verdict flagged", async () => {
@@ -719,7 +779,7 @@ describe("pipeline (fake model)", () => {
     expect(md).toContain("### 1. Same idea was rejected for API churn");
     expect(md).toContain("- **Who objected:** Tom Lane");
     expect(md).toContain('- **Reason (quote):** "We would be breaking the GUC API for a handful of settings."');
-    expect(md).toContain("- **Reason (quote):** quote unavailable");
+    expect(md).toContain('- **Reason (quote):** "I do not see what this buys us over a float setting." ([message](https://www.postgresql.org/message-id/r1%40example.org))');
     expect(md).toContain("- **What is different this time:** nothing, same idea");
     expect(md).toContain("| new GUC | **yes** | adds a GUC type |");
     expect(md.match(/^\| .* \| (\*\*yes\*\*|no) \|/gm)!.length).toBe(15);
@@ -740,9 +800,74 @@ describe("pipeline (fake model)", () => {
     expect(md).not.toContain("INVENTED");
     // every link in the markdown is one the code knows
     const links = [...md.matchAll(/\]\((https?:[^)]+)\)/g)].map((m) => m[1]!);
-    const ok = new Set([r.input.thread_url, r.input.cf!.url, ...p.thread.messages.map((m) => m.url), ...r.precedents_retrieved.flatMap((x) => [x.url, ...x.thread_urls])]);
+    const ok = new Set([r.input.thread_url, r.input.cf!.url, ...p.thread.messages.map((m) => m.url), ...r.precedents_retrieved.flatMap((x) => [x.url, ...x.thread_urls, x.quote_message_url ?? ""])]);
     expect(links.length).toBeGreaterThan(3);
     for (const l of links) expect(ok.has(l)).toBe(true);
+  });
+});
+
+describe("enrichment checks", () => {
+  const prec = (over: Partial<Precedent>): Precedent => ({
+    id: "P1", source_id: "cf:778", kind: "cf", title: "Unrelated thing", status: "Rejected", date: "2012-01-01", first_date: "2011-01-01",
+    url: "https://commitfest.postgresql.org/patch/778/", thread_urls: [OLD_THREAD.threadUrl], authors: "", objectors: "", summary: "", objection: "",
+    touch_points: [], matched_queries: [], from_hint: false, score: 1, enriched: false, key_quote: null, quote_message_url: null, relevant: null, ...over,
+  });
+  const base = { proposal_summary: "s", why_not_accepted: "w", objectors: [], key_quote: null, quote_message_index: null };
+
+  test("a quote must be the named message's own words", () => {
+    const m = OLD_THREAD.messages;
+    expect(checkEnrichment({ ...base, key_quote: "I do not see what this buys us over a float setting.", quote_message_index: 2 }, m).quote_message_url).toBe(m[1]!.url);
+    expect(checkEnrichment({ ...base, key_quote: "I do not see what this buys us over a float setting.", quote_message_index: 1 }, m).key_quote).toBeNull();
+    expect(checkEnrichment({ ...base, key_quote: "Here is my patch.", quote_message_index: 2 }, m).key_quote).toBeNull(); // only quoted there
+    expect(checkEnrichment({ ...base, key_quote: "I do not see ... a float setting.", quote_message_index: 2 }, m).key_quote).toBeNull(); // no ellipsis
+    expect(checkEnrichment({ ...base, key_quote: "This is a bad idea, full stop, forever.", quote_message_index: 2 }, m).key_quote).toBeNull();
+    expect(checkEnrichment({ ...base, key_quote: "I do not see what this buys us over a float setting.", quote_message_index: 9 }, m).dropped[0]).toContain("not shown");
+    expect(ownText("> a\nb\n > c")).toBe("b");
+  });
+
+  test("objectors must be senders in the thread", () => {
+    const c = checkEnrichment({ ...base, objectors: ["nathan reviewer", "Tom Lane", "Nathan Reviewer"] }, OLD_THREAD.messages);
+    expect(c.objectors).toEqual(["Nathan Reviewer"]);
+    expect(c.dropped.length).toBe(1);
+  });
+
+  test("selectMessages: first 3, last 8, closers; capped", () => {
+    const msgs = Array.from({ length: 30 }, (_, i) => ({ ...OLD_THREAD.messages[0]!, index: i + 1, from: i === 14 ? "Closer Person (closer) <c(at)x>" : "Someone <s(at)x>", body: "x".repeat(100) }));
+    expect(selectMessages(msgs, ["Closer Person (closerp)"]).map((m) => m.index)).toEqual([1, 2, 3, 15, 23, 24, 25, 26, 27, 28, 29, 30]);
+    const big = msgs.map((m) => ({ ...m, body: "y".repeat(9000) }));
+    const sel = selectMessages(big, ["Closer Person"]);
+    expect(sel.map((m) => m.index).slice(0, 3)).toEqual([1, 2, 3]);
+    expect(sel.reduce((n, m) => n + Math.min(m.body.length, m.index === 1 ? 10000 : 5000), 0)).toBeLessThanOrEqual(60000);
+    expect(sel[sel.length - 1]!.index).toBe(30);
+  });
+
+  test("cache hit makes no call; the proposal's own thread and undated rows in eval mode are never read", async () => {
+    const store = new MemoryEnrichmentStore();
+    const backend = new FakeBackend(() => ({ ...base, objectors: ["Nathan Reviewer"] }));
+    const common = { backend, model: "opus", system: "S", store, evalMode: true, selfMessageIds: [] as string[], loadThreadFn: async () => OLD_THREAD, closersFn: async () => [] };
+    const p1 = prec({});
+    await enrichPrecedents([p1], common);
+    expect(backend.calls.length).toBe(1);
+    expect(p1).toMatchObject({ enriched: true, objection: "w", objectors: "Nathan Reviewer" });
+    const p2 = prec({});
+    const again = await enrichPrecedents([p2], common);
+    expect(backend.calls.length).toBe(1);
+    expect(again.stats.from_cache).toBe(1);
+    expect(p2.enriched).toBe(true);
+
+    let loaded = 0;
+    const guard = { ...common, store: new MemoryEnrichmentStore(), loadThreadFn: async () => (loaded++, OLD_THREAD) };
+    const own = prec({});
+    const undated = prec({ id: "P2", date: null, first_date: null });
+    const hasReason = prec({ id: "P3", objection: "recorded" });
+    const res = await enrichPrecedents([own, undated, hasReason], { ...guard, selfMessageIds: ["cf778@example.org"] });
+    expect(loaded).toBe(0);
+    expect(res.stats.candidates).toBe(0);
+    expect([own.enriched, undated.enriched, hasReason.enriched]).toEqual([false, false, false]);
+
+    const failing = await enrichPrecedents([prec({})], { ...guard, loadThreadFn: async () => { throw new Error("404"); } });
+    expect(failing.stats.failed).toBe(1);
+    expect(failing.warnings[0]).toContain("could not be enriched");
   });
 });
 
@@ -829,7 +954,7 @@ describe("dry run and misc", () => {
     const printed: string[] = [];
     const backend = new DryRunBackend({ print: (s) => printed.push(s) });
     const r = await runRoast(proposal(3), { backend, models: modelsFromEnv({}), search: async () => PRECEDENTS, log: () => undefined });
-    expect(printed.length).toBe(10);
+    expect(printed.length).toBe(11); // + the relevance pass; enrichment is skipped in a dry run
     expect(printed.every((s) => s.includes("DRY RUN") && s.includes("not sent"))).toBe(true);
     expect(r.stats.dry_run).toBe(true);
     expect(r.touch_points.length).toBe(15);

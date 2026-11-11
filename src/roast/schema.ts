@@ -216,6 +216,17 @@ export interface Precedent {
   /** True when found by the --hint directed lookup. */
   from_hint: boolean;
   score: number;
+  /**
+   * True when `objection` (and maybe `summary`, `objectors`) is an AI summary of the linked
+   * thread, made at roast time (src/roast/enrich.ts), not text recorded in the corpus.
+   */
+  enriched: boolean;
+  /** A sentence verified by code to be verbatim in one message of the precedent's thread. */
+  key_quote: string | null;
+  /** Permalink of that message (built by code). */
+  quote_message_url: string | null;
+  /** Result of the relevance pass: shown to the roasters or not; null = the pass did not run. */
+  relevant: boolean | null;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -253,8 +264,14 @@ export interface PriorAttempt {
   first_date: string | null;
   /** From the corpus DB; "" when the DB does not record it. */
   who_objected: string;
-  /** Verbatim sentence found in the DB text, or null = "quote unavailable". */
+  /** Verbatim sentence found in the DB text or the precedent's thread, or null = "quote unavailable". */
   quote: string | null;
+  /** The message the quote is from, when it was verified against the precedent's thread. */
+  quote_url: string | null;
+  /** True when the reason shown is an AI summary of the linked thread. */
+  enriched: boolean;
+  /** Why it was not accepted: corpus text, or the AI summary when `enriched`. */
+  reason: string;
   relation: "same_idea" | "similar_idea" | "related_only";
   what_is_different: string;
 }
@@ -335,6 +352,18 @@ export interface Roast {
   precedent_cutoff: string;
   /** Which corpus backend answered; "none" = the search was not done. */
   precedent_backend: string;
+  /** Lazy enrichment and relevance pass; null when they did not run. */
+  enrichment: {
+    candidates: number;
+    from_cache: number;
+    new_calls: number;
+    failed: number;
+    quotes_verified: number;
+    quotes_dropped: number;
+    objectors_dropped: number;
+    relevance_pass: "done" | "skipped" | "failed";
+    relevant: number;
+  } | null;
   roaster_notes: { angle: Angle; objections: number; note: string }[];
   warnings: string[];
   sanitizer: SanitizerReport;

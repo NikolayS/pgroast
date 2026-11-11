@@ -23,6 +23,7 @@ const USAGE = `Usage: bun run src/cli.ts <cf-id|cf-url|message-id|thread-url> [o
   --hint TEXT      directed precedent lookup, e.g. "the 2018 suggestion of doing X"
   --out DIR        output directory (default: out/<slug>)
   --backend NAME   claude or codex (default: PGROAST_BACKEND, else claude if installed, else codex)
+  --no-enrich      do not read precedent threads and do not filter precedents for relevance
   --dry-run        print the prompts, call no model
   --offline        use only cached pages
   -h, --help
@@ -45,6 +46,7 @@ export interface CliArgs {
   out?: string;
   backend?: BackendName;
   doctor?: boolean;
+  noEnrich?: boolean;
   dryRun: boolean;
   offline: boolean;
 }
@@ -87,6 +89,9 @@ export function parseArgs(argv: string[]): CliArgs | "help" {
         a.backend = b;
         break;
       }
+      case "--no-enrich":
+        a.noEnrich = true;
+        break;
       case "--dry-run":
         a.dryRun = true;
         break;
@@ -138,7 +143,7 @@ async function main(): Promise<number> {
   const backend = args.dryRun ? new DryRunBackend({ transcriptDir }) : new CliBackend({ backend: backendName, transcriptDir, log });
   if (!args.dryRun) log(`backend: ${backendName} CLI (subscription login, no tools)`);
 
-  const roast = await runRoast(proposal, { backend, models, backendName: args.dryRun ? "dry-run" : backendName, hint: args.hint ?? null, log });
+  const roast = await runRoast(proposal, { backend, models, backendName: args.dryRun ? "dry-run" : backendName, hint: args.hint ?? null, enrich: !args.noEnrich, log });
   await closePrecedents();
   roast.stats.wall_ms = Date.now() - t0;
 
