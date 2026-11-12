@@ -88,34 +88,42 @@ export interface BatchOptions {
 
 const oneLine = (s: string) => s.replace(/\s+/g, " ").replace(/\|/g, "\\|").trim();
 
-/** README.md of the output directory: one row per finished entry, built from the roast.json files. */
-export function renderIndex(cf: number, outDir: string, entries: BatchEntry[]): string {
+/**
+ * README.md of the output directory: one row per finished entry, built from every roast.json
+ * under cf/, so that several runs (other commitfests, other statuses) share one index.
+ */
+export function renderIndex(outDir: string, selected: BatchEntry[] = []): string {
   const rows: string[] = [];
   const counts = new Map<string, number>();
-  let done = 0;
-  for (const e of entries) {
-    const f = join(outDir, "cf", String(e.id), "roast.json");
+  const cfDir = join(outDir, "cf");
+  const ids = existsSync(cfDir) ? readdirSync(cfDir).filter((d) => /^\d+$/.test(d)).map(Number).sort((a, b) => a - b) : [];
+  const listed = new Map(selected.map((e) => [e.id, e]));
+  let failed = 0;
+  for (const id of ids) {
+    if (existsSync(join(cfDir, String(id), "error.json"))) failed++;
+    const f = join(cfDir, String(id), "roast.json");
     if (!existsSync(f)) continue;
     const r = JSON.parse(readFileSync(f, "utf8")) as Roast;
-    done++;
     counts.set(r.verdict, (counts.get(r.verdict) ?? 0) + 1);
     const top = r.objections[0];
-    rows.push(`| [${e.id}](cf/${e.id}/roast.md) | ${oneLine(e.title)} | ${e.status} | ${r.verdict} | ${r.objections.length} | ${top ? oneLine(top.title) : ""} | ${r.prior_attempts.length} |`);
+    const title = listed.get(id)?.title ?? r.input.cf?.title ?? r.brief.title ?? r.input.subject;
+    rows.push(`| [${id}](cf/${id}/roast.md) | ${oneLine(title)} | ${r.verdict} | ${r.objections.length} | ${top ? oneLine(top.title) : ""} | ${r.prior_attempts.length} | ${r.input.messages_read} | ${r.generated_at.slice(0, 10)} |`);
   }
-  const failed = entries.filter((e) => existsSync(join(outDir, "cf", String(e.id), "error.json"))).length;
   return [
-    `# Design pre-reviews: commitfest ${cf}`,
+    "# Design pre-reviews of CommitFest entries",
     "",
     "> Prepared by an AI harness; treat as a devil's advocate, not a verdict.",
     "",
-    "Each entry was read from its mailing-list thread and its patch prose. No code was read. Every report lists objections a reviewer may raise, with links to the thread; none of them is a decision about the patch.",
+    "Each entry was read from its mailing-list thread and the prose of its latest patch (commit message, file list, documentation changes). No code was read. A report lists objections that a reviewer may raise, with links to the thread. It is one-sided on purpose and it is not a decision about the patch. The verdict line is the least reliable part: read the objections.",
     "",
-    `Entries selected: ${entries.length}; done: ${done}; failed: ${failed}; not yet run: ${entries.length - done - failed}.`,
+    "Made with [pgroast](https://github.com/NikolayS/pgroast). In each folder: `roast.md` (short report), `roast-full.md` (everything, with the models used), `roast.json`, `roast-summary.txt`.",
+    "",
+    `Entries done: ${rows.length}${failed ? `; failed: ${failed}` : ""}.`,
     "",
     ...[...counts.entries()].sort((a, b) => b[1] - a[1]).map(([v, n]) => `- ${v}: ${n}`),
     "",
-    "| Entry | Title | CommitFest status | Verdict | Objections | First objection | Prior attempts |",
-    "|---|---|---|---|---:|---|---:|",
+    "| Entry | Title | Verdict | Objections | First objection | Prior attempts | Messages read | Date |",
+    "|---|---|---|---:|---|---:|---:|---|",
     ...rows,
     "",
   ].join("\n");
@@ -189,7 +197,7 @@ export async function runBatch(o: BatchOptions): Promise<{ done: number; skipped
   });
   await Promise.all(workers);
   await closePrecedents();
-  writeFileSync(join(outDir, "README.md"), renderIndex(o.cf, outDir, entries));
+  writeFileSync(join(outDir, "README.md"), renderIndex(outDir, entries));
   return res;
 }
 

@@ -53,6 +53,6 @@ describe("batch", () => {
     expect(first.stopped).toContain("5-hour limit");
     expect(existsSync(join(out, "cf", "2", "error.json"))).toBe(true);
     expect(existsSync(join(out, "cf", "3"))).toBe(false);
-    expect(readFileSync(join(out, "README.md"), "utf8")).toContain("Entries selected: 4; done: 0; failed: 2; not yet run: 2.");
+    expect(readFileSync(join(out, "README.md"), "utf8")).toContain("Entries done: 0; failed: 2.");
   });
 });
