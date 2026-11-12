@@ -79,14 +79,14 @@ Full design: [docs/design.md](docs/design.md).
 3. **Postgres 18**, for the precedent index (database `pgroast`; `PGROAST_DSN` if it is not on the local socket). `createdb` and `psql` are used once, to load the index.
 4. A clone of the Postgres repository, only if you rebuild the index (`PGROAST_PG_REPO`).
 
-## Quick start
+## Get started
 
-With npm (the package starts Bun for you; `bunx pgroast` works the same way):
+With npm (the package starts Bun for you; `bunx pgroast@latest` works the same way):
 
 ```
-npx pgroast init-db                  # once: creates the database "pgroast" and loads the index
-npx pgroast doctor                   # checks both CLIs and their login
-npx pgroast <cf-id|thread-url>       # results go to ./pgroast-out/<name>/
+npx pgroast@latest init-db               # once: creates the database "pgroast" and loads the index
+npx pgroast@latest doctor                # checks both CLIs and their login
+npx pgroast@latest <cf-id|thread-url>    # results go to ./pgroast-out/<name>/
 ```
 
 From a clone:
@@ -103,7 +103,7 @@ bun run src/cli.ts <cf-id|thread-url>    # results go to out/<name>/
 Claude Code keeps one login per config directory. If you start `claude` through an alias that sets `CLAUDE_CONFIG_DIR`, a plain `pgroast` run uses a different login, which may be expired even though `claude` works for you. Set the same variable for PG Roast:
 
 ```
-CLAUDE_CONFIG_DIR=~/.claude npx pgroast doctor
+CLAUDE_CONFIG_DIR=~/.claude npx pgroast@latest doctor
 ```
 
 Fetched pages are cached in `~/.cache/pgroast` when installed from npm and in `data/cache/` in a clone (`PGROAST_CACHE_DIR` overrides both).
@@ -126,7 +126,7 @@ pgroast doctor
 pgroast init-db
 ```
 
-`pgroast` here is `npx pgroast`, or `bun run src/cli.ts` in a clone.
+`pgroast` here is `npx pgroast@latest`, or `bun run src/cli.ts` in a clone.
 
 | Option | Meaning |
 |---|---|
