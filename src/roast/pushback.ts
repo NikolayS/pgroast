@@ -15,7 +15,7 @@
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { REPO_ROOT } from "../thread/fetch.ts";
+import { CACHE_ROOT, REPO_ROOT } from "../thread/fetch.ts";
 import { loadCfEntry, loadThread, parseInputRef } from "../thread/load.ts";
 import type { CfEntry, LoadOptions, ThreadMessage } from "../thread/types.ts";
 import { ownText } from "./enrich.ts";
@@ -290,7 +290,7 @@ export interface MapCache {
 }
 
 /** Map replies on disk (data/cache/pushback/), keyed by the model and the exact prompt. */
-export function diskMapCache(dir: string = join(REPO_ROOT, "data", "cache", "pushback")): MapCache {
+export function diskMapCache(dir: string = join(CACHE_ROOT, "pushback")): MapCache {
   return {
     get(key) {
       const f = join(dir, `${key}.json`);
@@ -374,8 +374,8 @@ export async function runPushback(input: PushbackInput, opts: PushbackOptions): 
   const { backend, models } = opts;
   const prompts = loadPrompts(opts.promptsDir);
   const read = (name: string) => readFileSync(join(opts.promptsDir ?? join(REPO_ROOT, "prompts"), name), "utf8").trim();
-  const mapSystem = `${read("pushback-map.md")}\n\n${outputContract(MAP_SCHEMA, false)}`;
-  const reduceSystem = `${read("pushback-reduce.md")}\n\n${outputContract(REDUCE_SCHEMA, false)}`;
+  const mapSystem = `${read("pushback-map.md")}\n\n${prompts.writing}\n\n${outputContract(MAP_SCHEMA, false)}`;
+  const reduceSystem = `${read("pushback-reduce.md")}\n\n${prompts.writing}\n\n${outputContract(REDUCE_SCHEMA, false)}`;
   const cache = opts.cache === undefined ? diskMapCache() : opts.cache;
   const warnings = [...input.warnings];
   const report = emptyReport();
@@ -558,7 +558,7 @@ export async function runPushback(input: PushbackInput, opts: PushbackOptions): 
   result.tone_lint = await toneCheckFields(() => pushbackProse(result), {
     backend,
     model: models.reduce,
-    system: `${prompts.tone}\n\n${outputContract(TONE_REPAIR_SCHEMA, false)}`,
+    system: `${prompts.tone}\n\n${prompts.writing}\n\n${outputContract(TONE_REPAIR_SCHEMA, false)}`,
     allowed,
     report,
     log,
