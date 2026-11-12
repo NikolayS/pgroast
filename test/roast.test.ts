@@ -1246,7 +1246,8 @@ describe("rounds, invariants and self mode (fake model)", () => {
     expect(lines.length).toBeLessThanOrEqual(10);
     expect(txt).not.toMatch(/[*#`\[\]]{2}|^#|\]\(/m);
     expect(lines[1]).toBe(`Support Int64 GUCs (self check): ${r.verdict}, confidence ${r.confidence}. Idea and design only; no code was read.`);
-    expect(txt).toContain("1. Same idea was rejected for API churn. This one would stop the proposal as it is.");
+    expect(txt).toContain("1. Same idea was rejected; say what changed. (rebut in the cover letter)");
+    expect(txt).toContain("2. No user asked for it.");
     expect(txt).not.toMatch(/\[fixable\]|\[fatal\]|\.\.\./);
     expect(txt).toContain("(rebut in the cover letter)");
     expect(txt).toContain("Suggested next step: needs champion.");
