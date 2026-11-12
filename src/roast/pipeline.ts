@@ -95,6 +95,8 @@ export interface Prompts {
   supervisor: string;
   synthSelf: string;
   tone: string;
+  /** Shared writing rules (prompts/writing.md), added to every stage that writes prose. */
+  writing: string;
 }
 
 /** The two reflection questions, verbatim from the issue. */
@@ -117,6 +119,7 @@ export function loadPrompts(dir: string = join(REPO_ROOT, "prompts")): Prompts {
     supervisor: read("supervisor.md"),
     synthSelf: read("synth-self.md"),
     tone: read("tone.md"),
+    writing: read("writing.md"),
   };
 }
 
@@ -169,22 +172,22 @@ export const INVARIANT_ANGLES: readonly Angle[] = ["replication-ondisk", "mainte
 const withInvariants = (angle: Angle, invariants: string) => (invariants && INVARIANT_ANGLES.includes(angle) ? `\n\n${invariants}` : "");
 
 export function roasterSystem(p: Prompts, angle: Angle, invariants = ""): string {
-  return withRubric(p.roasterCommon, p.rubric, `${p.angles[angle]}${withInvariants(angle, invariants)}\n\n${outputContract(ROASTER_SCHEMA, true)}`);
+  return withRubric(p.roasterCommon, p.rubric, `${p.angles[angle]}${withInvariants(angle, invariants)}\n\n${p.writing}\n\n${outputContract(ROASTER_SCHEMA, true)}`);
 }
 export function reflectSystem(p: Prompts, angle: Angle, invariants = ""): string {
-  return withRubric(p.roasterCommon, p.rubric, `${p.angles[angle]}${withInvariants(angle, invariants)}\n\n${p.reflect}\n\n${outputContract(REFLECT_SCHEMA, true)}`);
+  return withRubric(p.roasterCommon, p.rubric, `${p.angles[angle]}${withInvariants(angle, invariants)}\n\n${p.reflect}\n\n${p.writing}\n\n${outputContract(REFLECT_SCHEMA, true)}`);
 }
 export function criticSystem(p: Prompts, invariants = ""): string {
-  return withRubric(p.critic, p.rubric, `${invariants ? `${invariants}\n\n` : ""}${outputContract(CRITIC_SCHEMA, false)}`);
+  return withRubric(p.critic, p.rubric, `${invariants ? `${invariants}\n\n` : ""}${p.writing}\n\n${outputContract(CRITIC_SCHEMA, false)}`);
 }
 export function synthSystem(p: Prompts, self = false): string {
-  return withRubric(p.synth, p.rubric, `${self ? `${p.synthSelf}\n\n` : ""}${outputContract(self ? SYNTH_SELF_SCHEMA : SYNTH_SCHEMA, true)}`);
+  return withRubric(p.synth, p.rubric, `${self ? `${p.synthSelf}\n\n` : ""}${p.writing}\n\n${outputContract(self ? SYNTH_SELF_SCHEMA : SYNTH_SCHEMA, true)}`);
 }
 export function supervisorSystem(p: Prompts): string {
   return `${p.supervisor}\n\n${outputContract(SUPERVISOR_SCHEMA, false)}`;
 }
 export function briefSystem(p: Prompts): string {
-  return `${p.brief}\n\n${outputContract(BRIEF_SCHEMA, false)}`;
+  return `${p.brief}\n\n${p.writing}\n\n${outputContract(BRIEF_SCHEMA, false)}`;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -481,7 +484,7 @@ export async function runRoast(proposal: ProposalInput, opts: RunOptions): Promi
     const res = await enrichPrecedents(pool, {
       backend,
       model: models.roaster,
-      system: `${prompts.enrich}\n\n${outputContract(ENRICH_SCHEMA, false)}`,
+      system: `${prompts.enrich}\n\n${prompts.writing}\n\n${outputContract(ENRICH_SCHEMA, false)}`,
       store,
       max: opts.enrichMax ?? 8,
       evalMode,
@@ -960,7 +963,7 @@ export async function runRoast(proposal: ProposalInput, opts: RunOptions): Promi
   roast.tone_lint = await toneCheck(roast, {
     backend,
     model: models.synth,
-    system: `${prompts.tone}\n\n${outputContract(TONE_REPAIR_SCHEMA, false)}`,
+    system: `${prompts.tone}\n\n${prompts.writing}\n\n${outputContract(TONE_REPAIR_SCHEMA, false)}`,
     allowed,
     report,
     log,

@@ -782,7 +782,7 @@ describe("pipeline (fake model)", () => {
     const md = renderMarkdown(r);
     expect(md).toContain("# Design pre-review: Support Int64 GUCs");
     expect(md).toContain("## 3. Objections a reviewer is likely to raise");
-    expect(md).toContain("**Question for the author.** Which extensions are affected?");
+    expect(md).toContain("**Question:** Which extensions are affected?");
     expect(md).not.toMatch(/steelman|PG Roast|roaster/i);
     expect(md).toContain("- Tone check: ");
     expect(md.match(new RegExp(DISCLOSURE.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g"))!.length).toBe(2);

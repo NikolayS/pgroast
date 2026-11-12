@@ -25,14 +25,12 @@ function objectionBlock(o: FinalObjection, n: number, advice?: SelfAdvice): stri
   }
   lines.push("");
   const sev = o.critic.original_severity ? `${o.severity} (first rated ${o.critic.original_severity}; changed in the counter-check)` : o.severity;
-  lines.push(`- **Severity:** ${sev}`);
-  lines.push(`- **Level:** ${LEVEL_NAMES[o.level]}${o.rubric_item ? ` (rubric item ${o.rubric_item})` : ""}`);
-  lines.push(`- **Category:** ${touchLabel(o.category)}${o.touch_points.length ? `; touch points: ${o.touch_points.map(touchLabel).join(", ")}` : ""}`);
-  lines.push(`- **Review angle:** ${o.angle} (\`${o.id}\`${roundNote(o)})`);
+  const touch = [...new Set([o.category, ...o.touch_points])].map(touchLabel).join(", ");
+  lines.push(`${sev} · level ${o.level}${o.rubric_item ? `, rubric item ${o.rubric_item}` : ""} · ${touch} · \`${o.id}\`${roundNote(o)}`);
   lines.push("");
-  lines.push(`**What can go wrong.** ${o.failure_scenario.trim()}`);
+  lines.push(o.failure_scenario.trim());
   lines.push("");
-  lines.push(`**Why it applies here.** ${o.argument.trim()}`);
+  lines.push(o.argument.trim());
   lines.push("");
   if (o.precedents.length) {
     lines.push("**Precedents.**");
@@ -40,17 +38,15 @@ function objectionBlock(o: FinalObjection, n: number, advice?: SelfAdvice): stri
       const threads = p.thread_urls.length ? `; thread: ${p.thread_urls.map((u, i) => link(p.thread_urls.length > 1 ? `#${i + 1}` : "link", u)).join(", ")}` : "";
       lines.push(`- ${link(oneLine(p.title), p.url)} (${p.status || "outcome unknown"}, ${day(p.date)})${threads}`);
     }
-  } else {
-    lines.push("**Precedents.** None cited.");
-  }
-  lines.push("");
-  if (o.thread_refs.length) {
-    lines.push(`**Thread messages.** ${o.thread_refs.map((r) => ref(`#${r.index} (${r.from}, ${day(r.date)})`, r.url)).join(", ")}`);
     lines.push("");
   }
-  lines.push(`**Question for the author.** ${o.author_must_show.trim()}`);
+  if (o.thread_refs.length) {
+    lines.push(`Thread: ${o.thread_refs.map((r) => ref(`#${r.index} (${r.from}, ${day(r.date)})`, r.url)).join(", ")}`);
+    lines.push("");
+  }
+  lines.push(`**Question:** ${o.author_must_show.trim()}`);
   lines.push("");
-  lines.push(`**Counter-check.** The objection held. ${o.critic.reasoning.trim()}`);
+  lines.push(`Counter-check: held. ${o.critic.reasoning.trim()}`);
   return lines.join("\n");
 }
 

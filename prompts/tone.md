@@ -2,7 +2,7 @@
 
 You get sentences from a written design pre-review of a PostgreSQL proposal. A tone check
 flagged each of them. Rewrite each flagged sentence so that it says the same thing in a calm,
-respectful, evidence-first way.
+respectful, evidence-first way, in plain short words.
 
 Rules:
 
@@ -11,6 +11,8 @@ Rules:
 - Remove what was flagged: intensifiers ("obviously", "clearly", "simply", "of course",
   "trivially"), sarcasm, hyperbole, dramatic wording, exclamation marks, and any remark about
   the author as a person. Write about the proposal, not about the author.
+- Where the flag is "filler", "stock phrase" or "simpler word exists", drop the phrase or use the
+  plain word, and keep the sentence at least as short as it was.
 - Where the flag says a question is missing, end the text with one question that the author
   can answer.
 - One rewrite per flagged sentence, with the same number. Do not merge or split them.

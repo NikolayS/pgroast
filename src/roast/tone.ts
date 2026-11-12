@@ -42,6 +42,13 @@ export const TONE_RULES: ToneRule[] = [
     "the author is unaware", "the author has no idea", "the author never bothered", "the author is wrong", "authors failed",
     "lazy", "sloppy", "amateur", "amateurish", "incompetent", "clueless", "ignorant",
   ]),
+  // Writing rules (prompts/writing.md): filler, stock review phrases, words with a simpler form.
+  words("filler", [
+    "importantly", "notably", "crucially", "essentially", "basically", "it is worth noting", "it's worth noting", "worth noting that",
+    "it should be noted", "needless to say", "as such", "at the end of the day", "here is the catch", "here's the catch",
+  ]),
+  words("stock phrase", ["the material does not describe", "nothing in the material", "remains unclear", "raises the question", "it is not specified"]),
+  words("simpler word exists", ["utilize", "utilizes", "utilized", "utilizing", "utilization", "facilitate", "facilitates", "facilitated", "in order to", "approximately", "leverage", "leverages", "leveraging"]),
   // "!" is fine in "!=" and inside `code`; code spans are removed before the check.
   { id: "exclamation mark", re: /!(?!=)/ },
 ];
