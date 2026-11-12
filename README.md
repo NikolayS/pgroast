@@ -128,6 +128,14 @@ pgroast init-db
 
 `pgroast` here is `npx pgroast@latest`, or `bun run src/cli.ts` in a clone.
 
+A whole commitfest, one folder per entry plus an index, resumable:
+
+```
+pgroast batch 62 --out ../pgroast-2026-nov --status "Needs review" --concurrency 8
+```
+
+`--status` takes `open` (the default: needs review, waiting on author, ready for committer), `all`, or a comma-separated list of CommitFest statuses. An entry that is done is skipped, and the run stops at a usage limit, so the same command continues it later. It commits and pushes nothing.
+
 | Option | Meaning |
 |---|---|
 | `--blind N` | read only the first N messages of the thread |

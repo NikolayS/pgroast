@@ -30,6 +30,8 @@ const USAGE = `Usage: bun run src/cli.ts <cf-id|cf-url|message-id|thread-url> [o
        bun run src/cli.ts --self --proposal FILE [--patch FILE ...]
        bun run src/cli.ts page <roast.json> [--out FILE] [--site DIR [--base-url URL]]
        bun run src/cli.ts pushback <cf-id|cf-url|thread-url> [--out DIR] [--backend NAME] [--dry-run] [--offline]
+       bun run src/cli.ts batch <commitfest-number> --out DIR [--status open|all|"Needs review"] [--limit K]
+                                      [--concurrency N] [--only id,id] [--blind N] [--backend NAME] [--dry-run]
        bun run src/cli.ts doctor      check the installed CLIs and their login
        bun run src/cli.ts init-db     create the precedent database and load the shipped index
 
@@ -58,6 +60,10 @@ thread of the CommitFest entry) in parts, one model call per part plus one to me
 pushback.md and pushback.json: the blocking objections with verified quotes and message links,
 who raised them, whether they were resolved, when the thread last moved, and a bucket.
 --dry-run prints the number of parts and calls and calls no model.
+
+batch: roasts every selected entry of one commitfest into DIR/cf/<id>/ and writes an index
+DIR/README.md. An entry that is already done is skipped, and the run stops at a usage limit, so
+the same command continues it later. It commits and pushes nothing.
 
 page: renders a finished roast.json, with no model call, to one self-contained HTML file
 (default: roast.html next to the JSON; --out FILE), or with --site DIR to a static layout:
@@ -293,6 +299,7 @@ function initDb(): number {
 }
 
 async function main(): Promise<number> {
+  if (process.argv[2] === "batch") return (await import("./batch.ts")).batchMain(process.argv.slice(3));
   let args: CliArgs | "help";
   try {
     args = parseArgs(process.argv.slice(2));

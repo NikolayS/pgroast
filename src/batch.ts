@@ -228,14 +228,17 @@ export function parseBatchArgs(argv: string[]): BatchOptions {
   return o as BatchOptions;
 }
 
-if (import.meta.main) {
+/** Entry point for `pgroast batch ...` and for `bun run src/batch.ts ...`. Returns the exit code. */
+export async function batchMain(argv: string[]): Promise<number> {
   try {
-    const o = parseBatchArgs(process.argv.slice(2));
+    const o = parseBatchArgs(argv);
     const r = await runBatch(o);
     console.error(`batch: ${r.done} done, ${r.skipped} already done, ${r.failed} failed, ${r.selected - r.done - r.skipped - r.failed} left${r.stopped ? `; stopped: ${r.stopped}` : ""}`);
-    process.exit(r.stopped ? 3 : 0);
+    return r.stopped ? 3 : 0;
   } catch (e) {
     console.error(`pgroast batch: ${(e as Error).message}`);
-    process.exit(2);
+    return 2;
   }
 }
+
+if (import.meta.main) process.exit(await batchMain(process.argv.slice(2)));
