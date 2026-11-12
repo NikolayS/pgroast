@@ -1,4 +1,4 @@
-# pgroast
+# pgroast 🔥❤️‍🔥🍿
 
 PG Roast is an adversarial reviewer for Postgres proposals. It judges the idea and the design, not the code.
 
