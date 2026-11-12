@@ -1245,9 +1245,11 @@ describe("rounds, invariants and self mode (fake model)", () => {
     expect(SUMMARY_HEADER).toBe("DRAFT — rewrite in your own words before using; AI-generated");
     expect(lines.length).toBeLessThanOrEqual(10);
     expect(txt).not.toMatch(/[*#`\[\]]{2}|^#|\]\(/m);
-    expect(txt).toContain(`Verdict (merits of the idea only, no code read): ${r.verdict}`);
+    expect(lines[1]).toBe(`Support Int64 GUCs (self check): ${r.verdict}, confidence ${r.confidence}. Idea and design only; no code was read.`);
+    expect(txt).toContain("1. Same idea was rejected for API churn. This one would stop the proposal as it is.");
+    expect(txt).not.toMatch(/\[fixable\]|\[fatal\]|\.\.\./);
     expect(txt).toContain("(rebut in the cover letter)");
-    expect(txt).toContain("Priority: needs champion; audience niche;");
+    expect(txt).toContain("Suggested next step: needs champion.");
     const many = { ...r, objections: [...r.objections, ...r.objections, ...r.objections], questions: ["q?"], not_now: { applies: true, evidence_that_would_change_it: "e" } };
     expect(renderSummary(many).trimEnd().split("\n").length).toBeLessThanOrEqual(10);
   });

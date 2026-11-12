@@ -363,24 +363,24 @@ const clip = (s: string, n: number) => {
 export function renderSummary(r: Roast): string {
   const lines: string[] = [SUMMARY_HEADER];
   const self = r.mode === "self";
-  lines.push(`${self ? "Design pre-review (self check)" : "Design pre-review"}: ${clip(r.input.cf?.title ?? r.brief.title ?? r.input.subject, 150)}`);
-  lines.push(`Verdict (merits of the idea only, no code read): ${r.verdict}, confidence ${r.confidence}.`);
+  const stop = (t: string) => (/[.?!]$/.test(t) ? t : `${t}.`);
+  lines.push(`${clip(r.input.cf?.title ?? r.brief.title ?? r.input.subject, 120)}${self ? " (self check)" : ""}: ${r.verdict}, confidence ${r.confidence}. Idea and design only; no code was read.`);
   const top = r.objections.slice(0, 3);
-  if (top.length === 0) lines.push("No objection held up strongly enough to list.");
+  if (top.length === 0) lines.push("No objection held up in the counter-check.");
   top.forEach((o, i) => {
     const a = self ? r.self_advice.find((x) => x.objection_id === o.id) : undefined;
-    lines.push(`${i + 1}. [${o.severity}] ${clip(o.title, 120)}${a ? ` (${a.action === "fix" ? "fix before sending" : "rebut in the cover letter"})` : ""}`);
+    lines.push(`${i + 1}. ${stop(clip(o.title, 140))}${o.severity === "fatal" ? " This one would stop the proposal as it is." : ""}${a ? ` (${a.action === "fix" ? "fix before sending" : "rebut in the cover letter"})` : ""}`);
   });
   const pa = r.prior_attempts[0];
   lines.push(
     r.precedent_backend === "none"
-      ? "Prior attempts: not searched."
+      ? "Earlier attempts: not searched."
       : pa
-        ? `Prior attempt: ${clip(pa.title, 90)} (${pa.status || "outcome unknown"}, ${day(pa.date ?? pa.first_date)}): ${pa.url}`
-        : "Prior attempts: none found in the corpus.",
+        ? `Earlier attempt: ${clip(pa.title, 90)} (${pa.status || "outcome unknown"}, ${day(pa.date ?? pa.first_date)}): ${pa.url}`
+        : "Earlier attempts: none found.",
   );
-  if (r.questions[0]) lines.push(`First question to answer: ${clip(r.questions[0], 170)}`);
-  lines.push(`Priority: ${r.priority.recommended_action}; audience ${r.priority.audience}; maintenance burden ${r.priority.maintenance_burden}; review cost ${r.priority.review_cost}.`);
-  if (r.not_now.applies) lines.push(`Not now / show demand: ${clip(r.not_now.evidence_that_would_change_it, 170)}`);
+  if (r.questions[0]) lines.push(`First question: ${clip(r.questions[0], 220)}`);
+  if (r.not_now.applies) lines.push(`Not now, show demand first: ${clip(r.not_now.evidence_that_would_change_it, 170)}`);
+  lines.push(`Suggested next step: ${r.priority.recommended_action}.`);
   return lines.slice(0, 10).join("\n") + "\n";
 }
