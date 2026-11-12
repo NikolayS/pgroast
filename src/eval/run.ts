@@ -10,7 +10,7 @@ import { join } from "node:path";
 import { CliBackend, DryRunBackend, modelsFromEnv, pickBackend, type BackendName } from "../roast/llm.ts";
 import { closePrecedents } from "../roast/precedents.ts";
 import { runRoast } from "../roast/pipeline.ts";
-import { renderMarkdown } from "../roast/render.ts";
+import { renderCompactMarkdown, renderMarkdown } from "../roast/render.ts";
 import { loadProposal } from "../thread/load.ts";
 import { REPO_ROOT, type EvalCase } from "./cases.ts";
 
@@ -124,7 +124,8 @@ export async function runEval(o: RunEvalOptions): Promise<{ done: number; skippe
         mode: "review", rounds: o.rounds ?? 0, log: (m) => log(`[${tag}] ${m}`),
       });
       r.stats.wall_ms = Date.now() - t0;
-      writeFileSync(join(dir, "roast.md"), renderMarkdown(r));
+      writeFileSync(join(dir, "roast.md"), renderCompactMarkdown(r));
+      writeFileSync(join(dir, "roast-full.md"), renderMarkdown(r));
       // roast.json last: its presence marks the case done
       writeFileSync(join(dir, "roast.json"), JSON.stringify(r, null, 2) + "\n");
       Object.assign(meta, { wall_ms: r.stats.wall_ms, llm_calls: r.stats.llm_calls, cost_usd: r.stats.cost_usd });

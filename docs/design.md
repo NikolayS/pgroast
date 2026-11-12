@@ -47,7 +47,8 @@ Output directory:
 
 ```
 out/<slug>/roast.json     the result (type Roast, src/roast/schema.ts)
-out/<slug>/roast.md       rendered from roast.json by code
+out/<slug>/roast.md       the short report, rendered from roast.json by code
+out/<slug>/roast-full.md  everything: proposal restated, all touch points, refuted objections, run details
 out/<slug>/roast-summary.txt   at most 10 plain-text lines, built by code; first line
                           "DRAFT — rewrite in your own words before using; AI-generated"
 out/<slug>/llm/NN-<stage>.prompt.txt | .response.txt | .meta.json   every prompt and reply

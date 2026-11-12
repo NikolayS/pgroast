@@ -280,6 +280,77 @@ export function renderMarkdown(r: Roast): string {
   return out.join("\n");
 }
 
+/**
+ * roast.md: the short report. Verdict, prior attempts, the listed objections, the questions and
+ * the touch points that are hit. Everything else is in roast-full.md (renderMarkdown).
+ */
+export function renderCompactMarkdown(r: Roast, fullName = "roast-full.md"): string {
+  const out: string[] = [];
+  const self = r.mode === "self";
+  const title = r.input.cf?.title ?? r.brief.title ?? r.input.subject;
+  out.push(`# Design pre-review${self ? " (self check)" : ""}: ${oneLine(title)}`, "", `> ${r.disclosure}`, "");
+
+  const mode = [r.input.blind != null ? `first ${r.input.blind} only` : "", r.input.before ? `before ${r.input.before}` : ""].filter(Boolean).join(", ");
+  const src: string[] = [];
+  if (r.input.cf) src.push(link(`CommitFest ${r.input.cf.id}`, r.input.cf.url));
+  if (r.input.thread_url) src.push(`${link("thread", r.input.thread_url)}, ${r.input.messages_read} of ${r.input.messages_total} messages read${mode ? ` (${mode})` : ""}`);
+  else src.push(`draft ${r.input.arg}`);
+  src.push("no code read");
+  out.push(`${src.join("; ")}.`, "");
+
+  const verdict = [
+    `**${r.verdict}** (confidence: ${r.confidence}). ${r.verdict_reasoning.trim()}`,
+    ...(r.provisional_note.trim() ? ["", `Not checked: ${r.provisional_note.trim()}`] : []),
+    "",
+  ];
+  if (!self) out.push("## Verdict", "", ...verdict);
+
+  out.push("## Prior attempts", "");
+  if (r.precedent_backend === "none") out.push("Not searched: the precedent index was not available in this run.");
+  else if (r.prior_attempts.length === 0) out.push(`None found before ${r.precedent_cutoff}.`);
+  for (const p of r.prior_attempts) {
+    const rel = p.relation === "same_idea" ? "same idea" : p.relation === "similar_idea" ? "similar idea" : "related";
+    const why = p.quote ? `"${oneLine(p.quote)}"${p.quote_url ? ` (${link("message", p.quote_url)})` : ""}` : p.reason.trim() ? `${oneLine(p.reason)}${p.enriched ? " (AI summary of the thread)" : ""}` : "reason not recorded";
+    out.push(`- ${link(oneLine(p.title), p.thread_urls[0] ?? p.url)} (${rel}; ${p.status || "outcome unknown"}, ${day(p.date ?? p.first_date)}). ${why} Different now: ${oneLine(p.what_is_different)}`);
+  }
+  out.push("");
+
+  const adviceFor = (o: FinalObjection) => r.self_advice.find((a) => a.objection_id === o.id);
+  out.push(self ? "## Objections to address before you send" : "## Objections a reviewer is likely to raise", "");
+  if (r.objections.length === 0) out.push("No objection held up in the counter-check.", "");
+  r.objections.forEach((o, i) => {
+    const a = self ? adviceFor(o) : undefined;
+    out.push(`### ${i + 1}. ${oneLine(o.title)}`, "");
+    if (a) out.push(`**Before you send: ${a.action === "fix" ? "fix it" : "rebut it in the cover letter"}.** ${a.how.trim()}`, "");
+    out.push(o.failure_scenario.trim(), "", o.argument.trim(), "");
+    for (const p of o.precedents) out.push(`Precedent: ${link(oneLine(p.title), p.thread_urls[0] ?? p.url)} (${p.status || "outcome unknown"}, ${day(p.date)})`, "");
+    out.push(`**Question:** ${o.author_must_show.trim()}`, "");
+    const refs = o.thread_refs.map((t) => ref(`#${t.index}`, t.url)).join(", ");
+    out.push(`<sub>${o.severity}, level ${o.level}, ${touchLabel(o.category)}${refs ? `; messages ${refs}` : ""}; \`${o.id}\`</sub>`, "");
+  });
+
+  out.push(self ? "## Questions to answer in your cover letter" : "## Questions for the author", "");
+  if (r.questions.length === 0) out.push("None.");
+  else r.questions.forEach((q, i) => out.push(`${i + 1}. ${oneLine(q)}`));
+  out.push("");
+
+  const hit = r.touch_points.filter((t) => t.hit);
+  out.push("## Touch points", "");
+  if (hit.length === 0) out.push("None of the 15 is hit.");
+  for (const t of hit) out.push(`- **${t.label}:** ${oneLine(t.reason)}`);
+  out.push("");
+
+  out.push("## Who would commit it, and when", "");
+  out.push(`- Owner: ${r.committability.owner}${r.committability.owner_note.trim() ? `. ${oneLine(r.committability.owner_note)}` : ""}`);
+  if (r.not_now.applies) out.push(`- Not now, show demand first: ${oneLine(r.not_now.evidence_that_would_change_it) || "(evidence not stated)"}`);
+  out.push(`- Priority: ${r.priority.recommended_action}; audience ${r.priority.audience}; review cost ${r.priority.review_cost}. ${oneLine(r.priority.reason)}`, "");
+  if (self) out.push("## How a reviewer would likely classify it", "", ...verdict);
+
+  const more = [`${r.other_surviving.length} more objection(s) that held`, `${r.refuted.length} refuted`, "the proposal restated", "all 15 touch points", "run details"];
+  out.push("---", "", `${link(fullName, fullName)} has ${more.join(", ")}.${r.warnings.length ? ` Warnings in this run: ${r.warnings.length}.` : ""}${r.stats.dry_run ? " DRY RUN: no model was called; content is placeholder." : ""}`, "", r.disclosure, "");
+  return out.join("\n");
+}
+
 const clip = (s: string, n: number) => {
   const t = oneLine(s);
   return t.length <= n ? t : t.slice(0, n - 3).replace(/\s+\S*$/, "") + "...";

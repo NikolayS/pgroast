@@ -10,7 +10,7 @@ Status: prototype. Output is local files only. Nothing is posted to mailing list
 
 ## What you get
 
-`roast.md`, `roast.json` and `roast-summary.txt` in a local directory:
+`roast.md` (the short report), `roast-full.md`, `roast.json` and `roast-summary.txt` in a local directory. The short report has the verdict, prior attempts, the listed objections, the questions and the touch points that are hit. The full report and the JSON also have:
 
 - a neutral restatement of the proposal;
 - prior attempts from the precedent index, with links, status and who objected;
@@ -19,7 +19,9 @@ Status: prototype. Output is local files only. Nothing is posted to mailing list
 - up to 5 questions for the author;
 - a verdict with a confidence, and three fields kept apart from it: `committability`, `not_now` ("not now, show demand") and `priority`.
 
-Refuted objections stay in the JSON and are listed at the end of the Markdown with the critic's reason.
+Refuted objections stay in the JSON and are listed at the end of the full report with the critic's reason.
+
+All prose follows one set of writing rules, [prompts/writing.md](prompts/writing.md): the point first, hard length limits per field, plain words.
 
 ### Verdict scale
 

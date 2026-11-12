@@ -22,7 +22,7 @@ import { runDoctor } from "./roast/doctor.ts";
 import { CliBackend, DryRunBackend, modelsFromEnv, pickBackend, type BackendName } from "./roast/llm.ts";
 import { closePrecedents } from "./roast/precedents.ts";
 import { runRoast, slugFor } from "./roast/pipeline.ts";
-import { renderMarkdown, renderSummary } from "./roast/render.ts";
+import { renderCompactMarkdown, renderMarkdown, renderSummary } from "./roast/render.ts";
 
 const USAGE = `Usage: bun run src/cli.ts <cf-id|cf-url|message-id|thread-url> [options]
        bun run src/cli.ts --self --proposal FILE [--patch FILE ...]
@@ -318,7 +318,8 @@ async function main(): Promise<number> {
   roast.stats.wall_ms = Date.now() - t0;
 
   writeFileSync(join(outDir, "roast.json"), JSON.stringify(roast, null, 2) + "\n");
-  writeFileSync(join(outDir, "roast.md"), renderMarkdown(roast));
+  writeFileSync(join(outDir, "roast.md"), renderCompactMarkdown(roast));
+  writeFileSync(join(outDir, "roast-full.md"), renderMarkdown(roast));
   writeFileSync(join(outDir, "roast-summary.txt"), renderSummary(roast));
   log("");
   log(`${args.dryRun ? "DRY RUN, placeholder verdict" : "verdict"}: ${roast.verdict} (confidence: ${roast.confidence})`);
@@ -327,7 +328,7 @@ async function main(): Promise<number> {
   log(`LLM calls: ${roast.stats.llm_calls}; wall time: ${Math.round(roast.stats.wall_ms / 1000)} s`);
   if (!args.dryRun) for (const w of roast.warnings) log(`warning: ${w}`);
   else log(`dry run: prompts are in ${transcriptDir}; roast.md and roast.json hold placeholders`);
-  log(`wrote ${join(outDir, "roast.md")}`);
+  log(`wrote ${join(outDir, "roast.md")} (short report; roast-full.md has everything)`);
   log(`wrote ${join(outDir, "roast.json")}`);
   log(`wrote ${join(outDir, "roast-summary.txt")}`);
   return 0;

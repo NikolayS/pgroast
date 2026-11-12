@@ -30,7 +30,7 @@ import { loadInvariantFiles, parseInvariantFile, selectInvariants } from "../src
 import { loadLocalProposal } from "../src/thread/local.ts";
 import { lintRoast, lintText, NO_QUESTION, sentences, toneCheck } from "../src/roast/tone.ts";
 import { messageIdOfUrl, normalisePrecedent, recencyBoost, retrievePrecedents, type RawPrecedent, type SearchArgs } from "../src/roast/precedents.ts";
-import { renderMarkdown, renderSummary, SUMMARY_HEADER } from "../src/roast/render.ts";
+import { renderMarkdown, renderSummary, SUMMARY_HEADER, renderCompactMarkdown } from "../src/roast/render.ts";
 import { AllowedUrls, emptyReport, filterPrecedentIds, REMOVED_LINK, scrubUrls, verifyQuote } from "../src/roast/sanitize.ts";
 import {
   ANGLES,
@@ -775,6 +775,26 @@ describe("pipeline (fake model)", () => {
     expect(r.input.blind).toBe(5);
     expect(r.input.cf?.status).toBeNull();
     expect(r.precedent_cutoff).toBe("2024-09-12");
+  });
+
+  test("the short report: verdict, objections, questions, touch points that are hit; the rest is in the full report", async () => {
+    const r = await run;
+    const short = renderCompactMarkdown(r);
+    const full = renderMarkdown(r);
+    expect(short.length).toBeLessThan(full.length * 0.7);
+    expect(short).toContain("# Design pre-review: Support Int64 GUCs");
+    expect(short).toContain("**LIKELY-REJECT** (confidence: medium). ");
+    expect(short).toContain("### 1. Same idea was rejected for API churn");
+    expect(short).toContain("**Question:** Which extensions are affected?");
+    expect(short).toContain("- **new GUC:** adds a GUC type");
+    expect(short).not.toContain("wire protocol |"); // touch points that are not hit are left out
+    expect(short).not.toContain("### Refuted in the counter-check");
+    expect(short).toContain("[roast-full.md](roast-full.md) has 1 more objection(s) that held, 1 refuted");
+    expect(short).not.toMatch(/steelman|PG Roast|roaster/i);
+    expect(short.match(new RegExp(DISCLOSURE.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g"))!.length).toBe(2);
+    // every link in the short report is also in the full one
+    const links = (s: string) => new Set([...s.matchAll(/\]\((https?:[^)]+)\)/g)].map((m) => m[1]!));
+    for (const l of links(short)) expect(links(full).has(l)).toBe(true);
   });
 
   test("markdown is rendered from the JSON", async () => {
