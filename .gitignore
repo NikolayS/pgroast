@@ -1,8 +1,15 @@
 data/cache/
+apps/local/data/
+apps/web/dist/
 node_modules/
 .venv/
 __pycache__/
 *.pyc
+*.log
+*.sqlite
+*.sqlite-*
+.env
+.env.local
 out/
 
 # eval outputs: keep only the final reports

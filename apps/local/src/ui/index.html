@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>pgroast-app — PostgreSQL CommitFest &amp; -hackers Workbench</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div id="app" class="app-shell">
+      <aside class="nav-rail">
+        <button type="button" class="brand" id="brand-home-btn" title="Go to Shortlist & Triage (Home)">
+          <div class="brand-logo">pg</div>
+          <div class="brand-text">
+            <div class="brand-title">pgroast</div>
+            <div class="brand-sub">Local Workbench</div>
+          </div>
+        </button>
+
+        <nav class="nav-links" id="nav-links">
+          <div class="nav-group-label">CommitFest</div>
+          <button class="nav-btn active" data-view="shortlist">
+            <span class="nav-icon">★</span>
+            <span class="nav-label">Shortlist</span>
+            <kbd>1</kbd>
+          </button>
+          <button class="nav-btn" data-view="stats">
+            <span class="nav-icon">◔</span>
+            <span class="nav-label">Stats &amp; Insights</span>
+            <kbd>2</kbd>
+          </button>
+          <button class="nav-btn" data-view="explorer">
+            <span class="nav-icon">▤</span>
+            <span class="nav-label">Explorer</span>
+            <kbd>3</kbd>
+          </button>
+          <button class="nav-btn" data-view="workbench">
+            <span class="nav-icon">⚡</span>
+            <span class="nav-label">Workbench</span>
+            <kbd>4</kbd>
+          </button>
+          <button class="nav-btn" data-view="bugs">
+            <span class="nav-icon">⚑</span>
+            <span class="nav-label">pgsql-bugs</span>
+            <kbd>5</kbd>
+          </button>
+
+          <div class="nav-group-label">Local Workspace</div>
+          <button class="nav-btn" data-view="work_items">
+            <span class="nav-icon">◻</span>
+            <span class="nav-label">Work Items</span>
+            <span class="nav-badge nav-badge-subtle" id="work-items-badge" hidden>0</span>
+            <kbd>6</kbd>
+          </button>
+          <button class="nav-btn" data-view="jobs">
+            <span class="nav-icon">❯_</span>
+            <span class="nav-label">Jobs &amp; Logs</span>
+            <span class="nav-badge" id="running-jobs-badge" hidden>0</span>
+            <kbd>7</kbd>
+          </button>
+          <button class="nav-btn" data-view="settings">
+            <span class="nav-icon">⚙</span>
+            <span class="nav-label">Settings</span>
+            <kbd>8</kbd>
+          </button>
+        </nav>
+
+        <div class="nav-footer">
+          <div class="identity-card" id="sidebar-identity-card" title="Signed-in contributor recorded on every model opinion">
+            <div class="identity-avatar" id="sidebar-id-avatar">?</div>
+            <div class="identity-meta">
+              <div class="identity-name" id="sidebar-id-name">Not signed in</div>
+              <div class="identity-sub" id="sidebar-id-sub">Click to connect GitHub / Google</div>
+            </div>
+          </div>
+          <div class="status-card" id="sidebar-status">
+            <div class="status-row">
+              <span class="dot dot-ok"></span>
+              <span id="sidebar-entry-count">Loading…</span>
+            </div>
+            <div class="status-row muted" id="sidebar-auth-status">CF: read-only</div>
+          </div>
+          <div class="footer-actions">
+            <button class="btn btn-ghost btn-sm" id="open-onboarding-btn" title="Open guided setup & onboarding wizard">Setup</button>
+            <button class="btn btn-ghost btn-sm" id="toggle-drawer-btn" title="Toggle live log drawer">Logs</button>
+            <div class="theme-picker-wrap">
+              <button class="btn btn-ghost btn-sm" id="toggle-theme-btn" title="Choose color theme">Theme</button>
+              <div class="theme-menu" id="theme-menu" hidden></div>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <div class="main-column">
+        <header class="topbar">
+          <div class="topbar-left">
+            <h1 id="view-title">Shortlist &amp; Triage</h1>
+            <span class="topbar-meta" id="view-subtitle">Top 20 CommitFest Shortlist &amp; Top 50 Worth Closing / Rethinking</span>
+          </div>
+          <div class="topbar-right">
+            <div class="global-search-wrap" id="global-search-wrap">
+              <div class="quick-jump">
+                <input id="quick-cf-input" type="text" placeholder="Search people, patches, CF #… (⌘K)" autocomplete="off" />
+                <button class="btn btn-ghost btn-sm sr-only" id="quick-cf-btn" title="Search CommitFest entries, people, Work Items, or jump to CF #">Search</button>
+              </div>
+              <div class="global-search-menu" id="global-search-menu" hidden></div>
+            </div>
+            <button class="btn btn-ghost btn-sm" id="global-my-work-btn" title="Show patches where you are author, reviewer, or committer">My Work</button>
+            <button class="btn btn-ghost btn-sm" id="global-sync-btn" title="Sync PG20-3 (#62) from commitfest.postgresql.org">Sync CF #62</button>
+            <button class="btn btn-primary btn-sm" id="global-import-btn" title="Import roasts from configured roastDataDir">Import Batch</button>
+            <button class="btn btn-ghost btn-sm icon-btn" id="open-guide-btn" title="How pgroast-app works (quick guide)">?</button>
+          </div>
+        </header>
+        <div class="topbar-progress" id="topbar-progress" hidden></div>
+
+        <main class="main-content" id="main-content">
+          <div class="loader-state"><span class="spinner"></span><span>Loading workbench…</span></div>
+        </main>
+
+        <section class="log-drawer" id="log-drawer" hidden>
+          <div class="drawer-resize-handle" id="drawer-resize-handle" title="Drag to resize · Double-click to reset height"></div>
+          <div class="drawer-header">
+            <div class="drawer-tabs" id="drawer-tabs" role="tablist" aria-label="Job consoles"></div>
+            <div class="drawer-controls">
+              <button class="btn btn-danger btn-sm" id="drawer-cancel-btn" hidden>Cancel Job</button>
+              <button class="btn btn-ghost btn-sm icon-btn" id="drawer-minimize-btn" title="Minimize console">—</button>
+              <button class="btn btn-ghost btn-sm icon-btn" id="drawer-maximize-btn" title="Maximize / restore console">⤢</button>
+              <button class="btn btn-ghost btn-sm icon-btn" id="drawer-close-btn" title="Hide console drawer">✕</button>
+            </div>
+          </div>
+          <div class="drawer-meta-bar" id="drawer-meta-bar">
+            <span class="pill pill-info" id="drawer-job-status">idle</span>
+            <strong id="drawer-job-title">Live Job Terminal</strong>
+            <span class="muted mono" id="drawer-job-id"></span>
+            <span class="drawer-meta-spacer"></span>
+            <button class="btn btn-ghost btn-sm" id="drawer-clear-done-btn" hidden title="Close finished console tabs">Close Finished</button>
+          </div>
+          <pre class="terminal-output" id="drawer-terminal"></pre>
+        </section>
+      </div>
+    </div>
+
+    <div class="modal-backdrop" id="modal-backdrop" hidden>
+      <div class="modal" role="dialog" aria-modal="true">
+        <div class="modal-header">
+          <h3 id="modal-title">Confirm Action</h3>
+          <button class="btn btn-ghost btn-sm" id="modal-close-x">✕</button>
+        </div>
+        <div class="modal-body" id="modal-body"></div>
+        <div class="modal-footer" id="modal-footer"></div>
+      </div>
+    </div>
+
+    <div class="modal-backdrop" id="onboarding-backdrop" hidden>
+      <div class="modal modal-wide" role="dialog" aria-modal="true" aria-label="Setup and Onboarding Wizard">
+        <div class="modal-header">
+          <div>
+            <h3 id="ob-title">pgroast-app Setup Guide</h3>
+            <div class="muted" id="ob-subtitle" style="font-size:11.5px;margin-top:2px;">Quick step-by-step setup — only 1 AI CLI needed, everything else optional</div>
+          </div>
+          <button class="btn btn-ghost btn-sm" id="ob-close-x" title="Close setup guide">✕</button>
+        </div>
+        <div class="ob-stepper" id="ob-stepper"></div>
+        <div class="modal-body" id="ob-body"></div>
+        <div class="modal-footer" id="ob-footer"></div>
+      </div>
+    </div>
+
+    <div class="toast-stack" id="toast-stack"></div>
+
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

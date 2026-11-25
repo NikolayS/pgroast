@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>pgroast.dev — PostgreSQL CommitFest Pre-Review &amp; Triage Companion</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <button type="button" class="brand" id="web-home-btn">
+        <span class="brand-logo">pg</span>
+        <span class="brand-title">pgroast.dev</span>
+        <span class="brand-tag">CommitFest Companion</span>
+      </button>
+      <nav class="nav" id="web-nav">
+        <button type="button" class="nav-link active" data-tab="brief">Interactive Brief</button>
+        <button type="button" class="nav-link" data-tab="opinions">Model Opinions</button>
+        <button type="button" class="nav-link" data-tab="entries">All Entries</button>
+        <button type="button" class="nav-link" data-tab="coordination">Team Coordination</button>
+        <button type="button" class="nav-link" data-tab="connect">Connect Local</button>
+      </nav>
+      <div class="topbar-actions">
+        <button type="button" class="btn btn-ghost btn-sm" id="web-theme-btn">Theme</button>
+        <button type="button" class="btn btn-primary btn-sm" id="web-signin-btn">Sign in / Token</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="container" id="web-main">
+    <div class="muted" style="padding:40px 0;text-align:center;">Loading CommitFest companion…</div>
+  </main>
+
+  <footer class="footer">
+    <div class="container footer-inner">
+      <span>Companion to <a href="https://commitfest.postgresql.org/" target="_blank" rel="noopener">commitfest.postgresql.org</a> &amp; <a href="https://www.postgresql.org/list/pgsql-hackers/" target="_blank" rel="noopener">pgsql-hackers</a>. AI-assisted first passes are triage aids, never committer decisions.</span>
+      <span id="footer-db-info" class="muted"></span>
+    </div>
+  </footer>
+
+  <script type="module" src="/app.js"></script>
+</body>
+</html>

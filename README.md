@@ -76,8 +76,14 @@ Full design: [docs/design.md](docs/design.md).
 
    PG Roast starts that CLI for every model call, so the calls count toward the limits of the account the CLI is signed in to. A roast is 12 to 20 calls. No API key is needed or used: `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`, `OPENAI_API_KEY` and `CODEX_API_KEY` are removed from the CLI's environment, and a call fails if the CLI reports that it is using a key.
 2. **[Bun](https://bun.sh) 1.3.5 or later.** There are no npm dependencies.
-3. **Postgres 18**, for the precedent index (database `pgroast`; `PGROAST_DSN` if it is not on the local socket). `createdb` and `psql` are used once, to load the index.
-4. A clone of the Postgres repository, only if you rebuild the index (`PGROAST_PG_REPO`).
+3. **Postgres 19 (or 18)**, for the precedent index (database `pgroast`; `PGROAST_DSN` if it is not on the local socket) and for the web apps (`apps/local`, `apps/web`). `createdb` and `psql` are used once to load the index.
+4. A clone of the Postgres repository, only if you rebuild the index (`PGROAST_PG_REPO`) or run local worktree builds in `apps/local`.
+
+## Monorepo Layout (CLI + Local Workbench + Public Companion)
+
+- **`src/` (CLI):** adversarial design pre-review (`bun run src/cli.ts 5879`), batch runner, CommitFest shortlist (`pgroast shortlist`), and `pgsql-bugs` triage (`pgroast bugs`).
+- **`apps/local` (Local Workbench — `bun run app:local`, `http://127.0.0.1:3432`):** PostgreSQL-backed local workbench with Shortlist, Stats & Insights, Explorer (`⌘K`), Entry Workbench, PG Light Roast, experimental `Diff & Review` (inline comments → `-hackers` draft), Local Work Items, multi-tab job logs, and 4 pre-draft safety gates.
+- **`apps/web` (Public Companion — `bun run app:web`, `http://127.0.0.1:3433`):** public companion for interactive & downloadable CommitFest briefs, attributed multi-contributor model opinions, and opt-in team coordination. Trust flows strictly `local → public`.
 
 ## Get started
 

@@ -1,0 +1,20 @@
+{
+  "name": "pgroast-app",
+  "version": "0.3.0-alpha.1",
+  "description": "Local-first PostgreSQL CommitFest, -hackers, and -bugs workbench driven by Claude Code and Antigravity under human supervision.",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "bun": ">=1.3.5"
+  },
+  "scripts": {
+    "dev": "bun --watch src/server.ts",
+    "start": "bun run src/server.ts",
+    "test": "bun test",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/bun": "1.3.5",
+    "typescript": "5.9.3"
+  }
+}

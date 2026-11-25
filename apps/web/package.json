@@ -1,0 +1,13 @@
+{
+  "name": "pgroast-web",
+  "version": "0.3.0-alpha.1",
+  "private": true,
+  "type": "module",
+  "description": "Public PostgreSQL CommitFest pre-review companion, interactive & downloadable briefs, and multi-contributor model opinions (pgroast.dev)",
+  "scripts": {
+    "start": "bun run src/server.ts",
+    "dev": "PGROAST_WEB_DEV=1 bun run --watch src/server.ts",
+    "test": "bun test",
+    "typecheck": "tsc --noEmit"
+  }
+}

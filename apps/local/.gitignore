@@ -1,0 +1,15 @@
+# Dependencies
+node_modules
+node_modules/
+
+# Local private state, SQLite DB, encrypted cookie key, worktrees, logs
+data/
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+.env
+.env.local
+
+# Build output
+dist/
+.DS_Store
