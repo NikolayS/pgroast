@@ -1,0 +1,423 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>pgroast — an adversarial reviewer for Postgres proposals</title>
+<meta name="description" content="PG Roast argues why a Postgres proposal might not be accepted, the way experienced committers do. It judges the idea and the design, not the code.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%94%A5%3C/text%3E%3C/svg%3E">
+<style>
+:root{
+  --bg:#12100e;--bg2:#1a1714;--card:#201c18;--line:#352e27;--text:#efe7dc;--mute:#a89b8b;
+  --fire:#ff6b2c;--ember:#ffb347;--ok:#6fcf8e;--warn:#f2c14e;--bad:#ff5d5d;--info:#7cb7ff;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+  --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+}
+@media (prefers-color-scheme:light){
+  :root{--bg:#fbf7f1;--bg2:#f3ece2;--card:#fff;--line:#e2d6c6;--text:#231c15;--mute:#6d6052;
+  --fire:#d9480f;--ember:#b25e00;--ok:#1f8a4c;--warn:#946800;--bad:#c92a2a;--info:#1c62b9}
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.6 var(--sans);-webkit-font-smoothing:antialiased}
+a{color:var(--ember);text-decoration:none}a:hover{text-decoration:underline}
+code,pre,kbd{font-family:var(--mono);font-size:.9em}
+code{background:var(--bg2);border:1px solid var(--line);border-radius:4px;padding:.05em .35em}
+.wrap{max-width:1040px;margin:0 auto;padding:0 20px}
+header.nav{position:sticky;top:0;z-index:10;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+.nav .wrap{display:flex;align-items:center;gap:18px;height:54px}
+.brand{font-weight:800;color:var(--text);letter-spacing:-.01em;white-space:nowrap}
+.brand span{color:var(--fire)}
+.nav nav{display:flex;gap:16px;margin-left:auto;overflow-x:auto;font-size:14px}
+.nav nav a{color:var(--mute);white-space:nowrap}.nav nav a:hover{color:var(--text);text-decoration:none}
+.hero{padding:72px 0 48px;background:radial-gradient(900px 380px at 20% -10%,color-mix(in srgb,var(--fire) 22%,transparent),transparent 70%)}
+.tag{display:inline-block;font:600 12px var(--mono);color:var(--ember);border:1px solid var(--line);border-radius:99px;padding:4px 12px;background:var(--bg2)}
+h1{font-size:clamp(34px,6vw,58px);line-height:1.08;letter-spacing:-.03em;margin:18px 0 14px}
+h1 em{font-style:normal;color:var(--fire)}
+.lead{font-size:clamp(17px,2.2vw,20px);color:var(--mute);max-width:720px;margin:0 0 26px}
+.lead b{color:var(--text);font-weight:600}
+.cta{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
+.btn{display:inline-block;padding:10px 18px;border-radius:8px;font-weight:650;border:1px solid var(--line);color:var(--text);background:var(--card);cursor:pointer;font:600 15px var(--sans)}
+.btn:hover{text-decoration:none;border-color:var(--fire)}
+.btn.pri{background:var(--fire);border-color:var(--fire);color:#fff}
+.disclaimer{margin-top:28px;border-left:3px solid var(--fire);padding:8px 14px;color:var(--mute);background:var(--bg2);border-radius:0 8px 8px 0;max-width:720px;font-size:15px}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-top:36px}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+.stat b{display:block;font:700 26px var(--mono);color:var(--ember)}
+.stat span{color:var(--mute);font-size:13.5px}
+section{padding:56px 0;border-top:1px solid var(--line)}
+h2{font-size:28px;letter-spacing:-.02em;margin:0 0 6px}
+.sub{color:var(--mute);margin:0 0 26px;max-width:740px}
+h3{margin:0 0 6px;font-size:17px}
+.grid{display:grid;gap:14px}
+.g2{grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}
+.g3{grid-template-columns:repeat(auto-fit,minmax(230px,1fr))}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px}
+.card p{margin:0;color:var(--mute);font-size:15px}
+.new{font:700 11px var(--mono);color:#fff;background:var(--fire);border-radius:4px;padding:2px 6px;vertical-align:middle;margin-left:6px}
+/* terminal */
+.term{background:#0c0a09;border:1px solid var(--line);border-radius:12px;overflow:hidden;color:#eadfd2}
+.term .bar{display:flex;align-items:center;gap:6px;padding:9px 12px;border-bottom:1px solid #2a241f;background:#161210}
+.term .bar i{width:10px;height:10px;border-radius:50%;background:#4a4037}
+.tabs{display:flex;gap:4px;margin-left:10px}
+.tabs button{font:600 12px var(--mono);background:none;border:1px solid transparent;color:#a89b8b;border-radius:6px;padding:3px 10px;cursor:pointer}
+.tabs button[aria-selected=true]{color:#fff;border-color:#4a4037;background:#221d19}
+.copy{margin-left:auto;font:600 12px var(--mono);background:none;border:1px solid #4a4037;color:#a89b8b;border-radius:6px;padding:3px 10px;cursor:pointer}
+.copy:hover{color:#fff}
+.term pre{margin:0;padding:16px;overflow-x:auto;line-height:1.7;font-size:13.5px}
+.term .c{color:#8a7d6e}.term .p{color:#ff8a4c}
+/* verdicts */
+.verdict{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;align-items:start;background:var(--card);border:1px solid var(--line);border-left-width:4px;border-radius:10px;padding:14px 16px}
+.verdict code{font-weight:700;background:none;border:0;padding:0;font-size:13.5px}
+.verdict p{margin:0;color:var(--mute);font-size:15px;grid-column:1/-1}
+.v1{border-left-color:var(--bad)}.v1 code{color:var(--bad)}
+.v2{border-left-color:var(--warn)}.v2 code{color:var(--warn)}
+.v3{border-left-color:var(--info)}.v3 code{color:var(--info)}
+.v4{border-left-color:var(--ok)}.v4 code{color:var(--ok)}
+/* pipeline */
+.pipe{list-style:none;margin:0;padding:0;counter-reset:s;display:grid;gap:10px}
+.pipe li{counter-increment:s;display:grid;grid-template-columns:38px 1fr auto;gap:12px;align-items:start;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+.pipe li::before{content:counter(s);font:700 14px var(--mono);width:30px;height:30px;border-radius:50%;display:grid;place-items:center;background:var(--bg2);border:1px solid var(--line);color:var(--ember)}
+.pipe b{display:block}.pipe span{color:var(--mute);font-size:14.5px}
+.kind{font:600 11px var(--mono);border:1px solid var(--line);border-radius:99px;padding:2px 9px;color:var(--mute);white-space:nowrap;margin-top:4px}
+.kind.code{color:var(--ok);border-color:color-mix(in srgb,var(--ok) 45%,var(--line))}
+.kind.model{color:var(--ember);border-color:color-mix(in srgb,var(--ember) 45%,var(--line))}
+.roasters{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.chip{font:500 12.5px var(--mono);background:var(--bg2);border:1px solid var(--line);border-radius:6px;padding:2px 8px;color:var(--text)}
+/* touch points */
+.tp{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px}
+.tp button{all:unset;box-sizing:border-box;cursor:pointer;display:flex;gap:10px;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:9px 12px;font-size:14.5px;width:100%}
+.tp button:focus-visible{outline:2px solid var(--ember)}
+.tp button i{font:700 12px var(--mono);font-style:normal;color:var(--mute);min-width:20px}
+.tp button[aria-pressed=true]{border-color:var(--fire);background:color-mix(in srgb,var(--fire) 14%,var(--card))}
+.tp button[aria-pressed=true] i{color:var(--fire)}
+.meter{margin-top:14px;display:flex;align-items:center;gap:12px;color:var(--mute);font-size:14.5px;flex-wrap:wrap}
+.bar2{flex:1;min-width:160px;height:8px;border-radius:99px;background:var(--bg2);border:1px solid var(--line);overflow:hidden}
+.bar2 div{height:100%;width:0;background:linear-gradient(90deg,var(--ember),var(--fire));transition:width .2s}
+/* outcome guard */
+.guard{display:grid;grid-template-columns:minmax(220px,300px) 1fr;gap:16px}
+@media(max-width:720px){.guard{grid-template-columns:1fr}.pipe li{grid-template-columns:38px 1fr}.pipe .kind{grid-column:2;justify-self:start}}
+.oc{display:grid;gap:6px;align-content:start}
+.oc button{all:unset;box-sizing:border-box;cursor:pointer;width:100%;display:flex;justify-content:space-between;align-items:center;gap:8px;border:1px solid var(--line);background:var(--card);border-radius:8px;padding:9px 12px;font:600 13.5px var(--mono)}
+.oc button:focus-visible{outline:2px solid var(--ember)}
+.oc button[aria-selected=true]{border-color:var(--ember);background:var(--bg2)}
+.dot{width:9px;height:9px;border-radius:50%}
+.res{border:1px solid var(--line);border-radius:12px;background:var(--card);padding:18px}
+.res .state{font:700 13px var(--mono);display:inline-block;border-radius:6px;padding:3px 10px;margin-bottom:10px}
+.res.may .state{background:color-mix(in srgb,var(--bad) 18%,transparent);color:var(--bad)}
+.res.not .state{background:color-mix(in srgb,var(--ok) 18%,transparent);color:var(--ok)}
+.res p{margin:0 0 10px;color:var(--mute)}
+.res pre{margin:0;background:var(--bg2);border:1px solid var(--line);border-radius:8px;padding:12px;overflow-x:auto;font-size:13px;line-height:1.6}
+.note{font-size:13px;color:var(--mute);margin-top:10px}
+table{border-collapse:collapse;width:100%;font-size:14.5px}
+th,td{border-bottom:1px solid var(--line);text-align:left;padding:9px 10px;vertical-align:top}
+th{color:var(--mute);font-weight:600;font-size:13px}
+td:first-child{white-space:nowrap}
+.scroll{overflow-x:auto;border:1px solid var(--line);border-radius:12px;background:var(--card)}
+.sprints{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px}
+.sprints ul{margin:8px 0 0;padding-left:18px;color:var(--mute);font-size:14.5px}
+.sprints small{font:600 12px var(--mono);color:var(--ember)}
+ul.plain{margin:0;padding-left:18px;color:var(--mute);font-size:15px}
+ul.plain li{margin:4px 0}
+footer{border-top:1px solid var(--line);padding:30px 0 50px;color:var(--mute);font-size:14px}
+footer .wrap{display:flex;flex-wrap:wrap;gap:10px 24px;justify-content:space-between}
+</style>
+</head>
+<body>
+
+<header class="nav">
+  <div class="wrap">
+    <a class="brand" href="#top">pg<span>roast</span> 🔥</a>
+    <nav aria-label="Sections">
+      <a href="#get">What you get</a>
+      <a href="#verdicts">Verdicts</a>
+      <a href="#how">How it works</a>
+      <a href="#touch">Touch points</a>
+      <a href="#outcome">Outcome-aware</a>
+      <a href="#start">Get started</a>
+      <a href="https://github.com/NikolayS/pgroast">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="top">
+<div class="hero">
+  <div class="wrap">
+    <span class="tag">pgroast.dev · prototype · shipped v0.2.0</span>
+    <h1>Find out why your Postgres proposal <em>might not be accepted</em> — before you post it.</h1>
+    <p class="lead">PG Roast is an adversarial reviewer for Postgres proposals. <b>It judges the idea and the design, not the code.</b> Given a pgsql-hackers thread or a CommitFest entry, it argues the way experienced committers do: earlier attempts that were not accepted, the strongest objections with concrete failure scenarios, and the touch points that raise the risk. A critic then tries to refute every objection, and only the survivors are reported.</p>
+    <div class="cta">
+      <a class="btn pri" href="#start">Get started</a>
+      <a class="btn" href="#outcome">What's next: outcome-aware precedents</a>
+    </div>
+    <p class="disclaimer">Prepared by an AI harness; treat as a devil's advocate, not a verdict. Output is local files only. Nothing is posted to mailing lists or to CommitFest, and there is no code that could do so.</p>
+    <div class="stats">
+      <div class="stat"><b>2,547</b><span>rows in the precedent index</span></div>
+      <div class="stat"><b>7</b><span>roasters in parallel, one angle each</span></div>
+      <div class="stat"><b>1</b><span>critic that tries to refute every objection</span></div>
+      <div class="stat"><b>15</b><span>touch points, each marked hit or not hit</span></div>
+      <div class="stat"><b>4</b><span>verdicts, from the idea level up</span></div>
+    </div>
+  </div>
+</div>
+
+<section id="who">
+  <div class="wrap">
+    <h2>Who it is for</h2>
+    <p class="sub">Proposals die on pgsql-hackers for reasons their authors could have anticipated: an idea tried and rejected before, a design that trips a known touch point, demand nobody showed.</p>
+    <div class="grid g2">
+      <div class="card"><h3>✍️ Author self-check <span class="chip">primary</span></h3><p>Run <code>pgroast &lt;my-thread-url&gt;</code> before posting. Get the strongest surviving objections and the prior attempts, then reframe or drop the proposal privately.</p></div>
+      <div class="card"><h3>🧭 Precedent sanity <span class="new">v0.1</span></h3><p>If your idea resembles an old rejected patch that eventually landed, that precedent is marked <code>later-accepted</code> and is not cited against you.</p></div>
+      <div class="card"><h3>⏱️ Triage saver</h3><p>A committer runs pgroast on a CommitFest entry and gets a ranked, critic-survived objection list in a few minutes, so review time goes to the real risks.</p></div>
+      <div class="card"><h3>📊 Batch calibration <span class="new">v0.1</span></h3><p>The maintainer runs <code>pgroast batch &lt;commitfest&gt;</code> over a closed CommitFest to compare verdicts with real outcomes and measure agreement.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="get">
+  <div class="wrap">
+    <h2>What you get</h2>
+    <p class="sub">Four files in a local directory: <code>roast.md</code> (the short report), <code>roast-full.md</code>, <code>roast.json</code> and <code>roast-summary.txt</code>.</p>
+    <div class="grid g3">
+      <div class="card"><h3>Neutral restatement</h3><p>What the proposal actually asks for, stated without spin.</p></div>
+      <div class="card"><h3>Prior attempts</h3><p>From the precedent index, with links, status and who objected.</p></div>
+      <div class="card"><h3>Ranked objections</h3><p>Only those that survived the critic, each with a failure scenario and what the author would need to show.</p></div>
+      <div class="card"><h3>Touch points</h3><p>All 15, each marked hit or not hit.</p></div>
+      <div class="card"><h3>Questions for the author</h3><p>Up to 5.</p></div>
+      <div class="card"><h3>Verdict with confidence</h3><p>Plus three fields kept apart from it: <code>committability</code>, <code>not_now</code> and <code>priority</code>.</p></div>
+    </div>
+    <p class="note">Refuted objections stay in the JSON and are listed at the end of the full report with the critic's reason. All prose follows one set of writing rules: the point first, hard length limits per field, plain words.</p>
+  </div>
+</section>
+
+<section id="verdicts">
+  <div class="wrap">
+    <h2>Verdict scale</h2>
+    <p class="sub">The verdict covers the review pyramid from the base up: 1a understandability, 1b desirability, 2 architecture and design. When a level fails, the levels above it are not argued. Implementation is out of scope.</p>
+    <div class="grid">
+      <div class="verdict v1"><code>LIKELY-REJECT</code><p>A fatal objection at the idea or design level survived the critic and cannot be overcome without making a different proposal, or the same idea was not accepted before and nothing has changed.</p></div>
+      <div class="verdict v2"><code>NEEDS-DESIGN-DISCUSSION</code><p>The goal may be fine, but the design or the demand is in question; the list needs to agree on something before code review makes sense. "Not now, show demand" goes here.</p></div>
+      <div class="verdict v3"><code>NEEDS-COMMITTER-EYES</code><p>No fundamental objection to the idea, but it touches things that only a committer who knows the area can sign off, or the remaining concerns are fixable design points.</p></div>
+      <div class="verdict v4"><code>NO-FUNDAMENTAL-OBJECTION</code><p>Nothing that survived would stop it at the idea or design level. This says nothing about the code.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="how">
+  <div class="wrap">
+    <h2>How it works</h2>
+    <p class="sub">The models have no tools and never see a URL: they cite ids such as <code>P3</code>, and code fills in the links from the database. Quotes are accepted only as verbatim substrings of the author's own text. Free prose is not fact-checked by code.</p>
+    <ol class="pipe">
+      <li><div><b>Brief</b><span>A neutral restatement and the search queries for precedents.</span></div><span class="kind model">model</span></li>
+      <li><div><b>Retrieval</b><span>Full-text search over the precedent index, with a date cutoff. The proposal's own thread and CommitFest entry are excluded.</span></div><span class="kind code">code</span></li>
+      <li><div><b>Enrichment</b><span>Precedent threads without a recorded reason are summarised once and cached. A relevance call decides which candidates the roasters see.</span></div><span class="kind model">model · cached</span></li>
+      <li><div><b>Seven roasters, in parallel</b><span>One angle each.</span>
+        <div class="roasters"><span class="chip">prior attempts</span><span class="chip">standards &amp; compatibility</span><span class="chip">replication &amp; on-disk</span><span class="chip">security</span><span class="chip">maintenance &amp; fit</span><span class="chip">already exists</span><span class="chip">demand</span></div></div><span class="kind model">model ×7</span></li>
+      <li><div><b>Critic</b><span>Tries to refute every objection. Only survivors are reported.</span></div><span class="kind model">model</span></li>
+      <li><div><b>Synthesis</b><span>Applies the stop rule, picks the verdict, fills the touch points and the questions.</span></div><span class="kind model">model</span></li>
+      <li><div><b>Checks</b><span>Links, precedent ids, message numbers and quotes are verified; a tone lint runs; then the files are written.</span></div><span class="kind code">code</span></li>
+    </ol>
+    <p class="note">The precedent index holds CommitFest entries that ended Rejected, Returned with feedback or Withdrawn, revert commits from the Postgres git history, and the wiki page "Not Worth Doing".</p>
+  </div>
+</section>
+
+<section id="touch">
+  <div class="wrap">
+    <h2>The 15 touch points</h2>
+    <p class="sub">The places where a proposal raises the risk. Tick the ones your own idea touches for a quick gut check — this page does not run a roast; the real marking happens in the report.</p>
+    <div class="tp" id="tp"></div>
+    <div class="meter"><span id="tpCount">0 of 15 hit</span><div class="bar2"><div id="tpBar"></div></div><button class="btn" id="tpReset" type="button">Reset</button></div>
+  </div>
+</section>
+
+<section id="outcome">
+  <div class="wrap">
+    <h2>Outcome-aware precedents <span class="new">v0.1 · planned</span></h2>
+    <p class="sub">The worst failure for an author is being told "this was rejected before" about an idea that was later accepted: it is wrong, it is discouraging, and it destroys trust in one shot. v0.1 gives every precedent an <code>outcome</code> and adds a revival guard. Pick an outcome to see how a precedent with it may be used.</p>
+    <div class="guard">
+      <div class="oc" id="oc" role="tablist" aria-label="Precedent outcome"></div>
+      <div class="res" id="res" role="tabpanel" aria-live="polite"></div>
+    </div>
+    <div class="grid g2" style="margin-top:16px">
+      <div class="card"><h3>Outcome field</h3><p>Populated from the CommitFest end status plus a git pass that links a reverted or returned patch to any later commit implementing the same feature, by thread lineage and message-id chains. Unresolvable becomes <code>unknown</code>.</p></div>
+      <div class="card"><h3>Revival guard</h3><p>A "tried before and rejected" objection is dropped when its grounding precedent is <code>superseded</code> or <code>later-accepted</code>. Dropped objections are kept in <code>roast.json</code> with reason <code>precedent-later-accepted</code> and listed at the end of <code>roast-full.md</code>.</p></div>
+      <div class="card"><h3>Calibration</h3><p><code>batch</code> gains a post-pass that joins each entry's verdict to its real CommitFest outcome and writes an agreement table, <code>calibration.json</code> and <code>calibration.md</code>, to the output directory. No outcome is fetched from the network beyond the loaded index.</p></div>
+      <div class="card"><h3>Scope</h3><p>English pgsql-hackers threads and CommitFest entries. Out of scope: posting anything anywhere, non-Postgres proposals, non-English threads.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="start">
+  <div class="wrap">
+    <h2>Get started</h2>
+    <p class="sub">A roast is 12 to 20 model calls, made through an AI coding CLI that is signed in with your subscription. No API key is needed or used.</p>
+    <div class="term">
+      <div class="bar"><i></i><i></i><i></i>
+        <div class="tabs" role="tablist">
+          <button role="tab" aria-selected="true" data-t="npx">npx</button>
+          <button role="tab" aria-selected="false" data-t="clone">from a clone</button>
+          <button role="tab" aria-selected="false" data-t="batch">batch</button>
+        </div>
+        <button class="copy" id="copy" type="button">copy</button>
+      </div>
+      <pre id="termBody"></pre>
+    </div>
+    <div class="grid g2" style="margin-top:16px">
+      <div class="card"><h3>Requirements</h3>
+        <ul class="plain">
+          <li><b>An AI coding CLI</b>, installed and signed in: Claude Code or Codex CLI. Calls count toward that account's limits.</li>
+          <li><b>Bun 1.3.5</b> or later. There are no npm dependencies.</li>
+          <li><b>Postgres 18</b>, for the precedent index (database <code>pgroast</code>; <code>PGROAST_DSN</code> if it is not on the local socket).</li>
+          <li>A clone of the Postgres repository, only if you rebuild the index (<code>PGROAST_PG_REPO</code>).</li>
+        </ul>
+      </div>
+      <div class="card"><h3>Keys stay out</h3>
+        <p><code>ANTHROPIC_API_KEY</code>, <code>ANTHROPIC_AUTH_TOKEN</code>, <code>OPENAI_API_KEY</code> and <code>CODEX_API_KEY</code> are removed from the CLI's environment, and a call fails if the CLI reports that it is using a key.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="arch">
+  <div class="wrap">
+    <h2>Components</h2>
+    <p class="sub">The data flow is unchanged in v0.1: brief → retrieval → enrichment → roasters → critic → synthesis → code checks → write.</p>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>Component</th><th>Role</th><th>Boundary</th></tr></thead>
+        <tbody>
+          <tr><td>CLI <code>src/cli.ts</code></td><td>Subcommands: <code>init-db</code>, <code>doctor</code>, <code>&lt;cf-id|url&gt;</code>, <code>batch</code></td><td>Parses input; writes local files only</td></tr>
+          <tr><td>Precedent index (PG 18)</td><td>2,547 rows, plus the new <code>outcome</code> status</td><td>Loaded via <code>init-db</code></td></tr>
+          <tr><td>Retrieval</td><td>Full-text search with a date cutoff</td><td>Deterministic, no model</td></tr>
+          <tr><td>Enrichment</td><td>One-time summary and a relevance call</td><td>Cached</td></tr>
+          <tr><td>Roasters → critic → synthesis</td><td>The adversarial pipeline</td><td>Models have no tools; they cite ids only</td></tr>
+          <tr><td>Checks</td><td>Links, ids, message numbers, verbatim quotes; tone lint</td><td>Gate before files are written</td></tr>
+          <tr><td>Report writer</td><td><code>roast.md</code>, <code>roast-full.md</code>, <code>roast.json</code>, <code>roast-summary.txt</code></td><td>Local directory only</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section id="plan">
+  <div class="wrap">
+    <h2>Plan for v0.1</h2>
+    <p class="sub">Additive to what is shipped (v0.2.0: batch runner, resumable index). Built test-first: the outcome classifier, the revival guard and the calibration join each start from a failing test.</p>
+    <div class="sprints">
+      <div class="card"><small>SPRINT 1 · foundation</small><h3>Schema and rename</h3><ul><li>Design the <code>outcome</code> schema and migration</li><li>Classifier spec and test fixtures (red)</li><li><code>pgroast.dev</code> across README, package and docs</li><li><code>batch</code> calibration flag scaffold</li></ul></div>
+      <div class="card"><small>SPRINT 2 · guard + classifier</small><h3>Make the guard hold</h3><ul><li>Classifier to green; backfill <code>outcome</code> in <code>init-db</code></li><li>Revival guard in critic and synthesis, against fixtures</li><li>Dropped objections retained in JSON</li></ul></div>
+      <div class="card"><small>SPRINT 3 · calibration + hardening</small><h3>Measure agreement</h3><ul><li>Calibration post-pass over a closed CommitFest</li><li>Agreement table wired into outputs</li><li>Existing 6 suites green; docs refreshed</li></ul></div>
+    </div>
+  </div>
+</section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>pgroast 🔥❤️‍🔥🍿 — a devil's advocate, not a verdict.</span>
+    <span><a href="https://github.com/NikolayS/pgroast">github.com/NikolayS/pgroast</a> · pgroast.dev</span>
+  </div>
+</footer>
+
+<script>
+(function(){
+  var $=function(id){return document.getElementById(id)};
+
+  // Touch points
+  var TP=["on-disk format / pg_upgrade","WAL / replication / standby","wire protocol","catalog changes","ABI / extension API","SQL-standard conflict or non-standard syntax","new GUC","planner behaviour change","pg_dump / restore round-trip","psql UX conventions","security / privileges","backpatchability","maintenance burden","performance on the hot path","doesn't fit what Postgres is about"];
+  var tp=$("tp");
+  TP.forEach(function(t,i){
+    var b=document.createElement("button");
+    b.type="button";b.setAttribute("aria-pressed","false");
+    var n=document.createElement("i");n.textContent=i+1;
+    b.appendChild(n);b.appendChild(document.createTextNode(t));
+    b.addEventListener("click",function(){
+      b.setAttribute("aria-pressed",b.getAttribute("aria-pressed")==="true"?"false":"true");tpUpdate();
+    });
+    tp.appendChild(b);
+  });
+  function tpUpdate(){
+    var n=tp.querySelectorAll('[aria-pressed="true"]').length;
+    $("tpCount").textContent=n+" of 15 hit";
+    $("tpBar").style.width=(n/15*100)+"%";
+  }
+  $("tpReset").addEventListener("click",function(){
+    tp.querySelectorAll("button").forEach(function(b){b.setAttribute("aria-pressed","false")});tpUpdate();
+  });
+
+  // Outcome guard
+  var OC=[
+    {k:"rejected",may:true,d:"The CommitFest entry ended Rejected."},
+    {k:"returned",may:true,d:"Returned with feedback, and no later commit of the same feature was found."},
+    {k:"withdrawn",may:true,d:"Withdrawn by the author."},
+    {k:"unknown",may:true,d:"The outcome could not be resolved from the CommitFest status or the git lineage."},
+    {k:"superseded",may:false,d:"A different patch took over the same goal."},
+    {k:"later-accepted",may:false,d:"The idea did not get in at the time, but a later commit implemented it."}
+  ];
+  var oc=$("oc"),res=$("res");
+  function show(o){
+    oc.querySelectorAll("button").forEach(function(b){b.setAttribute("aria-selected",b.dataset.k===o.k?"true":"false")});
+    res.className="res "+(o.may?"may":"not");
+    res.textContent="";
+    var s=document.createElement("span");s.className="state";
+    s.textContent=o.may?'MAY GROUND "PRIOR ATTEMPT FAILED"':"SUPPORTING CONTEXT ONLY";
+    var p1=document.createElement("p");p1.textContent=o.d;
+    var p2=document.createElement("p");
+    p2.textContent=o.may
+      ?"A roaster may cite this precedent as an earlier attempt that was not accepted. The critic still tries to refute the objection."
+      :"Never cited against the author. If a \"tried before and rejected\" objection rests on it, the revival guard drops the objection and keeps a record.";
+    var pre=document.createElement("pre");
+    pre.textContent=o.may
+      ?'precedent.outcome = "'+o.k+'"\n→ objection goes on to the critic'
+      :'precedent.outcome = "'+o.k+'"\n→ objection dropped\n→ kept in roast.json, reason: "precedent-later-accepted"\n→ listed at the end of roast-full.md';
+    var n=document.createElement("div");n.className="note";
+    n.textContent="Illustration of the planned v0.1 rule, not output from a real run.";
+    [s,p1,p2,pre,n].forEach(function(e){res.appendChild(e)});
+  }
+  OC.forEach(function(o){
+    var b=document.createElement("button");
+    b.type="button";b.setAttribute("role","tab");b.dataset.k=o.k;
+    var t=document.createElement("span");t.textContent=o.k;
+    var d=document.createElement("span");d.className="dot";d.style.background=o.may?"var(--bad)":"var(--ok)";
+    b.appendChild(t);b.appendChild(d);
+    b.addEventListener("click",function(){show(o)});
+    oc.appendChild(b);
+  });
+  show(OC[5]);
+
+  // Terminal tabs
+  var CMD={
+    npx:[["npx pgroast@latest init-db","once: creates the database \"pgroast\" and loads the index"],
+         ["npx pgroast@latest doctor","checks both CLIs and their login"],
+         ["npx pgroast@latest <cf-id|thread-url>","results go to ./pgroast-out/<name>/"]],
+    clone:[["git clone https://github.com/NikolayS/pgroast && cd pgroast",""],
+         ["bun run src/cli.ts init-db",""],
+         ["bun run src/cli.ts doctor",""],
+         ["bun run src/cli.ts <cf-id|thread-url>","results go to out/<name>/"]],
+    batch:[["npx pgroast@latest batch <commitfest>","roasts every entry into a directory; resumable"]]
+  };
+  var body=$("termBody"),cur="npx";
+  function render(k){
+    cur=k;body.textContent="";
+    var w=Math.max.apply(null,CMD[k].map(function(r){return r[0].length}));
+    CMD[k].forEach(function(r){
+      var p=document.createElement("span");p.className="p";p.textContent="$ ";
+      body.appendChild(p);
+      body.appendChild(document.createTextNode(r[1]?r[0]+new Array(w-r[0].length+3).join(" "):r[0]));
+      if(r[1]){var c=document.createElement("span");c.className="c";c.textContent="# "+r[1];body.appendChild(c)}
+      body.appendChild(document.createTextNode("\n"));
+    });
+    document.querySelectorAll(".tabs button").forEach(function(b){b.setAttribute("aria-selected",b.dataset.t===k?"true":"false")});
+  }
+  document.querySelectorAll(".tabs button").forEach(function(b){b.addEventListener("click",function(){render(b.dataset.t)})});
+  render("npx");
+  $("copy").addEventListener("click",function(){
+    var text=CMD[cur].map(function(r){return r[0]}).join("\n"),btn=this;
+    function done(ok){btn.textContent=ok?"copied":"select & copy";setTimeout(function(){btn.textContent="copy"},1400)}
+    if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(text).then(function(){done(true)},function(){done(false)})}
+    else{var ta=document.createElement("textarea");ta.value=text;document.body.appendChild(ta);ta.select();var ok=false;try{ok=document.execCommand("copy")}catch(e){}document.body.removeChild(ta);done(ok)}
+  });
+})();
+</script>
+</body>
+</html>
