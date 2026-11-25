@@ -26,11 +26,13 @@
     "bin/",
     "src/",
     "prompts/",
+    "skills/",
     "invariants/",
     "sql/",
     "data/precedents.sql.gz",
     "docs/",
     "README.md",
+    "CHANGELOG.md",
     "LICENSE"
   ],
   "engines": {

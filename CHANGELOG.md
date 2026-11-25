@@ -33,6 +33,10 @@ This release addresses the feedback from running v1 across the November 2026 Com
 - **`pgsql-bugs` production-impact triage (`pgroast bugs`)**
   - Fetches recent `pgsql-bugs` threads, separates real production user hits from synthetic fuzzer or AI bug-hunt reports, ranks by impact (data loss, wrong results, crash/OOM, regression), and writes `bugs-triage.md` and `bugs-triage.json` locally.
 
+- **Built-in basic skills with configurable custom override (`skills/`, `src/skills.ts`)**
+  - Ships simple default skills for `-hackers` plain-text review etiquette, isolated patch verification, and `pgsql-bugs` triage so new users get working defaults out of the box.
+  - Set `PGROAST_SKILLS_DIR` to point to your own private skills folder to override or extend the defaults.
+
 ### Quick start
 
 ```bash
@@ -45,4 +49,4 @@ bun run src/cli.ts bugs --days 14 --limit 30
 ### Verification
 
 - `tsc --noEmit`: 0 errors.
-- `bun test`: 169 tests passing across 7 files.
+- `bun test`: 170 tests passing across 7 files.

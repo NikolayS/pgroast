@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parseBatchArgs } from "../src/batch.ts";
@@ -922,5 +922,37 @@ describe("v2 pgsql-bugs triage", () => {
     });
     expect(validate(report.bugs[0]!, BUG_TRIAGE_SCHEMA)).toEqual([]);
     expect(rankBugReports([...report.bugs].reverse())[0]!.message_id).toBe("prod1@ex.org");
+  });
+});
+
+describe("v2 embedded basic skills and custom override", () => {
+  test("loads built-in default skills and allows custom directory override", async () => {
+    const { loadSkill, loadSkills } = await import("../src/skills.ts");
+    const builtins = loadSkills("");
+    const names = builtins.map((s) => s.name);
+    expect(names).toContain("hackers-review");
+    expect(names).toContain("patch-verify");
+    expect(names).toContain("bug-triage");
+    expect(builtins.every((s) => s.source === "builtin")).toBe(true);
+
+    const customDir = mkdtempSync(join(tmpdir(), "pgroast-skills-"));
+    try {
+      mkdirSync(join(customDir, "custom-extra"), { recursive: true });
+      writeFileSync(join(customDir, "hackers-review.md"), "# Custom review rules\n");
+      writeFileSync(join(customDir, "custom-extra", "SKILL.md"), "# Extra skill\n");
+
+      const merged = loadSkills(customDir);
+      const review = merged.find((s) => s.name === "hackers-review");
+      const verify = merged.find((s) => s.name === "patch-verify");
+      const extra = loadSkill("custom-extra", customDir);
+
+      expect(review?.source).toBe("custom");
+      expect(review?.content).toContain("Custom review rules");
+      expect(verify?.source).toBe("builtin");
+      expect(extra?.source).toBe("custom");
+      expect(extra?.content).toContain("Extra skill");
+    } finally {
+      rmSync(customDir, { recursive: true, force: true });
+    }
   });
 });
