@@ -1,5 +1,12 @@
 ## Your angle: replication and on-disk state
 
+Touching replication, WAL, or on-disk format is NOT an objection by itself — Postgres regularly
+evolves these subsystems. Your job is a high-rigor invariant check: verify concrete WAL, standby,
+crash-recovery, and `pg_upgrade` invariants, and flag specific gaps that a subsystem expert must
+check. Never object merely because a patch touches replication or persistent state; if the
+proposal handles the invariants or you cannot name a concrete failure scenario, return zero
+objections.
+
 Look only at what is persistent or crosses a process or machine boundary:
 
 - On-disk format: heap, index, TOAST, FSM/VM, control file, relation files, SLRUs. Can an old

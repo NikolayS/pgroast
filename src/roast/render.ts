@@ -14,6 +14,49 @@ const ref = (text: string, url: string) => (url ? link(text, url) : text);
 const roundNote = (o: FinalObjection) =>
   `${o.round > 0 ? `, added in round ${o.round}` : ""}${o.revised_in_round != null ? `, restated in round ${o.revised_in_round}` : ""}`;
 
+const NOVELTY_LABEL: Record<string, string> = {
+  new: "new",
+  revisits_precedent: "revisits prior attempt",
+  open_in_thread: "open in thread",
+};
+
+const ANGLE_ID_RE =
+  /\b(?:prior-attempts|standards-compat|replication-ondisk|security|maintenance-fit|already-exists|demand)-(?:r\d+-)?\d+\b/g;
+
+/**
+ * Strip opaque internal IDs (`[P3]`, `standards-compat-2`, `already-exists-1`, etc.)
+ * from lead human-facing prose while keeping natural grammar. IDs remain in metadata/appendix.
+ */
+export function stripInternalIds(text: string): string {
+  return text
+    .replace(/\s*\(\s*\[?P\d+\]?\s*\)/g, "")
+    .replace(/\s*\(\s*(?:prior-attempts|standards-compat|replication-ondisk|security|maintenance-fit|already-exists|demand)-(?:r\d+-)?\d+\s*\)/g, "")
+    .replace(/\[P\d+\]/g, "an earlier attempt")
+    .replace(new RegExp(`,?\\s*${ANGLE_ID_RE.source}\\s*:`, "g"), ":")
+    .replace(ANGLE_ID_RE, "the main objection")
+    .replace(/\s{2,}/g, " ")
+    .replace(/\s+([.,;:])/g, "$1")
+    .trim();
+}
+
+function noveltyRank(o: FinalObjection): number {
+  const n = o.novelty ?? "new";
+  if (n === "new") return 0;
+  if (n === "revisits_precedent") return 1;
+  return 2;
+}
+
+function formatLatestPatch(r: Roast): string | null {
+  const lp = r.input.latest_patch;
+  if (!lp || (!lp.version && !lp.from && !lp.date)) return null;
+  const parts = [
+    lp.version ?? null,
+    lp.from ? `from ${lp.from.replace(/\s*<[^>]*>\s*$/, "").trim()}` : null,
+    lp.date ? day(lp.date) : null,
+  ].filter(Boolean);
+  return parts.length ? parts.join(", ") : null;
+}
+
 function objectionBlock(o: FinalObjection, n: number, advice?: SelfAdvice): string {
   const lines: string[] = [];
   lines.push(`### ${n}. ${oneLine(o.title)}`);
@@ -25,8 +68,9 @@ function objectionBlock(o: FinalObjection, n: number, advice?: SelfAdvice): stri
   }
   lines.push("");
   const sev = o.critic.original_severity ? `${o.severity} (first rated ${o.critic.original_severity}; changed in the counter-check)` : o.severity;
+  const nov = o.novelty ? ` · ${NOVELTY_LABEL[o.novelty] ?? o.novelty}` : "";
   const touch = [...new Set([o.category, ...o.touch_points])].map(touchLabel).join(", ");
-  lines.push(`${sev} · level ${o.level}${o.rubric_item ? `, rubric item ${o.rubric_item}` : ""} · ${touch} · \`${o.id}\`${roundNote(o)}`);
+  lines.push(`${sev}${nov} · level ${o.level}${o.rubric_item ? `, rubric item ${o.rubric_item}` : ""} · ${touch} · \`${o.id}\`${roundNote(o)}`);
   lines.push("");
   lines.push(o.failure_scenario.trim());
   lines.push("");
@@ -107,7 +151,12 @@ export function renderMarkdown(r: Roast): string {
   if (r.input.thread_url) src.push(`- Thread: ${link(oneLine(r.input.subject), r.input.thread_url)}, started ${day(r.input.thread_start)}`);
   else src.push(`- Draft, not sent: ${r.input.arg} ("${oneLine(r.input.subject)}")`);
   const mode = [r.input.blind != null ? `blind mode, first ${r.input.blind}` : "", r.input.before ? `before ${r.input.before}` : ""].filter(Boolean).join("; ");
-  if (r.input.thread_url) src.push(`- Messages read: ${r.input.messages_read} of ${r.input.messages_total}${mode ? ` (${mode})` : ""}`);
+  if (r.input.thread_url) {
+    const thNote = r.input.threads_read && r.input.threads_read > 1 ? ` across ${r.input.threads_read} threads` : "";
+    src.push(`- Messages read: ${r.input.messages_read} of ${r.input.messages_total}${thNote}${mode ? ` (${mode})` : ""}`);
+  }
+  const latestPatchStr = formatLatestPatch(r);
+  if (latestPatchStr) src.push(`- Latest patch evaluated: ${latestPatchStr}`);
   src.push(`- Patch prose read: ${r.input.attachments_read.length ? r.input.attachments_read.join(", ") : "none"} (commit message, file list and doc hunks only; no code review)`);
   if (r.input.hint) src.push(`- Directed precedent lookup: "${oneLine(r.input.hint)}"`);
   if (r.invariants_loaded.length) src.push(`- Subsystem invariants checked: ${r.invariants_loaded.join(", ")}`);
@@ -223,6 +272,16 @@ export function renderMarkdown(r: Roast): string {
     out.push(`- \`${o.id}\` ${oneLine(o.title)}. Refuted (${o.critic.refutation_kind.replace(/_/g, " ")}): ${oneLine(o.critic.reasoning)}`);
   }
   out.push("");
+  const dups = r.duplicates ?? [];
+  if (dups.length) {
+    out.push("### Duplicates merged in the counter-check");
+    out.push("");
+    for (const o of dups) {
+      const of = o.critic.duplicate_of ? ` of \`${o.critic.duplicate_of}\`` : "";
+      out.push(`- \`${o.id}\` ${oneLine(o.title)}. Duplicate${of}: ${oneLine(o.critic.reasoning)}`);
+    }
+    out.push("");
+  }
   if (r.withdrawn.length) {
     out.push("### Withdrawn in a later round");
     out.push("");
@@ -281,8 +340,8 @@ export function renderMarkdown(r: Roast): string {
 }
 
 /**
- * roast.md: the short report. Verdict, prior attempts, the listed objections, the questions and
- * the touch points that are hit. Everything else is in roast-full.md (renderMarkdown).
+ * roast.md: the short report. Verdict, new/unraised objections first, compact open-in-thread status,
+ * questions, prior attempts, hit touch points, and committability. Everything else is in roast-full.md.
  */
 export function renderCompactMarkdown(r: Roast, fullName = "roast-full.md"): string {
   const out: string[] = [];
@@ -293,17 +352,59 @@ export function renderCompactMarkdown(r: Roast, fullName = "roast-full.md"): str
   const mode = [r.input.blind != null ? `first ${r.input.blind} only` : "", r.input.before ? `before ${r.input.before}` : ""].filter(Boolean).join(", ");
   const src: string[] = [];
   if (r.input.cf) src.push(link(`CommitFest ${r.input.cf.id}`, r.input.cf.url));
-  if (r.input.thread_url) src.push(`${link("thread", r.input.thread_url)}, ${r.input.messages_read} of ${r.input.messages_total} messages read${mode ? ` (${mode})` : ""}`);
-  else src.push(`draft ${r.input.arg}`);
+  if (r.input.thread_url) {
+    const thNote = r.input.threads_read && r.input.threads_read > 1 ? ` across ${r.input.threads_read} threads` : "";
+    src.push(`${link("thread", r.input.thread_url)}, ${r.input.messages_read} of ${r.input.messages_total} messages read${thNote}${mode ? ` (${mode})` : ""}`);
+  } else src.push(`draft ${r.input.arg}`);
+  const latestPatchStr = formatLatestPatch(r);
+  if (latestPatchStr) src.push(`patch ${latestPatchStr}`);
   src.push("no code read");
   out.push(`${src.join("; ")}.`, "");
 
   const verdict = [
-    `**${r.verdict}** (confidence: ${r.confidence}). ${r.verdict_reasoning.trim()}`,
+    `**${r.verdict}** (confidence: ${r.confidence}). ${stripInternalIds(r.verdict_reasoning)}`,
     ...(r.provisional_note.trim() ? ["", `Not checked: ${r.provisional_note.trim()}`] : []),
     "",
   ];
   if (!self) out.push("## Verdict", "", ...verdict);
+
+  const adviceFor = (o: FinalObjection) => r.self_advice.find((a) => a.objection_id === o.id);
+  const fresh = r.objections
+    .filter((o) => (o.novelty ?? "new") !== "open_in_thread")
+    .sort((a, b) => noveltyRank(a) - noveltyRank(b));
+  const openInThread = r.objections.filter((o) => o.novelty === "open_in_thread");
+
+  out.push(self ? "## Objections to address before you send" : "## New & unraised objections", "");
+  if (fresh.length === 0 && openInThread.length === 0) {
+    out.push("No objection held up in the counter-check.", "");
+  } else if (fresh.length === 0) {
+    out.push("No new objection beyond what is already being discussed in the thread.", "");
+  }
+  fresh.forEach((o, i) => {
+    const a = self ? adviceFor(o) : undefined;
+    out.push(`### ${i + 1}. ${oneLine(o.title)}`, "");
+    if (a) out.push(`**Before you send: ${a.action === "fix" ? "fix it" : "rebut it in the cover letter"}.** ${a.how.trim()}`, "");
+    out.push(stripInternalIds(o.failure_scenario), "", stripInternalIds(o.argument), "");
+    for (const p of o.precedents) out.push(`Precedent: ${link(oneLine(p.title), p.thread_urls[0] ?? p.url)} (${p.status || "outcome unknown"}, ${day(p.date)})`, "");
+    out.push(`**Question:** ${o.author_must_show.trim()}`, "");
+    const refs = o.thread_refs.map((t) => ref(`#${t.index}`, t.url)).join(", ");
+    const nov = o.novelty ? `${NOVELTY_LABEL[o.novelty] ?? o.novelty}, ` : "";
+    out.push(`<sub>${nov}${o.severity}, level ${o.level}, ${touchLabel(o.category)}${refs ? `; messages ${refs}` : ""}; \`${o.id}\`</sub>`, "");
+  });
+
+  if (openInThread.length > 0) {
+    out.push("## Already open in thread", "");
+    for (const o of openInThread) {
+      const refs = o.thread_refs.map((t) => ref(`#${t.index}`, t.url)).join(", ");
+      out.push(`- **${oneLine(o.title)}** (${o.severity}, level ${o.level}${refs ? `; messages ${refs}` : ""}): ${oneLine(o.author_must_show)}`);
+    }
+    out.push("");
+  }
+
+  out.push(self ? "## Questions to answer in your cover letter" : "## Questions for the author", "");
+  if (r.questions.length === 0) out.push("None.");
+  else r.questions.forEach((q, i) => out.push(`${i + 1}. ${oneLine(stripInternalIds(q))}`));
+  out.push("");
 
   out.push("## Prior attempts", "");
   if (r.precedent_backend === "none") out.push("Not searched: the precedent index was not available in this run.");
@@ -315,25 +416,6 @@ export function renderCompactMarkdown(r: Roast, fullName = "roast-full.md"): str
   }
   out.push("");
 
-  const adviceFor = (o: FinalObjection) => r.self_advice.find((a) => a.objection_id === o.id);
-  out.push(self ? "## Objections to address before you send" : "## Objections a reviewer is likely to raise", "");
-  if (r.objections.length === 0) out.push("No objection held up in the counter-check.", "");
-  r.objections.forEach((o, i) => {
-    const a = self ? adviceFor(o) : undefined;
-    out.push(`### ${i + 1}. ${oneLine(o.title)}`, "");
-    if (a) out.push(`**Before you send: ${a.action === "fix" ? "fix it" : "rebut it in the cover letter"}.** ${a.how.trim()}`, "");
-    out.push(o.failure_scenario.trim(), "", o.argument.trim(), "");
-    for (const p of o.precedents) out.push(`Precedent: ${link(oneLine(p.title), p.thread_urls[0] ?? p.url)} (${p.status || "outcome unknown"}, ${day(p.date)})`, "");
-    out.push(`**Question:** ${o.author_must_show.trim()}`, "");
-    const refs = o.thread_refs.map((t) => ref(`#${t.index}`, t.url)).join(", ");
-    out.push(`<sub>${o.severity}, level ${o.level}, ${touchLabel(o.category)}${refs ? `; messages ${refs}` : ""}; \`${o.id}\`</sub>`, "");
-  });
-
-  out.push(self ? "## Questions to answer in your cover letter" : "## Questions for the author", "");
-  if (r.questions.length === 0) out.push("None.");
-  else r.questions.forEach((q, i) => out.push(`${i + 1}. ${oneLine(q)}`));
-  out.push("");
-
   const hit = r.touch_points.filter((t) => t.hit);
   out.push("## Touch points", "");
   if (hit.length === 0) out.push("None of the 15 is hit.");
@@ -343,10 +425,18 @@ export function renderCompactMarkdown(r: Roast, fullName = "roast-full.md"): str
   out.push("## Who would commit it, and when", "");
   out.push(`- Owner: ${r.committability.owner}${r.committability.owner_note.trim() ? `. ${oneLine(r.committability.owner_note)}` : ""}`);
   if (r.not_now.applies) out.push(`- Not now, show demand first: ${oneLine(r.not_now.evidence_that_would_change_it) || "(evidence not stated)"}`);
-  out.push(`- Priority: ${r.priority.recommended_action}; audience ${r.priority.audience}; review cost ${r.priority.review_cost}. ${oneLine(r.priority.reason)}`, "");
+  out.push(`- Priority: ${r.priority.recommended_action}; audience ${r.priority.audience}; review cost ${r.priority.review_cost}. ${oneLine(stripInternalIds(r.priority.reason))}`, "");
   if (self) out.push("## How a reviewer would likely classify it", "", ...verdict);
 
-  const more = [`${r.other_surviving.length} more objection(s) that held`, `${r.refuted.length} refuted`, "the proposal restated", "all 15 touch points", "run details"];
+  const dups = r.duplicates ?? [];
+  const more = [
+    `${r.other_surviving.length} more objection(s) that held`,
+    `${r.refuted.length} refuted`,
+    ...(dups.length ? [`${dups.length} duplicate(s)`] : []),
+    "the proposal restated",
+    "all 15 touch points",
+    "run details",
+  ];
   out.push("---", "", `${link(fullName, fullName)} has ${more.join(", ")}.${r.warnings.length ? ` Warnings in this run: ${r.warnings.length}.` : ""}${r.stats.dry_run ? " DRY RUN: no model was called; content is placeholder." : ""}`, "", r.disclosure, "");
   return out.join("\n");
 }

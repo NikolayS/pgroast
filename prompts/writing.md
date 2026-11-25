@@ -78,6 +78,10 @@ Never change a number you keep, and never invent one.
 - SQL keywords in lowercase in examples you write (`alter table ... add column`). Names of
   commands, options and settings that the thread uses stay as the thread writes them.
 - Titles in sentence case: capitalize the first word and proper nouns only.
+- Never write internal tool identifiers (`[P3]`, `P1`, `standards-compat-2`, `already-exists-1`,
+  `prior-attempts-1`) inside human-facing prose (`verdict_reasoning`, `failure_scenario`,
+  `argument`, `questions`, `priority.reason`). Name the earlier attempt or issue in plain English
+  (for example, "the 2019 GiST amcheck attempt"); structured id fields carry the references.
 - No emojis. No exclamation marks. Neutral about products, vendors and platforms.
 - Quotes, code, SQL, option names and log lines keep their original form.
 

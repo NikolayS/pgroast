@@ -99,18 +99,29 @@ export function renderMaterial(p: ProposalInput, opts: MaterialOptions = {}): { 
   }
   const omitted = all.length - keep.size;
 
+  const threadCountNote = p.threadsRead && p.threadsRead.length > 1 ? ` Merged across ${p.threadsRead.length} attached threads (chronological order).` : "";
   parts.push(
     [
       `## Thread: ${p.thread.subject}`,
-      `List: ${p.thread.lists.join(", ") || "?"}. Started ${p.threadStart.slice(0, 10)}. ${shownNote.replace(/\.$/, "")}${omitted ? `; ${omitted} long middle messages omitted for length` : ""}.`,
+      `List: ${p.thread.lists.join(", ") || "?"}. Started ${p.threadStart.slice(0, 10)}. ${shownNote.replace(/\.$/, "")}${omitted ? `; ${omitted} long middle messages omitted for length` : ""}.${threadCountNote}`,
       ...all.map((m, i) => renderMessage(m, keep.has(i) ? bodies[i]! : null)),
     ].join("\n\n"),
   );
 
   if (p.patchProse.length) {
     const lines = ["## Patch prose (commit messages, touched files, documentation hunks; code is never shown)"];
+    if (p.latestPatchFrom || p.latestPatchVersion || p.latestPatchDate) {
+      const meta = [
+        p.latestPatchVersion ? `version ${p.latestPatchVersion}` : null,
+        p.latestPatchFrom ? `from ${displayName(p.latestPatchFrom)}` : null,
+        p.latestPatchDate ? `on ${p.latestPatchDate.slice(0, 10)}` : null,
+      ].filter(Boolean);
+      lines.push(`Latest patch set being evaluated: ${meta.join(", ")}. Evaluate the proposal as of this latest revision; any earlier revision below is for comparison only.`);
+    }
     for (const pp of p.patchProse) {
-      lines.push(`### ${pp.attachment.name} (attached to message #${pp.fromMessageIndex}, ${pp.attachment.sizeText})`);
+      const revTag = pp.isLatest === true ? "latest revision; " : pp.isLatest === false ? "initial revision for comparison; " : "";
+      const by = pp.fromAuthor ? `, ${displayName(pp.fromAuthor)}${pp.fromDate ? ` ${pp.fromDate.slice(0, 10)}` : ""}` : "";
+      lines.push(`### ${pp.attachment.name} (${revTag}attached to message #${pp.fromMessageIndex}${by}, ${pp.attachment.sizeText})`);
       for (const cm of pp.commitMessages) lines.push(`Commit message:\n${cm.subject}\n\n${cm.body}`.trim());
       if (pp.files.length) lines.push(`Files touched:\n${pp.files.map((f) => `- ${f}`).join("\n")}`);
       for (const h of pp.docHunks) lines.push(`Documentation hunk (${h.path}):\n${h.text}`);

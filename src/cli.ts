@@ -21,7 +21,7 @@ import { DEFAULT_OUT_ROOT, REPO_ROOT, stats as fetchStats } from "./thread/fetch
 import { loadProposal, validateDate } from "./thread/load.ts";
 import { loadLocalProposal } from "./thread/local.ts";
 import { runDoctor } from "./roast/doctor.ts";
-import { CliBackend, DryRunBackend, modelsFromEnv, pickBackend, type BackendName } from "./roast/llm.ts";
+import { BACKENDS, createBackend, DryRunBackend, modelsFromEnv, pickBackend, type BackendName } from "./roast/llm.ts";
 import { closePrecedents } from "./roast/precedents.ts";
 import { runRoast, slugFor } from "./roast/pipeline.ts";
 import { renderCompactMarkdown, renderMarkdown, renderSummary } from "./roast/render.ts";
@@ -32,6 +32,8 @@ const USAGE = `Usage: bun run src/cli.ts <cf-id|cf-url|message-id|thread-url> [o
        bun run src/cli.ts pushback <cf-id|cf-url|thread-url> [--out DIR] [--backend NAME] [--dry-run] [--offline]
        bun run src/cli.ts batch <commitfest-number> --out DIR [--status open|all|"Needs review"] [--limit K]
                                       [--concurrency N] [--only id,id] [--blind N] [--backend NAME] [--dry-run]
+       bun run src/cli.ts shortlist <batch-dir> [--top 20] [--reject 50] [--pg-repo PATH] [--out DIR]
+       bun run src/cli.ts bugs [--days 14] [--limit 30] [--backend NAME] [--out DIR] [--offline] [--dry-run]
        bun run src/cli.ts doctor      check the installed CLIs and their login
        bun run src/cli.ts init-db     create the precedent database and load the shipped index
 
@@ -49,7 +51,7 @@ const USAGE = `Usage: bun run src/cli.ts <cf-id|cf-url|message-id|thread-url> [o
   --before DATE    read only messages strictly before DATE (YYYY-MM-DD); also the precedent cutoff
   --hint TEXT      directed precedent lookup, e.g. "the 2018 suggestion of doing X"
   --out DIR        output directory (default: out/<slug>)
-  --backend NAME   claude or codex (default: PGROAST_BACKEND, else claude if installed, else codex)
+  --backend NAME   claude, codex, agy, or dual (default: PGROAST_BACKEND, else claude > codex > agy)
   --no-enrich      do not read precedent threads and do not filter precedents for relevance
   --dry-run        print the prompts, call no model
   --offline        use only cached pages
@@ -65,6 +67,13 @@ batch: roasts every selected entry of one commitfest into DIR/cf/<id>/ and write
 DIR/README.md. An entry that is already done is skipped, and the run stops at a usage limit, so
 the same command continues it later. It commits and pushes nothing.
 
+shortlist: ranks finished roast.json entries in <batch-dir> into Top N patches worth committer
+attention (shortlist.md) and Top M patches worth closing or rethinking (top-reject.md), with
+optional git log subsystem expert routing (--pg-repo PATH).
+
+bugs: fetches recent pgsql-bugs threads and prioritizes real production user hits over
+synthetic/AI bug-hunt reports, writing bugs-triage.md and bugs-triage.json.
+
 page: renders a finished roast.json, with no model call, to one self-contained HTML file
 (default: roast.html next to the JSON; --out FILE), or with --site DIR to a static layout:
 DIR/cf/<cf-id>.html (embeddable card), DIR/cf/<cf-id>.json, DIR/cf/<cf-id>/full.html
@@ -72,11 +81,13 @@ DIR/cf/<cf-id>.html (embeddable card), DIR/cf/<cf-id>.json, DIR/cf/<cf-id>/full.
 {{PGROAST_BASE_URL}}/cf/<cf-id>/full.html unless --base-url is given. Local files only:
 nothing is uploaded or published.
 
-The model runs through an installed Claude Code or Codex CLI on your subscription login.
-No API key is used: API key variables are removed from the CLI's environment.
+The model runs through an installed Claude Code, Codex, or Antigravity (agy) CLI on your
+subscription login. No API key is used: API key variables are removed from the CLI's environment.
 
 Environment: PGROAST_BACKEND; for claude: PGROAST_ROASTER_MODEL (default opus), PGROAST_CRITIC_MODEL
-(default claude-mythos-5-2; also used for synthesis), Opus, Mythos and Fable only; for codex:
+(default claude-mythos-5-2; also used for synthesis), Opus, Mythos and Fable only; for agy:
+PGROAST_AGY_MODEL (default gemini-4-neon-high), PGROAST_AGY_CRITIC_MODEL (default gemini-4-neon-xhigh
+in dual mode); for dual: PGROAST_DUAL_CRITIC_BACKEND (agy or claude, default agy); for codex:
 PGROAST_CODEX_MODEL (default: the CLI's configured model); PGROAST_CONCURRENCY (3),
 PGROAST_LLM_TIMEOUT_MS (900000).
 
@@ -142,8 +153,10 @@ export function parseArgs(argv: string[]): CliArgs | "help" {
         break;
       case "--backend": {
         const b = value(flag, inline).toLowerCase();
-        if (b !== "claude" && b !== "codex") throw new Error("--backend must be claude or codex");
-        a.backend = b;
+        if (!(BACKENDS as readonly string[]).includes(b)) {
+          throw new Error("--backend must be claude, codex, agy, or dual");
+        }
+        a.backend = b as BackendName;
         break;
       }
       case "--self":
@@ -300,6 +313,8 @@ function initDb(): number {
 
 async function main(): Promise<number> {
   if (process.argv[2] === "batch") return (await import("./batch.ts")).batchMain(process.argv.slice(3));
+  if (process.argv[2] === "shortlist") return (await import("./shortlist.ts")).shortlistMain(process.argv.slice(3));
+  if (process.argv[2] === "bugs") return (await import("./bugs.ts")).bugsMain(process.argv.slice(3));
   let args: CliArgs | "help";
   try {
     args = parseArgs(process.argv.slice(2));
@@ -332,7 +347,7 @@ async function main(): Promise<number> {
     const outDir = resolve(args.out ?? join(DEFAULT_OUT_ROOT, pushbackSlug(input)));
     mkdirSync(outDir, { recursive: true });
     const transcriptDir = join(outDir, "llm");
-    const backend = args.dryRun ? new DryRunBackend({ transcriptDir, print: () => undefined }) : new CliBackend({ backend: backendName, transcriptDir, log });
+    const backend = args.dryRun ? new DryRunBackend({ transcriptDir, print: () => undefined }) : createBackend(backendName, { transcriptDir, log });
     const result = await runPushback(input, { backend, models: { map: models.roaster, reduce: models.critic }, backendName: args.dryRun ? "dry-run" : backendName, log });
     result.stats.wall_ms = Date.now() - t0;
     writeFileSync(join(outDir, "pushback.json"), JSON.stringify(result, null, 2) + "\n");
@@ -363,7 +378,7 @@ async function main(): Promise<number> {
   const outDir = resolve(args.out ?? join(DEFAULT_OUT_ROOT, slugFor(proposal)));
   mkdirSync(outDir, { recursive: true });
   const transcriptDir = join(outDir, "llm");
-  const backend = args.dryRun ? new DryRunBackend({ transcriptDir }) : new CliBackend({ backend: backendName, transcriptDir, log });
+  const backend = args.dryRun ? new DryRunBackend({ transcriptDir }) : createBackend(backendName, { transcriptDir, log });
   if (!args.dryRun) log(`backend: ${backendName} CLI (subscription login, no tools)`);
 
   const roast = await runRoast(proposal, { backend, models, backendName: args.dryRun ? "dry-run" : backendName, hint: args.hint ?? null, enrich: !args.noEnrich, mode: args.self ? "self" : "review", rounds: args.rounds ?? 0, log });

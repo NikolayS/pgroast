@@ -4,7 +4,7 @@ import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { connect } from "../corpus/db.ts";
 import { flatUrl } from "../corpus/util.ts";
-import { CliBackend, DryRunBackend, modelsFromEnv, pickBackend, type BackendName, type LlmBackend } from "../roast/llm.ts";
+import { createBackend, DryRunBackend, modelsFromEnv, pickBackend, type BackendName, type LlmBackend } from "../roast/llm.ts";
 import type { Roast } from "../roast/schema.ts";
 import { msgidOf, type EvalCase } from "./cases.ts";
 import { runClassify, runJudge, type ClassifyItem } from "./judge.ts";
@@ -95,8 +95,8 @@ export async function scoreRun(o: ScoreOptions): Promise<Report> {
         const dry = r.backend === "dry-run";
         const mk = () => o.judgeBackend?.(dir, dry) ?? (dry
           ? new DryRunBackend({ transcriptDir: join(dir, "judge-llm"), print: () => undefined })
-          : new CliBackend({ backend: pickBackend(o.backend), transcriptDir: join(dir, "judge-llm"), log }));
-        const model = modelsFromEnv(process.env, dry ? "claude" : pickBackend(o.backend)).critic;
+          : createBackend(pickBackend(o.backend), { transcriptDir: join(dir, "judge-llm"), log }));
+        const model = modelsFromEnv(process.env, dry || o.judgeBackend ? (o.backend ?? "claude") : pickBackend(o.backend)).critic;
         // 1. level classification: sees the case only, never the roast; runs first
         const cc = readJson<{ items: ClassifyItem[]; calls: number; cost_usd: number | null }>(join(dir, "classify.json"));
         if (cc) {

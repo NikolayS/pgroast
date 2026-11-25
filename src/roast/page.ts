@@ -77,12 +77,14 @@ function objectionCard(r: Roast, o: FinalObjection, heading: string): string {
       ? "Held up in the counter-check."
       : o.status === "refuted"
         ? `Refuted in the counter-check (${o.critic.refutation_kind.replace(/_/g, " ")}).`
-        : `Withdrawn in round ${o.withdrawal?.round ?? "?"}.`;
+        : o.status === "duplicate"
+          ? `Duplicate${o.critic.duplicate_of ? ` of ${o.critic.duplicate_of}` : ""}.`
+          : `Withdrawn in round ${o.withdrawal?.round ?? "?"}.`;
   const parts: string[] = [];
   parts.push(`<section class="card" id="${esc(o.id)}">`);
   parts.push(`<h3>${esc(heading)}${esc(o.title)}</h3>`);
   parts.push(
-    `<p class="meta"><span class="tag${o.severity === "fatal" ? " fatal" : ""}">${esc(o.severity)}</span><span class="tag">${esc(LEVEL_NAMES[o.level] ?? o.level)}</span><span class="tag">${esc(touchLabel(o.category))}</span><span class="tag">angle: ${esc(o.angle)}</span>${o.round > 0 ? `<span class="tag">round ${esc(o.round)}</span>` : ""} <code>${esc(o.id)}</code></p>`,
+    `<p class="meta"><span class="tag${o.severity === "fatal" ? " fatal" : ""}">${esc(o.severity)}</span>${o.novelty ? `<span class="tag">${esc(o.novelty.replace(/_/g, " "))}</span>` : ""}<span class="tag">${esc(LEVEL_NAMES[o.level] ?? o.level)}</span><span class="tag">${esc(touchLabel(o.category))}</span><span class="tag">angle: ${esc(o.angle)}</span>${o.round > 0 ? `<span class="tag">round ${esc(o.round)}</span>` : ""} <code>${esc(o.id)}</code></p>`,
   );
   if (advice) parts.push(`<p><strong>Before you send: ${advice.action === "fix" ? "fix it" : "answer it in the cover letter"}.</strong> ${esc(advice.how)}</p>`);
   parts.push("<dl>");
@@ -169,6 +171,11 @@ export function renderPage(r: Roast): string {
   out.push("<p>These were raised and then refuted. They are shown so that you can see what was considered and why it was dropped.</p>");
   if (r.refuted.length === 0) out.push("<p>None.</p>");
   for (const o of r.refuted) out.push(objectionCard(r, o, ""));
+
+  if ((r.duplicates ?? []).length) {
+    out.push("<h2>Duplicate objections merged in the counter-check</h2>");
+    for (const o of r.duplicates ?? []) out.push(objectionCard(r, o, ""));
+  }
 
   if (r.withdrawn.length) {
     out.push("<h2>Objections withdrawn in a later round</h2>");

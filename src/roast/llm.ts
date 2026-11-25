@@ -9,10 +9,10 @@
 // evaluation the model cannot look up how a thread ended.
 
 import { spawn } from "node:child_process";
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
-import { validate, type JsonSchema } from "./schema.ts";
+import { ANGLES, validate, type Angle, type JsonSchema } from "./schema.ts";
 
 export interface CompleteArgs {
   system: string;
@@ -29,11 +29,15 @@ export interface LlmBackend {
   stats(): { calls: number; costUsd: number | null };
 }
 
-export type BackendName = "claude" | "codex";
-export const BACKENDS: readonly BackendName[] = ["claude", "codex"];
+export type SingleBackendName = "claude" | "codex" | "agy";
+export type BackendName = SingleBackendName | "dual";
+export const CLI_BACKENDS: readonly SingleBackendName[] = ["claude", "codex", "agy"];
+export const BACKENDS: readonly BackendName[] = ["claude", "codex", "agy", "dual"];
 
 export const DEFAULT_ROASTER_MODEL = "opus";
 export const DEFAULT_CRITIC_MODEL = "claude-mythos-5-2";
+export const DEFAULT_AGY_MODEL = "gemini-4-neon-high";
+export const DEFAULT_AGY_CRITIC_MODEL = "gemini-4-neon-xhigh";
 /** Shown where a model name is needed and the Codex CLI's configured default is used. */
 export const CODEX_DEFAULT = "codex-default";
 
@@ -45,6 +49,13 @@ export function assertAllowedModel(model: string): string {
   return model;
 }
 
+/** Allow Gemini 4 Neon, Claude Opus/Mythos/Fable, and other non-empty agy model identifiers. */
+export function assertAllowedAgyModel(model: string): string {
+  const m = model.trim();
+  if (!m) throw new Error("agy model must not be empty");
+  return m;
+}
+
 export interface Models {
   roaster: string;
   critic: string;
@@ -54,14 +65,39 @@ export interface Models {
 
 type Env = Record<string, string | undefined>;
 
+export function dualCriticBackend(env: Env = process.env): "agy" | "claude" {
+  const v = (env.PGROAST_DUAL_CRITIC_BACKEND ?? "agy").trim().toLowerCase();
+  if (v === "claude" || v === "agy") return v;
+  throw new Error(`PGROAST_DUAL_CRITIC_BACKEND must be "agy" or "claude", got "${v}"`);
+}
+
 /**
  * claude: PGROAST_ROASTER_MODEL / PGROAST_CRITIC_MODEL, Opus, Mythos or Fable only.
  * codex: PGROAST_CODEX_MODEL for every stage, or the CLI's configured default. No names are guessed.
+ * agy: PGROAST_AGY_MODEL (default gemini-4-neon-high) / PGROAST_AGY_CRITIC_MODEL (defaults to PGROAST_AGY_MODEL).
+ * dual: cross-family (Claude + agy); roasters alternate across families, Critic and Synthesis run on opposite families.
  */
 export function modelsFromEnv(env: Env = process.env, backend: BackendName = "claude"): Models {
   if (backend === "codex") {
     const m = env.PGROAST_CODEX_MODEL?.trim() || CODEX_DEFAULT;
     return { roaster: m, critic: m, synth: m, brief: m };
+  }
+  if (backend === "agy") {
+    const roaster = assertAllowedAgyModel(env.PGROAST_AGY_MODEL?.trim() || DEFAULT_AGY_MODEL);
+    const critic = assertAllowedAgyModel(env.PGROAST_AGY_CRITIC_MODEL?.trim() || roaster);
+    return { roaster, critic, synth: critic, brief: roaster };
+  }
+  if (backend === "dual") {
+    const claude = modelsFromEnv(env, "claude");
+    const agyRoaster = assertAllowedAgyModel(env.PGROAST_AGY_MODEL?.trim() || DEFAULT_AGY_MODEL);
+    const agyCritic = assertAllowedAgyModel(env.PGROAST_AGY_CRITIC_MODEL?.trim() || DEFAULT_AGY_CRITIC_MODEL);
+    const criticOn = dualCriticBackend(env);
+    return {
+      roaster: `${claude.roaster}+${agyRoaster}`,
+      critic: criticOn === "agy" ? agyCritic : claude.critic,
+      synth: criticOn === "agy" ? claude.synth : agyCritic,
+      brief: criticOn === "agy" ? claude.brief : agyRoaster,
+    };
   }
   const roaster = assertAllowedModel(env.PGROAST_ROASTER_MODEL || DEFAULT_ROASTER_MODEL);
   const critic = assertAllowedModel(env.PGROAST_CRITIC_MODEL || DEFAULT_CRITIC_MODEL);
@@ -69,9 +105,16 @@ export function modelsFromEnv(env: Env = process.env, backend: BackendName = "cl
 }
 
 /** Variables that would make a CLI bill an API key. The CLIs must use their subscription login. */
-export const API_KEY_VARS = ["ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "OPENAI_API_KEY", "CODEX_API_KEY"] as const;
+export const API_KEY_VARS = [
+  "ANTHROPIC_API_KEY",
+  "ANTHROPIC_AUTH_TOKEN",
+  "OPENAI_API_KEY",
+  "CODEX_API_KEY",
+  "GEMINI_API_KEY",
+  "GOOGLE_API_KEY",
+] as const;
 
-/** The environment for a spawned CLI: the caller's, without any API key variable. */
+/** The environment for a spawned CLI: the caller's, without any API key variable. Pure when `env` is passed. */
 export function childEnv(env: Env = process.env): Record<string, string> {
   const out: Record<string, string> = {};
   for (const [k, v] of Object.entries(env)) {
@@ -80,20 +123,41 @@ export function childEnv(env: Env = process.env): Record<string, string> {
   return out;
 }
 
+/**
+ * Environment for spawning `claude`: strips API keys, and if CLAUDE_CONFIG_DIR is unset
+ * while `~/.claude/.claude.json` exists on disk, sets CLAUDE_CONFIG_DIR to `~/.claude`
+ * so `claude -p` picks up the same subscription login as interactive sessions.
+ */
+export function resolveClaudeEnv(
+  env: Env = process.env,
+  exists: (path: string) => boolean = existsSync,
+): Record<string, string> {
+  const out = childEnv(env);
+  if (!out.CLAUDE_CONFIG_DIR) {
+    const home = out.HOME || homedir();
+    const candidate = join(home, ".claude");
+    if (exists(join(candidate, ".claude.json"))) {
+      out.CLAUDE_CONFIG_DIR = candidate;
+    }
+  }
+  return out;
+}
+
 export function onPath(bin: string): string | null {
   return Bun.which(bin);
 }
 
-/** --backend / PGROAST_BACKEND, else claude when installed, else codex. */
+/** --backend / PGROAST_BACKEND, else claude when installed, else codex, else agy. */
 export function pickBackend(flag: string | undefined, env: Env = process.env, which: (b: string) => string | null = onPath): BackendName {
   const want = (flag ?? env.PGROAST_BACKEND ?? "").trim().toLowerCase();
   if (want) {
-    if (!(BACKENDS as readonly string[]).includes(want)) throw new Error(`unknown backend "${want}": use claude or codex`);
+    if (!(BACKENDS as readonly string[]).includes(want)) throw new Error(`unknown backend "${want}": use claude, codex, agy, or dual`);
     return want as BackendName;
   }
   if (which("claude")) return "claude";
   if (which("codex")) return "codex";
-  throw new Error("neither the claude nor the codex CLI is on PATH: install Claude Code or Codex CLI and sign in (run `pgroast doctor`)");
+  if (which("agy")) return "agy";
+  throw new Error("none of the claude, codex, or agy CLIs is on PATH: install Claude Code, Codex CLI, or Antigravity CLI and sign in (run `pgroast doctor`)");
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -215,12 +279,14 @@ export interface RawReply {
 
 /** How to run one CLI: the command line, what goes to stdin, how to read the output. */
 export interface CliDriver {
-  name: BackendName;
+  name: SingleBackendName;
   bin: string;
   checkModel(model: string): void;
-  argv(args: CompleteArgs): string[];
+  argv(args: CompleteArgs, prompt?: string): string[];
   stdin(args: CompleteArgs, prompt: string): string;
   parse(stdout: string): RawReply;
+  /** Optional custom environment builder (defaults to childEnv()). */
+  env?: () => Record<string, string>;
   /** What to tell the user when a call fails because nobody is signed in. */
   loginHint: string;
 }
@@ -324,6 +390,7 @@ export function claudeDriver(bin = process.env.PGROAST_CLAUDE_BIN ?? "claude"): 
     argv: (a) => claudeArgs(a.model, a.system),
     stdin: (_a, prompt) => prompt,
     parse: parseClaudeStream,
+    env: () => resolveClaudeEnv(),
     get loginHint() {
       return claudeLoginHint();
     },
@@ -427,8 +494,71 @@ export function codexDriver(cwd: string, bin = process.env.PGROAST_CODEX_BIN ?? 
   };
 }
 
+/** Combined prompt for `agy -p`: system instructions + explicit no-tools guard + user prompt. */
+export function agyPrompt(system: string, prompt: string): string {
+  return `${system}\n\n---\n\nYou have no tools in this task and need none: do not run commands, read files, search the web, or call any tool. Answer from the text below only.\n\n${prompt}`;
+}
+
+/** Flags for Antigravity CLI (`agy`) headless JSON mode with slash commands disabled. */
+export function agyArgs(model: string, combinedPrompt: string): string[] {
+  return [
+    "--model",
+    model,
+    "--disable-slash-commands",
+    "--output-format",
+    "json",
+    "-p",
+    combinedPrompt,
+  ];
+}
+
+/**
+ * Parse the JSON output of `agy --output-format json -p ...`:
+ * `{ status, response, duration_seconds, num_turns, usage }`.
+ * Throws if `status !== "SUCCESS"`, `num_turns > 1` (guarantees no tool calls), or `response` is empty.
+ */
+export function parseAgyJson(stdout: string): RawReply {
+  const trimmed = stdout.trim();
+  if (!trimmed) throw new Error("empty output from agy");
+  let ev: Record<string, unknown>;
+  try {
+    ev = JSON.parse(trimmed) as Record<string, unknown>;
+  } catch {
+    try {
+      ev = extractJson(trimmed) as Record<string, unknown>;
+    } catch {
+      throw new Error("no JSON object found in the agy output");
+    }
+  }
+  const status = String(ev.status ?? "");
+  if (status !== "SUCCESS") {
+    const detail = String(ev.error ?? ev.message ?? ev.response ?? "unknown").slice(0, 400);
+    throw new Error(`agy returned status "${status || "unknown"}": ${detail}`);
+  }
+  if (typeof ev.num_turns === "number" && ev.num_turns > 1) {
+    throw new Error(`agy took ${ev.num_turns} turns (tool call suspected); refusing to use its output`);
+  }
+  const text = typeof ev.response === "string" ? ev.response : "";
+  if (!text.trim()) throw new Error("empty response in the agy output");
+  const durationMs = typeof ev.duration_seconds === "number" ? Math.round(ev.duration_seconds * 1000) : 0;
+  const model = typeof ev.model === "string" ? ev.model : "";
+  return { text, costUsd: null, model, durationMs, usage: ev.usage ?? null };
+}
+
+export function agyDriver(_cwd: string, bin = process.env.PGROAST_AGY_BIN ?? "agy"): CliDriver {
+  return {
+    name: "agy",
+    bin,
+    checkModel: (m) => void assertAllowedAgyModel(m),
+    argv: (a, prompt) => agyArgs(a.model, agyPrompt(a.system, prompt ?? a.prompt)),
+    stdin: () => "",
+    parse: parseAgyJson,
+    loginHint: "run `agy` and sign in with your Google/Antigravity account, then try again",
+  };
+}
+
 export interface CliBackendOptions {
-  backend?: BackendName;
+  backend?: SingleBackendName;
   transcriptDir: string;
   concurrency?: number;
   timeoutMs?: number;
@@ -438,9 +568,16 @@ export interface CliBackendOptions {
 }
 
 /** Run a CLI once: argv, stdin in, stdout out. API key variables are removed from its environment. */
-export function runCli(bin: string, argv: string[], stdin: string, cwd: string, timeoutMs: number): Promise<{ stdout: string; stderr: string; code: number | null }> {
+export function runCli(
+  bin: string,
+  argv: string[],
+  stdin: string,
+  cwd: string,
+  timeoutMs: number,
+  env: Record<string, string> = childEnv(),
+): Promise<{ stdout: string; stderr: string; code: number | null }> {
   return new Promise((resolve, reject) => {
-    const child = spawn(bin, argv, { cwd, stdio: ["pipe", "pipe", "pipe"], env: childEnv() });
+    const child = spawn(bin, argv, { cwd, stdio: ["pipe", "pipe", "pipe"], env });
     let stdout = "";
     let stderr = "";
     const timer = setTimeout(() => {
@@ -477,7 +614,8 @@ export class CliBackend implements LlmBackend {
     this.transcript = new Transcript(opts.transcriptDir);
     // An empty directory: nothing for a session to pick up, even if a tool slipped through.
     this.cwd = mkdtempSync(join(tmpdir(), "pgroast-llm-"));
-    this.driver = (opts.backend ?? "claude") === "codex" ? codexDriver(this.cwd) : claudeDriver();
+    const b = opts.backend ?? "claude";
+    this.driver = b === "codex" ? codexDriver(this.cwd) : b === "agy" ? agyDriver(this.cwd) : claudeDriver();
   }
 
   stats() {
@@ -488,9 +626,11 @@ export class CliBackend implements LlmBackend {
     if (this.opts.runner) return this.opts.runner(args, prompt);
     const timeoutMs = this.opts.timeoutMs ?? Number(process.env.PGROAST_LLM_TIMEOUT_MS || 900_000);
     const d = this.driver;
-    const r = await runCli(d.bin, d.argv(args), d.stdin(args, prompt), this.cwd, timeoutMs);
+    const r = await runCli(d.bin, d.argv(args, prompt), d.stdin(args, prompt), this.cwd, timeoutMs, d.env ? d.env() : childEnv());
     try {
-      return d.parse(r.stdout);
+      const parsed = d.parse(r.stdout);
+      if (!parsed.model) parsed.model = args.model;
+      return parsed;
     } catch (e) {
       const detail = `${r.stdout.slice(-300)} ${r.stderr.slice(-500)}`;
       const login = /log ?in|sign ?in|auth|unauthori[sz]ed|401|credential/i.test(detail + (e as Error).message) ? ` Not signed in? ${d.loginHint}.` : "";
@@ -555,6 +695,114 @@ export class ClaudeCliBackend extends CliBackend {
   constructor(opts: Omit<CliBackendOptions, "backend">) {
     super({ ...opts, backend: "claude" });
   }
+}
+
+/** Deterministic stage/angle routing for cross-family `--backend dual`. */
+export function routeDualStage(
+  label: string,
+  criticOn: "agy" | "claude" = "agy",
+): { backend: "claude" | "agy"; role: "brief" | "roaster" | "critic" | "synth" } {
+  const synthOn: "claude" | "agy" = criticOn === "agy" ? "claude" : "agy";
+  if (label === "critic" || label.startsWith("critic-") || label.endsWith("-supervisor")) {
+    return { backend: criticOn, role: "critic" };
+  }
+  if (label === "synth" || label === "tone-repair" || label === "reduce") {
+    return { backend: synthOn, role: "synth" };
+  }
+  if (label === "brief" || label === "relevance" || label.startsWith("enrich-")) {
+    return { backend: synthOn, role: "brief" };
+  }
+  // Roaster angles (round 0, reflection rounds, supervisor follow-ups): alternate across families.
+  const angle = ANGLES.find((a) => label.endsWith(`-${a}`) || label === a) as Angle | undefined;
+  if (angle) {
+    const idx = ANGLES.indexOf(angle);
+    return { backend: idx % 2 === 0 ? "claude" : "agy", role: "roaster" };
+  }
+  // Map chunks or generic labels (e.g. pushback map-1, map-2): alternate by trailing number, else synthOn.
+  const num = label.match(/(\d+)$/);
+  if (num) return { backend: Number(num[1]) % 2 === 1 ? "claude" : "agy", role: "roaster" };
+  return { backend: synthOn, role: "roaster" };
+}
+
+export interface DualBackendOptions {
+  transcriptDir: string;
+  concurrency?: number;
+  timeoutMs?: number;
+  log?: (msg: string) => void;
+  env?: Env;
+  /** Injected for tests: receives which family was chosen along with CompleteArgs & prompt. */
+  runner?: (family: "claude" | "agy", args: CompleteArgs, prompt: string) => Promise<RawReply>;
+}
+
+/**
+ * Cross-family backend: splits roaster angles across Claude and `agy` (Gemini 4 Neon),
+ * and runs Critic and Synthesis on opposite families (configurable via PGROAST_DUAL_CRITIC_BACKEND).
+ */
+export class DualBackend implements LlmBackend {
+  readonly dryRun = false;
+  readonly criticOn: "agy" | "claude";
+  readonly claudeModels: Models;
+  readonly agyModels: Models;
+  private readonly claude: CliBackend;
+  private readonly agy: CliBackend;
+
+  constructor(opts: DualBackendOptions) {
+    const env = opts.env ?? process.env;
+    this.criticOn = dualCriticBackend(env);
+    this.claudeModels = modelsFromEnv(env, "claude");
+    const agyRoaster = assertAllowedAgyModel(env.PGROAST_AGY_MODEL?.trim() || DEFAULT_AGY_MODEL);
+    const agyCritic = assertAllowedAgyModel(env.PGROAST_AGY_CRITIC_MODEL?.trim() || DEFAULT_AGY_CRITIC_MODEL);
+    this.agyModels = { roaster: agyRoaster, critic: agyCritic, synth: agyCritic, brief: agyRoaster };
+    this.claude = new CliBackend({
+      backend: "claude",
+      transcriptDir: join(opts.transcriptDir, "claude"),
+      concurrency: opts.concurrency,
+      timeoutMs: opts.timeoutMs,
+      log: opts.log,
+      runner: opts.runner ? (a, p) => opts.runner!("claude", a, p) : undefined,
+    });
+    this.agy = new CliBackend({
+      backend: "agy",
+      transcriptDir: join(opts.transcriptDir, "agy"),
+      concurrency: opts.concurrency,
+      timeoutMs: opts.timeoutMs,
+      log: opts.log,
+      runner: opts.runner ? (a, p) => opts.runner!("agy", a, p) : undefined,
+    });
+  }
+
+  stats() {
+    const a = this.claude.stats();
+    const b = this.agy.stats();
+    return {
+      calls: a.calls + b.calls,
+      costUsd: a.costUsd != null && b.costUsd != null ? a.costUsd + b.costUsd : null,
+    };
+  }
+
+  async complete<T>(args: CompleteArgs): Promise<T> {
+    const { backend, role } = routeDualStage(args.label, this.criticOn);
+    const model = backend === "claude" ? this.claudeModels[role] : this.agyModels[role];
+    const target = backend === "claude" ? this.claude : this.agy;
+    return target.complete<T>({ ...args, model });
+  }
+}
+
+/** Factory for creating any single-CLI or dual cross-family backend. */
+export function createBackend(
+  backend: BackendName,
+  opts: Omit<CliBackendOptions, "backend"> & { env?: Env },
+): LlmBackend {
+  if (backend === "dual") {
+    return new DualBackend({
+      transcriptDir: opts.transcriptDir,
+      concurrency: opts.concurrency,
+      timeoutMs: opts.timeoutMs,
+      log: opts.log,
+      env: opts.env,
+    });
+  }
+  return new CliBackend({ ...opts, backend });
 }
 
 // ---------------------------------------------------------------------------------------------

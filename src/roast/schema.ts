@@ -4,7 +4,7 @@
 // ---------------------------------------------------------------------------------------------
 // Constants
 
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
 /** Verbatim from the issue. Never produced by the model. */
 export const DISCLOSURE = "Prepared by an AI harness; treat as a devil's advocate, not a verdict.";
@@ -73,6 +73,12 @@ export type Angle = (typeof ANGLES)[number];
 export const SEVERITIES = ["fatal", "fixable"] as const;
 export type Severity = (typeof SEVERITIES)[number];
 
+export const NOVELTIES = ["new", "open_in_thread", "revisits_precedent"] as const;
+export type Novelty = (typeof NOVELTIES)[number];
+
+export const CRITIC_VERDICTS = ["survived", "refuted", "duplicate"] as const;
+export type CriticDecision = (typeof CRITIC_VERDICTS)[number];
+
 export const REFUTATION_KINDS = [
   "none",
   "wrong_facts",
@@ -106,6 +112,8 @@ export interface RawObjection {
   category: Category;
   touch_points: TouchPointId[];
   severity: Severity;
+  /** Whether this objection is new, revisits an unanswered prior attempt, or is already open in the current thread. */
+  novelty: Novelty;
   /** The horror story: what concretely goes wrong, for whom, when. */
   failure_scenario: string;
   /** Why this applies to this proposal (facts from the thread / brief). */
@@ -135,10 +143,12 @@ export interface RoasterOutput {
 
 export interface CriticVerdict {
   objection_id: string;
-  verdict: "survived" | "refuted";
+  verdict: CriticDecision;
   refutation_kind: RefutationKind;
+  /** Set when verdict === "duplicate": the surviving objection id this duplicates. */
+  duplicate_of: string | null;
   reasoning: string;
-  /** Set when the objection survives but with a different severity. */
+  /** Set when the objection survives with a different severity (upgrade to fatal or downgrade to fixable). */
   adjusted_severity: Severity | null;
 }
 
@@ -334,7 +344,7 @@ export interface FinalObjection extends RawObjection {
   round: number;
   /** Set when the roaster restated the objection in a later round. */
   revised_in_round: number | null;
-  status: "survived" | "refuted" | "withdrawn";
+  status: "survived" | "refuted" | "duplicate" | "withdrawn";
   /** Set when the roaster took the objection back; withdrawn objections are kept, not deleted. */
   withdrawal: { round: number; reason: string } | null;
   critic: {
@@ -342,6 +352,8 @@ export interface FinalObjection extends RawObjection {
     reasoning: string;
     /** Severity the roaster gave, when the critic changed it. */
     original_severity: Severity | null;
+    /** Surviving objection id when status === "duplicate". */
+    duplicate_of?: string | null;
   };
   /** Precedents relied on, resolved by code from precedent_ids. Links come from the DB only. */
   precedents: { id: string; title: string; url: string; thread_urls: string[]; date: string | null; status: string }[];
@@ -413,6 +425,12 @@ export interface RoastInputInfo {
   before: string | null;
   hint: string | null;
   attachments_read: string[];
+  /** v2: revision metadata for the latest visible patch set across all senders. */
+  latest_patch?: { version: string | null; from: string | null; date: string | null } | null;
+  /** v2: number of attached threads merged (1 for single-thread or --blind runs). */
+  threads_read?: number;
+  /** v2: files touched by the read patch prose (for subsystem expert routing). */
+  touched_files?: string[];
 }
 
 export interface Roast {
@@ -441,6 +459,8 @@ export interface Roast {
   /** Survived the critic but not listed in the steelman. */
   other_surviving: FinalObjection[];
   refuted: FinalObjection[];
+  /** v2: objections marked as duplicates of another surviving objection by the critic. */
+  duplicates?: FinalObjection[];
   /** Taken back by their own roaster in a reflection round, with the reason. */
   withdrawn: FinalObjection[];
   touch_points: TouchPointResult[];
@@ -577,6 +597,7 @@ const OBJECTION_SCHEMA: JsonSchema = {
     category: { type: "string", enum: CATEGORIES },
     touch_points: { type: "array", items: { type: "string", enum: TOUCH_POINT_IDS } },
     severity: { type: "string", enum: SEVERITIES },
+    novelty: { type: "string", enum: NOVELTIES },
     failure_scenario: nonEmpty,
     argument: nonEmpty,
     precedent_ids: { type: "array", items: str },
@@ -613,8 +634,9 @@ export const CRITIC_SCHEMA: JsonSchema = {
         type: "object",
         properties: {
           objection_id: nonEmpty,
-          verdict: { type: "string", enum: ["survived", "refuted"] },
+          verdict: { type: "string", enum: CRITIC_VERDICTS },
           refutation_kind: { type: "string", enum: REFUTATION_KINDS },
+          duplicate_of: { type: "string", nullable: true },
           reasoning: nonEmpty,
           adjusted_severity: { type: "string", enum: SEVERITIES, nullable: true },
         },

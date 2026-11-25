@@ -22,6 +22,8 @@ export interface ThreadMessage {
   subject: string;
   body: string;
   attachments: Attachment[];
+  /** Originating flat thread URL when messages are merged across multiple CF threads. */
+  threadUrl?: string;
 }
 
 export interface Thread {
@@ -78,6 +80,10 @@ export interface CommitMessage {
 export interface PatchProse {
   attachment: Attachment;
   fromMessageIndex: number;
+  fromAuthor?: string;
+  fromDate?: string;
+  /** True when this attachment belongs to the latest patch revision in the visible thread. */
+  isLatest?: boolean;
   commitMessages: CommitMessage[];
   /** Paths touched (from the diff headers). Names only. */
   files: string[];
@@ -116,5 +122,13 @@ export interface ProposalInput {
   /** ISO date-time of the first message of the thread. */
   threadStart: string;
   patchProse: PatchProse[];
+  /** Sender of the latest visible patch set (may differ from the original thread starter). */
+  latestPatchFrom?: string | null;
+  /** ISO date-time of the latest visible patch set. */
+  latestPatchDate?: string | null;
+  /** Revision tag inferred from the latest patch attachment filenames (e.g. "v8", "v20251216"). */
+  latestPatchVersion?: string | null;
+  /** All threads read (when a CommitFest entry has multiple attached threads). */
+  threadsRead?: { url: string; subject: string; messages: number }[];
   warnings: string[];
 }

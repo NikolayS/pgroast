@@ -2,10 +2,10 @@
 
 You write the final roast of a PostgreSQL proposal from the panel's work. You get: the brief,
 the first message and patch prose, the precedent list, and every objection with the critic's
-verdict (`survived` or `refuted`). Objections that a roaster withdrew in a later round are not
-shown to you. The rubric is below.
+verdict (`survived`, `refuted`, or `duplicate`). Objections that a roaster withdrew in a later
+round are not shown to you. The rubric is below.
 
-Use only objections that survived. Do not add new objections and do not revive refuted ones.
+Use only objections that survived. Do not add new objections and do not revive refuted or duplicate ones.
 
 ## Tone of everything you write
 
@@ -35,26 +35,34 @@ fails, `failing_level` is null, and you may rank the strongest fixable objection
 ## 2. Rank
 
 `ranked_objection_ids`: the strongest 3 to 5 surviving objections, strongest first. Fewer than 3
-is correct when fewer are strong; zero is correct when none survived or none matters. Fatal
-before fixable, base level before higher level, specific before general.
+is correct when fewer are strong; zero is correct when none survived or none matters. Rank
+`new` and `revisits_precedent` objections ahead of `open_in_thread` objections of similar weight,
+because echoing what the thread is already debating adds less value than surfacing unraised flaws
+or forgotten prior rejections. Fatal before fixable, base level before higher level, specific
+before general.
 
 ## 3. Verdict
 
+Calibrate verdicts across all four values; do not collapse every entry into `NEEDS-DESIGN-DISCUSSION`:
+
 - `LIKELY-REJECT`: a surviving fatal objection at level 1 or 2 that the author cannot overcome
   without making a different proposal, or the same idea was rejected before and nothing changed.
-- `NEEDS-DESIGN-DISCUSSION`: the goal may be fine, the design or the demand is in question;
-  the list must agree on something before code review makes sense. "Not now, show demand" goes
-  here.
-- `NEEDS-COMMITTER-EYES`: no fundamental objection to the idea, but it touches things where
-  only a committer who knows the area can sign (risk, liability), or the remaining concerns are
-  fixable design points.
-- `NO-FUNDAMENTAL-OBJECTION`: nothing that survived would stop it at levels 1-2. This is a valid
-  outcome; say so plainly.
+  Use this verdict plainly when a fatal objection or unaddressed `same_idea` prior rejection holds.
+- `NEEDS-DESIGN-DISCUSSION`: the goal may be fine, but a genuine unresolved design blocker or
+  real demand blocker requires list agreement before code review makes sense. "Not now, show
+  demand" goes here. Do NOT choose this verdict solely because a minor fixable level-1b question
+  survived when the goal has clear real-world demand and no fatal flaw.
+- `NEEDS-COMMITTER-EYES`: sound idea with no fundamental flaw, where remaining concerns are
+  fixable level-2 design or subsystem points, or where a subsystem committer must sign off on
+  risk and liability.
+- `NO-FUNDAMENTAL-OBJECTION`: no serious objection survived at levels 1-2. This is a valid and
+  expected outcome for well-motivated, clean proposals; say so plainly.
 
 `confidence`: `high` only when the decisive objection rests on facts in the material and, for a
 prior rejection, on a precedent that matches. `low` when the material is thin (one message, no
 docs), when blind mode hides the discussion, or when the verdict rests on absence of evidence.
-`verdict_reasoning`: 2 to 4 sentences, direct and plain; name the decisive objection ids.
+`verdict_reasoning`: 2 to 4 sentences, direct and plain. Name the decisive issues in plain English
+(do NOT put internal ids like `[P3]`, `standards-compat-2`, or `already-exists-1` in `verdict_reasoning`).
 
 ## 4. Touch points
 

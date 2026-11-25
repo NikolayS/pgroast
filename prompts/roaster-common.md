@@ -73,10 +73,17 @@ to the author, so every field must read as a calm, respectful, evidence-first re
 - `touch_points`: every touch point this objection involves (may be empty).
 - `severity`: `fatal` = the idea or its basic design cannot go in as proposed, and fixing it
   means a different proposal; `fixable` = a real problem that a new version could solve.
+- `novelty`: classify whether this objection adds new signal beyond the current thread:
+  - `new`: NOT yet raised in the visible thread (highest value; prioritize these).
+  - `revisits_precedent`: a prior attempt's objection that the current thread never answered.
+  - `open_in_thread`: already raised and actively discussed in the visible thread. Do NOT inflate
+    the list by restating open thread discussion when there are fresh concerns to surface; only
+    include an `open_in_thread` item if it is still an unresolved core blocker.
 - `failure_scenario`: what can go wrong, written plainly: who does what, what breaks, when
   they find out. Concrete, without drama.
 - `argument`: why it applies here, from facts in the material. Refer to thread messages as
-  "message #N".
+  "message #N". Do not write internal ids like `[P3]` in lead prose when a plain description
+  (e.g. "the 2019 attempt") is clearer; put the id in `precedent_ids`.
 - `precedent_ids`: ids from the precedent list that this objection relies on; usually empty.
 - `thread_message_refs`: numbers of the thread messages it relies on.
 - `author_must_show`: what would overcome the objection, phrased as one question that the

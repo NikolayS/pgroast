@@ -7,7 +7,7 @@
 
 import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { CliBackend, DryRunBackend, modelsFromEnv, pickBackend, type BackendName } from "../roast/llm.ts";
+import { createBackend, DryRunBackend, modelsFromEnv, pickBackend, type BackendName } from "../roast/llm.ts";
 import { closePrecedents } from "../roast/precedents.ts";
 import { runRoast } from "../roast/pipeline.ts";
 import { renderCompactMarkdown, renderMarkdown } from "../roast/render.ts";
@@ -76,7 +76,7 @@ export interface CaseMeta {
 export async function runEval(o: RunEvalOptions): Promise<{ done: number; skipped: number; failed: number }> {
   const log = o.log ?? ((m: string) => console.error(m));
   const repeats = Math.max(1, o.repeat ?? 1);
-  const backendName: BackendName = o.dryRun ? (o.backend ?? "claude") : pickBackend(o.backend);
+  const backendName: BackendName = o.dryRun || o.roastFn ? (o.backend ?? "claude") : pickBackend(o.backend);
   const models = modelsFromEnv(process.env, backendName);
   const roast = o.roastFn ?? runRoast;
   const load = o.loadFn ?? loadProposal;
@@ -99,7 +99,7 @@ export async function runEval(o: RunEvalOptions): Promise<{ done: number; skippe
     const transcriptDir = join(dir, "llm");
     const backend = o.dryRun
       ? new DryRunBackend({ transcriptDir, print: () => undefined })
-      : new CliBackend({ backend: backendName, transcriptDir, log: (m) => log(`[${tag}] ${m}`) });
+      : createBackend(backendName, { transcriptDir, log: (m) => log(`[${tag}] ${m}`) });
     const meta: CaseMeta = {
       case_id: c.id, repeat: k, started_at: new Date(t0).toISOString(), wall_ms: 0, llm_calls: 0, cost_usd: null,
       options: {

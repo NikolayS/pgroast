@@ -11,7 +11,7 @@
 
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { CliBackend, DryRunBackend, modelsFromEnv, pickBackend, type BackendName } from "./roast/llm.ts";
+import { BACKENDS, createBackend, DryRunBackend, modelsFromEnv, pickBackend, type BackendName } from "./roast/llm.ts";
 import { closePrecedents } from "./roast/precedents.ts";
 import { runRoast } from "./roast/pipeline.ts";
 import { renderCompactMarkdown, renderMarkdown, renderSummary } from "./roast/render.ts";
@@ -132,7 +132,7 @@ export function renderIndex(outDir: string, selected: BatchEntry[] = []): string
 export async function runBatch(o: BatchOptions): Promise<{ done: number; skipped: number; failed: number; stopped: string | null; selected: number }> {
   const log = o.log ?? ((m: string) => console.error(m));
   const outDir = resolve(o.outDir);
-  const backendName: BackendName = o.dryRun ? (o.backend ?? "claude") : pickBackend(o.backend);
+  const backendName: BackendName = o.dryRun || o.roastOne ? (o.backend ?? "claude") : pickBackend(o.backend);
   const models = modelsFromEnv(process.env, backendName);
   const transcripts = resolve(o.transcriptsDir ?? join(CACHE_ROOT, "batch-llm", String(o.cf)));
 
@@ -153,7 +153,7 @@ export async function runBatch(o: BatchOptions): Promise<{ done: number; skipped
     o.roastOne ??
     (async (e: BatchEntry, dir: string) => {
       const transcriptDir = join(transcripts, String(e.id));
-      const backend = o.dryRun ? new DryRunBackend({ transcriptDir, print: () => undefined }) : new CliBackend({ backend: backendName, transcriptDir, log: (m) => log(`[${e.id}] ${m}`) });
+      const backend = o.dryRun ? new DryRunBackend({ transcriptDir, print: () => undefined }) : createBackend(backendName, { transcriptDir, log: (m) => log(`[${e.id}] ${m}`) });
       const proposal = await loadProposal(String(e.id), { blind: o.blind, offline: o.offline });
       return runRoast(proposal, { backend, models, backendName: o.dryRun ? "dry-run" : backendName, hint: null, enrich: true, mode: "review", rounds: 0, log: (m) => log(`[${e.id}] ${m}`) });
     });
@@ -222,9 +222,9 @@ export function parseBatchArgs(argv: string[]): BatchOptions {
     else if (tok === "--concurrency") o.concurrency = int(tok, 1);
     else if (tok === "--only") o.only = value(tok).split(",").map(Number).filter((n) => Number.isInteger(n) && n > 0);
     else if (tok === "--backend") {
-      const b = value(tok);
-      if (b !== "claude" && b !== "codex") throw new Error("--backend is claude or codex");
-      o.backend = b;
+      const b = value(tok).toLowerCase();
+      if (!(BACKENDS as readonly string[]).includes(b)) throw new Error("--backend must be claude, codex, agy, or dual");
+      o.backend = b as BackendName;
     } else if (tok === "--transcripts") o.transcriptsDir = value(tok);
     else if (tok === "--dry-run") o.dryRun = true;
     else if (tok === "--offline") o.offline = true;

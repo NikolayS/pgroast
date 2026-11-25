@@ -246,6 +246,7 @@ export interface Assembled {
   objections: FinalObjection[];
   other_surviving: FinalObjection[];
   refuted: FinalObjection[];
+  duplicates: FinalObjection[];
   withdrawn: FinalObjection[];
   touch_points: TouchPointResult[];
   prior_attempts: PriorAttempt[];
@@ -300,6 +301,7 @@ export function assemble(a: AssembleArgs): Assembled {
   const { synth, warnings } = a;
   const survived = a.objections.filter((o) => o.status === "survived");
   const refuted = a.objections.filter((o) => o.status === "refuted");
+  const duplicates = a.objections.filter((o) => o.status === "duplicate");
   const withdrawn = a.objections.filter((o) => o.status === "withdrawn");
   const byId = new Map(survived.map((o) => [o.id, o]));
 
@@ -365,7 +367,8 @@ export function assemble(a: AssembleArgs): Assembled {
   // Prior attempts.
   const prior = resolvePriorAttempts(synth.prior_attempts, a.precedents, a.threadText, a.report, "synth");
 
-  // Verdict guards.
+  // Verdict guards (v2 calibrated: avoid collapsing sound proposals into NEEDS-DESIGN-DISCUSSION
+  // solely because a minor fixable level-1b question survived).
   let verdict = synth.verdict;
   const fatalRanked = ranked.filter((o) => o.severity === "fatal");
   if (verdict === "LIKELY-REJECT" && fatalRanked.length === 0 && !prior.some((p) => p.relation === "same_idea")) {
@@ -376,11 +379,13 @@ export function assemble(a: AssembleArgs): Assembled {
     warnings.push("synthesis said NO-FUNDAMENTAL-OBJECTION but ranked a fatal objection; changed to NEEDS-DESIGN-DISCUSSION");
     verdict = "NEEDS-DESIGN-DISCUSSION";
   }
-  // A listed objection at level 1 means desirability or the problem statement is in question,
-  // which by the verdict definitions (prompts/synth.md) is at least a design discussion.
-  const level1 = ranked.find((o) => o.level === "1a" || o.level === "1b");
-  if (level1 && (verdict === "NEEDS-COMMITTER-EYES" || verdict === "NO-FUNDAMENTAL-OBJECTION")) {
-    warnings.push(`synthesis said ${verdict} but listed a level ${level1.level} objection (${level1.id}); changed to NEEDS-DESIGN-DISCUSSION`);
+  // Force NEEDS-DESIGN-DISCUSSION for level 1 only when level 1 actually failed (a fatal level-1
+  // objection, synth set failing_level to 1a/1b, or not_now applies) — NOT for a minor fixable 1b note.
+  const blockingLevel1 = ranked.find(
+    (o) => (o.level === "1a" || o.level === "1b") && (o.severity === "fatal" || failing === "1a" || failing === "1b" || synth.not_now.applies),
+  );
+  if (blockingLevel1 && (verdict === "NEEDS-COMMITTER-EYES" || verdict === "NO-FUNDAMENTAL-OBJECTION")) {
+    warnings.push(`synthesis said ${verdict} but listed a blocking level ${blockingLevel1.level} objection (${blockingLevel1.id}); changed to NEEDS-DESIGN-DISCUSSION`);
     verdict = "NEEDS-DESIGN-DISCUSSION";
   }
 
@@ -401,7 +406,7 @@ export function assemble(a: AssembleArgs): Assembled {
     return { id: t.id, label: t.label, hit, reason };
   });
 
-  return { verdict, failing_level: failing, levels, objections: ranked, other_surviving: other, refuted, withdrawn, touch_points: touch, prior_attempts: prior };
+  return { verdict, failing_level: failing, levels, objections: ranked, other_surviving: other, refuted, duplicates, withdrawn, touch_points: touch, prior_attempts: prior };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -426,6 +431,7 @@ export async function runRoast(proposal: ProposalInput, opts: RunOptions): Promi
   // URLs the output may contain, before the precedents are known.
   const allowed = new AllowedUrls();
   allowed.add(proposal.thread.threadUrl);
+  for (const t of proposal.threadsRead ?? []) allowed.add(t.url);
   for (const m of proposal.thread.messages) allowed.add(m.url);
   if (proposal.cf) allowed.add(proposal.cf.url);
   allowed.addFromText(threadText);
@@ -583,7 +589,7 @@ export async function runRoast(proposal: ProposalInput, opts: RunOptions): Promi
         revised_in_round: null,
         status: "survived",
         withdrawal: null,
-        critic: { refutation_kind: "none", reasoning: "", original_severity: null },
+        critic: { refutation_kind: "none", reasoning: "", original_severity: null, duplicate_of: null },
         not_ranked_reason: null,
       };
       objections.push(fo);
@@ -601,6 +607,7 @@ export async function runRoast(proposal: ProposalInput, opts: RunOptions): Promi
     category: o.category,
     touch_points: o.touch_points,
     severity: o.severity,
+    novelty: o.novelty,
     failure_scenario: o.failure_scenario,
     argument: o.argument,
     precedent_ids: o.precedent_ids,
@@ -612,6 +619,7 @@ export async function runRoast(proposal: ProposalInput, opts: RunOptions): Promi
     round: o.round,
     status: o.status,
     critic_reasoning: o.critic.reasoning,
+    duplicate_of: o.critic.duplicate_of ?? null,
     severity_before_critic: o.critic.original_severity,
     ...(o.withdrawal ? { withdrawn_because: o.withdrawal.reason } : {}),
   });
@@ -648,6 +656,7 @@ export async function runRoast(proposal: ProposalInput, opts: RunOptions): Promi
       }
       o.status = v.verdict;
       o.critic.refutation_kind = v.verdict === "refuted" ? v.refutation_kind : "none";
+      o.critic.duplicate_of = v.verdict === "duplicate" ? (v.duplicate_of?.trim() || null) : null;
       o.critic.reasoning = v.reasoning;
       if (v.verdict === "survived" && v.adjusted_severity && v.adjusted_severity !== o.severity) {
         o.critic.original_severity = o.severity;
@@ -655,7 +664,9 @@ export async function runRoast(proposal: ProposalInput, opts: RunOptions): Promi
       }
     }
     const ok = targets.filter((o) => o.status === "survived").length;
-    log(`${label}: ${ok} survived, ${targets.length - ok} refuted`);
+    const dup = targets.filter((o) => o.status === "duplicate").length;
+    const ref = targets.filter((o) => o.status === "refuted").length;
+    log(`${label}: ${ok} survived, ${ref} refuted${dup ? `, ${dup} duplicate` : ""}`);
   };
 
   // Round 0: the first pass.
@@ -899,7 +910,7 @@ export async function runRoast(proposal: ProposalInput, opts: RunOptions): Promi
 
   const roast: Roast = {
     schema_version: SCHEMA_VERSION,
-    tool: "pgroast/0.1",
+    tool: "pgroast/0.2",
     generated_at: now.toISOString(),
     input: {
       arg: proposal.input,
@@ -922,6 +933,16 @@ export async function runRoast(proposal: ProposalInput, opts: RunOptions): Promi
       before: proposal.filters.before,
       hint: opts.hint ?? null,
       attachments_read: proposal.patchProse.map((p) => p.attachment.name),
+      latest_patch:
+        proposal.latestPatchFrom || proposal.latestPatchVersion || proposal.latestPatchDate
+          ? {
+              version: proposal.latestPatchVersion ?? null,
+              from: proposal.latestPatchFrom ?? null,
+              date: proposal.latestPatchDate ?? null,
+            }
+          : null,
+      threads_read: proposal.threadsRead?.length ?? 1,
+      touched_files: touched,
     },
     mode: selfMode ? "self" : "review",
     backend: opts.backendName ?? (backend.dryRun ? "dry-run" : "claude"),
@@ -936,6 +957,7 @@ export async function runRoast(proposal: ProposalInput, opts: RunOptions): Promi
     objections: asm.objections,
     other_surviving: asm.other_surviving,
     refuted: asm.refuted,
+    duplicates: asm.duplicates,
     withdrawn: asm.withdrawn,
     touch_points: asm.touch_points,
     questions: synth.questions.slice(0, 5),

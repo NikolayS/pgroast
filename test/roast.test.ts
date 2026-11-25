@@ -497,6 +497,7 @@ function obj(over: Partial<RawObjection>): RawObjection {
     category: "abi_extension_api",
     touch_points: ["abi_extension_api"],
     severity: "fixable",
+    novelty: "new",
     failure_scenario: "An extension compiled against the old struct crashes.",
     argument: "Message #1 says the GUC structs change.",
     precedent_ids: [],
@@ -590,9 +591,9 @@ function fakeAnswers(a: CompleteArgs): unknown {
   if (a.label === "critic") {
     return {
       verdicts: [
-        { objection_id: "prior-attempts-1", verdict: "survived", refutation_kind: "none", reasoning: "The precedent matches.", adjusted_severity: null },
-        { objection_id: "maintenance-fit-1", verdict: "survived", refutation_kind: "none", reasoning: "Real, but a new version can keep the old API.", adjusted_severity: "fixable" },
-        { objection_id: "maintenance-fit-2", verdict: "refuted", refutation_kind: "not_specific", reasoning: "Applies to any patch.", adjusted_severity: null },
+        { objection_id: "prior-attempts-1", verdict: "survived", refutation_kind: "none", duplicate_of: null, reasoning: "The precedent matches.", adjusted_severity: null },
+        { objection_id: "maintenance-fit-1", verdict: "survived", refutation_kind: "none", duplicate_of: null, reasoning: "Real, but a new version can keep the old API.", adjusted_severity: "fixable" },
+        { objection_id: "maintenance-fit-2", verdict: "refuted", refutation_kind: "not_specific", duplicate_of: null, reasoning: "Applies to any patch.", adjusted_severity: null },
         // no verdict for demand-1
       ],
     } satisfies CriticOutput;
@@ -937,15 +938,26 @@ describe("assemble guards", () => {
     expect(warnings.join(" ")).toContain("downgraded");
   });
 
-  test("a listed level 1 objection makes the verdict at least NEEDS-DESIGN-DISCUSSION", () => {
-    const run = (level: "1b" | "2", verdict: SynthOutput["verdict"]) => {
+  test("a blocking level 1 objection makes the verdict at least NEEDS-DESIGN-DISCUSSION, while a minor fixable 1b question does not force collapse", () => {
+    const run = (level: "1b" | "2", verdict: SynthOutput["verdict"], overObj: Partial<FinalObjection> = {}, overSynth: Partial<SynthOutput> = {}) => {
       const warnings: string[] = [];
-      const a = assemble({ synth: synth({ verdict, ranked_objection_ids: ["x-1"] }), objections: [base({ level })], precedents: [], threadText: "", report: emptyReport(), warnings });
+      const a = assemble({
+        synth: synth({ verdict, ranked_objection_ids: ["x-1"], ...overSynth }),
+        objections: [base({ level, ...overObj })],
+        precedents: [],
+        threadText: "",
+        report: emptyReport(),
+        warnings,
+      });
       return { verdict: a.verdict, warnings };
     };
-    expect(run("1b", "NEEDS-COMMITTER-EYES").verdict).toBe("NEEDS-DESIGN-DISCUSSION");
-    expect(run("1b", "NEEDS-COMMITTER-EYES").warnings.join(" ")).toContain("listed a level 1b objection (x-1)");
-    expect(run("1b", "NO-FUNDAMENTAL-OBJECTION").verdict).toBe("NEEDS-DESIGN-DISCUSSION");
+    // Blocking level 1b (failing_level: "1b" or fatal) forces NEEDS-DESIGN-DISCUSSION:
+    expect(run("1b", "NEEDS-COMMITTER-EYES", {}, { failing_level: "1b" }).verdict).toBe("NEEDS-DESIGN-DISCUSSION");
+    expect(run("1b", "NEEDS-COMMITTER-EYES", {}, { failing_level: "1b" }).warnings.join(" ")).toContain("listed a blocking level 1b objection (x-1)");
+    expect(run("1b", "NO-FUNDAMENTAL-OBJECTION", { severity: "fatal" }).verdict).toBe("NEEDS-DESIGN-DISCUSSION");
+    // Minor fixable level 1b question when level 1 did not fail does NOT collapse into NEEDS-DESIGN-DISCUSSION:
+    expect(run("1b", "NEEDS-COMMITTER-EYES", { severity: "fixable" }, { failing_level: null }).verdict).toBe("NEEDS-COMMITTER-EYES");
+    expect(run("1b", "NO-FUNDAMENTAL-OBJECTION", { severity: "fixable" }, { failing_level: null }).verdict).toBe("NO-FUNDAMENTAL-OBJECTION");
     expect(run("2", "NEEDS-COMMITTER-EYES").verdict).toBe("NEEDS-COMMITTER-EYES");
   });
 
@@ -1110,8 +1122,8 @@ describe("rounds, invariants and self mode (fake model)", () => {
       };
     }
     if (/^round[12]-/.test(a.label)) return none;
-    if (a.label === "critic-round1") return { verdicts: [{ objection_id: "demand-r1-1", verdict: "survived", refutation_kind: "none", reasoning: "Fair.", adjusted_severity: null }] };
-    if (a.label === "critic-round2") return { verdicts: [{ objection_id: "prior-attempts-1", verdict: "survived", refutation_kind: "none", reasoning: "Still stands.", adjusted_severity: null }] };
+    if (a.label === "critic-round1") return { verdicts: [{ objection_id: "demand-r1-1", verdict: "survived", refutation_kind: "none", duplicate_of: null, reasoning: "Fair.", adjusted_severity: null }] };
+    if (a.label === "critic-round2") return { verdicts: [{ objection_id: "prior-attempts-1", verdict: "survived", refutation_kind: "none", duplicate_of: null, reasoning: "Still stands.", adjusted_severity: null }] };
     if (a.label === "round3-supervisor") {
       return {
         follow_ups: [
@@ -1122,7 +1134,7 @@ describe("rounds, invariants and self mode (fake model)", () => {
       };
     }
     if (a.label === "round3-followup1-demand") return { objections: [obj({ title: "Other systems do not have it either", level: "1b", category: "demand", touch_points: [] })], prior_attempts: [], no_objection_note: "" };
-    if (a.label === "critic-round3") return { verdicts: [{ objection_id: "demand-r3-1", verdict: "refuted", refutation_kind: "not_specific", reasoning: "Says nothing about this proposal.", adjusted_severity: null }] };
+    if (a.label === "critic-round3") return { verdicts: [{ objection_id: "demand-r3-1", verdict: "refuted", refutation_kind: "not_specific", duplicate_of: null, reasoning: "Says nothing about this proposal.", adjusted_severity: null }] };
     if (a.label === "round4-supervisor") return { follow_ups: [], coverage_note: "Covered." };
     if (a.label === "synth") {
       return {
@@ -1327,7 +1339,7 @@ describe("tone lint", () => {
         return { objections: [obj({ title: "Obviously nobody needs this!", level: "1b", category: "demand", touch_points: [], author_must_show: "Evidence of demand." })], prior_attempts: [], no_objection_note: "" };
       }
       if (a.label.startsWith("roaster-")) return { objections: [], prior_attempts: [], no_objection_note: "" };
-      if (a.label === "critic") return { verdicts: [{ objection_id: "demand-1", verdict: "survived", refutation_kind: "none", reasoning: "It stands. The author is lazy.", adjusted_severity: null }] };
+      if (a.label === "critic") return { verdicts: [{ objection_id: "demand-1", verdict: "survived", refutation_kind: "none", duplicate_of: null, reasoning: "It stands. The author is lazy.", adjusted_severity: null }] };
       if (a.label === "synth") return { ...(fakeAnswers(a) as object), ranked_objection_ids: ["demand-1"], prior_attempts: [], verdict: "NEEDS-DESIGN-DISCUSSION" };
       return fakeAnswers(a);
     });
