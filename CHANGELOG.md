@@ -37,14 +37,37 @@ This release addresses the feedback from running v1 across the November 2026 Com
   - Ships simple default skills for `-hackers` plain-text review etiquette, isolated patch verification, and `pgsql-bugs` triage so new users get working defaults out of the box.
   - Set `PGROAST_SKILLS_DIR` to point to your own private skills folder to override or extend the defaults.
 
-### Quick start
+### Quickstart tips
+
+You only need **one** AI coding CLI signed in on your subscription (`claude`, `codex`, or `agy`), Bun 1.3.5+, and a local Postgres instance for the precedent index. Nothing is posted anywhere; all output stays in local files.
+
+1. **Load the precedent database once and check your CLI login:**
 
 ```bash
+bun run src/cli.ts init-db
 bun run src/cli.ts doctor
-bun run src/cli.ts --backend dual 5879
-bun run src/cli.ts shortlist ./out/cf-62 --pg-repo ~/github/postgres
-bun run src/cli.ts bugs --days 14 --limit 30
 ```
+
+2. **Run your first roast on any CommitFest entry or `-hackers` thread:**
+
+```bash
+# Uses whichever single AI CLI you have installed (claude > codex > agy)
+bun run src/cli.ts 5879
+
+# Preview prompts without calling any model
+bun run src/cli.ts --dry-run 5879
+
+# Review your own draft before posting
+bun run src/cli.ts --self --proposal ./draft.txt --patch ./v1-0001.patch
+```
+
+3. **Optional power-user tips:**
+   - **Claude login in `~/.claude`:** if `doctor` reports an expired Claude session while your interactive `claude` works, run with `CLAUDE_CONFIG_DIR=~/.claude`.
+   - **Claude model fallback:** if your Claude account has Fable 5.2 instead of Mythos 5.2, set `export PGROAST_CRITIC_MODEL=claude-fable-5-2`.
+   - **Cross-family Dual mode:** if you have both `claude` and `agy` signed in, pass `--backend dual` to split roasters across both families and run Critic and Synthesis on opposite models.
+   - **Batch shortlist + subsystem routing:** run `bun run src/cli.ts shortlist ./out/cf-62 --pg-repo ~/postgres` to generate `shortlist.md` and `top-reject.md`.
+   - **Triage `pgsql-bugs`:** run `bun run src/cli.ts bugs --days 14 --limit 30` to surface production user hits above synthetic bug hunts.
+   - **Custom skills:** set `export PGROAST_SKILLS_DIR=~/my-skills` to override the built-in defaults in `skills/` with your own voice or review checklist.
 
 ### Verification
 
