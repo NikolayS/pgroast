@@ -1,6 +1,6 @@
 // roast.md is rendered from roast.json by code: same content, never a second LLM call.
 
-import { formatRoastProfile } from "./flavours.ts";
+import { formatFlavourDisclaimer, formatRoastProfile } from "./flavours.ts";
 import { LEVEL_NAMES, TOUCH_POINTS, type FinalObjection, type Roast, type SelfAdvice } from "./schema.ts";
 
 /** First line of roast-summary.txt, verbatim from the issue. */
@@ -159,6 +159,8 @@ export function renderMarkdown(r: Roast): string {
   const latestPatchStr = formatLatestPatch(r);
   if (latestPatchStr) src.push(`- Latest patch evaluated: ${latestPatchStr}`);
   src.push(`- Roast profile: ${formatRoastProfile(r.roast_level, r.roast_flavour)}`);
+  const flavourNote = formatFlavourDisclaimer(r.roast_flavour);
+  if (flavourNote) src.push(`- ${flavourNote}`);
   src.push(`- Patch prose read: ${r.input.attachments_read.length ? r.input.attachments_read.join(", ") : "none"} (commit message, file list and doc hunks only; no code review)`);
   if (r.input.hint) src.push(`- Directed precedent lookup: "${oneLine(r.input.hint)}"`);
   if (r.invariants_loaded.length) src.push(`- Subsystem invariants checked: ${r.invariants_loaded.join(", ")}`);
@@ -363,6 +365,8 @@ export function renderCompactMarkdown(r: Roast, fullName = "roast-full.md"): str
   src.push(formatRoastProfile(r.roast_level, r.roast_flavour));
   src.push("no code read");
   out.push(`${src.join("; ")}.`, "");
+  const compactFlavourNote = formatFlavourDisclaimer(r.roast_flavour);
+  if (compactFlavourNote) out.push(`> ${compactFlavourNote}`, "");
 
   const verdict = [
     `**${r.verdict}** (confidence: ${r.confidence}). ${stripInternalIds(r.verdict_reasoning)}`,
@@ -461,6 +465,8 @@ export function renderSummary(r: Roast): string {
     (r.roast_level && r.roast_level !== "medium") || (r.roast_flavour && r.roast_flavour !== "default");
   const profileNote = customProfile ? ` (${formatRoastProfile(r.roast_level, r.roast_flavour)})` : "";
   lines.push(`${clip(r.input.cf?.title ?? r.brief.title ?? r.input.subject, 120)}${self ? " (self check)" : ""}: ${r.verdict}, confidence ${r.confidence}${profileNote}. Idea and design only; no code was read.`);
+  const sumFlavourNote = formatFlavourDisclaimer(r.roast_flavour);
+  if (sumFlavourNote) lines.push(sumFlavourNote);
   const top = r.objections.slice(0, 3);
   if (top.length === 0) lines.push("No objection held up in the counter-check.");
   top.forEach((o, i) => {

@@ -476,7 +476,7 @@ export async function createWebHandler(opts?: {
           "",
           "- **Humans + AIs together:** Reviewers run a private local Backoffice (`apps/local`) with their own AI CLIs (Claude, Codex, Gemini/agy, or cross-family dual mode) to pre-review CommitFest entries or their own draft patches (`pgroast --self`), then explicitly publish sanitized opinions to this public hub.",
           "- **Roast levels:** `light` (constructive author pre-flight checklist), `medium` (balanced committer design review), `dark` (harsh adversarial stress-test on maintenance burden, demand, WAL/locking edge cases, and core vs. extension fit).",
-          "- **Hacker flavours (AI-simulated technical lenses):** `default`, `tom-lane`, `peter-eisentraut`, `robert-haas`, `andres-freund`, `heikki-linnakangas`, `bruce-momjian`, `alexander-korotkov`. Every report and public opinion records its level and flavour.",
+          "- **Hacker flavours:** `default`, `tom-lane`, `peter-eisentraut`, `robert-haas`, `andres-freund`, `heikki-linnakangas`, `bruce-momjian`, `alexander-korotkov`. Flavours are not connected to the real people — they are only what AI thinks that hacker might focus on, with no guarantee they would say it in reality (AI makes mistakes all the time). Every report and opinion records its level and flavour.",
           "- **Human ownership:** AI roasts are never final committer verdicts and nothing is auto-posted. A human reviewer takes ownership of a patch, verifies the code and thread, and sends their own review to `pgsql-hackers`.",
           "",
           "## Live CommitFest Snapshot",

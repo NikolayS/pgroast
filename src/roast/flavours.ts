@@ -204,5 +204,12 @@ export function buildRoastProfilePrompt(level: RoastLevel = "medium", flavour: R
 export function formatRoastProfile(level?: string | null, flavour?: string | null): string {
   const l = ROAST_LEVEL_META[normalizeRoastLevel(level)];
   const f = ROAST_FLAVOUR_META[normalizeRoastFlavour(flavour)];
-  return `${l.label} · ${f.label}`;
+  if (f.id === "default") return `${l.label} · ${f.label}`;
+  return `${l.label} · ${f.shortLabel} style (AI guess, not connected to ${f.shortLabel})`;
+}
+
+export function formatFlavourDisclaimer(flavour?: string | null): string | null {
+  const f = ROAST_FLAVOUR_META[normalizeRoastFlavour(flavour)];
+  if (f.id === "default") return null;
+  return `Flavour note: "${f.shortLabel} style" is only what AI thinks ${f.shortLabel} might focus on based on public reviews. It is not connected to or endorsed by ${f.shortLabel}, with no guarantee they would say this in reality — AI makes mistakes all the time.`;
 }

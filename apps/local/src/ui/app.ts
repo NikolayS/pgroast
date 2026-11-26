@@ -2212,7 +2212,9 @@ function renderWorkbenchView(): string {
             `,
             ).join("")}
           </div>
-          <div class="dim" style="font-size:11px;margin-top:6px;">AI-simulated technical focus and voice styles — never impersonates real people.</div>
+          <div class="roast-flavour-disclaimer">
+            <strong>Not connected to the real person:</strong> a flavour is only what AI thinks that famous hacker might say based on public reviews — with no guarantee they would actually say it in reality (AI makes mistakes all the time).
+          </div>
         </div>
 
         <details class="roast-advanced">

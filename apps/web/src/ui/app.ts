@@ -632,7 +632,7 @@ function formatOpinionProfile(o: OpinionItem): string {
     "alexander-korotkov": "Alexander Korotkov",
   };
   const flLabel = flNames[fl] || fl;
-  return `${lvLabel} · ${flLabel}`;
+  return fl === "default" ? `${lvLabel} · ${flLabel}` : `${lvLabel} · ${flLabel} style (AI guess, not the real person)`;
 }
 
 function formatModelsLabel(modelsJson: string): string {
@@ -1861,7 +1861,7 @@ function renderIntroCard(): string {
             <span class="chip">Alexander Korotkov</span>
           </div>
           <p>
-            Focus the review through AI-simulated technical lenses and styles. Every report and public opinion remembers its roast level and flavour.
+            <strong>Not connected to the real hackers:</strong> a flavour is only what AI thinks that well-known reviewer might say, with no guarantee it would happen in reality (AI makes mistakes all the time). Every report and opinion records its level and flavour.
           </p>
         </div>
 

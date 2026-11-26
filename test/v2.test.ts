@@ -653,8 +653,10 @@ describe("v2 pipeline: novelty, critic duplicate + upgrade, clean lead prose", (
     expect(r.roast_level).toBe("dark");
     expect(r.roast_flavour).toBe("tom-lane");
     expect(seenSystems.some((s) => s.includes("Roast level: DARK") && s.includes("TOM LANE STYLE"))).toBe(true);
-    expect(renderCompactMarkdown(r)).toContain("Dark roast · Tom Lane voice");
-    expect(renderMarkdown(r)).toContain("Roast profile: Dark roast · Tom Lane voice");
+    expect(renderCompactMarkdown(r)).toContain("Dark roast · Tom Lane style (AI guess, not connected to Tom Lane)");
+    expect(renderCompactMarkdown(r)).toContain("AI makes mistakes all the time");
+    expect(renderMarkdown(r)).toContain("Roast profile: Dark roast · Tom Lane style (AI guess, not connected to Tom Lane)");
+    expect(renderMarkdown(r)).toContain("not connected to or endorsed by Tom Lane");
   });
 });
 

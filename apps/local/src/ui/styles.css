@@ -2229,6 +2229,19 @@ tbody tr.clickable:hover {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.roast-flavour-disclaimer {
+  margin-top: 8px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--warn) 34%, var(--border));
+  background: color-mix(in srgb, var(--warn) 7%, var(--bg-card));
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+.roast-flavour-disclaimer strong {
+  color: var(--text);
+}
 
 .roast-advanced {
   margin-top: 12px;
