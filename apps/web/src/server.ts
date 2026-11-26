@@ -126,6 +126,24 @@ function renderOAuthResultHtml(opts: {
 </html>`;
 }
 
+function escXml(s: unknown): string {
+  return String(s ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
+}
+
+function resolveRequestOrigin(req: Request, fallbackOrigin: string): string {
+  const host = (req.headers.get("x-forwarded-host") || req.headers.get("host") || "").split(",")[0]!.trim();
+  if (!host || /^(?:127\.0\.0\.1|localhost)(?::\d+)?$/i.test(host)) {
+    return fallbackOrigin;
+  }
+  const proto = (req.headers.get("x-forwarded-proto") || "https").split(",")[0]!.trim();
+  return `${proto === "http" ? "http" : "https"}://${host}`;
+}
+
 function escAttr(s: unknown): string {
   return String(s ?? "")
     .replace(/&/g, "&amp;")
@@ -373,16 +391,179 @@ export async function createWebHandler(opts?: {
         });
       }
       if (method === "GET" && path === "/robots.txt") {
-        return new Response("User-agent: *\nAllow: /\n", {
-          headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "public, max-age=86400" },
+        const origin = resolveRequestOrigin(req, cfg.publicOrigin);
+        const body = [
+          "# pgroast — PostgreSQL CommitFest collaboration & adversarial pre-review",
+          `# LLM / AI crawler guide: ${origin}/llms.txt`,
+          `# Full LLM digest: ${origin}/llms-full.txt`,
+          "",
+          "User-agent: *",
+          "Allow: /",
+          "Disallow: /auth/",
+          "Disallow: /api/v1/tokens/",
+          "Disallow: /api/v1/admin/",
+          "Disallow: /api/v1/publish/",
+          "",
+          `Sitemap: ${origin}/sitemap.xml`,
+          "",
+        ].join("\n");
+        return new Response(body, {
+          headers: {
+            "Content-Type": "text/plain; charset=utf-8",
+            "Cache-Control": "public, max-age=3600",
+            "X-Content-Type-Options": "nosniff",
+          },
+        });
+      }
+      if (method === "GET" && path === "/sitemap.xml") {
+        const origin = resolveRequestOrigin(req, cfg.publicOrigin);
+        const [entries, briefs] = await Promise.all([db.listEntries({ limit: 1000 }), db.listBriefs()]);
+        const latestDate = (briefs[0]?.created_at || new Date().toISOString()).slice(0, 10);
+        const staticUrls: Array<{ loc: string; lastmod: string; changefreq: string; priority: string }> = [
+          { loc: `${origin}/`, lastmod: latestDate, changefreq: "daily", priority: "1.0" },
+          { loc: `${origin}/?tab=stats`, lastmod: latestDate, changefreq: "daily", priority: "0.8" },
+          { loc: `${origin}/?tab=entries`, lastmod: latestDate, changefreq: "daily", priority: "0.8" },
+          { loc: `${origin}/?tab=opinions`, lastmod: latestDate, changefreq: "hourly", priority: "0.8" },
+          { loc: `${origin}/?tab=coordination`, lastmod: latestDate, changefreq: "daily", priority: "0.6" },
+          { loc: `${origin}/?tab=connect`, lastmod: latestDate, changefreq: "weekly", priority: "0.6" },
+          { loc: `${origin}/llms.txt`, lastmod: latestDate, changefreq: "daily", priority: "0.6" },
+        ];
+        const entryUrls = entries.map((e) => ({
+          loc: `${origin}/patch/${e.cf_id}`,
+          lastmod: (e.updated_at || latestDate).slice(0, 10),
+          changefreq: "weekly",
+          priority: e.verdict && e.verdict !== "UNROASTED" ? "0.7" : "0.5",
+        }));
+        const xml =
+          `<?xml version="1.0" encoding="UTF-8"?>\n` +
+          `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n` +
+          [...staticUrls, ...entryUrls]
+            .map(
+              (u) =>
+                `  <url><loc>${escXml(u.loc)}</loc><lastmod>${escXml(u.lastmod)}</lastmod><changefreq>${u.changefreq}</changefreq><priority>${u.priority}</priority></url>`,
+            )
+            .join("\n") +
+          `\n</urlset>\n`;
+        return new Response(xml, {
+          headers: {
+            "Content-Type": "application/xml; charset=utf-8",
+            "Cache-Control": "public, max-age=1800",
+            "X-Content-Type-Options": "nosniff",
+          },
+        });
+      }
+      if (method === "GET" && (path === "/llms.txt" || path === "/llms-full.txt")) {
+        const isFull = path === "/llms-full.txt";
+        const origin = resolveRequestOrigin(req, cfg.publicOrigin);
+        const [briefs, latestBrief, entries, opinions] = await Promise.all([
+          db.listBriefs(),
+          db.getBrief("latest"),
+          db.listEntries({ limit: 1000 }),
+          db.listOpinions(undefined, 100),
+        ]);
+        const shortlist = latestBrief
+          ? (JSON.parse(latestBrief.shortlist_json || "[]") as Array<{ cf_id: number; title: string; verdict?: string; status?: string; authors?: string }>)
+          : [];
+        const closing = latestBrief
+          ? (JSON.parse(latestBrief.closing_json || "[]") as Array<{ cf_id: number; title: string; verdict?: string; status?: string }>)
+          : [];
+        const lines: string[] = [
+          "# pgroast",
+          "",
+          "> Open-source PostgreSQL CommitFest collaboration hub where human reviewers and AI assistants perform adversarial design pre-reviews (\"roasts\") of PostgreSQL patches, compare multi-model opinions, and hand off verified reviews to pgsql-hackers.",
+          "",
+          "## How pgroast works",
+          "",
+          "- **Humans + AIs together:** Reviewers run a private local Backoffice (`apps/local`) with their own AI CLIs (Claude, Codex, Gemini/agy, or cross-family dual mode) to pre-review CommitFest entries or their own draft patches (`pgroast --self`), then explicitly publish sanitized opinions to this public hub.",
+          "- **Roast levels:** `light` (constructive author pre-flight checklist), `medium` (balanced committer design review), `dark` (harsh adversarial stress-test on maintenance burden, demand, WAL/locking edge cases, and core vs. extension fit).",
+          "- **Hacker flavours (AI-simulated technical lenses):** `default`, `tom-lane`, `peter-eisentraut`, `robert-haas`, `andres-freund`, `heikki-linnakangas`, `bruce-momjian`. Every report and public opinion records its level and flavour.",
+          "- **Human ownership:** AI roasts are never final committer verdicts and nothing is auto-posted. A human reviewer takes ownership of a patch, verifies the code and thread, and sends their own review to `pgsql-hackers`.",
+          "",
+          "## Live CommitFest Snapshot",
+          "",
+          `- Public hub: ${origin}/`,
+          `- Source code (Apache-2.0): https://github.com/NikolayS/pgroast`,
+          `- Indexed CommitFest entries: ${entries.length}`,
+          `- Published reviewer/AI opinions: ${opinions.length}`,
+          `- Published CommitFest briefs: ${briefs.length}${latestBrief ? ` (latest: ${latestBrief.title}, ${latestBrief.commitfest_label})` : ""}`,
+          "",
+          "## Key Pages",
+          "",
+          `- [CommitFest Brief & Shortlist](${origin}/): Triage summary, verdict breakdown, shortlist, and closing/rethinking candidates.`,
+          `- [CommitFest Stats & Leaderboards](${origin}/?tab=stats): Verdict heatmap, subsystem health, and clickable top authors, reviewers, and committers.`,
+          `- [All CommitFest Entries](${origin}/?tab=entries): Searchable directory of ${entries.length} patches with status and verdict filters.`,
+          `- [Community AI Opinions](${origin}/?tab=opinions): Attributed multi-model, multi-flavour review opinions.`,
+          `- [Personal Backoffice Setup](${origin}/?tab=connect): How to run your own local workbench and publish opinions.`,
+          `- [XML Sitemap](${origin}/sitemap.xml): Complete index of all patch collaboration pages.`,
+          `- [Full LLM Digest](${origin}/llms-full.txt): Expanded Markdown with live opinions and full shortlist.`,
+          "",
+        ];
+        if (opinions.length > 0) {
+          lines.push("## Recent Community Opinions", "");
+          for (const op of opinions.slice(0, isFull ? 100 : 15)) {
+            const entry = entries.find((e) => e.cf_id === op.cf_id);
+            const title = entry ? entry.title : `CF ${op.cf_id}`;
+            lines.push(
+              `- [CF ${op.cf_id}: ${title}](${origin}/patch/${op.cf_id}) — **${op.verdict}** by @${op.contributor_handle} (${op.backend}, level: ${op.roast_level || "medium"}, flavour: ${op.roast_flavour || "default"})`,
+            );
+            if (isFull && op.summary) {
+              lines.push(`  > ${op.summary.replace(/\s+/g, " ").trim()}`);
+            }
+          }
+          lines.push("");
+        }
+        if (shortlist.length > 0) {
+          lines.push("## Top Shortlisted Patches", "");
+          for (const s of shortlist.slice(0, isFull ? 40 : 20)) {
+            lines.push(
+              `- [CF ${s.cf_id}: ${s.title}](${origin}/patch/${s.cf_id}) — ${s.verdict || "UNROASTED"} (${s.status || "Open"}${s.authors ? `, by ${s.authors}` : ""})`,
+            );
+          }
+          lines.push("");
+        }
+        if (isFull && closing.length > 0) {
+          lines.push("## Worth Closing or Rethinking", "");
+          for (const c of closing.slice(0, 50)) {
+            lines.push(`- [CF ${c.cf_id}: ${c.title}](${origin}/patch/${c.cf_id}) — ${c.verdict || "UNROASTED"} (${c.status || "Open"})`);
+          }
+          lines.push("");
+        }
+        lines.push(
+          "## Public Read-Only API & Downloads",
+          "",
+          `- Health & counts: \`GET ${origin}/api/v1/health\``,
+          `- Entries list: \`GET ${origin}/api/v1/entries?limit=300\``,
+          `- Patch consensus & opinions: \`GET ${origin}/api/v1/entries/<cf_id>\``,
+          `- Parsed pgsql-hackers thread: \`GET ${origin}/api/v1/entries/<cf_id>/thread\``,
+          `- Live CFBot unified diff: \`GET ${origin}/api/v1/entries/<cf_id>/diff\``,
+          `- Latest brief (Markdown): \`GET ${origin}/briefs/latest/download.md\``,
+          `- Latest brief (JSON): \`GET ${origin}/briefs/latest/download.json\``,
+          "",
+        );
+        return new Response(lines.join("\n"), {
+          headers: {
+            "Content-Type": "text/markdown; charset=utf-8",
+            "Cache-Control": "public, max-age=900",
+            "X-Content-Type-Options": "nosniff",
+          },
         });
       }
       const patchPageMatch = path.match(/^\/patch\/(\d+)\/?$/);
       if (method === "GET" && (path === "/" || path === "/index.html" || patchPageMatch)) {
+        const origin = resolveRequestOrigin(req, cfg.publicOrigin);
         const cfId = Number(patchPageMatch?.[1] || url.searchParams.get("cf") || 0);
-        let title = "pgroast — Public CommitFest Triage & Collaboration";
-        let desc = "PostgreSQL CommitFest pre-review triage briefs, multi-model reviewer opinions, and common-ground consensus.";
+        let title = "pgroast — PostgreSQL CommitFest Collaboration & AI Pre-Review";
+        let desc = "Review PostgreSQL CommitFest patches together with humans and AIs: light/medium/dark roasts, hacker flavours, GitLab-style -hackers threads, live diffs, and common-ground consensus.";
+        let canonical = `${origin}/`;
+        let jsonLd: Record<string, unknown> = {
+          "@context": "https://schema.org",
+          "@type": "WebSite",
+          name: "pgroast",
+          url: `${origin}/`,
+          description: desc,
+        };
         if (cfId > 0) {
+          canonical = `${origin}/patch/${cfId}`;
           const entry = await db.getEntry(cfId);
           if (entry) {
             title = `CF ${entry.cf_id}: ${entry.title} — pgroast`;
@@ -392,19 +573,34 @@ export async function createWebHandler(opts?: {
               entry.authors ? `by ${entry.authors}` : "",
             ].filter(Boolean);
             desc = parts.join(" · ");
+            jsonLd = {
+              "@context": "https://schema.org",
+              "@type": "DiscussionForumPosting",
+              headline: `CF ${entry.cf_id}: ${entry.title}`,
+              url: canonical,
+              description: desc,
+              author: entry.authors ? { "@type": "Person", name: entry.authors } : undefined,
+              dateModified: entry.updated_at || undefined,
+              isPartOf: { "@type": "WebSite", name: "pgroast", url: `${origin}/` },
+            };
           } else {
             title = `CF ${cfId} — pgroast`;
           }
         }
+        const safeLd = JSON.stringify(jsonLd).replace(/</g, "\\u003c");
         const ogTags = [
+          `<link rel="canonical" href="${escAttr(canonical)}" />`,
+          `<link rel="alternate" type="text/markdown" title="pgroast LLMs Guide" href="${escAttr(origin)}/llms.txt" />`,
           `<meta name="description" content="${escAttr(desc)}" />`,
-          `<meta property="og:type" content="website" />`,
+          `<meta property="og:type" content="${cfId > 0 ? "article" : "website"}" />`,
           `<meta property="og:site_name" content="pgroast" />`,
+          `<meta property="og:url" content="${escAttr(canonical)}" />`,
           `<meta property="og:title" content="${escAttr(title)}" />`,
           `<meta property="og:description" content="${escAttr(desc)}" />`,
           `<meta name="twitter:card" content="summary" />`,
           `<meta name="twitter:title" content="${escAttr(title)}" />`,
           `<meta name="twitter:description" content="${escAttr(desc)}" />`,
+          `<script type="application/ld+json">${safeLd}</script>`,
         ].join("\n  ");
         const html = readFileSync(htmlPath, "utf8")
           .replace(/<title>[^<]*<\/title>/, `<title>${escAttr(title)}</title>\n  ${ogTags}`)

@@ -2074,6 +2074,215 @@ tbody tr.clickable:hover {
   font-size: 12px;
 }
 
+.diff-error-box {
+  padding: 12px 14px;
+  border-radius: 9px;
+  border: 1px solid color-mix(in srgb, var(--danger) 35%, var(--border));
+  background: color-mix(in srgb, var(--danger) 6%, var(--bg-card));
+}
+
+/* ---- Fun Tactile Roast Studio Controls ---- */
+.roast-section {
+  margin-top: 12px;
+}
+.roast-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.roast-section-label {
+  font-size: 11.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+.roast-level-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+.roast-level-card {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 10px 11px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg-input);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  transition: border-color 0.14s ease, background 0.14s ease, transform 0.12s ease, box-shadow 0.14s ease;
+}
+.roast-level-card:hover {
+  border-color: var(--border-strong);
+  background: var(--bg-hover);
+  transform: translateY(-1px);
+}
+.roast-level-card.active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+.roast-level-card.roast-level-light.active {
+  border-color: var(--ok);
+  background: color-mix(in srgb, var(--ok) 12%, var(--bg-card));
+  box-shadow: 0 0 0 1px var(--ok);
+}
+.roast-level-card.roast-level-medium.active {
+  border-color: var(--warn);
+  background: color-mix(in srgb, var(--warn) 12%, var(--bg-card));
+  box-shadow: 0 0 0 1px var(--warn);
+}
+.roast-level-card.roast-level-dark.active {
+  border-color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 14%, var(--bg-card));
+  box-shadow: 0 0 0 1px var(--danger);
+}
+.roast-level-top {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12.5px;
+}
+.roast-bean-dot {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  border: 1px solid rgb(255 255 255 / 0.25);
+}
+.roast-heat-tag {
+  margin-left: auto;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+.roast-level-desc {
+  font-size: 11.5px;
+  line-height: 1.4;
+  color: var(--text-muted);
+}
+
+.roast-flavour-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(175px, 1fr));
+  gap: 7px;
+}
+.roast-flavour-chip {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg-input);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  transition: border-color 0.14s ease, background 0.14s ease, transform 0.12s ease;
+}
+.roast-flavour-chip:hover {
+  border-color: var(--border-strong);
+  background: var(--bg-hover);
+  transform: translateY(-1px);
+}
+.roast-flavour-chip.active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+.roast-flavour-avatar {
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  color: #ffffff;
+  font-size: 10.5px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  letter-spacing: 0.02em;
+}
+.roast-flavour-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.roast-flavour-text strong {
+  font-size: 12px;
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.roast-flavour-text small {
+  font-size: 10.5px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.roast-advanced {
+  margin-top: 12px;
+  padding: 9px 12px;
+  border-radius: 9px;
+  border: 1px solid var(--border);
+  background: var(--bg-input);
+}
+.roast-advanced > summary {
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  list-style: none;
+}
+.roast-advanced > summary::-webkit-details-marker {
+  display: none;
+}
+
+.roast-actions-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+}
+.roast-action-box {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 11px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg-input);
+}
+.roast-action-primary {
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
+  background: color-mix(in srgb, var(--accent) 5%, var(--bg-card));
+}
+.roast-action-explain {
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+.roast-action-explain strong {
+  color: var(--text);
+}
+
+@media (max-width: 760px) {
+  .roast-level-grid,
+  .roast-actions-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 [hidden] {
   display: none !important;
 }

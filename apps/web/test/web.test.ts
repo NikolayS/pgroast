@@ -133,6 +133,34 @@ describe("pgroast-web public companion API & security gates", () => {
     const manifestJson = (await manifestRes.json()) as { short_name: string };
     expect(manifestJson.short_name).toBe("pgroast");
 
+    // SEO & GEO endpoints: robots.txt, sitemap.xml, llms.txt, llms-full.txt
+    const robotsRes = await req("/robots.txt");
+    expect(robotsRes.status).toBe(200);
+    const robotsText = await robotsRes.text();
+    expect(robotsText).toContain("Sitemap:");
+    expect(robotsText).toContain("/llms.txt");
+
+    const sitemapRes = await req("/sitemap.xml");
+    expect(sitemapRes.status).toBe(200);
+    expect(sitemapRes.headers.get("content-type")).toContain("application/xml");
+    const sitemapXml = await sitemapRes.text();
+    expect(sitemapXml).toContain("<urlset");
+    expect(sitemapXml).toContain("/patch/5879");
+
+    const llmsRes = await req("/llms.txt");
+    expect(llmsRes.status).toBe(200);
+    const llmsText = await llmsRes.text();
+    expect(llmsText).toContain("# pgroast");
+    expect(llmsText).toContain("Roast levels");
+    expect(llmsText).toContain("/patch/5879");
+
+    const llmsFullRes = await req("/llms-full.txt");
+    expect(llmsFullRes.status).toBe(200);
+    expect(await llmsFullRes.text()).toContain("Recent Community Opinions");
+
+    expect(patchHtml).toContain('rel="canonical"');
+    expect(patchHtml).toContain("application/ld+json");
+
     // Roast level + flavour round-trip on published opinion
     const darkOp = await req("/api/v1/publish/opinion", {
       method: "POST",

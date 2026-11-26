@@ -630,6 +630,8 @@ export async function createAppHandler(opts?: {
             cfId?: number;
             target?: string;
             backend?: "claude" | "agy" | "codex" | "dual";
+            roastLevel?: "light" | "medium" | "dark";
+            roastFlavour?: string;
             claudeModel?: string;
             agyModel?: string;
             rounds?: number;

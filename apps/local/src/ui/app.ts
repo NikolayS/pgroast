@@ -78,6 +78,8 @@ interface AppState {
 
   selectedCfId: number | null;
   workbenchTab: WorkbenchTab;
+  roastLevel: "light" | "medium" | "dark";
+  roastFlavour: string;
   diffData: PatchDiffUi | null;
   diffComments: DiffCommentRecord[];
   diffLoading: boolean;
@@ -190,6 +192,10 @@ const state: AppState = {
 
   selectedCfId: null,
   workbenchTab: "roast",
+  roastLevel: (["light", "medium", "dark"].includes(localStorage.getItem("pgroast-roast-level") || "")
+    ? (localStorage.getItem("pgroast-roast-level") as "light" | "medium" | "dark")
+    : "medium"),
+  roastFlavour: localStorage.getItem("pgroast-roast-flavour") || "default",
   diffData: null,
   diffComments: [],
   diffLoading: false,
@@ -1026,6 +1032,7 @@ async function loadEntryDetail(cfId: number): Promise<void> {
 }
 
 async function loadDiffForEntry(cfId: number): Promise<void> {
+  if (state.diffLoading) return;
   state.diffLoading = true;
   state.diffError = "";
   render();
@@ -1033,9 +1040,11 @@ async function loadDiffForEntry(cfId: number): Promise<void> {
     const res = await api<{ diff: PatchDiffUi; comments: DiffCommentRecord[] }>(`/api/entries/${cfId}/diff`);
     state.diffData = res.diff;
     state.diffComments = res.comments;
+    state.diffError = "";
   } catch (err) {
     state.diffData = null;
     state.diffError = err instanceof Error ? err.message : String(err);
+    toastError(err, `CF #${cfId} diff`, () => void loadDiffForEntry(cfId));
   } finally {
     state.diffLoading = false;
     render();
@@ -2092,84 +2101,180 @@ function renderWorkbenchView(): string {
   const activeWi = workItems[0] || null;
   const draft = state.activeDraft;
 
+  const ROAST_LEVEL_CARDS: Array<{
+    id: "light" | "medium" | "dark";
+    label: string;
+    beans: string;
+    heat: string;
+    desc: string;
+    swatch: string;
+  }> = [
+    {
+      id: "light",
+      label: "Light Roast",
+      beans: "●○○",
+      heat: "Gentle",
+      desc: "Constructive author pre-flight — spot weak points before posting.",
+      swatch: "#d49a4a",
+    },
+    {
+      id: "medium",
+      label: "Medium Roast",
+      beans: "●●○",
+      heat: "Balanced",
+      desc: "Standard committer review — direct, pragmatic, fair.",
+      swatch: "#a85c2c",
+    },
+    {
+      id: "dark",
+      label: "Dark Roast",
+      beans: "●●●",
+      heat: "Harsh 🔥",
+      desc: "Brutal stress-test on maintenance, demand, WAL & locking.",
+      swatch: "#6e2112",
+    },
+  ];
+
+  const ROAST_FLAVOUR_CARDS: Array<{
+    id: string;
+    name: string;
+    initials: string;
+    lens: string;
+    color: string;
+  }> = [
+    { id: "default", name: "Default", initials: "PG", lens: "Balanced committer", color: "#5e6ad2" },
+    { id: "tom-lane", name: "Tom Lane", initials: "TL", lens: "Planner, edge cases & spec", color: "#b85d28" },
+    { id: "peter-eisentraut", name: "Peter Eisentraut", initials: "PE", lens: "SQL standard, docs & APIs", color: "#2d7d62" },
+    { id: "robert-haas", name: "Robert Haas", initials: "RH", lens: "Architecture & concurrency", color: "#7b5cd6" },
+    { id: "andres-freund", name: "Andres Freund", initials: "AF", lens: "Perf, memory & low-level", color: "#c2444e" },
+    { id: "heikki-linnakangas", name: "Heikki Linnakangas", initials: "HL", lens: "WAL, storage & recovery", color: "#2f78a8" },
+    { id: "bruce-momjian", name: "Bruce Momjian", initials: "BM", lens: "Clarity, UX & release impact", color: "#a67721" },
+  ];
+
   let rightTabHtml = "";
   if (state.workbenchTab === "roast") {
     const defBackend = state.settings?.defaultBackend || "auto";
     const aiAvail = state.aiSummary?.available || [];
     const dualReady = Boolean(state.aiSummary?.dualReady);
+    const activeLevel = ROAST_LEVEL_CARDS.find((l) => l.id === state.roastLevel) || ROAST_LEVEL_CARDS[1]!;
+    const activeFlavour = ROAST_FLAVOUR_CARDS.find((f) => f.id === state.roastFlavour) || ROAST_FLAVOUR_CARDS[0]!;
+    const runBtnLabel =
+      activeFlavour.id === "default"
+        ? `🔥 Brew ${activeLevel.label}`
+        : `🔥 Brew ${activeLevel.label} · ${activeFlavour.name} style`;
     rightTabHtml = `
       <div class="card">
         <div class="card-header">
-          <h3>Run pgroast v2</h3>
+          <div>
+            <h3>Roast Studio</h3>
+            <div class="muted" style="font-size:12px;">Dial in roast intensity and hacker lens — every report &amp; published opinion remembers your choice.</div>
+          </div>
           <span class="pill pill-purple">Local CLI · Zero API Key</span>
         </div>
-        <div class="form-grid">
-          <div class="form-field">
-            <label>Backend</label>
-            <select id="roast-backend">
-              <option value="auto" ${defBackend === "auto" ? "selected" : ""}>auto (${aiAvail[0] ? `detected: ${esc(aiAvail[0])}` : "first available AI CLI"})</option>
-              <option value="claude" ${defBackend === "claude" ? "selected" : ""}>claude (Claude Code CLI)</option>
-              <option value="codex" ${defBackend === "codex" ? "selected" : ""}>codex (OpenAI Codex CLI)</option>
-              <option value="agy" ${defBackend === "agy" ? "selected" : ""}>agy (Antigravity CLI)</option>
-              <option value="dual" ${defBackend === "dual" ? "selected" : ""}>dual (Claude + agy cross-family${dualReady ? "" : " — needs both"})</option>
-            </select>
+
+        <div class="roast-section">
+          <div class="roast-section-head">
+            <span class="roast-section-label">1. Roast Level</span>
+            <span class="dim" style="font-size:11.5px;">Active: <strong style="color:var(--text);">${esc(activeLevel.label)}</strong> (${esc(activeLevel.heat)})</span>
           </div>
-          <div class="form-field">
-            <label>Reflection Rounds</label>
-            <select id="roast-rounds">
-              <option value="0">0 (Standard single pass)</option>
-              <option value="1" selected>1 ("What did you forget?")</option>
-              <option value="2">2 (+ "Are you happy?")</option>
-            </select>
-          </div>
-          <div class="form-field">
-            <label>Roast Level</label>
-            <select id="roast-level">
-              <option value="light">Light — constructive author pre-flight</option>
-              <option value="medium" selected>Medium — balanced committer review</option>
-              <option value="dark">Dark — harsh adversarial stress-test</option>
-            </select>
-          </div>
-          <div class="form-field">
-            <label>Flavour / Voice Style</label>
-            <select id="roast-flavour">
-              <option value="default" selected>Default (neutral committer)</option>
-              <option value="tom-lane">Tom Lane voice</option>
-              <option value="peter-eisentraut">Peter Eisentraut voice</option>
-              <option value="robert-haas">Robert Haas voice</option>
-              <option value="andres-freund">Andres Freund voice</option>
-              <option value="heikki-linnakangas">Heikki Linnakangas voice</option>
-              <option value="bruce-momjian">Bruce Momjian voice</option>
-            </select>
-          </div>
-          <div class="form-field">
-            <label>Claude Critic/Synth Model</label>
-            <select id="roast-claude-model">
-              <option value="claude-fable-5-2">claude-fable-5-2</option>
-              <option value="claude-mythos-5-2">claude-mythos-5-2</option>
-              <option value="opus">opus (Opus 5.5)</option>
-            </select>
-          </div>
-          <div class="form-field">
-            <label>Antigravity (agy) Model</label>
-            <select id="roast-agy-model">
-              <option value="gemini-4-neon-xhigh">gemini-4-neon-xhigh</option>
-              <option value="gemini-4-neon-high">gemini-4-neon-high</option>
-              <option value="claude-opus-5-5-high">claude-opus-5-5-high</option>
-            </select>
+          <div class="roast-level-grid" role="radiogroup" aria-label="Roast Level">
+            ${ROAST_LEVEL_CARDS.map(
+              (lvl) => `
+              <button type="button" class="roast-level-card roast-level-${lvl.id} ${state.roastLevel === lvl.id ? "active" : ""}" data-pick-roast-level="${lvl.id}" aria-pressed="${state.roastLevel === lvl.id}">
+                <div class="roast-level-top">
+                  <span class="roast-bean-dot" style="background:${lvl.swatch};"></span>
+                  <strong>${esc(lvl.label)}</strong>
+                  <span class="roast-heat-tag">${esc(lvl.heat)}</span>
+                </div>
+                <div class="roast-level-desc">${esc(lvl.desc)}</div>
+              </button>
+            `,
+            ).join("")}
           </div>
         </div>
-        <div class="inline-row" style="margin-top:6px;">
-          <label class="inline-row" style="cursor:pointer;">
-            <input type="checkbox" id="roast-self" /> <span>--self (author pre-flight mode)</span>
-          </label>
-          <label class="inline-row" style="cursor:pointer;">
-            <input type="checkbox" id="roast-dryrun" /> <span>--dry-run</span>
-          </label>
+
+        <div class="roast-section">
+          <div class="roast-section-head">
+            <span class="roast-section-label">2. Hacker Flavour / Voice Style</span>
+            <button type="button" class="btn btn-secondary btn-sm" id="roast-surprise-btn" title="Pick a random roast level and hacker flavour">🎲 Surprise me</button>
+          </div>
+          <div class="roast-flavour-grid" role="radiogroup" aria-label="Hacker Flavour">
+            ${ROAST_FLAVOUR_CARDS.map(
+              (fl) => `
+              <button type="button" class="roast-flavour-chip ${state.roastFlavour === fl.id ? "active" : ""}" data-pick-roast-flavour="${fl.id}" aria-pressed="${state.roastFlavour === fl.id}">
+                <span class="roast-flavour-avatar" style="background:${fl.color};">${esc(fl.initials)}</span>
+                <span class="roast-flavour-text">
+                  <strong>${esc(fl.name)}</strong>
+                  <small>${esc(fl.lens)}</small>
+                </span>
+              </button>
+            `,
+            ).join("")}
+          </div>
+          <div class="dim" style="font-size:11px;margin-top:6px;">AI-simulated technical focus and voice styles — never impersonates real people.</div>
         </div>
-        <div class="inline-row" style="margin-top:12px;">
-          <button class="btn btn-primary" id="run-roast-btn">🔥 Run Roast v2</button>
-          <button class="btn btn-secondary" id="run-pushback-btn">Run Pushback Analysis</button>
+
+        <details class="roast-advanced">
+          <summary>Backend, models &amp; options <span class="dim">(${esc(defBackend)} · 1 reflection round)</span></summary>
+          <div class="form-grid" style="margin-top:10px;">
+            <div class="form-field">
+              <label>Backend</label>
+              <select id="roast-backend">
+                <option value="auto" ${defBackend === "auto" ? "selected" : ""}>auto (${aiAvail[0] ? `detected: ${esc(aiAvail[0])}` : "first available AI CLI"})</option>
+                <option value="claude" ${defBackend === "claude" ? "selected" : ""}>claude (Claude Code CLI)</option>
+                <option value="codex" ${defBackend === "codex" ? "selected" : ""}>codex (OpenAI Codex CLI)</option>
+                <option value="agy" ${defBackend === "agy" ? "selected" : ""}>agy (Antigravity CLI)</option>
+                <option value="dual" ${defBackend === "dual" ? "selected" : ""}>dual (Claude + agy cross-family${dualReady ? "" : " — needs both"})</option>
+              </select>
+            </div>
+            <div class="form-field">
+              <label>Reflection Rounds</label>
+              <select id="roast-rounds">
+                <option value="0">0 (Standard single pass)</option>
+                <option value="1" selected>1 ("What did you forget?")</option>
+                <option value="2">2 (+ "Are you happy?")</option>
+              </select>
+            </div>
+            <div class="form-field">
+              <label>Claude Critic/Synth Model</label>
+              <select id="roast-claude-model">
+                <option value="claude-fable-5-2">claude-fable-5-2</option>
+                <option value="claude-mythos-5-2">claude-mythos-5-2</option>
+                <option value="opus">opus (Opus 5.5)</option>
+              </select>
+            </div>
+            <div class="form-field">
+              <label>Antigravity (agy) Model</label>
+              <select id="roast-agy-model">
+                <option value="gemini-4-neon-xhigh">gemini-4-neon-xhigh</option>
+                <option value="gemini-4-neon-high">gemini-4-neon-high</option>
+                <option value="claude-opus-5-5-high">claude-opus-5-5-high</option>
+              </select>
+            </div>
+          </div>
+          <div class="inline-row" style="margin-top:8px;">
+            <label class="inline-row" style="cursor:pointer;">
+              <input type="checkbox" id="roast-self" /> <span>--self (author pre-flight mode for your own patch)</span>
+            </label>
+            <label class="inline-row" style="cursor:pointer;">
+              <input type="checkbox" id="roast-dryrun" /> <span>--dry-run (print prompts, no model call)</span>
+            </label>
+          </div>
+        </details>
+
+        <div class="roast-actions-grid">
+          <div class="roast-action-box roast-action-primary">
+            <button type="button" class="btn btn-primary" id="run-roast-btn" style="width:100%;justify-content:center;">${esc(runBtnLabel)}</button>
+            <div class="roast-action-explain">
+              <strong>Adversarial pre-review:</strong> runs 7 parallel review angles + critic against 2,500+ prior Postgres rejections &amp; reverts to surface new design objections.
+            </div>
+          </div>
+          <div class="roast-action-box">
+            <button type="button" class="btn btn-secondary" id="run-pushback-btn" style="width:100%;justify-content:center;">🕵️ Run Pushback Analysis</button>
+            <div class="roast-action-explain">
+              <strong>Thread archaeology (for stuck patches):</strong> reads every <code class="mono">-hackers</code> message to extract who already objected, verbatim quotes, and whether blockers were resolved.
+            </div>
+          </div>
         </div>
       </div>
 
@@ -2224,7 +2329,7 @@ function renderWorkbenchView(): string {
             <div class="muted" style="font-size:12px;">Click any line to leave an inline review note, then compile all notes into a clean <code>-hackers</code> plain-text draft.</div>
           </div>
           <div class="inline-row">
-            <button type="button" class="btn btn-secondary btn-sm" id="diff-load-btn">${diff ? "Reload Diff" : "Load CFBot Diff"}</button>
+            <button type="button" class="btn btn-secondary btn-sm" id="diff-load-btn" ${state.diffLoading ? "disabled" : ""}>${state.diffLoading ? "Loading…" : diff ? "Reload Diff" : "Load CFBot Diff"}</button>
             ${
               comments.length > 0
                 ? `<button type="button" class="btn btn-primary btn-sm" id="diff-compile-btn">Compile ${comments.length} Note${comments.length === 1 ? "" : "s"} → Reply Studio</button>`
@@ -2236,7 +2341,16 @@ function renderWorkbenchView(): string {
           state.diffLoading
             ? renderLoader(`Fetching unified diff for CF #${entry.cf_id} from postgresql-cfbot…`)
             : state.diffError
-              ? `<div class="muted" style="font-size:12px;">${esc(state.diffError)}</div>`
+              ? `
+              <div class="diff-error-box">
+                <div style="font-weight:600;color:var(--danger);margin-bottom:4px;">Could not load CFBot diff for CF #${entry.cf_id}</div>
+                <div class="muted" style="font-size:12px;margin-bottom:10px;">${esc(state.diffError)}</div>
+                <div class="inline-row" style="gap:8px;flex-wrap:wrap;">
+                  <button type="button" class="btn btn-primary btn-sm" id="diff-retry-btn">Retry Load Diff</button>
+                  <button type="button" class="btn btn-secondary btn-sm" id="diff-reload-page-btn">Reload Backoffice</button>
+                  <a class="btn btn-secondary btn-sm" href="https://github.com/postgresql-cfbot/postgresql/compare/master...cf/${entry.cf_id}" target="_blank" rel="noopener">Open CFBot on GitHub ↗</a>
+                </div>
+              </div>`
               : !diff
                 ? `<div class="muted" style="font-size:12px;">Click <strong>Load CFBot Diff</strong> to pull the latest patch series (<code>cf/${entry.cf_id}</code>) and review line-by-line like a PR/MR.</div>`
                 : `
@@ -3761,6 +3875,13 @@ function bindViewEvents(): void {
   document.getElementById("diff-load-btn")?.addEventListener("click", () => {
     if (state.selectedCfId) void loadDiffForEntry(state.selectedCfId);
   });
+  document.getElementById("diff-retry-btn")?.addEventListener("click", () => {
+    if (state.selectedCfId) void loadDiffForEntry(state.selectedCfId);
+  });
+  document.getElementById("diff-reload-page-btn")?.addEventListener("click", () => {
+    sessionStorage.removeItem("pgroast-session-token");
+    window.location.reload();
+  });
   document.querySelectorAll<HTMLElement>("[data-diff-file]").forEach((row) => {
     row.addEventListener("click", () => {
       if (!state.selectedCfId) return;
@@ -3887,16 +4008,48 @@ function bindViewEvents(): void {
     }
   });
 
+  document.querySelectorAll<HTMLButtonElement>("[data-pick-roast-level]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const lvl = btn.dataset.pickRoastLevel as "light" | "medium" | "dark";
+      if (!lvl) return;
+      state.roastLevel = lvl;
+      try { localStorage.setItem("pgroast-roast-level", lvl); } catch { /* ignore */ }
+      render();
+    });
+  });
+
+  document.querySelectorAll<HTMLButtonElement>("[data-pick-roast-flavour]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const fl = btn.dataset.pickRoastFlavour;
+      if (!fl) return;
+      state.roastFlavour = fl;
+      try { localStorage.setItem("pgroast-roast-flavour", fl); } catch { /* ignore */ }
+      render();
+    });
+  });
+
+  document.getElementById("roast-surprise-btn")?.addEventListener("click", () => {
+    const levels: Array<"light" | "medium" | "dark"> = ["light", "medium", "dark"];
+    const flavours = ["tom-lane", "peter-eisentraut", "robert-haas", "andres-freund", "heikki-linnakangas", "bruce-momjian"];
+    state.roastLevel = levels[Math.floor(Math.random() * levels.length)]!;
+    state.roastFlavour = flavours[Math.floor(Math.random() * flavours.length)]!;
+    try {
+      localStorage.setItem("pgroast-roast-level", state.roastLevel);
+      localStorage.setItem("pgroast-roast-flavour", state.roastFlavour);
+    } catch { /* ignore */ }
+    render();
+  });
+
   document.getElementById("run-roast-btn")?.addEventListener("click", async () => {
     if (!state.selectedCfId) return;
-    const backend = (document.getElementById("roast-backend") as HTMLSelectElement).value;
-    const roastLevel = (document.getElementById("roast-level") as HTMLSelectElement)?.value || "medium";
-    const roastFlavour = (document.getElementById("roast-flavour") as HTMLSelectElement)?.value || "default";
-    const rounds = Number((document.getElementById("roast-rounds") as HTMLSelectElement).value);
-    const claudeModel = (document.getElementById("roast-claude-model") as HTMLSelectElement).value;
-    const agyModel = (document.getElementById("roast-agy-model") as HTMLSelectElement).value;
-    const selfMode = (document.getElementById("roast-self") as HTMLInputElement).checked;
-    const dryRun = (document.getElementById("roast-dryrun") as HTMLInputElement).checked;
+    const backend = (document.getElementById("roast-backend") as HTMLSelectElement)?.value || state.settings?.defaultBackend || "auto";
+    const roastLevel = state.roastLevel || "medium";
+    const roastFlavour = state.roastFlavour || "default";
+    const rounds = Number((document.getElementById("roast-rounds") as HTMLSelectElement)?.value ?? 1);
+    const claudeModel = (document.getElementById("roast-claude-model") as HTMLSelectElement)?.value || "claude-fable-5-2";
+    const agyModel = (document.getElementById("roast-agy-model") as HTMLSelectElement)?.value || "gemini-4-neon-xhigh";
+    const selfMode = Boolean((document.getElementById("roast-self") as HTMLInputElement)?.checked);
+    const dryRun = Boolean((document.getElementById("roast-dryrun") as HTMLInputElement)?.checked);
     try {
       const { job } = await api<{ job: JobRecord }>("/api/jobs/roast", {
         method: "POST",
@@ -3911,11 +4064,12 @@ function bindViewEvents(): void {
 
   document.getElementById("run-pushback-btn")?.addEventListener("click", async () => {
     if (!state.selectedCfId) return;
-    const backend = (document.getElementById("roast-backend") as HTMLSelectElement).value;
+    const rawBackend = (document.getElementById("roast-backend") as HTMLSelectElement)?.value || state.settings?.defaultBackend || "claude";
+    const backend = rawBackend === "dual" || rawBackend === "auto" ? "claude" : rawBackend;
     try {
       const { job } = await api<{ job: JobRecord }>("/api/jobs/pushback", {
         method: "POST",
-        body: JSON.stringify({ cfId: state.selectedCfId, backend: backend === "dual" ? "claude" : backend }),
+        body: JSON.stringify({ cfId: state.selectedCfId, backend }),
       });
       openJobStream(job);
       void refreshJobsList();
