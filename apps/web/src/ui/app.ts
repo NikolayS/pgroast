@@ -152,6 +152,8 @@ interface OpinionItem {
   contributor_provider: string;
   contributor_avatar?: string;
   backend: string;
+  roast_level?: string;
+  roast_flavour?: string;
   models_json: string;
   verdict: string;
   confidence: string;
@@ -579,6 +581,23 @@ function closeSpaceSwitcher(): void {
 }
 
 /* ---- Full-Fledged Patch Collaboration Page (/patch/:id) ---- */
+function formatOpinionProfile(o: OpinionItem): string {
+  const lv = (o.roast_level || "medium").toLowerCase();
+  const fl = (o.roast_flavour || "default").toLowerCase();
+  const lvLabel = lv === "dark" ? "Dark roast" : lv === "light" ? "Light roast" : "Medium roast";
+  const flNames: Record<string, string> = {
+    default: "Default",
+    "tom-lane": "Tom Lane",
+    "peter-eisentraut": "Peter Eisentraut",
+    "robert-haas": "Robert Haas",
+    "andres-freund": "Andres Freund",
+    "heikki-linnakangas": "Heikki Linnakangas",
+    "bruce-momjian": "Bruce Momjian",
+  };
+  const flLabel = flNames[fl] || fl;
+  return `${lvLabel} · ${flLabel}`;
+}
+
 function formatModelsLabel(modelsJson: string): string {
   if (!modelsJson || modelsJson === "{}") return "";
   try {
@@ -1016,6 +1035,7 @@ function renderPatchPage(): string {
                   </div>
                   <div class="row" style="gap:6px;">
                     <span class="opinion-model-badge mono">${esc(o.backend)}</span>
+                    <span class="opinion-model-badge">${esc(formatOpinionProfile(o))}</span>
                     ${verdictPill(o.verdict)}
                   </div>
                 </div>
@@ -1907,6 +1927,7 @@ function renderOpinionsTab(): string {
               ${verdictPill(o.verdict)}
               <span class="tag-micro">${esc(o.contributor_name)} (@${esc(o.contributor_handle)})</span>
               <span class="tag-micro mono">${esc(o.backend)}</span>
+              <span class="tag-micro">${esc(formatOpinionProfile(o))}</span>
             </div>
           </button>
         `,

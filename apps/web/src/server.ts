@@ -432,6 +432,8 @@ export async function createWebHandler(opts?: { db?: WebDatabase; config?: Parti
           cf_id?: number;
           entry?: Partial<PublicEntryRecord>;
           backend?: string;
+          roast_level?: string;
+          roast_flavour?: string;
           models?: Record<string, string> | string;
           verdict?: string;
           confidence?: string;
@@ -449,6 +451,8 @@ export async function createWebHandler(opts?: { db?: WebDatabase; config?: Parti
           entry: body.entry,
           contributor,
           backend: (body.backend || "ai-harness").slice(0, 60),
+          roast_level: body.roast_level || "medium",
+          roast_flavour: body.roast_flavour || "default",
           models: body.models,
           verdict: body.verdict.trim(),
           confidence: body.confidence || "medium",

@@ -11,6 +11,16 @@
 
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
+import {
+  isValidRoastFlavour,
+  isValidRoastLevel,
+  normalizeRoastFlavour,
+  normalizeRoastLevel,
+  ROAST_FLAVOURS,
+  ROAST_LEVELS,
+  type RoastFlavour,
+  type RoastLevel,
+} from "./roast/flavours.ts";
 import { BACKENDS, createBackend, DryRunBackend, modelsFromEnv, pickBackend, type BackendName } from "./roast/llm.ts";
 import { closePrecedents } from "./roast/precedents.ts";
 import { runRoast } from "./roast/pipeline.ts";
@@ -77,6 +87,8 @@ export interface BatchOptions {
   only?: number[];
   concurrency?: number;
   backend?: BackendName;
+  roastLevel?: RoastLevel;
+  roastFlavour?: RoastFlavour;
   transcriptsDir?: string;
   dryRun?: boolean;
   offline?: boolean;
@@ -155,7 +167,18 @@ export async function runBatch(o: BatchOptions): Promise<{ done: number; skipped
       const transcriptDir = join(transcripts, String(e.id));
       const backend = o.dryRun ? new DryRunBackend({ transcriptDir, print: () => undefined }) : createBackend(backendName, { transcriptDir, log: (m) => log(`[${e.id}] ${m}`) });
       const proposal = await loadProposal(String(e.id), { blind: o.blind, offline: o.offline });
-      return runRoast(proposal, { backend, models, backendName: o.dryRun ? "dry-run" : backendName, hint: null, enrich: true, mode: "review", rounds: 0, log: (m) => log(`[${e.id}] ${m}`) });
+      return runRoast(proposal, {
+        backend,
+        models,
+        backendName: o.dryRun ? "dry-run" : backendName,
+        hint: null,
+        enrich: true,
+        mode: "review",
+        roastLevel: o.roastLevel,
+        roastFlavour: o.roastFlavour,
+        rounds: 0,
+        log: (m) => log(`[${e.id}] ${m}`),
+      });
     });
 
   const res = { done: 0, skipped: 0, failed: 0, stopped: null as string | null, selected: entries.length };
@@ -225,6 +248,14 @@ export function parseBatchArgs(argv: string[]): BatchOptions {
       const b = value(tok).toLowerCase();
       if (!(BACKENDS as readonly string[]).includes(b)) throw new Error("--backend must be claude, codex, agy, or dual");
       o.backend = b as BackendName;
+    } else if (tok === "--roast-level" || tok === "--level") {
+      const lv = value(tok).toLowerCase();
+      if (!isValidRoastLevel(lv)) throw new Error(`--roast-level must be one of: ${ROAST_LEVELS.join(", ")}`);
+      o.roastLevel = normalizeRoastLevel(lv);
+    } else if (tok === "--flavour" || tok === "--flavor") {
+      const fl = value(tok);
+      if (!isValidRoastFlavour(fl)) throw new Error(`--flavour must be one of: ${ROAST_FLAVOURS.join(", ")}`);
+      o.roastFlavour = normalizeRoastFlavour(fl);
     } else if (tok === "--transcripts") o.transcriptsDir = value(tok);
     else if (tok === "--dry-run") o.dryRun = true;
     else if (tok === "--offline") o.offline = true;

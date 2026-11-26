@@ -1,6 +1,8 @@
 // PG Roast data model: the types of roast.json, the JSON Schemas the model must follow at each
 // stage, and a small validator for them. No dependencies.
 
+import type { RoastFlavour, RoastLevel } from "./flavours.ts";
+
 // ---------------------------------------------------------------------------------------------
 // Constants
 
@@ -440,7 +442,11 @@ export interface Roast {
   input: RoastInputInfo;
   /** "review" = someone else's proposal; "self" = the author's own pre-flight check. */
   mode: "review" | "self";
-  /** "claude" | "codex" | "dry-run" | "test". */
+  /** Roast intensity: "light" | "medium" | "dark". */
+  roast_level?: RoastLevel;
+  /** Review persona/emphasis flavour: "default" | "tom-lane" | "peter-eisentraut" | ... */
+  roast_flavour?: RoastFlavour;
+  /** "claude" | "codex" | "agy" | "dual" | "dry-run" | "test". */
   backend: string;
   models: { roaster: string; critic: string; synth: string; brief: string };
 

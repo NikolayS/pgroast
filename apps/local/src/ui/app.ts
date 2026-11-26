@@ -2123,6 +2123,26 @@ function renderWorkbenchView(): string {
             </select>
           </div>
           <div class="form-field">
+            <label>Roast Level</label>
+            <select id="roast-level">
+              <option value="light">Light — constructive author pre-flight</option>
+              <option value="medium" selected>Medium — balanced committer review</option>
+              <option value="dark">Dark — harsh adversarial stress-test</option>
+            </select>
+          </div>
+          <div class="form-field">
+            <label>Flavour / Voice Style</label>
+            <select id="roast-flavour">
+              <option value="default" selected>Default (neutral committer)</option>
+              <option value="tom-lane">Tom Lane voice</option>
+              <option value="peter-eisentraut">Peter Eisentraut voice</option>
+              <option value="robert-haas">Robert Haas voice</option>
+              <option value="andres-freund">Andres Freund voice</option>
+              <option value="heikki-linnakangas">Heikki Linnakangas voice</option>
+              <option value="bruce-momjian">Bruce Momjian voice</option>
+            </select>
+          </div>
+          <div class="form-field">
             <label>Claude Critic/Synth Model</label>
             <select id="roast-claude-model">
               <option value="claude-fable-5-2">claude-fable-5-2</option>
@@ -2562,6 +2582,7 @@ function renderWorkbenchView(): string {
             <button type="button" class="star-btn ${triage.starred ? "starred" : ""}" id="wb-star-btn" title="${triage.starred ? "Remove star" : "Star this entry"}">${triage.starred ? "★" : "☆"}</button>
             <span class="mono" style="font-size:14px;font-weight:700;">CF ${entry.cf_id}</span>
             ${verdictPill(entry.verdict)}
+            ${roast?.roast_level || roast?.roast_flavour ? `<span class="pill pill-purple">${esc((roast.roast_level || "medium").toUpperCase())} · ${esc(roast.roast_flavour || "default")}</span>` : ""}
             ${entry.status ? `<span class="pill pill-neutral">${esc(entry.status)}</span>` : ""}
             ${cfbotPill(entry.cfbot_status)}
           </div>
@@ -3869,6 +3890,8 @@ function bindViewEvents(): void {
   document.getElementById("run-roast-btn")?.addEventListener("click", async () => {
     if (!state.selectedCfId) return;
     const backend = (document.getElementById("roast-backend") as HTMLSelectElement).value;
+    const roastLevel = (document.getElementById("roast-level") as HTMLSelectElement)?.value || "medium";
+    const roastFlavour = (document.getElementById("roast-flavour") as HTMLSelectElement)?.value || "default";
     const rounds = Number((document.getElementById("roast-rounds") as HTMLSelectElement).value);
     const claudeModel = (document.getElementById("roast-claude-model") as HTMLSelectElement).value;
     const agyModel = (document.getElementById("roast-agy-model") as HTMLSelectElement).value;
@@ -3877,7 +3900,7 @@ function bindViewEvents(): void {
     try {
       const { job } = await api<{ job: JobRecord }>("/api/jobs/roast", {
         method: "POST",
-        body: JSON.stringify({ cfId: state.selectedCfId, backend, rounds, claudeModel, agyModel, selfMode, dryRun }),
+        body: JSON.stringify({ cfId: state.selectedCfId, backend, roastLevel, roastFlavour, rounds, claudeModel, agyModel, selfMode, dryRun }),
       });
       openJobStream(job);
       void refreshJobsList();

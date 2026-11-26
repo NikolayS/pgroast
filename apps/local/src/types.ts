@@ -137,6 +137,8 @@ export interface RoastJson {
     patch_version?: string;
   };
   mode?: string;
+  roast_level?: "light" | "medium" | "dark";
+  roast_flavour?: string;
   backend?: string;
   models?: Record<string, string>;
   verdict: Verdict | string;
@@ -232,6 +234,8 @@ export interface RoastRunRecord {
   id: number;
   cf_id: number;
   mode: string;
+  roast_level?: string;
+  roast_flavour?: string;
   backend: string;
   models_json: string;
   rounds: number;

@@ -255,6 +255,8 @@ export class AppDatabase {
         id SERIAL PRIMARY KEY,
         cf_id INTEGER NOT NULL,
         mode TEXT NOT NULL DEFAULT 'review',
+        roast_level TEXT NOT NULL DEFAULT 'medium',
+        roast_flavour TEXT NOT NULL DEFAULT 'default',
         backend TEXT NOT NULL DEFAULT 'claude',
         models_json TEXT NOT NULL DEFAULT '{}',
         rounds INTEGER NOT NULL DEFAULT 0,
@@ -369,6 +371,8 @@ export class AppDatabase {
         status TEXT NOT NULL DEFAULT 'ok',
         created_at TEXT NOT NULL
       )`,
+      `ALTER TABLE ${this.t("roast_runs")} ADD COLUMN IF NOT EXISTS roast_level TEXT NOT NULL DEFAULT 'medium'`,
+      `ALTER TABLE ${this.t("roast_runs")} ADD COLUMN IF NOT EXISTS roast_flavour TEXT NOT NULL DEFAULT 'default'`,
       `CREATE INDEX IF NOT EXISTS idx_${this.schema}_audit_log_created ON ${this.t("audit_log")}(created_at DESC)`,
 
       `CREATE TABLE IF NOT EXISTS ${this.t("entry_triage")} (
@@ -921,14 +925,16 @@ export class AppDatabase {
       const contributorAvatar = settings.authAvatarUrl || "";
       await this.sql.unsafe(
         `INSERT INTO ${this.t("roast_runs")} (
-          cf_id, mode, backend, models_json, rounds, verdict, confidence,
+          cf_id, mode, roast_level, roast_flavour, backend, models_json, rounds, verdict, confidence,
           roast_json, roast_md, summary_txt,
           contributor_name, contributor_handle, contributor_provider, contributor_avatar,
           created_at
-        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`,
         [
           cfId,
           roast.mode || "review",
+          roast.roast_level || "medium",
+          roast.roast_flavour || "default",
           roast.backend || "claude",
           JSON.stringify(roast.models ?? {}),
           opts?.rounds ?? 0,

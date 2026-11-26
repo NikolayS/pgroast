@@ -38,6 +38,8 @@ export interface PublicOpinionRecord {
   contributor_provider: string;
   contributor_avatar: string;
   backend: string;
+  roast_level: string;
+  roast_flavour: string;
   models_json: string;
   verdict: string;
   confidence: string;
@@ -197,6 +199,8 @@ export class WebDatabase {
         contributor_provider TEXT NOT NULL DEFAULT 'github',
         contributor_avatar TEXT NOT NULL DEFAULT '',
         backend TEXT NOT NULL,
+        roast_level TEXT NOT NULL DEFAULT 'medium',
+        roast_flavour TEXT NOT NULL DEFAULT 'default',
         models_json TEXT NOT NULL DEFAULT '{}',
         verdict TEXT NOT NULL,
         confidence TEXT NOT NULL DEFAULT 'medium',
@@ -204,6 +208,8 @@ export class WebDatabase {
         created_at TEXT NOT NULL
       )`,
       `CREATE INDEX IF NOT EXISTS idx_${this.schema}_pub_opinions_cf ON ${this.t("public_opinions")}(cf_id, created_at DESC)`,
+      `ALTER TABLE ${this.t("public_opinions")} ADD COLUMN IF NOT EXISTS roast_level TEXT NOT NULL DEFAULT 'medium'`,
+      `ALTER TABLE ${this.t("public_opinions")} ADD COLUMN IF NOT EXISTS roast_flavour TEXT NOT NULL DEFAULT 'default'`,
       `CREATE TABLE IF NOT EXISTS ${this.t("published_briefs")} (
         id SERIAL PRIMARY KEY,
         slug TEXT UNIQUE NOT NULL,
@@ -341,6 +347,8 @@ export class WebDatabase {
     entry?: Partial<PublicEntryRecord>;
     contributor: ContributorRecord;
     backend: string;
+    roast_level?: string;
+    roast_flavour?: string;
     models?: Record<string, string> | string;
     verdict: string;
     confidence?: string;
@@ -353,8 +361,8 @@ export class WebDatabase {
     const rows = (await this.sql.unsafe(
       `INSERT INTO ${this.t("public_opinions")} (
         cf_id, contributor_id, contributor_name, contributor_handle, contributor_provider,
-        contributor_avatar, backend, models_json, verdict, confidence, summary, created_at
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+        contributor_avatar, backend, roast_level, roast_flavour, models_json, verdict, confidence, summary, created_at
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
       RETURNING *`,
       [
         input.cf_id,
@@ -364,6 +372,8 @@ export class WebDatabase {
         input.contributor.provider,
         input.contributor.avatar_url,
         input.backend,
+        (input.roast_level || "medium").slice(0, 20),
+        (input.roast_flavour || "default").slice(0, 40),
         modelsJson,
         input.verdict,
         input.confidence || "medium",

@@ -1,5 +1,20 @@
 # Changelog
 
+## v0.3.0-alpha.4 (2026-11-26)
+
+This release adds selectable **Roast Levels (`light` / `medium` / `dark`)** and **Hacker Flavour styles (`default`, `tom-lane`, `peter-eisentraut`, `robert-haas`, `andres-freund`, `heikki-linnakangas`, `bruce-momjian`)** across the CLI, reports, Local Backoffice, and Public App opinions.
+
+### Changes
+
+- **Roast levels and hacker flavours (`src/roast/flavours.ts`):**
+  - Added `--roast-level light|medium|dark` (alias `--level`) and `--flavour <name>` (alias `--flavor`) to both `pgroast` CLI and `pgroast batch`.
+  - **Light** gives constructive, author-friendly pre-flight feedback; **Medium** keeps the balanced committer default; **Dark** runs a harsh, uncompromising adversarial stress-test on maintenance burden, demand, extensions vs. core fit, and WAL/crash/locking edge cases.
+  - **Flavours** tune technical focus and voice style (`default`, `tom-lane`, `peter-eisentraut`, `robert-haas`, `andres-freund`, `heikki-linnakangas`, `bruce-momjian`) while explicitly remaining AI-simulated technical styles.
+  - Every `roast.json`, `roast.md`, `roast-full.md`, and `roast-summary.txt` now records and displays `roast_level` and `roast_flavour`.
+- **Personal Backoffice (`apps/local`) & Public App (`apps/web`) persistence and UI:**
+  - Added **Roast Level** and **Flavour / Voice Style** pickers to `apps/local` Workbench → Roast tab and persisted both columns in PostgreSQL (`roast_runs` and `public_opinions`).
+  - Displayed roast level and flavour badges on entry headers (`apps/local`) and on published community opinion cards (`/patch/<cf-id>` and `Opinions` in `apps/web`).
+
 ## v0.3.0-alpha.3 (2026-11-26)
 
 This release adds GitLab MR-style `Discussion` and `Changes` tabs to every public patch page (`/patch/<cf-id>`) and promotes CommitFest analytics and leaderboards to a dedicated top-level **Stats** tab in the Public App (`apps/web`).

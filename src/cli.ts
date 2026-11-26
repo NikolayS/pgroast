@@ -21,6 +21,16 @@ import { DEFAULT_OUT_ROOT, REPO_ROOT, stats as fetchStats } from "./thread/fetch
 import { loadProposal, validateDate } from "./thread/load.ts";
 import { loadLocalProposal } from "./thread/local.ts";
 import { runDoctor } from "./roast/doctor.ts";
+import {
+  isValidRoastFlavour,
+  isValidRoastLevel,
+  normalizeRoastFlavour,
+  normalizeRoastLevel,
+  ROAST_FLAVOURS,
+  ROAST_LEVELS,
+  type RoastFlavour,
+  type RoastLevel,
+} from "./roast/flavours.ts";
 import { BACKENDS, createBackend, DryRunBackend, modelsFromEnv, pickBackend, type BackendName } from "./roast/llm.ts";
 import { closePrecedents } from "./roast/precedents.ts";
 import { runRoast, slugFor } from "./roast/pipeline.ts";
@@ -52,6 +62,9 @@ const USAGE = `Usage: bun run src/cli.ts <cf-id|cf-url|message-id|thread-url> [o
   --hint TEXT      directed precedent lookup, e.g. "the 2018 suggestion of doing X"
   --out DIR        output directory (default: out/<slug>)
   --backend NAME   claude, codex, agy, or dual (default: PGROAST_BACKEND, else claude > codex > agy)
+  --roast-level L  light, medium (default), or dark (alias: --level)
+  --flavour NAME   default, tom-lane, peter-eisentraut, robert-haas, andres-freund,
+                   heikki-linnakangas, or bruce-momjian (alias: --flavor)
   --no-enrich      do not read precedent threads and do not filter precedents for relevance
   --dry-run        print the prompts, call no model
   --offline        use only cached pages
@@ -101,6 +114,8 @@ export interface CliArgs {
   hint?: string;
   out?: string;
   backend?: BackendName;
+  roastLevel?: RoastLevel;
+  roastFlavour?: RoastFlavour;
   doctor?: boolean;
   initDb?: boolean;
   noEnrich?: boolean;
@@ -157,6 +172,24 @@ export function parseArgs(argv: string[]): CliArgs | "help" {
           throw new Error("--backend must be claude, codex, agy, or dual");
         }
         a.backend = b as BackendName;
+        break;
+      }
+      case "--roast-level":
+      case "--level": {
+        const lv = value(flag, inline).toLowerCase();
+        if (!isValidRoastLevel(lv)) {
+          throw new Error(`--roast-level must be one of: ${ROAST_LEVELS.join(", ")}`);
+        }
+        a.roastLevel = normalizeRoastLevel(lv);
+        break;
+      }
+      case "--flavour":
+      case "--flavor": {
+        const fl = value(flag, inline);
+        if (!isValidRoastFlavour(fl)) {
+          throw new Error(`--flavour must be one of: ${ROAST_FLAVOURS.join(", ")}`);
+        }
+        a.roastFlavour = normalizeRoastFlavour(fl);
         break;
       }
       case "--self":
@@ -381,7 +414,18 @@ async function main(): Promise<number> {
   const backend = args.dryRun ? new DryRunBackend({ transcriptDir }) : createBackend(backendName, { transcriptDir, log });
   if (!args.dryRun) log(`backend: ${backendName} CLI (subscription login, no tools)`);
 
-  const roast = await runRoast(proposal, { backend, models, backendName: args.dryRun ? "dry-run" : backendName, hint: args.hint ?? null, enrich: !args.noEnrich, mode: args.self ? "self" : "review", rounds: args.rounds ?? 0, log });
+  const roast = await runRoast(proposal, {
+    backend,
+    models,
+    backendName: args.dryRun ? "dry-run" : backendName,
+    hint: args.hint ?? null,
+    enrich: !args.noEnrich,
+    mode: args.self ? "self" : "review",
+    roastLevel: args.roastLevel,
+    roastFlavour: args.roastFlavour,
+    rounds: args.rounds ?? 0,
+    log,
+  });
   await closePrecedents();
   roast.stats.wall_ms = Date.now() - t0;
 

@@ -26,6 +26,7 @@ import {
   CliBackend,
   DEFAULT_AGY_CRITIC_MODEL,
   DEFAULT_AGY_MODEL,
+  DryRunBackend,
   DualBackend,
   modelsFromEnv,
   parseAgyJson,
@@ -606,6 +607,54 @@ describe("v2 pipeline: novelty, critic duplicate + upgrade, clean lead prose", (
     const full = renderMarkdown(r);
     expect(full).toContain("### Duplicates merged in the counter-check");
     expect(full).toContain("Duplicate of `prior-attempts-1`");
+    expect(full).toContain("Medium roast · Default (Neutral Committer)");
+  });
+
+  test("roast level (light/medium/dark) and hacker flavour flags parse, inject prompts, and appear in reports", async () => {
+    const cliParsed = parseArgs(["--roast-level", "dark", "--flavour", "tom-lane", "5879"]);
+    expect(cliParsed !== "help" && cliParsed.roastLevel).toBe("dark");
+    expect(cliParsed !== "help" && cliParsed.roastFlavour).toBe("tom-lane");
+
+    const aliasParsed = parseArgs(["--level", "light", "--flavor", "peter", "5879"]);
+    expect(aliasParsed !== "help" && aliasParsed.roastLevel).toBe("light");
+    expect(aliasParsed !== "help" && aliasParsed.roastFlavour).toBe("peter-eisentraut");
+
+    const batchParsed = parseBatchArgs(["62", "--out", "/tmp/out", "--roast-level", "dark", "--flavour", "robert-haas"]);
+    expect(batchParsed.roastLevel).toBe("dark");
+    expect(batchParsed.roastFlavour).toBe("robert-haas");
+
+    const seenSystems: string[] = [];
+    const prop: ProposalInput = {
+      input: "5879",
+      ref: { kind: "cf", id: 5879 },
+      cf: null,
+      thread: {
+        threadUrl: "https://www.postgresql.org/message-id/flat/abc@example.org",
+        rootMessageId: "abc@example.org",
+        subject: "amcheck: support for GiST",
+        lists: ["pgsql-hackers"],
+        messages: [makeMsg({ index: 1, date: "2025-06-30T11:34:22Z" })],
+      },
+      totalMessages: 1,
+      filters: { blind: null, before: null },
+      threadStart: "2025-06-30T11:34:22Z",
+      patchProse: [],
+      warnings: [],
+    };
+    const r = await runRoast(prop, {
+      backend: new DryRunBackend({ print: (s: string) => seenSystems.push(s) }),
+      models: modelsFromEnv({}),
+      roastLevel: "dark",
+      roastFlavour: "tom-lane",
+      enrich: false,
+      search: async () => [],
+      log: () => undefined,
+    });
+    expect(r.roast_level).toBe("dark");
+    expect(r.roast_flavour).toBe("tom-lane");
+    expect(seenSystems.some((s) => s.includes("Roast level: DARK") && s.includes("TOM LANE STYLE"))).toBe(true);
+    expect(renderCompactMarkdown(r)).toContain("Dark roast · Tom Lane voice");
+    expect(renderMarkdown(r)).toContain("Roast profile: Dark roast · Tom Lane voice");
   });
 });
 

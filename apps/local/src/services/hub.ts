@@ -21,6 +21,8 @@ export async function publishOpinionToHub(
   input: {
     cfId: number;
     backend?: string;
+    roastLevel?: string;
+    roastFlavour?: string;
     verdict: string;
     confidence?: string;
     summary?: string;
@@ -56,6 +58,8 @@ export async function publishOpinionToHub(
         }
       : undefined,
     backend: (input.backend || "ai-harness").trim(),
+    roast_level: (input.roastLevel || "medium").trim(),
+    roast_flavour: (input.roastFlavour || "default").trim(),
     verdict: input.verdict.trim(),
     confidence: input.confidence || "medium",
     summary: (input.summary || "").trim(),

@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { REPO_ROOT } from "../thread/fetch.ts";
 import type { ProposalInput, Thread } from "../thread/types.ts";
 import { loadInvariantFiles, renderInvariants, selectInvariants, type InvariantFile } from "./invariants.ts";
+import { buildRoastProfilePrompt, normalizeRoastFlavour, normalizeRoastLevel, type RoastFlavour, type RoastLevel } from "./flavours.ts";
 import { toneCheck } from "./tone.ts";
 import { ENRICH_SCHEMA, RELEVANCE_SCHEMA, enrichPrecedents, openPgEnrichmentStore, type EnrichmentStore } from "./enrich.ts";
 import type { LlmBackend } from "./llm.ts";
@@ -55,6 +56,10 @@ export interface RunOptions {
   models: { roaster: string; critic: string; synth: string; brief: string };
   /** "self" = the author's own pre-flight check: same pipeline, other framing. */
   mode?: "review" | "self";
+  /** Roast intensity: light, medium (default), or dark. */
+  roastLevel?: RoastLevel;
+  /** Review flavour / hacker voice style (default, tom-lane, peter-eisentraut, ...). */
+  roastFlavour?: RoastFlavour;
   /** Extra rounds after the first pass (default 0). 1 = "What did you forget?", 2 = + "Are you happy with the results?", 3+ = supervisor follow-ups. */
   rounds?: number;
   /** Injected for tests; default = the files under invariants/. */
@@ -171,17 +176,19 @@ export const INVARIANT_ANGLES: readonly Angle[] = ["replication-ondisk", "mainte
 
 const withInvariants = (angle: Angle, invariants: string) => (invariants && INVARIANT_ANGLES.includes(angle) ? `\n\n${invariants}` : "");
 
-export function roasterSystem(p: Prompts, angle: Angle, invariants = ""): string {
-  return withRubric(p.roasterCommon, p.rubric, `${p.angles[angle]}${withInvariants(angle, invariants)}\n\n${p.writing}\n\n${outputContract(ROASTER_SCHEMA, true)}`);
+const withProfile = (profile: string) => (profile ? `\n\n${profile}` : "");
+
+export function roasterSystem(p: Prompts, angle: Angle, invariants = "", profile = ""): string {
+  return withRubric(p.roasterCommon, p.rubric, `${p.angles[angle]}${withInvariants(angle, invariants)}${withProfile(profile)}\n\n${p.writing}\n\n${outputContract(ROASTER_SCHEMA, true)}`);
 }
-export function reflectSystem(p: Prompts, angle: Angle, invariants = ""): string {
-  return withRubric(p.roasterCommon, p.rubric, `${p.angles[angle]}${withInvariants(angle, invariants)}\n\n${p.reflect}\n\n${p.writing}\n\n${outputContract(REFLECT_SCHEMA, true)}`);
+export function reflectSystem(p: Prompts, angle: Angle, invariants = "", profile = ""): string {
+  return withRubric(p.roasterCommon, p.rubric, `${p.angles[angle]}${withInvariants(angle, invariants)}${withProfile(profile)}\n\n${p.reflect}\n\n${p.writing}\n\n${outputContract(REFLECT_SCHEMA, true)}`);
 }
-export function criticSystem(p: Prompts, invariants = ""): string {
-  return withRubric(p.critic, p.rubric, `${invariants ? `${invariants}\n\n` : ""}${p.writing}\n\n${outputContract(CRITIC_SCHEMA, false)}`);
+export function criticSystem(p: Prompts, invariants = "", profile = ""): string {
+  return withRubric(p.critic, p.rubric, `${invariants ? `${invariants}\n\n` : ""}${profile ? `${profile}\n\n` : ""}${p.writing}\n\n${outputContract(CRITIC_SCHEMA, false)}`);
 }
-export function synthSystem(p: Prompts, self = false): string {
-  return withRubric(p.synth, p.rubric, `${self ? `${p.synthSelf}\n\n` : ""}${p.writing}\n\n${outputContract(self ? SYNTH_SELF_SCHEMA : SYNTH_SCHEMA, true)}`);
+export function synthSystem(p: Prompts, self = false, profile = ""): string {
+  return withRubric(p.synth, p.rubric, `${self ? `${p.synthSelf}\n\n` : ""}${profile ? `${profile}\n\n` : ""}${p.writing}\n\n${outputContract(self ? SYNTH_SELF_SCHEMA : SYNTH_SCHEMA, true)}`);
 }
 export function supervisorSystem(p: Prompts): string {
   return `${p.supervisor}\n\n${outputContract(SUPERVISOR_SCHEMA, false)}`;
@@ -418,6 +425,9 @@ export async function runRoast(proposal: ProposalInput, opts: RunOptions): Promi
   const now = (opts.now ?? (() => new Date()))();
   const prompts = loadPrompts(opts.promptsDir);
   const { backend, models } = opts;
+  const roastLevel = normalizeRoastLevel(opts.roastLevel);
+  const roastFlavour = normalizeRoastFlavour(opts.roastFlavour);
+  const profilePrompt = buildRoastProfilePrompt(roastLevel, roastFlavour);
   const angles = opts.angles ?? ANGLES;
   const warnings: string[] = [...proposal.warnings];
   const report = emptyReport();
@@ -633,7 +643,7 @@ export async function runRoast(proposal: ProposalInput, opts: RunOptions): Promi
       await backend.complete<CriticOutput>({
         label,
         model: models.critic,
-        system: criticSystem(prompts, invariantsText),
+        system: criticSystem(prompts, invariantsText, profilePrompt),
         prompt: [
           shared,
           ...(earlier.length && targets.length ? [`# Objections already checked in earlier rounds (for duplicate detection only; give no verdict on these)\n\n${JSON.stringify(earlier.map((o) => ({ id: o.id, title: o.title, status: o.status })), null, 1)}`] : []),
@@ -677,7 +687,7 @@ export async function runRoast(proposal: ProposalInput, opts: RunOptions): Promi
         const out = await backend.complete<RoasterOutput>({
           label: `roaster-${angle}`,
           model: models.roaster,
-          system: roasterSystem(prompts, angle, invariantsText),
+          system: roasterSystem(prompts, angle, invariantsText, profilePrompt),
           prompt: `${shared}\n\n# Task\n\nRoast this proposal from your angle (${angle}). Zero objections is a valid answer. JSON only.`,
           schema: ROASTER_SCHEMA,
         });
@@ -738,7 +748,7 @@ export async function runRoast(proposal: ProposalInput, opts: RunOptions): Promi
             const out = await backend.complete<ReflectOutput>({
               label: `round${round}-${angle}`,
               model: models.roaster,
-              system: reflectSystem(prompts, angle, invariantsText),
+              system: reflectSystem(prompts, angle, invariantsText, profilePrompt),
               prompt: `${shared}\n\n# Your answers so far (angle: ${angle})${round >= 2 ? ", with the critic's verdicts" : ""}\n\n${JSON.stringify(answersOf(angle), null, 1)}\n\n# Question\n\n${question}`,
               schema: REFLECT_SCHEMA,
             });
@@ -820,7 +830,7 @@ export async function runRoast(proposal: ProposalInput, opts: RunOptions): Promi
             const out = await backend.complete<RoasterOutput>({
               label: `round${round}-followup${i + 1}-${f.angle}`,
               model: models.roaster,
-              system: roasterSystem(prompts, f.angle, invariantsText),
+              system: roasterSystem(prompts, f.angle, invariantsText, profilePrompt),
               prompt: `${shared}\n\n# Your answers so far (angle: ${f.angle})\n\n${JSON.stringify(answersOf(f.angle), null, 1)}\n\n# Follow-up from the supervisor\n\nArea not covered: ${f.uncovered_area}\n\n${f.instruction}\n\n# Task\n\nExamine this area only, from your angle (${f.angle}). Return only new objections about it; do not repeat earlier ones. An empty list is a valid answer: say in no_objection_note what you checked. JSON only.`,
               schema: ROASTER_SCHEMA,
             });
@@ -861,7 +871,7 @@ export async function runRoast(proposal: ProposalInput, opts: RunOptions): Promi
     await backend.complete<SynthOutput>({
       label: "synth",
       model: models.synth,
-      system: synthSystem(prompts, selfMode),
+      system: synthSystem(prompts, selfMode, profilePrompt),
       prompt: [
         head,
         `# Brief\n\n${JSON.stringify(brief, null, 1)}`,
@@ -945,6 +955,8 @@ export async function runRoast(proposal: ProposalInput, opts: RunOptions): Promi
       touched_files: touched,
     },
     mode: selfMode ? "self" : "review",
+    roast_level: roastLevel,
+    roast_flavour: roastFlavour,
     backend: opts.backendName ?? (backend.dryRun ? "dry-run" : "claude"),
     models,
     verdict: asm.verdict,

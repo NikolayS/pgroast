@@ -917,11 +917,22 @@ export async function createAppHandler(opts?: {
         }
 
         if (method === "POST" && path === "/api/hub/publish-opinion") {
-          const body = await readBody<{ cfId?: number; backend?: string; verdict?: string; confidence?: string; summary?: string; confirm?: boolean }>(req);
+          const body = await readBody<{
+            cfId?: number;
+            backend?: string;
+            roastLevel?: string;
+            roastFlavour?: string;
+            verdict?: string;
+            confidence?: string;
+            summary?: string;
+            confirm?: boolean;
+          }>(req);
           if (!body.cfId || !body.verdict) return errorJson("cfId and verdict are required", 400);
           const res = await publishOpinionToHub(db, await db.getSettings(), {
             cfId: Number(body.cfId),
             backend: body.backend,
+            roastLevel: body.roastLevel,
+            roastFlavour: body.roastFlavour,
             verdict: body.verdict,
             confidence: body.confidence,
             summary: body.summary,

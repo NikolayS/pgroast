@@ -291,6 +291,8 @@ export class JobRunner {
     cfId?: number;
     target?: string;
     backend?: "auto" | "claude" | "agy" | "codex" | "dual";
+    roastLevel?: "light" | "medium" | "dark";
+    roastFlavour?: string;
     claudeModel?: string;
     agyModel?: string;
     rounds?: number;
@@ -303,6 +305,8 @@ export class JobRunner {
     if (!target) throw new Error("Either cfId or target (URL / Message-ID) is required.");
 
     const backend = resolveEffectiveBackend(params.backend, settings);
+    const roastLevel = params.roastLevel || "medium";
+    const roastFlavour = (params.roastFlavour || "default").trim() || "default";
     const rounds = Math.min(Math.max(params.rounds ?? 0, 0), 3);
     const id = makeJobId("roast");
     const outDir = join(LOGS_DIR, `out-${id}`);
@@ -316,17 +320,18 @@ export class JobRunner {
           ? `${params.claudeModel || settings.defaultClaudeModel} + ${params.agyModel || settings.defaultAgyModel}`
           : params.claudeModel || settings.defaultClaudeModel;
 
+    const profileTag = roastLevel !== "medium" || roastFlavour !== "default" ? ` · ${roastLevel}/${roastFlavour}` : "";
     const job = await this.db.createJob({
       id,
       kind: "roast",
       cf_id: params.cfId ?? null,
-      title: `Roast ${params.cfId ? `CF ${params.cfId}` : target} (${backend})`,
+      title: `Roast ${params.cfId ? `CF ${params.cfId}` : target} (${backend}${profileTag})`,
       model: modelLabel,
       backend,
       log_path: logPath,
     });
 
-    const cliArgs = ["run", "src/cli.ts", target, "--out", outDir, "--backend", backend];
+    const cliArgs = ["run", "src/cli.ts", target, "--out", outDir, "--backend", backend, "--roast-level", roastLevel, "--flavour", roastFlavour];
     if (rounds > 0) cliArgs.push("--rounds", String(rounds));
     if (params.selfMode) cliArgs.push("--self");
     if (params.dryRun) cliArgs.push("--dry-run");
