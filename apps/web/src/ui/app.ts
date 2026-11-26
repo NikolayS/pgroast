@@ -96,6 +96,14 @@ interface MrDiffData {
   cachedAt: string;
 }
 
+interface PageViewsInfo {
+  total: number;
+  last24h: number;
+  last7d: number;
+  topPatches: Array<{ cf_id: number; hits: number }>;
+  topReferrers: Array<{ ref_host: string; hits: number }>;
+}
+
 interface HealthInfo {
   version?: string;
   database: { version: string; database: string };
@@ -251,6 +259,7 @@ const state = {
   mrViewedFiles: new Set<string>(),
   statsLbTab: "authors" as "authors" | "reviewers" | "committers",
   health: null as HealthInfo | null,
+  views: null as PageViewsInfo | null,
   briefs: [] as BriefSummary[],
   selectedBriefSlug: "latest",
   briefDetail: null as BriefDetail | null,
@@ -503,13 +512,15 @@ async function loadAll(): Promise<void> {
     const route = parseRouteFromLocation();
     state.tab = route.tab;
 
-    const [health, bRes, oRes, cRes] = await Promise.all([
+    const [health, views, bRes, oRes, cRes] = await Promise.all([
       api<HealthInfo>("/api/v1/health"),
+      api<PageViewsInfo>("/api/v1/views").catch(() => null),
       api<{ briefs: BriefSummary[] }>("/api/v1/briefs"),
       api<{ opinions: OpinionItem[] }>("/api/v1/opinions"),
       api<{ items: CoordItem[] }>("/api/v1/coordination"),
     ]);
     state.health = health;
+    state.views = views;
     state.briefs = bRes.briefs;
     state.opinions = oRes.opinions;
     state.coordination = cRes.items;
@@ -535,7 +546,8 @@ async function loadAll(): Promise<void> {
       const verLink = ver
         ? `<a class="footer-ver mono" href="https://github.com/NikolayS/pgroast/releases/tag/${encodeURIComponent(ver)}" target="_blank" rel="noopener">${esc(ver)}</a> · `
         : "";
-      const viewsPart = health.views && health.views.total > 0 ? ` · ${health.views.total} views` : "";
+      const viewTotal = views?.total ?? health.views?.total ?? 0;
+      const viewsPart = ` · <a class="footer-ver" href="/?tab=stats#site-traffic" id="footer-views-link">${viewTotal} view${viewTotal === 1 ? "" : "s"}</a>`;
       f.innerHTML = `${verLink}${esc(health.database.version || "PostgreSQL")} · ${health.counts.entries} entries · ${health.counts.opinions} opinions${viewsPart}`;
     }
     syncTopBackofficeLink();
@@ -1697,6 +1709,71 @@ function renderStatsTab(): string {
       ${renderLbCard("reviewers", "Top Reviewers", reviewersLb)}
       ${renderLbCard("committers", "Top Committers", committersLb)}
     </div>
+
+    ${(() => {
+      const v = state.views;
+      const totalViews = v?.total ?? state.health?.views?.total ?? 0;
+      const last24h = v?.last24h ?? state.health?.views?.last24h ?? 0;
+      const last7d = v?.last7d ?? state.health?.views?.last7d ?? 0;
+      const topPatches = v?.topPatches ?? [];
+      const topRefs = v?.topReferrers ?? [];
+      return `
+      <div class="card" id="site-traffic" style="margin-top:16px;">
+        <div class="card-head">
+          <div>
+            <h2>Site Traffic &amp; Interest</h2>
+            <div class="dim" style="font-size:12px;">Privacy-friendly hit counter stored in PostgreSQL — zero cookies, zero IPs, bots excluded.</div>
+          </div>
+          <span class="tag-micro mono">${totalViews} total · ${last24h} (24h) · ${last7d} (7d)</span>
+        </div>
+        <div class="grid2">
+          <div>
+            <div class="dim" style="font-size:11.5px;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:8px;">Most Viewed Patches</div>
+            ${
+              topPatches.length === 0
+                ? `<div class="muted" style="font-size:12.5px;">No individual patch views recorded yet. Open any <code class="mono">/patch/&lt;id&gt;</code> URL directly to count hits.</div>`
+                : `<div class="lb-list">
+                    ${topPatches
+                      .slice(0, 10)
+                      .map((p, idx) => {
+                        const entry = state.entries.find((e) => e.cf_id === p.cf_id);
+                        return `
+                          <button type="button" class="lb-row" data-open-patch="${p.cf_id}">
+                            <span class="lb-rank mono">${idx + 1}</span>
+                            <span class="lb-name"><span class="mono" style="color:var(--accent-t);">CF ${p.cf_id}</span> ${entry ? esc(entry.title) : ""}</span>
+                            <span class="lb-count mono">${p.hits}</span>
+                          </button>
+                        `;
+                      })
+                      .join("")}
+                  </div>`
+            }
+          </div>
+          <div>
+            <div class="dim" style="font-size:11.5px;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:8px;">Top Referrers</div>
+            ${
+              topRefs.length === 0
+                ? `<div class="muted" style="font-size:12.5px;">No external referrers yet (direct visits or links shared from <code class="mono">postgresql.org</code> / Telegram / X will appear here).</div>`
+                : `<div class="lb-list">
+                    ${topRefs
+                      .slice(0, 10)
+                      .map(
+                        (r, idx) => `
+                      <div class="lb-row" style="cursor:default;">
+                        <span class="lb-rank mono">${idx + 1}</span>
+                        <span class="lb-name mono">${esc(r.ref_host)}</span>
+                        <span class="lb-count mono">${r.hits}</span>
+                      </div>
+                    `,
+                      )
+                      .join("")}
+                  </div>`
+            }
+          </div>
+        </div>
+      </div>
+      `;
+    })()}
   `;
 }
 
@@ -2589,6 +2666,7 @@ function render(): void {
 
   // Stats tab events
   if (state.tab === "stats") {
+    bindPatchRowClicks(root);
     document.getElementById("stats-goto-opinions")?.addEventListener("click", () => navigateToTab("opinions"));
     document.querySelectorAll<HTMLElement>("[data-stats-status]").forEach((el) => {
       el.addEventListener("click", () => {
