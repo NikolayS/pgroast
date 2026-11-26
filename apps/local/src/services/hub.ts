@@ -4,10 +4,22 @@ import { publicConfidentialityCheck } from "./gates.ts";
 import { buildShortlistAndTop50, classifyEntryKind, detectProductionSignal, extractWorkaroundFinding } from "./shortlist.ts";
 import { buildStatsReport } from "./stats.ts";
 
+const HUB_FETCH_TIMEOUT_MS = 15_000;
+
+async function readSafeJson<T>(res: Response): Promise<T & { error?: string }> {
+  const text = await res.text();
+  if (!text.trim()) return {} as T & { error?: string };
+  try {
+    return JSON.parse(text) as T & { error?: string };
+  } catch {
+    return { error: `Unexpected non-JSON response (HTTP ${res.status}): ${text.slice(0, 140)}` } as T & { error?: string };
+  }
+}
+
 function resolveHubBase(settings: AppSettings, overrideUrl?: string): string {
   const raw = (overrideUrl || settings.publicHubUrl || "").trim().replace(/\/$/, "");
   if (!raw) {
-    throw new Error("Public Companion URL is not configured. Set it in Settings -> Public Companion Hub (e.g. http://127.0.0.1:3433 or https://pgroast.dev).");
+    throw new Error("Public Companion URL is not configured. Set it in Settings -> Public Companion Hub (e.g. https://pgroast.postgres.ai).");
   }
   if (!/^https?:\/\//i.test(raw)) {
     throw new Error(`Public Companion URL must start with http:// or https:// (got "${raw}").`);
@@ -95,8 +107,9 @@ export async function publishOpinionToHub(
       Authorization: `Bearer ${token}`,
     },
     body: JSON.stringify(payload),
+    signal: AbortSignal.timeout(HUB_FETCH_TIMEOUT_MS),
   });
-  const data = (await res.json()) as { opinion?: unknown; error?: string };
+  const data = await readSafeJson<{ opinion?: unknown }>(res);
   if (!res.ok) {
     await db.logAudit("hub_publish_opinion", `cf:${input.cfId}`, { error: data.error || res.status }, "error");
     throw new Error(data.error || `Public companion returned HTTP ${res.status}`);
@@ -114,8 +127,9 @@ export async function pullOpinionsFromHub(
   const hubBase = resolveHubBase(settings);
   const res = await fetch(`${hubBase}/api/v1/entries/${cfId}/opinions`, {
     headers: { Accept: "application/json" },
+    signal: AbortSignal.timeout(HUB_FETCH_TIMEOUT_MS),
   });
-  const data = (await res.json()) as {
+  const data = await readSafeJson<{
     opinions?: Array<{
       contributor_name: string;
       contributor_handle: string;
@@ -130,8 +144,7 @@ export async function pullOpinionsFromHub(
       summary?: string;
       created_at?: string;
     }>;
-    error?: string;
-  };
+  }>(res);
   if (!res.ok) {
     throw new Error(data.error || `Public companion returned HTTP ${res.status}`);
   }
@@ -254,7 +267,7 @@ export async function publishBriefToHub(
     entries: cleanEntries,
   };
 
-  const gate = publicConfidentialityCheck(JSON.stringify({ title: payload.title, shortlist: payload.shortlist.slice(0, 20) }));
+  const gate = publicConfidentialityCheck(JSON.stringify(payload));
   if (gate.blocking) {
     const msgs = gate.issues.map((i) => i.message).join(" | ");
     await db.logAudit("hub_publish_brief", payload.slug, { blocked: true, msgs }, "blocked");
@@ -268,8 +281,9 @@ export async function publishBriefToHub(
       Authorization: `Bearer ${token}`,
     },
     body: JSON.stringify(payload),
+    signal: AbortSignal.timeout(30_000),
   });
-  const data = (await res.json()) as { brief?: Record<string, unknown>; error?: string };
+  const data = await readSafeJson<{ brief?: Record<string, unknown> }>(res);
   if (!res.ok) {
     await db.logAudit("hub_publish_brief", payload.slug, { error: data.error || res.status }, "error");
     throw new Error(data.error || `Public companion returned HTTP ${res.status}`);

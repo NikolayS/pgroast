@@ -35,7 +35,7 @@ export const CLI_BACKENDS: readonly SingleBackendName[] = ["claude", "codex", "a
 export const BACKENDS: readonly BackendName[] = ["claude", "codex", "agy", "dual"];
 
 export const DEFAULT_ROASTER_MODEL = "opus";
-export const DEFAULT_CRITIC_MODEL = "claude-mythos-5-2";
+export const DEFAULT_CRITIC_MODEL = "opus";
 export const DEFAULT_AGY_MODEL = "gemini-4-neon-high";
 export const DEFAULT_AGY_CRITIC_MODEL = "gemini-4-neon-xhigh";
 /** Shown where a model name is needed and the Codex CLI's configured default is used. */

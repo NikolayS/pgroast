@@ -1,9 +1,11 @@
+import { createHash } from "node:crypto";
 import { SQL } from "bun";
-import { generatePublishToken, hashToken } from "./security.ts";
+import { generatePublishToken, hashToken, safeHttpUrl } from "./security.ts";
 
 export interface ContributorRecord {
   id: number;
   provider: "github" | "google";
+  provider_user_id: string;
   handle: string;
   name: string;
   avatar_url: string;
@@ -155,12 +157,15 @@ export class WebDatabase {
       `CREATE TABLE IF NOT EXISTS ${this.t("contributors")} (
         id SERIAL PRIMARY KEY,
         provider TEXT NOT NULL,
+        provider_user_id TEXT NOT NULL DEFAULT '',
         handle TEXT NOT NULL,
         name TEXT NOT NULL DEFAULT '',
         avatar_url TEXT NOT NULL DEFAULT '',
         created_at TEXT NOT NULL,
         UNIQUE (provider, handle)
       )`,
+      `ALTER TABLE ${this.t("contributors")} ADD COLUMN IF NOT EXISTS provider_user_id TEXT NOT NULL DEFAULT ''`,
+      `CREATE UNIQUE INDEX IF NOT EXISTS idx_${this.schema}_contributors_provider_uid ON ${this.t("contributors")}(provider, provider_user_id) WHERE provider_user_id != ''`,
       `CREATE TABLE IF NOT EXISTS ${this.t("publish_tokens")} (
         id SERIAL PRIMARY KEY,
         contributor_id INTEGER NOT NULL REFERENCES ${this.t("contributors")}(id) ON DELETE CASCADE,
@@ -252,19 +257,75 @@ export class WebDatabase {
 
   async upsertContributor(input: {
     provider: "github" | "google";
+    providerUserId?: string;
     handle: string;
     name: string;
     avatarUrl?: string;
   }): Promise<ContributorRecord> {
     const now = new Date().toISOString();
+    const cleanHandle = input.handle.trim();
+    const cleanName = input.name.trim() || cleanHandle;
+    const cleanAvatar = safeHttpUrl(input.avatarUrl || "");
+    const cleanUid = (input.providerUserId || "").trim();
+
+    if (cleanUid) {
+      const existingByUid = (await this.sql.unsafe(
+        `SELECT * FROM ${this.t("contributors")} WHERE provider = $1 AND provider_user_id = $2`,
+        [input.provider, cleanUid],
+      )) as ContributorRecord[];
+      if (existingByUid[0]) {
+        const updated = (await this.sql.unsafe(
+          `UPDATE ${this.t("contributors")}
+           SET name = $1,
+               avatar_url = CASE WHEN $2 != '' THEN $2 ELSE avatar_url END
+           WHERE id = $3
+           RETURNING *`,
+          [cleanName, cleanAvatar, existingByUid[0].id],
+        )) as ContributorRecord[];
+        return updated[0]!;
+      }
+
+      // Check if handle is already taken by another identity under the same provider
+      let finalHandle = cleanHandle;
+      const handleOwner = (await this.sql.unsafe(
+        `SELECT id, provider_user_id FROM ${this.t("contributors")} WHERE provider = $1 AND handle = $2`,
+        [input.provider, cleanHandle],
+      )) as Array<{ id: number; provider_user_id: string }>;
+      if (handleOwner[0]) {
+        if (input.provider === "github" && !handleOwner[0].provider_user_id) {
+          // Bind legacy GitHub row (unique login) to its immutable numeric ID
+          const bound = (await this.sql.unsafe(
+            `UPDATE ${this.t("contributors")}
+             SET provider_user_id = $1,
+                 name = $2,
+                 avatar_url = CASE WHEN $3 != '' THEN $3 ELSE avatar_url END
+             WHERE id = $4
+             RETURNING *`,
+            [cleanUid, cleanName, cleanAvatar, handleOwner[0].id],
+          )) as ContributorRecord[];
+          return bound[0]!;
+        }
+        const suffix = createHash("sha256").update(cleanUid, "utf8").digest("hex").slice(0, 6);
+        finalHandle = `${cleanHandle}-${suffix}`;
+      }
+
+      const inserted = (await this.sql.unsafe(
+        `INSERT INTO ${this.t("contributors")} (provider, provider_user_id, handle, name, avatar_url, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         RETURNING *`,
+        [input.provider, cleanUid, finalHandle, cleanName, cleanAvatar, now],
+      )) as ContributorRecord[];
+      return inserted[0]!;
+    }
+
     const rows = (await this.sql.unsafe(
-      `INSERT INTO ${this.t("contributors")} (provider, handle, name, avatar_url, created_at)
-       VALUES ($1, $2, $3, $4, $5)
+      `INSERT INTO ${this.t("contributors")} (provider, provider_user_id, handle, name, avatar_url, created_at)
+       VALUES ($1, '', $2, $3, $4, $5)
        ON CONFLICT (provider, handle) DO UPDATE SET
          name = EXCLUDED.name,
          avatar_url = CASE WHEN EXCLUDED.avatar_url != '' THEN EXCLUDED.avatar_url ELSE ${this.t("contributors")}.avatar_url END
        RETURNING *`,
-      [input.provider, input.handle.trim(), input.name.trim() || input.handle.trim(), input.avatarUrl || "", now],
+      [input.provider, cleanHandle, cleanName, cleanAvatar, now],
     )) as ContributorRecord[];
     return rows[0]!;
   }
@@ -299,11 +360,42 @@ export class WebDatabase {
     return {
       id: row.id,
       provider: row.provider,
+      provider_user_id: row.provider_user_id || "",
       handle: row.handle,
       name: row.name,
       avatar_url: row.avatar_url,
       created_at: row.created_at,
     };
+  }
+
+  async ensurePublicEntryIfMissing(entry: Partial<PublicEntryRecord> & { cf_id: number }): Promise<void> {
+    const now = new Date().toISOString();
+    await this.sql.unsafe(
+      `INSERT INTO ${this.t("public_entries")} (
+        cf_id, title, status, topic, authors, reviewers, committer, thread_url,
+        verdict, confidence, kind, seen_in_production, workaround, failing_summary,
+        recommended_score, updated_at
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+      ON CONFLICT (cf_id) DO NOTHING`,
+      [
+        entry.cf_id,
+        entry.title || `CF ${entry.cf_id}`,
+        entry.status || "",
+        entry.topic || "",
+        entry.authors || "",
+        entry.reviewers || "",
+        entry.committer || "",
+        safeHttpUrl(entry.thread_url || ""),
+        entry.verdict || "",
+        entry.confidence || "",
+        entry.kind || "feature",
+        Boolean(entry.seen_in_production),
+        entry.workaround || "",
+        entry.failing_summary || "",
+        Number(entry.recommended_score || 0),
+        now,
+      ],
+    );
   }
 
   async upsertPublicEntry(entry: Partial<PublicEntryRecord> & { cf_id: number }): Promise<void> {
@@ -338,7 +430,7 @@ export class WebDatabase {
         entry.authors || "",
         entry.reviewers || "",
         entry.committer || "",
-        entry.thread_url || "",
+        safeHttpUrl(entry.thread_url || ""),
         entry.verdict || "",
         entry.confidence || "",
         entry.kind || "feature",
@@ -364,7 +456,7 @@ export class WebDatabase {
     summary?: string;
   }): Promise<PublicOpinionRecord> {
     if (input.entry) {
-      await this.upsertPublicEntry({ ...input.entry, cf_id: input.cf_id, verdict: input.verdict });
+      await this.ensurePublicEntryIfMissing({ ...input.entry, cf_id: input.cf_id, verdict: input.verdict });
     }
     const modelsJson = typeof input.models === "string" ? input.models : JSON.stringify(input.models ?? {});
     const rows = (await this.sql.unsafe(
@@ -558,6 +650,55 @@ export class WebDatabase {
     } catch {
       // Never break page serving on analytics write issues
     }
+  }
+
+  async getCounts(): Promise<{ briefs: number; entries: number; opinions: number }> {
+    const rows = (await this.sql.unsafe(
+      `SELECT
+         (SELECT COUNT(*)::int FROM ${this.t("published_briefs")}) AS briefs,
+         (SELECT COUNT(*)::int FROM ${this.t("public_entries")}) AS entries,
+         (SELECT COUNT(*)::int FROM ${this.t("public_opinions")}) AS opinions`,
+    )) as Array<{ briefs: number; entries: number; opinions: number }>;
+    const r = rows[0] ?? { briefs: 0, entries: 0, opinions: 0 };
+    return {
+      briefs: Number(r.briefs || 0),
+      entries: Number(r.entries || 0),
+      opinions: Number(r.opinions || 0),
+    };
+  }
+
+  async getPageViewTotals(): Promise<{ total: number; last24h: number; last7d: number }> {
+    const now = Date.now();
+    const cut24h = new Date(now - 86_400_000).toISOString();
+    const cut7d = new Date(now - 7 * 86_400_000).toISOString();
+    const rows = (await this.sql.unsafe(
+      `SELECT
+         COUNT(*)::int AS total,
+         COUNT(*) FILTER (WHERE created_at >= $1)::int AS last24h,
+         COUNT(*) FILTER (WHERE created_at >= $2)::int AS last7d
+       FROM ${this.t("page_views")}`,
+      [cut24h, cut7d],
+    )) as Array<{ total: number; last24h: number; last7d: number }>;
+    const t = rows[0] ?? { total: 0, last24h: 0, last7d: 0 };
+    return {
+      total: Number(t.total || 0),
+      last24h: Number(t.last24h || 0),
+      last7d: Number(t.last7d || 0),
+    };
+  }
+
+  async getBriefOwners(): Promise<{ slugOwners: Map<string, string>; allPublishers: Set<string> }> {
+    const rows = (await this.sql.unsafe(
+      `SELECT slug, published_by_handle FROM ${this.t("published_briefs")}`,
+    )) as Array<{ slug: string; published_by_handle: string }>;
+    const slugOwners = new Map<string, string>();
+    const allPublishers = new Set<string>();
+    for (const r of rows) {
+      const h = (r.published_by_handle || "").trim().toLowerCase();
+      slugOwners.set(r.slug, h);
+      if (h) allPublishers.add(h);
+    }
+    return { slugOwners, allPublishers };
   }
 
   async getPageViewSummary(): Promise<{

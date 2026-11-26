@@ -102,13 +102,20 @@ export interface MrDiffResult {
 }
 
 const CACHE_TTL_MS = 15 * 60 * 1000;
+const NEGATIVE_CACHE_TTL_MS = 60 * 1000;
 const MAX_CACHE_ENTRIES = 160;
+const MAX_FETCH_BYTES = 4 * 1024 * 1024;
+const FETCH_TIMEOUT_MS = 10_000;
 const USER_AGENT = "pgroast-web/0.3 (+https://github.com/NikolayS/pgroast)";
 
 const threadCache = new Map<number, { expiresAt: number; data: MrDiscussionResult }>();
 const diffCache = new Map<number, { expiresAt: number; data: MrDiffResult }>();
+const negativeThreadCache = new Map<number, { expiresAt: number; error: string }>();
+const negativeDiffCache = new Map<number, { expiresAt: number; error: string }>();
+const inflightThreads = new Map<number, Promise<MrDiscussionResult>>();
+const inflightDiffs = new Map<number, Promise<MrDiffResult>>();
 
-function pruneCache<T>(cache: Map<number, { expiresAt: number; data: T }>): void {
+function pruneCache<T>(cache: Map<number, { expiresAt: number; data?: T; error?: string }>): void {
   const now = Date.now();
   for (const [k, v] of cache.entries()) {
     if (v.expiresAt <= now) cache.delete(k);
@@ -118,6 +125,53 @@ function pruneCache<T>(cache: Map<number, { expiresAt: number; data: T }>): void
     if (oldest === undefined) break;
     cache.delete(oldest);
   }
+}
+
+async function fetchTextBounded(
+  url: string,
+  headers: Record<string, string>,
+  maxBytes = MAX_FETCH_BYTES,
+): Promise<{ ok: boolean; status: number; text: string }> {
+  const res = await fetch(url, {
+    headers,
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+  });
+  const cl = Number(res.headers.get("content-length") || 0);
+  if (cl > maxBytes) {
+    try { await res.body?.cancel(); } catch { /* ignore */ }
+    throw new Error(`Upstream response exceeded ${Math.round(maxBytes / (1024 * 1024))} MB limit.`);
+  }
+  if (!res.ok) {
+    try { await res.body?.cancel(); } catch { /* ignore */ }
+    return { ok: false, status: res.status, text: "" };
+  }
+  if (!res.body) {
+    const text = await res.text();
+    if (Buffer.byteLength(text, "utf8") > maxBytes) {
+      throw new Error(`Upstream response exceeded ${Math.round(maxBytes / (1024 * 1024))} MB limit.`);
+    }
+    return { ok: true, status: res.status, text };
+  }
+  const reader = res.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (value) {
+        total += value.byteLength;
+        if (total > maxBytes) {
+          await reader.cancel();
+          throw new Error(`Upstream response exceeded ${Math.round(maxBytes / (1024 * 1024))} MB limit.`);
+        }
+        chunks.push(value);
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  return { ok: true, status: res.status, text: Buffer.concat(chunks).toString("utf8") };
 }
 
 /** Split an email body into readable prose vs collapsible quoted `>` blocks. */
@@ -175,6 +229,14 @@ function isPatchAttachment(name: string): boolean {
 }
 
 function normalizeToFlatUrl(rawUrl: string): string | null {
+  try {
+    const parsed = new URL(rawUrl);
+    if (parsed.protocol !== "https:" && parsed.protocol !== "http:") return null;
+    const host = parsed.hostname.toLowerCase();
+    if (host !== "www.postgresql.org" && host !== "postgresql.org") return null;
+  } catch {
+    return null;
+  }
   const m = rawUrl.match(/postgresql\.org\/message-id\/(?:flat\/)?([^/?#]+)/i);
   if (!m?.[1]) return null;
   let msgId = m[1];
@@ -187,12 +249,13 @@ function normalizeToFlatUrl(rawUrl: string): string | null {
 }
 
 async function resolveThreadUrlFromCommitfest(cfId: number): Promise<string | null> {
-  const res = await fetch(`https://commitfest.postgresql.org/patch/${cfId}/`, {
-    headers: { "User-Agent": USER_AGENT, Accept: "text/html" },
-  });
+  const res = await fetchTextBounded(
+    `https://commitfest.postgresql.org/patch/${cfId}/`,
+    { "User-Agent": USER_AGENT, Accept: "text/html" },
+    2 * 1024 * 1024,
+  );
   if (!res.ok) return null;
-  const html = await res.text();
-  const cf = parseCommitfestPatch(html, cfId);
+  const cf = parseCommitfestPatch(res.text, cfId);
   if (!cf) return null;
   const firstMsgId = cf.threads[0]?.messageId;
   if (firstMsgId) return flatThreadUrl(firstMsgId);
@@ -200,100 +263,118 @@ async function resolveThreadUrlFromCommitfest(cfId: number): Promise<string | nu
 }
 
 export async function fetchMrDiscussionForCf(cfId: number, knownThreadUrl?: string): Promise<MrDiscussionResult> {
+  const now = Date.now();
   const hit = threadCache.get(cfId);
-  if (hit && hit.expiresAt > Date.now()) {
+  if (hit && hit.expiresAt > now) {
     return hit.data;
   }
-
-  let flatUrl = knownThreadUrl ? normalizeToFlatUrl(knownThreadUrl) : null;
-  if (!flatUrl) {
-    flatUrl = await resolveThreadUrlFromCommitfest(cfId);
+  const neg = negativeThreadCache.get(cfId);
+  if (neg && neg.expiresAt > now) {
+    throw new Error(neg.error);
   }
-  if (!flatUrl) {
-    throw new Error(`No pgsql-hackers thread linked to CF ${cfId}.`);
-  }
+  const existing = inflightThreads.get(cfId);
+  if (existing) return existing;
 
-  const res = await fetch(flatUrl, {
-    headers: { "User-Agent": USER_AGENT, Accept: "text/html" },
-  });
-  if (!res.ok) {
-    throw new Error(`Could not load pgsql-hackers thread (HTTP ${res.status} from postgresql.org).`);
-  }
-  const html = await res.text();
-  const parsed = parseFlatThread(html);
+  const job = (async (): Promise<MrDiscussionResult> => {
+    try {
+      let flatUrl = knownThreadUrl ? normalizeToFlatUrl(knownThreadUrl) : null;
+      if (!flatUrl) {
+        flatUrl = await resolveThreadUrlFromCommitfest(cfId);
+      }
+      if (!flatUrl) {
+        throw new Error(`No pgsql-hackers thread linked to CF ${cfId}.`);
+      }
 
-  const starterName = (parsed.messages[0]?.from || "").trim().toLowerCase();
-  const participantMap = new Map<string, MrParticipant>();
-  const revisions: MrDiscussionResult["revisions"] = [];
-  let autoRevCounter = 0;
+      const res = await fetchTextBounded(flatUrl, { "User-Agent": USER_AGENT, Accept: "text/html" });
+      if (!res.ok) {
+        throw new Error(`Could not load pgsql-hackers thread (HTTP ${res.status} from postgresql.org).`);
+      }
+      const parsed = parseFlatThread(res.text);
 
-  const messages: MrTimelineMessage[] = parsed.messages.map((m, idx) => {
-    const cleanFrom = m.from.replace(/\s*<[^>]+>\s*/g, "").trim() || m.from || "Unknown";
-    const isAuthor = Boolean(starterName && m.from.trim().toLowerCase() === starterName);
-    const existing = participantMap.get(cleanFrom);
-    if (existing) {
-      existing.count++;
-    } else {
-      participantMap.set(cleanFrom, { name: cleanFrom, count: 1, isAuthor });
-    }
+      const starterName = (parsed.messages[0]?.from || "").trim().toLowerCase();
+      const participantMap = new Map<string, MrParticipant>();
+      const revisions: MrDiscussionResult["revisions"] = [];
+      let autoRevCounter = 0;
 
-    const attachments: MrAttachment[] = m.attachments.map((a) => ({
-      name: a.name,
-      url: a.url,
-      contentType: a.contentType,
-      sizeText: a.sizeText,
-      isPatch: isPatchAttachment(a.name),
-      isNoCfbot: /nocfbot/i.test(a.name),
-    }));
+      const messages: MrTimelineMessage[] = parsed.messages.map((m, idx) => {
+        const cleanFrom = m.from.replace(/\s*<[^>]+>\s*/g, "").trim() || m.from || "Unknown";
+        const isAuthor = Boolean(starterName && m.from.trim().toLowerCase() === starterName);
+        const existingP = participantMap.get(cleanFrom);
+        if (existingP) {
+          existingP.count++;
+        } else {
+          participantMap.set(cleanFrom, { name: cleanFrom, count: 1, isAuthor });
+        }
 
-    const rev = inferPatchRevision(attachments);
-    let revTag = rev.tag;
-    if (revTag === "patch") {
-      autoRevCounter++;
-      revTag = `patch #${autoRevCounter}`;
-    }
-    if (revTag && rev.patchCount > 0) {
-      revisions.push({
-        tag: revTag,
-        date: m.date,
-        from: cleanFrom,
-        messageIndex: idx,
-        fileCount: rev.patchCount,
+        const attachments: MrAttachment[] = m.attachments.map((a) => ({
+          name: a.name,
+          url: a.url,
+          contentType: a.contentType,
+          sizeText: a.sizeText,
+          isPatch: isPatchAttachment(a.name),
+          isNoCfbot: /nocfbot/i.test(a.name),
+        }));
+
+        const rev = inferPatchRevision(attachments);
+        let revTag = rev.tag;
+        if (revTag === "patch") {
+          autoRevCounter++;
+          revTag = `patch #${autoRevCounter}`;
+        }
+        if (revTag && rev.patchCount > 0) {
+          revisions.push({
+            tag: revTag,
+            date: m.date,
+            from: cleanFrom,
+            messageIndex: idx,
+            fileCount: rev.patchCount,
+          });
+        }
+
+        return {
+          index: idx,
+          messageId: m.messageId,
+          url: m.url,
+          from: cleanFrom,
+          date: m.date,
+          subject: m.subject,
+          isAuthor,
+          patchRevision: revTag,
+          patchCount: rev.patchCount,
+          blocks: splitBodyIntoBlocks(m.body),
+          attachments,
+        };
       });
+
+      const participants = Array.from(participantMap.values()).sort((a, b) => b.count - a.count);
+      const data: MrDiscussionResult = {
+        cfId,
+        threadUrl: flatUrl,
+        subject: parsed.subject,
+        lists: parsed.lists,
+        messageCount: messages.length,
+        participants,
+        revisions,
+        tldr: buildThreadTldr(messages),
+        messages,
+        cachedAt: new Date().toISOString(),
+      };
+
+      pruneCache(threadCache);
+      threadCache.set(cfId, { expiresAt: Date.now() + CACHE_TTL_MS, data });
+      return data;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      pruneCache(negativeThreadCache);
+      negativeThreadCache.set(cfId, { expiresAt: Date.now() + NEGATIVE_CACHE_TTL_MS, error: msg });
+      throw err;
+    } finally {
+      inflightThreads.delete(cfId);
     }
+  })();
 
-    return {
-      index: idx,
-      messageId: m.messageId,
-      url: m.url,
-      from: cleanFrom,
-      date: m.date,
-      subject: m.subject,
-      isAuthor,
-      patchRevision: revTag,
-      patchCount: rev.patchCount,
-      blocks: splitBodyIntoBlocks(m.body),
-      attachments,
-    };
-  });
-
-  const participants = Array.from(participantMap.values()).sort((a, b) => b.count - a.count);
-  const data: MrDiscussionResult = {
-    cfId,
-    threadUrl: flatUrl,
-    subject: parsed.subject,
-    lists: parsed.lists,
-    messageCount: messages.length,
-    participants,
-    revisions,
-    tldr: buildThreadTldr(messages),
-    messages,
-    cachedAt: new Date().toISOString(),
-  };
-
-  pruneCache(threadCache);
-  threadCache.set(cfId, { expiresAt: Date.now() + CACHE_TTL_MS, data });
-  return data;
+  inflightThreads.set(cfId, job);
+  return job;
 }
 
 function extractCleanExcerpt(blocks: MrBodyBlock[], maxLen = 280): string {
@@ -386,27 +467,32 @@ function isMeaningfulDiffLine(content: string): boolean {
 export function matchThreadToDiff(diff: MrDiffResult, discussion: MrDiscussionResult | null): MrDiffResult {
   if (!discussion || discussion.messages.length === 0) return diff;
 
-  const preparedMsgs = discussion.messages.map((m) => {
+  // Bound work for huge threads/diffs so matching stays fast and cannot block the event loop
+  const recentMessages = discussion.messages.slice(-60);
+  const preparedMsgs = recentMessages.map((m) => {
     const quotePairs: Array<{ normQuote: string; replyExcerpt: string }> = [];
     for (let i = 0; i < m.blocks.length; i++) {
       const b = m.blocks[i]!;
       const normQuote = b.content
         .split("\n")
         .map((ln) => normalizeCodeSnippet(ln))
-        .join("\n");
+        .join("\n")
+        .slice(0, 8000);
       if (b.kind === "quote") {
         const nextText = m.blocks[i + 1]?.kind === "text" ? extractCleanExcerpt([m.blocks[i + 1]!], 240) : "";
         quotePairs.push({ normQuote, replyExcerpt: nextText || extractCleanExcerpt(m.blocks, 200) });
       } else if (/^\s*[+-]\s*\S/.test(b.content) || /;\s*$/.test(b.content)) {
         quotePairs.push({ normQuote, replyExcerpt: extractCleanExcerpt(m.blocks, 200) });
       }
+      if (quotePairs.length >= 20) break;
     }
-    const fullText = m.blocks.map((b) => b.content).join("\n");
+    const fullText = m.blocks.map((b) => b.content).join("\n").slice(0, 16_000);
     return { m, quotePairs, fullText, excerpt: extractCleanExcerpt(m.blocks, 220) };
   });
 
   let matchedLineComments = 0;
   let matchedFileMentions = 0;
+  let opsRemaining = 40_000;
 
   const enrichedFiles: MrDiffFile[] = diff.files.map((file) => {
     const filePath = file.newPath || file.oldPath;
@@ -415,15 +501,19 @@ export function matchThreadToDiff(diff: MrDiffResult, discussion: MrDiscussionRe
     const fileMentionRe = baseName.length >= 5 ? new RegExp(`(?<![A-Za-z0-9_.-])${escapedBase}(?![A-Za-z0-9_.-])`, "i") : null;
 
     const lineMatchedMsgs = new Set<number>();
+    let scannedLinesInFile = 0;
     const enrichedHunks: MrDiffHunk[] = file.hunks.map((hunk) => {
       const hunkUsedMsgs = new Set<number>();
       const enrichedLines: MrDiffLine[] = hunk.lines.map((ln) => {
-        if (!isMeaningfulDiffLine(ln.content)) return ln;
+        if (opsRemaining <= 0 || scannedLinesInFile >= 400 || !isMeaningfulDiffLine(ln.content)) return ln;
+        scannedLinesInFile++;
         const normLine = normalizeCodeSnippet(ln.content);
         const hits: MrDiffCommentRef[] = [];
 
         for (const pm of preparedMsgs) {
+          if (opsRemaining <= 0) break;
           if (hunkUsedMsgs.has(pm.m.index)) continue;
+          opsRemaining -= Math.max(1, pm.quotePairs.length);
           const matchPair = pm.quotePairs.find((qp) => qp.normQuote.includes(normLine));
           if (matchPair) {
             hunkUsedMsgs.add(pm.m.index);
@@ -563,36 +653,55 @@ export function parseMrUnifiedDiff(rawDiff: string, maxFiles = 50, maxLinesPerFi
 }
 
 export async function fetchMrDiffForCf(cfId: number): Promise<MrDiffResult> {
+  const now = Date.now();
   const hit = diffCache.get(cfId);
-  if (hit && hit.expiresAt > Date.now()) {
+  if (hit && hit.expiresAt > now) {
     return hit.data;
   }
-
-  const compareUrl = `https://github.com/postgresql-cfbot/postgresql/compare/master...cf/${cfId}`;
-  const diffUrl = `${compareUrl}.diff`;
-  const res = await fetch(diffUrl, {
-    headers: { Accept: "text/plain", "User-Agent": USER_AGENT },
-  });
-  if (!res.ok) {
-    throw new Error(
-      `CFBot patch branch cf/${cfId} is unavailable (HTTP ${res.status}). The patch may need a rebase or have no active CFBot branch.`,
-    );
+  const neg = negativeDiffCache.get(cfId);
+  if (neg && neg.expiresAt > now) {
+    throw new Error(neg.error);
   }
-  const rawDiff = await res.text();
-  if (!rawDiff.trim()) {
-    throw new Error(`CFBot diff for cf/${cfId} is empty (already committed or identical to master).`);
-  }
+  const existing = inflightDiffs.get(cfId);
+  if (existing) return existing;
 
-  const parsed = parseMrUnifiedDiff(rawDiff);
-  const data: MrDiffResult = {
-    cfId,
-    source: `postgresql-cfbot branch cf/${cfId}`,
-    compareUrl,
-    ...parsed,
-    cachedAt: new Date().toISOString(),
-  };
+  const job = (async (): Promise<MrDiffResult> => {
+    try {
+      const compareUrl = `https://github.com/postgresql-cfbot/postgresql/compare/master...cf/${cfId}`;
+      const diffUrl = `${compareUrl}.diff`;
+      const res = await fetchTextBounded(diffUrl, { Accept: "text/plain", "User-Agent": USER_AGENT });
+      if (!res.ok) {
+        throw new Error(
+          `CFBot patch branch cf/${cfId} is unavailable (HTTP ${res.status}). The patch may need a rebase or have no active CFBot branch.`,
+        );
+      }
+      const rawDiff = res.text;
+      if (!rawDiff.trim()) {
+        throw new Error(`CFBot diff for cf/${cfId} is empty (already committed or identical to master).`);
+      }
 
-  pruneCache(diffCache);
-  diffCache.set(cfId, { expiresAt: Date.now() + CACHE_TTL_MS, data });
-  return data;
+      const parsed = parseMrUnifiedDiff(rawDiff);
+      const data: MrDiffResult = {
+        cfId,
+        source: `postgresql-cfbot branch cf/${cfId}`,
+        compareUrl,
+        ...parsed,
+        cachedAt: new Date().toISOString(),
+      };
+
+      pruneCache(diffCache);
+      diffCache.set(cfId, { expiresAt: Date.now() + CACHE_TTL_MS, data });
+      return data;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      pruneCache(negativeDiffCache);
+      negativeDiffCache.set(cfId, { expiresAt: Date.now() + NEGATIVE_CACHE_TTL_MS, error: msg });
+      throw err;
+    } finally {
+      inflightDiffs.delete(cfId);
+    }
+  })();
+
+  inflightDiffs.set(cfId, job);
+  return job;
 }

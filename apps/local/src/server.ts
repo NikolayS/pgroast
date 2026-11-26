@@ -589,6 +589,8 @@ export async function createAppHandler(opts?: {
                 send(event, data);
                 if (event === "done") {
                   if (heartbeat) clearInterval(heartbeat);
+                  unsubscribe?.();
+                  unsubscribe = null;
                   try {
                     controller.close();
                   } catch {
@@ -667,11 +669,11 @@ export async function createAppHandler(opts?: {
             cfId?: number;
             workItemId?: number;
             worktreePath?: string;
-            backend?: "claude" | "agy";
+            backend?: "claude" | "agy" | "codex";
             model?: string;
             focusPrompt?: string;
             blindVerify?: boolean;
-            previousBackend?: "claude" | "agy";
+            previousBackend?: "claude" | "agy" | "codex";
           }>(req);
           const job = await jobs.startAiReviewJob({
             ...body,

@@ -21,7 +21,7 @@ function safeTokenEquals(a: string, b: string): boolean {
 }
 
 /**
- * Mythos Localhost Security Gate:
+ * Localhost Security Gate:
  * 1. Exact Host header allowlist (blocks DNS rebinding).
  * 2. Rejects any foreign or `null` Origin header on /api/* (blocks CSRF & downloaded `file://` briefs).
  * 3. Sends ZERO CORS headers.
@@ -43,6 +43,7 @@ export function checkLocalhostSecurity(
     "127.0.0.1",
     "localhost",
     `[::1]:${activePort}`,
+    "[::1]",
   ]);
   if (rawHost && !allowedHosts.has(rawHost)) {
     return {
@@ -59,8 +60,10 @@ export function checkLocalhostSecurity(
     const allowedOrigins = new Set([
       `http://127.0.0.1:${activePort}`,
       `http://localhost:${activePort}`,
+      `http://[::1]:${activePort}`,
       "http://127.0.0.1",
       "http://localhost",
+      "http://[::1]",
     ]);
     if (cleanOrigin === "null" || !allowedOrigins.has(cleanOrigin)) {
       return {
@@ -98,7 +101,8 @@ export function localSecurityHeaders(kind: "html" | "asset" | "json"): Record<st
   }
   return {
     "Content-Security-Policy":
-      "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' https://avatars.githubusercontent.com https://lh3.googleusercontent.com data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'",
+      "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' https://avatars.githubusercontent.com https://lh3.googleusercontent.com data:; connect-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'self'",
+    ...(kind === "html" ? { "Cache-Control": "no-store" } : {}),
     "X-Content-Type-Options": "nosniff",
     "X-Frame-Options": "DENY",
     "Referrer-Policy": "no-referrer",

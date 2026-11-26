@@ -224,7 +224,7 @@ interface CoordItem {
 }
 
 interface PatchConsensus {
-  status: "unanimous" | "majority" | "split" | "baseline_only";
+  status: "unanimous" | "single_opinion" | "majority" | "split" | "baseline_only";
   leadingVerdict: string;
   totalOpinions: number;
   uniqueReviewers: number;
@@ -257,6 +257,8 @@ const state = {
   mrAuthorFilter: "all",
   mrDiffOnlyCommented: false,
   mrViewedFiles: new Set<string>(),
+  mrOpenFiles: new Set<string>(),
+  mrInitializedOpenFiles: false,
   statsLbTab: "authors" as "authors" | "reviewers" | "committers",
   health: null as HealthInfo | null,
   views: null as PageViewsInfo | null,
@@ -274,6 +276,7 @@ const state = {
   coordination: [] as CoordItem[],
   mintedToken: "",
   mintedHandle: "",
+  devMintError: "",
   introCollapsed: (() => {
     try {
       return localStorage.getItem("pgroast-web-intro-collapsed") === "1";
@@ -298,6 +301,23 @@ function esc(s: unknown): string {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
+}
+
+function safeHttpUrl(raw: unknown): string {
+  const s = String(raw ?? "").trim();
+  if (!s) return "";
+  try {
+    const u = new URL(s);
+    if (u.protocol === "http:" || u.protocol === "https:") return u.toString();
+  } catch {
+    // invalid URL
+  }
+  return "";
+}
+
+function safeInt(v: unknown, fallback = 0): number {
+  const n = Number(v);
+  return Number.isFinite(n) ? Math.trunc(n) : fallback;
 }
 
 function getVerdictMeta(v: string) {
@@ -355,22 +375,20 @@ function renderSvgDonut(segments: Array<{ label: string; value: number; color: s
 }
 
 async function api<T>(url: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(url, { headers: { "Content-Type": "application/json" }, ...init });
+  const mergedHeaders = { "Content-Type": "application/json", ...(init?.headers || {}) };
+  const res = await fetch(url, { ...init, headers: mergedHeaders });
   const data = (await res.json()) as T & { error?: string };
   if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
   return data;
 }
 
 function getLocalBackofficeUrl(cfId?: number | null): string {
-  const base = (state.health?.localWorkbenchUrl || "http://127.0.0.1:3432").replace(/\/$/, "");
+  const base = (safeHttpUrl(state.health?.localWorkbenchUrl) || "http://127.0.0.1:3432").replace(/\/$/, "");
   return cfId && cfId > 0 ? `${base}/?cf=${cfId}` : `${base}/`;
 }
 
 function syncTopBackofficeLink(): void {
-  const link = document.getElementById("web-backoffice-top-btn") as HTMLAnchorElement | null;
-  if (link) {
-    link.href = getLocalBackofficeUrl(state.activePatchId);
-  }
+  // Topbar button opens the Backoffice Setup tab so first-time visitors never hit a dead localhost link.
 }
 
 function copyTextWithFeedback(btn: HTMLElement, text: string, defaultLabel: string): void {
@@ -390,14 +408,16 @@ function copyTextWithFeedback(btn: HTMLElement, text: string, defaultLabel: stri
   );
 }
 
-function parseRouteFromLocation(): { patchId: number | null; tab: TabId } {
+function parseRouteFromLocation(): { patchId: number | null; tab: TabId; mrTab: MrTabId; hash: string } {
   const u = new URL(window.location.href);
   const pathMatch = u.pathname.match(/^\/patch\/(\d+)\/?$/);
   const cfParam = Number(pathMatch?.[1] || u.searchParams.get("cf") || 0);
-  if (cfParam > 0) return { patchId: cfParam, tab: state.tab };
+  const viewParam = u.searchParams.get("view");
+  const mrTab: MrTabId = viewParam === "discussion" || viewParam === "changes" ? viewParam : "overview";
+  if (cfParam > 0) return { patchId: cfParam, tab: state.tab, mrTab, hash: u.hash };
   const tabParam = u.searchParams.get("tab") as TabId | null;
   const validTabs: TabId[] = ["brief", "stats", "entries", "opinions", "coordination", "connect"];
-  return { patchId: null, tab: tabParam && validTabs.includes(tabParam) ? tabParam : "brief" };
+  return { patchId: null, tab: tabParam && validTabs.includes(tabParam) ? tabParam : "brief", mrTab: "overview", hash: u.hash };
 }
 
 async function loadMrDiscussion(cfId: number): Promise<void> {
@@ -429,6 +449,16 @@ async function loadMrDiff(cfId: number): Promise<void> {
     if (state.activePatchId !== cfId) return;
     state.mrDiff = data;
     state.mrDiffLoading = false;
+    state.mrOpenFiles = new Set<string>();
+    data.files.forEach((f, idx) => {
+      const fp = f.newPath || f.oldPath;
+      const hasComments =
+        f.hunks.some((h) => h.lines.some((l) => (l.comments?.length || 0) > 0)) || (f.mentions?.length || 0) > 0;
+      if (!state.mrViewedFiles.has(fp) && (idx < 5 || hasComments)) {
+        state.mrOpenFiles.add(fp);
+      }
+    });
+    state.mrInitializedOpenFiles = true;
     render();
   } catch (err) {
     if (state.activePatchId !== cfId) return;
@@ -438,10 +468,10 @@ async function loadMrDiff(cfId: number): Promise<void> {
   }
 }
 
-async function openPatchPage(cfId: number, pushHistory = true): Promise<void> {
+async function openPatchPage(cfId: number, pushHistory = true, initialMrTab: MrTabId = "overview"): Promise<void> {
   if (!state.activePatchId) state.returnTab = state.tab;
   state.activePatchId = cfId;
-  state.mrTab = "overview";
+  state.mrTab = initialMrTab;
   state.patchLoading = true;
   state.patchData = null;
   state.mrDiscussion = null;
@@ -453,11 +483,14 @@ async function openPatchPage(cfId: number, pushHistory = true): Promise<void> {
   state.mrAuthorFilter = "all";
   state.mrDiffOnlyCommented = false;
   state.mrViewedFiles = new Set<string>();
+  state.mrOpenFiles = new Set<string>();
+  state.mrInitializedOpenFiles = false;
   syncTopBackofficeLink();
 
   if (pushHistory) {
     try {
-      window.history.pushState({ patchId: cfId, tab: state.returnTab }, "", `/patch/${cfId}`);
+      const qs = initialMrTab === "overview" ? "" : `?view=${encodeURIComponent(initialMrTab)}`;
+      window.history.pushState({ patchId: cfId, tab: state.returnTab, mrTab: initialMrTab }, "", `/patch/${cfId}${qs}`);
     } catch {
       // ignore
     }
@@ -465,8 +498,13 @@ async function openPatchPage(cfId: number, pushHistory = true): Promise<void> {
   render();
   window.scrollTo({ top: 0 });
 
+  if (initialMrTab === "discussion") void loadMrDiscussion(cfId);
+  else if (initialMrTab === "changes") void loadMrDiff(cfId);
+
   try {
-    const data = await api<PatchPageData>(`/api/v1/entries/${cfId}`);
+    const data = await api<PatchPageData>(`/api/v1/entries/${cfId}`, {
+      headers: pushHistory ? { "X-PgRoast-View": "1" } : undefined,
+    });
     if (state.activePatchId !== cfId) return;
     state.patchData = data;
     state.patchLoading = false;
@@ -480,7 +518,7 @@ async function openPatchPage(cfId: number, pushHistory = true): Promise<void> {
   }
 }
 
-function navigateToTab(tab: TabId, pushHistory = true): void {
+function navigateToTab(tab: TabId, pushHistory = true, hash = ""): void {
   state.activePatchId = null;
   state.patchData = null;
   state.patchLoading = false;
@@ -489,14 +527,19 @@ function navigateToTab(tab: TabId, pushHistory = true): void {
   document.title = "pgroast — Public CommitFest App";
   if (pushHistory) {
     try {
-      const targetUrl = tab === "brief" ? "/" : `/?tab=${encodeURIComponent(tab)}`;
+      const targetUrl = (tab === "brief" ? "/" : `/?tab=${encodeURIComponent(tab)}`) + hash;
       window.history.pushState({ patchId: null, tab }, "", targetUrl);
     } catch {
       // ignore
     }
   }
   render();
-  window.scrollTo({ top: 0 });
+  if (hash) {
+    const id = hash.replace(/^#/, "");
+    setTimeout(() => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
+  } else {
+    window.scrollTo({ top: 0 });
+  }
 }
 
 async function loadBriefDetail(slug: string): Promise<void> {
@@ -511,6 +554,9 @@ async function loadAll(): Promise<void> {
   try {
     const route = parseRouteFromLocation();
     state.tab = route.tab;
+
+    // On direct /patch/:id visits, start fetching patch details immediately in parallel so first paint is instant!
+    const patchPromise = route.patchId ? openPatchPage(route.patchId, false, route.mrTab) : null;
 
     const [health, views, bRes, oRes, cRes] = await Promise.all([
       api<HealthInfo>("/api/v1/health"),
@@ -528,7 +574,7 @@ async function loadAll(): Promise<void> {
     if (bRes.briefs[0]) {
       if (state.selectedBriefSlug === "latest") state.selectedBriefSlug = bRes.briefs[0].slug;
       await loadBriefDetail(state.selectedBriefSlug);
-      // Avoid downloading all 736 entries twice: reuse entries already inside the published brief!
+      // Avoid downloading all entries twice: reuse entries already inside the published brief!
       if (state.briefDetail?.entries?.length) {
         state.entries = state.briefDetail.entries;
       } else {
@@ -546,16 +592,25 @@ async function loadAll(): Promise<void> {
       const verLink = ver
         ? `<a class="footer-ver mono" href="https://github.com/NikolayS/pgroast/releases/tag/${encodeURIComponent(ver)}" target="_blank" rel="noopener">${esc(ver)}</a> · `
         : "";
-      const viewTotal = views?.total ?? health.views?.total ?? 0;
+      const viewTotal = safeInt(views?.total ?? health.views?.total ?? 0);
       const viewsPart = ` · <a class="footer-ver" href="/?tab=stats#site-traffic" id="footer-views-link">${viewTotal} view${viewTotal === 1 ? "" : "s"}</a>`;
-      f.innerHTML = `${verLink}${esc(health.database.version || "PostgreSQL")} · ${health.counts.entries} entries · ${health.counts.opinions} opinions${viewsPart}`;
+      f.innerHTML = `${verLink}${esc(health.database.version || "PostgreSQL")} · ${safeInt(health.counts.entries)} entries · ${safeInt(health.counts.opinions)} opinions${viewsPart}`;
+      document.getElementById("footer-views-link")?.addEventListener("click", (ev) => {
+        ev.preventDefault();
+        navigateToTab("stats", true, "#site-traffic");
+      });
     }
     syncTopBackofficeLink();
 
-    if (route.patchId) {
-      await openPatchPage(route.patchId, false);
+    if (patchPromise) {
+      await patchPromise;
+      render();
     } else {
       render();
+      if (route.hash) {
+        const id = route.hash.replace(/^#/, "");
+        setTimeout(() => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" }), 60);
+      }
     }
   } catch (err) {
     const root = document.getElementById("web-main");
@@ -596,29 +651,36 @@ function openSpaceSwitcher(): void {
         Your private workspace on <code class="mono">${esc(getLocalBackofficeUrl().replace(/\/$/, ""))}</code> — compile Postgres, run your AI models, inspect diffs, keep private Work Items &amp; Gmail drafts, and push sanitized opinions up here.
       </p>
       <div class="row" style="gap:8px;margin-top:2px;">
-        <a class="btn btn-primary" style="flex:1;" href="${esc(backofficeHref)}" target="_blank" rel="noopener">
-          ${cfId ? `Work on CF ${cfId} in Backoffice ↗` : "Open Personal Backoffice ↗"}
+        <button type="button" class="btn btn-primary" style="flex:1;" id="space-goto-setup-btn">Set up Backoffice →</button>
+        <a class="btn btn-secondary" href="${esc(backofficeHref)}" target="_blank" rel="noopener" title="Already running bun run app:local on your machine?">
+          ${cfId ? `Open CF ${cfId} locally ↗` : "Open local ↗"}
         </a>
-        <button type="button" class="btn btn-secondary" id="space-copy-local-btn">Copy link</button>
+        <button type="button" class="btn btn-ghost" id="space-copy-local-btn">Copy</button>
       </div>
       ${
         isMobile
-          ? `<div class="dim" style="font-size:11.5px;line-height:1.4;">On iPhone? Tap <strong>Copy link</strong> to open <code class="mono">${esc(backofficeHref)}</code> on your laptop where <code class="mono">bun run app:local</code> is running.</div>`
-          : ""
+          ? `<div class="dim" style="font-size:11.5px;line-height:1.4;">On mobile? Tap <strong>Copy</strong> to open <code class="mono">${esc(backofficeHref)}</code> on your laptop where <code class="mono">bun run app:local</code> is running.</div>`
+          : `<div class="dim" style="font-size:11.5px;line-height:1.4;">Already running <code class="mono">bun run app:local</code>? Use <strong>Open local ↗</strong>. First time? Click <strong>Set up Backoffice →</strong>.</div>`
       }
     </div>
 
-    <button type="button" class="btn btn-ghost" id="space-goto-setup-btn" style="width:100%;">
-      How Public ↔ Backoffice collaboration works →
-    </button>
+    <div class="row" style="gap:8px;">
+      <button type="button" class="btn btn-ghost" id="space-goto-team-btn" style="flex:1;">
+        Team Coordination (${state.coordination.length}) →
+      </button>
+    </div>
   `;
 
   body.querySelector<HTMLElement>("#space-copy-local-btn")?.addEventListener("click", (ev) => {
-    copyTextWithFeedback(ev.currentTarget as HTMLElement, backofficeHref, "Copy link");
+    copyTextWithFeedback(ev.currentTarget as HTMLElement, backofficeHref, "Copy");
   });
   body.querySelector("#space-goto-setup-btn")?.addEventListener("click", () => {
     closeSpaceSwitcher();
     navigateToTab("connect");
+  });
+  body.querySelector("#space-goto-team-btn")?.addEventListener("click", () => {
+    closeSpaceSwitcher();
+    navigateToTab("coordination");
   });
 
   backdrop.hidden = false;
@@ -790,7 +852,7 @@ function renderMrDiscussionTab(cfId: number, backofficeHref: string): string {
       <div class="row" style="gap:6px;">
         ${hasLongQuotes ? `<button type="button" class="btn btn-ghost btn-sm" id="mr-toggle-quotes-btn">Expand long quotes</button>` : ""}
         <button type="button" class="btn btn-secondary btn-sm" id="mr-jump-latest-btn">Latest ↓</button>
-        <a class="btn btn-backoffice btn-sm" href="${esc(backofficeHref)}" target="_blank" rel="noopener">Reply in Backoffice ↗</a>
+        <button type="button" class="btn btn-backoffice btn-sm" data-goto-connect="1">Reply via Backoffice →</button>
       </div>
     </div>
 
@@ -854,19 +916,23 @@ function renderMrDiscussionTab(cfId: number, backofficeHref: string): string {
               ? `
             <div class="mr-att-row">
               ${m.attachments
-                .map(
-                  (a) => `
-                <a class="mr-att-chip ${a.isPatch && !a.isNoCfbot ? "is-patch" : ""}" href="${esc(a.url)}" target="_blank" rel="noopener">
+                .map((a) => {
+                  const safeAtt = safeHttpUrl(a.url);
+                  return safeAtt
+                    ? `
+                <a class="mr-att-chip ${a.isPatch && !a.isNoCfbot ? "is-patch" : ""}" href="${esc(safeAtt)}" target="_blank" rel="noopener">
                   <span>${a.isPatch ? "🩹" : "📎"}</span>
                   <span class="mono">${esc(a.name)}</span>
                   ${a.sizeText ? `<span class="dim">${esc(a.sizeText)}</span>` : ""}
                 </a>
-              `,
-                )
+              `
+                    : `<span class="mr-att-chip"><span>📎</span><span class="mono">${esc(a.name)}</span></span>`;
+                })
                 .join("")}
             </div>
           `
               : "";
+          const safeMsgUrl = safeHttpUrl(m.url);
           return `
             ${sysEvent}
             <article class="mr-msg ${m.isAuthor ? "is-author" : ""}" id="mr-msg-${m.index}">
@@ -879,7 +945,7 @@ function renderMrDiscussionTab(cfId: number, backofficeHref: string): string {
                 </div>
                 <div class="row" style="gap:8px;font-size:11.5px;">
                   <span class="mono dim">#${m.index + 1} · ${esc(m.date.slice(0, 16).replace("T", " "))} UTC</span>
-                  <a href="${esc(m.url)}" target="_blank" rel="noopener">Archive ↗</a>
+                  ${safeMsgUrl ? `<a href="${esc(safeMsgUrl)}" target="_blank" rel="noopener">Archive ↗</a>` : ""}
                 </div>
               </div>
               <div class="mr-msg-body">${bodyHtml || `<span class="muted">(empty body)</span>`}</div>
@@ -893,11 +959,12 @@ function renderMrDiscussionTab(cfId: number, backofficeHref: string): string {
     <div class="collab-cta" style="margin-top:14px;">
       <div style="font-weight:600;font-size:13.5px;">Read-only archive view</div>
       <div class="muted" style="font-size:12.5px;">
-        Public discussions never auto-post to <code>pgsql-hackers</code>. Open CF ${cfId} in your Personal Backoffice to draft a plain-text 72-column reply with all 4 safety gates.
+        Public discussions never auto-post to <code>pgsql-hackers</code>. Open CF ${cfId} in your local Personal Backoffice to draft a plain-text 72-column reply.
       </div>
       <div class="row" style="gap:8px;">
-        <a class="btn btn-primary btn-sm" href="${esc(backofficeHref)}" target="_blank" rel="noopener">Draft reply in Backoffice ↗</a>
-        <a class="btn btn-secondary btn-sm" href="${esc(disc.threadUrl)}" target="_blank" rel="noopener">Original postgresql.org thread ↗</a>
+        <button type="button" class="btn btn-primary btn-sm" data-goto-connect="1">Set up Backoffice →</button>
+        <a class="btn btn-secondary btn-sm" href="${esc(backofficeHref)}" target="_blank" rel="noopener" title="Already running bun run app:local locally?">Open locally (127.0.0.1) ↗</a>
+        ${safeHttpUrl(disc.threadUrl) ? `<a class="btn btn-ghost btn-sm" href="${esc(safeHttpUrl(disc.threadUrl))}" target="_blank" rel="noopener">Original postgresql.org thread ↗</a>` : ""}
       </div>
     </div>
   `;
@@ -962,8 +1029,8 @@ function renderMrDiffTab(cfId: number, backofficeHref: string): string {
             : ""
         }
         <button type="button" class="btn btn-ghost btn-sm" id="mr-toggle-files-btn">Collapse all</button>
-        <a class="btn btn-secondary btn-sm" href="${esc(diff.compareUrl)}" target="_blank" rel="noopener">GitHub Compare ↗</a>
-        <a class="btn btn-backoffice btn-sm" href="${esc(backofficeHref)}" target="_blank" rel="noopener">Comment inline in Backoffice ↗</a>
+        ${safeHttpUrl(diff.compareUrl) ? `<a class="btn btn-secondary btn-sm" href="${esc(safeHttpUrl(diff.compareUrl))}" target="_blank" rel="noopener">GitHub Compare ↗</a>` : ""}
+        <button type="button" class="btn btn-backoffice btn-sm" data-goto-connect="1">Review via Backoffice →</button>
       </div>
     </div>
 
@@ -976,14 +1043,15 @@ function renderMrDiffTab(cfId: number, backofficeHref: string): string {
     </div>
 
     <div class="diff-file-nav" aria-label="Changed files">
-      ${diff.files
-        .map((f, idx) => {
+      ${visibleFiles
+        .map((f) => {
+          const origIdx = diff.files.indexOf(f);
           const fp = f.newPath || f.oldPath;
           const shortName = fp.split("/").slice(-2).join("/");
           const cCount = lineCountForFile(f) + (f.mentions?.length || 0);
           const isViewed = state.mrViewedFiles.has(fp);
           return `
-            <button type="button" class="diff-nav-pill ${isViewed ? "is-viewed" : ""}" data-jump-diff-file="${idx}" title="${esc(fp)}">
+            <button type="button" class="diff-nav-pill ${isViewed ? "is-viewed" : ""}" data-jump-diff-file="${origIdx}" title="${esc(fp)}">
               ${isViewed ? `<span style="color:var(--ok);">✓</span>` : ""}
               <span class="mono">${esc(shortName)}</span>
               ${cCount > 0 ? `<span class="diff-nav-comm">💬 ${cCount}</span>` : ""}
@@ -1002,9 +1070,11 @@ function renderMrDiffTab(cfId: number, backofficeHref: string): string {
           const isViewed = state.mrViewedFiles.has(fp);
           const lineCommentsInFile = lineCountForFile(f);
           const mentionCount = f.mentions?.length || 0;
-          const openByDefault = !isViewed && (idx < 5 || lineCommentsInFile > 0 || mentionCount > 0);
+          const isOpen = state.mrInitializedOpenFiles
+            ? state.mrOpenFiles.has(fp)
+            : !isViewed && (idx < 5 || lineCommentsInFile > 0 || mentionCount > 0);
           return `
-        <details class="diff-file ${isViewed ? "is-viewed" : ""}" id="diff-file-${origIdx}" ${openByDefault ? "open" : ""}>
+        <details class="diff-file ${isViewed ? "is-viewed" : ""}" id="diff-file-${origIdx}" data-diff-fp="${esc(fp)}" ${isOpen ? "open" : ""}>
           <summary>
             <span class="diff-path">${esc(fp)}</span>
             <span class="row" style="gap:8px;flex-shrink:0;">
@@ -1136,8 +1206,11 @@ function renderPatchPage(): string {
         ? "Opinions"
         : state.returnTab === "stats"
           ? "Stats"
-          : "Brief";
+          : state.returnTab === "coordination"
+            ? "Team"
+            : "Brief";
   const backofficeHref = getLocalBackofficeUrl(cfId);
+  const safeThreadUrl = safeHttpUrl(threadUrl);
 
   // Build visual consensus bar segments
   const breakdownEntries: Array<[string, number]> = consensus && consensus.totalOpinions > 0
@@ -1149,11 +1222,13 @@ function renderPatchPage(): string {
 
   const consensusBadge = !consensus || consensus.status === "baseline_only"
     ? `<span class="pill">Baseline brief pass</span>`
-    : consensus.status === "unanimous"
-      ? `<span class="pill p-ok">Unanimous agreement</span>`
-      : consensus.status === "majority"
-        ? `<span class="pill p-info">Majority consensus</span>`
-        : `<span class="pill p-warn">Split opinions</span>`;
+    : consensus.status === "single_opinion"
+      ? `<span class="pill p-info">1 opinion</span>`
+      : consensus.status === "unanimous"
+        ? `<span class="pill p-ok">Unanimous agreement</span>`
+        : consensus.status === "majority"
+          ? `<span class="pill p-info">Majority consensus</span>`
+          : `<span class="pill p-warn">Split opinions</span>`;
 
   // Unique contributor + model pairs
   const contributorChips = opinions.map((o) => {
@@ -1177,7 +1252,7 @@ function renderPatchPage(): string {
       <div class="row" style="gap:6px;">
         <button type="button" class="btn btn-secondary btn-sm" id="patch-copy-url-btn">Copy link</button>
         <a class="btn btn-primary btn-sm" href="https://commitfest.postgresql.org/patch/${cfId}/" target="_blank" rel="noopener">CommitFest ↗</a>
-        ${threadUrl ? `<a class="btn btn-secondary btn-sm" href="${esc(threadUrl)}" target="_blank" rel="noopener">Thread ↗</a>` : ""}
+        ${safeThreadUrl ? `<a class="btn btn-secondary btn-sm" href="${esc(safeThreadUrl)}" target="_blank" rel="noopener">Thread ↗</a>` : ""}
       </div>
     </div>
 
@@ -1284,7 +1359,7 @@ function renderPatchPage(): string {
                 <div class="opinion-head">
                   <div class="opinion-who">
                     <div class="opinion-avatar">
-                      ${o.contributor_avatar ? `<img src="${esc(o.contributor_avatar)}" alt="${esc(o.contributor_name)}" />` : esc(initials)}
+                      ${safeHttpUrl(o.contributor_avatar) ? `<img src="${esc(safeHttpUrl(o.contributor_avatar))}" alt="${esc(o.contributor_name)}" />` : esc(initials)}
                     </div>
                     <div>
                       <div class="opinion-name">${esc(o.contributor_name || o.contributor_handle)}</div>
@@ -1337,7 +1412,15 @@ function renderPatchPage(): string {
                 ${
                   reasons.length > 0
                     ? `<div class="opinion-body">${reasons.map((r) => `• ${esc(r)}`).join("\n")}</div>`
-                    : `<div class="muted" style="font-size:13px;">Baseline triage verdict from the published CommitFest batch. Open CF ${cfId} in your local workbench to inspect the full objection breakdown and diff.</div>`
+                    : `
+                  <div class="muted" style="font-size:13px;line-height:1.5;">
+                    Baseline triage verdict from the published CommitFest batch (not a detailed shortlist write-up yet). Read the live thread and code right here, or publish a full review from your local Backoffice:
+                    <div class="row" style="gap:8px;margin-top:10px;flex-wrap:wrap;">
+                      <button type="button" class="btn btn-secondary btn-sm" data-jump-mr-tab="discussion">Read -hackers Discussion →</button>
+                      <button type="button" class="btn btn-secondary btn-sm" data-jump-mr-tab="changes">Inspect CFBot Diff →</button>
+                    </div>
+                  </div>
+                `
                 }
                 ${
                   nextStep
@@ -1353,11 +1436,12 @@ function renderPatchPage(): string {
             <div class="collab-cta">
               <div style="font-weight:600;font-size:13.5px;">Add your AI's opinion on CF ${cfId}</div>
               <div class="muted" style="font-size:12.5px;line-height:1.5;">
-                Each reviewer runs their own local <strong>Personal Backoffice</strong> with their preferred AI (Claude, Gemini, Codex, Grok, etc.) and local PostgreSQL build, then clicks <strong>Publish Opinion</strong> to share sanitized findings here so the team can compare perspectives and derive common ground.
+                Each reviewer runs their own local <strong>Personal Backoffice</strong> with their preferred AI (Claude, Gemini, Codex, etc.) and local PostgreSQL build, then clicks <strong>Publish Opinion</strong> to share sanitized findings here so the team can compare perspectives and derive common ground.
               </div>
-              <div class="row" style="gap:8px;margin-top:2px;">
-                <a class="btn btn-backoffice" href="${esc(backofficeHref)}" target="_blank" rel="noopener">Open CF ${cfId} in Personal Backoffice ↗</a>
-                <button type="button" class="btn btn-secondary" id="patch-copy-local-cta">Copy local link</button>
+              <div class="row" style="gap:8px;margin-top:2px;flex-wrap:wrap;">
+                <button type="button" class="btn btn-primary btn-sm" data-goto-connect="1">Set up Personal Backoffice →</button>
+                <a class="btn btn-backoffice btn-sm" href="${esc(backofficeHref)}" target="_blank" rel="noopener" title="Already running bun run app:local locally?">Open locally (127.0.0.1) ↗</a>
+                <button type="button" class="btn btn-secondary btn-sm" id="patch-copy-local-cta">Copy local link</button>
               </div>
             </div>
           </div>
@@ -1430,12 +1514,12 @@ function renderPatchPage(): string {
             <span class="space-badge-local">Private · Local</span>
           </div>
           <div class="muted" style="font-size:12px;line-height:1.45;">
-            Compile Postgres, run your AI harness, review the patch diff, keep private Work Items, and draft <code>-hackers</code> emails locally.
+            Compile Postgres, run your AI models, review the patch diff, keep private Work Items, and draft <code>-hackers</code> emails locally.
           </div>
-          <a class="btn btn-primary" style="width:100%;height:38px;" href="${esc(backofficeHref)}" target="_blank" rel="noopener">Work on CF ${cfId} in Backoffice ↗</a>
+          <button type="button" class="btn btn-primary" style="width:100%;height:38px;" data-goto-connect="1">Set up Personal Backoffice →</button>
           <div class="row" style="gap:6px;">
-            <button type="button" class="btn btn-secondary" style="flex:1;" id="patch-copy-local-side">Copy local link</button>
-            <a class="btn btn-ghost" href="https://github.com/NikolayS/pgroast" target="_blank" rel="noopener">Install ↗</a>
+            <a class="btn btn-secondary" style="flex:1;" href="${esc(backofficeHref)}" target="_blank" rel="noopener" title="Already running bun run app:local on your laptop?">Open locally ↗</a>
+            <button type="button" class="btn btn-ghost" id="patch-copy-local-side">Copy</button>
           </div>
         </div>
       </aside>
@@ -1932,20 +2016,19 @@ function renderIntroCard(): string {
         <div class="intro-step">
           <div class="intro-step-head">
             <span class="intro-num">3</span>
-            <strong>Pick a hacker flavour</strong>
+            <strong>Focus by subsystem lens</strong>
           </div>
           <div class="intro-flavour-list">
-            <span class="chip">Default</span>
-            <span class="chip">Tom Lane</span>
-            <span class="chip">Peter Eisentraut</span>
-            <span class="chip">Robert Haas</span>
-            <span class="chip">Andres Freund</span>
-            <span class="chip">Heikki Linnakangas</span>
-            <span class="chip">Bruce Momjian</span>
-            <span class="chip">Alexander Korotkov</span>
+            <span class="chip">Planner &amp; Semantics</span>
+            <span class="chip">SQL Standards</span>
+            <span class="chip">Architecture &amp; Concurrency</span>
+            <span class="chip">WAL &amp; Storage</span>
+            <span class="chip">Performance &amp; Internals</span>
+            <span class="chip">Indexing &amp; Access Methods</span>
+            <span class="chip">DBA &amp; Operability</span>
           </div>
           <p>
-            <strong>Not connected to the real hackers:</strong> a flavour is only what AI thinks that well-known reviewer might say, with no guarantee it would happen in reality (AI makes mistakes all the time). Every report and opinion records its level and flavour.
+            Every roast checks multiple PostgreSQL engineering angles. The local Backoffice also offers optional reviewer-inspired flavours — clearly marked as <strong>AI guesses, not connected to real people</strong> (AI makes mistakes all the time).
           </p>
         </div>
 
@@ -2262,6 +2345,9 @@ function renderEntriesTab(): string {
     ["Needs review", "Needs review"],
     ["Waiting on Author", "Waiting on Author"],
   ];
+  const hasCustomStatus =
+    state.entryStatus !== "all" &&
+    !statusChips.some(([val]) => val.toLowerCase() === state.entryStatus.toLowerCase());
 
   return `
     <div class="search-sticky">
@@ -2295,6 +2381,11 @@ function renderEntriesTab(): string {
         `,
           )
           .join("")}
+        ${
+          hasCustomStatus
+            ? `<button type="button" class="chip active" id="clear-custom-status-chip" title="Click to clear status filter">${esc(state.entryStatus)} ×</button>`
+            : ""
+        }
       </div>
     </div>
 
@@ -2312,6 +2403,7 @@ function renderOpinionsTab(): string {
         <h1 class="page-title">Community Model Opinions (${state.opinions.length})</h1>
         <div class="page-sub">Every opinion shows who ran it and which AI produced it — tap any row to open the patch consensus page</div>
       </div>
+      <button type="button" class="btn btn-secondary btn-sm" id="opinions-goto-team-btn">Team claims (${state.coordination.length}) →</button>
     </div>
     ${
       state.opinions.length === 0
@@ -2461,8 +2553,16 @@ function renderConnectTab(): string {
           <h3>Publish-Only Token (Backoffice → Public)</h3>
         </div>
         <div class="sheet-actions" style="margin-bottom:12px;">
-          <a class="btn btn-secondary btn-lg" href="/auth/github">Sign in with GitHub ${oauth?.githubConfigured ? "" : "(not configured)"}</a>
-          <a class="btn btn-secondary btn-lg" href="/auth/google">Sign in with Google ${oauth?.googleConfigured ? "" : "(not configured)"}</a>
+          ${
+            oauth?.githubConfigured
+              ? `<a class="btn btn-secondary btn-lg" href="/auth/github">Sign in with GitHub</a>`
+              : `<button type="button" class="btn btn-secondary btn-lg" disabled title="GitHub OAuth is not configured on this server">Sign in with GitHub (not configured)</button>`
+          }
+          ${
+            oauth?.googleConfigured
+              ? `<a class="btn btn-secondary btn-lg" href="/auth/google">Sign in with Google</a>`
+              : `<button type="button" class="btn btn-secondary btn-lg" disabled title="Google OAuth is not configured on this server">Sign in with Google (not configured)</button>`
+          }
         </div>
         ${
           oauth?.devTokenMintEnabled
@@ -2475,11 +2575,15 @@ function renderConnectTab(): string {
               <input id="dev-name" type="text" placeholder="Display name" />
               <button type="button" class="btn btn-primary btn-lg" id="dev-mint-btn">Mint Publish Token</button>
             </div>
+            ${state.devMintError ? `<div class="sheet-callout sheet-callout-warn" style="margin-top:10px;font-size:12px;">${esc(state.devMintError)}</div>` : ""}
             ${
               state.mintedToken
                 ? `
               <div class="sheet-callout" style="margin-top:10px;">
-                <div style="font-size:12px;margin-bottom:4px;"><strong>Token for @${esc(state.mintedHandle)}</strong>:</div>
+                <div class="row" style="justify-content:space-between;margin-bottom:4px;">
+                  <strong style="font-size:12px;">Token for @${esc(state.mintedHandle)}</strong>
+                  <button type="button" class="btn btn-secondary btn-sm" id="dev-copy-token-btn">Copy token</button>
+                </div>
                 <code class="mono" style="word-break:break-all;font-size:12px;">${esc(state.mintedToken)}</code>
               </div>
             `
@@ -2545,20 +2649,40 @@ function render(): void {
       copyTextWithFeedback(ev.currentTarget as HTMLElement, backofficeHref, "Copy local link");
     });
     document.getElementById("patch-copy-local-side")?.addEventListener("click", (ev) => {
-      copyTextWithFeedback(ev.currentTarget as HTMLElement, backofficeHref, "Copy local link");
+      copyTextWithFeedback(ev.currentTarget as HTMLElement, backofficeHref, "Copy");
     });
+    document.querySelectorAll<HTMLElement>("[data-goto-connect]").forEach((el) => {
+      el.addEventListener("click", () => navigateToTab("connect"));
+    });
+
+    const switchMrTab = (next: MrTabId) => {
+      state.mrTab = next;
+      try {
+        const qs = next === "overview" ? "" : `?view=${encodeURIComponent(next)}`;
+        window.history.replaceState({ patchId: cfId, tab: state.returnTab, mrTab: next }, "", `/patch/${cfId}${qs}`);
+      } catch {
+        // ignore
+      }
+      if (next === "discussion" && state.mrDiscussion?.cfId !== cfId && !state.mrDiscussionLoading) {
+        void loadMrDiscussion(cfId);
+        return;
+      }
+      if (next === "changes" && state.mrDiff?.cfId !== cfId && !state.mrDiffLoading) {
+        void loadMrDiff(cfId);
+        return;
+      }
+      render();
+    };
 
     // GitLab MR-style tab switching (Overview / Discussion / Changes)
     document.querySelectorAll<HTMLButtonElement>("[data-mr-tab]").forEach((btn) => {
       btn.addEventListener("click", () => {
-        const next = (btn.dataset.mrTab as MrTabId) || "overview";
-        state.mrTab = next;
-        if (next === "discussion") {
-          void loadMrDiscussion(cfId);
-        } else if (next === "changes") {
-          void loadMrDiff(cfId);
-        }
-        render();
+        switchMrTab((btn.dataset.mrTab as MrTabId) || "overview");
+      });
+    });
+    document.querySelectorAll<HTMLButtonElement>("[data-jump-mr-tab]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        switchMrTab((btn.dataset.jumpMrTab as MrTabId) || "overview");
       });
     });
 
@@ -2613,8 +2737,21 @@ function render(): void {
       const anyOpen = files.some((d) => d.open);
       files.forEach((d) => {
         d.open = !anyOpen;
+        const fp = d.dataset.diffFp || "";
+        if (fp) {
+          if (!anyOpen) state.mrOpenFiles.add(fp);
+          else state.mrOpenFiles.delete(fp);
+        }
       });
       btn.textContent = anyOpen ? "Expand all" : "Collapse all";
+    });
+    document.querySelectorAll<HTMLDetailsElement>("#mr-diff-files details.diff-file").forEach((d) => {
+      d.addEventListener("toggle", () => {
+        const fp = d.dataset.diffFp || "";
+        if (!fp) return;
+        if (d.open) state.mrOpenFiles.add(fp);
+        else state.mrOpenFiles.delete(fp);
+      });
     });
     document.querySelectorAll<HTMLButtonElement>("[data-jump-diff-file]").forEach((btn) => {
       btn.addEventListener("click", () => {
@@ -2622,6 +2759,8 @@ function render(): void {
         const el = document.getElementById(`diff-file-${idx}`) as HTMLDetailsElement | null;
         if (el) {
           el.open = true;
+          const fp = el.dataset.diffFp || "";
+          if (fp) state.mrOpenFiles.add(fp);
           el.scrollIntoView({ behavior: "smooth", block: "start" });
         }
       });
@@ -2634,8 +2773,13 @@ function render(): void {
         ev.stopPropagation();
         const fp = cb.dataset.markViewed || "";
         if (!fp) return;
-        if (cb.checked) state.mrViewedFiles.add(fp);
-        else state.mrViewedFiles.delete(fp);
+        if (cb.checked) {
+          state.mrViewedFiles.add(fp);
+          state.mrOpenFiles.delete(fp);
+        } else {
+          state.mrViewedFiles.delete(fp);
+          state.mrOpenFiles.add(fp);
+        }
         render();
       });
     });
@@ -2694,6 +2838,7 @@ function render(): void {
   // Shared row links (Opinions / Coordination)
   if (state.tab === "opinions" || state.tab === "coordination") {
     bindPatchRowClicks(root);
+    document.getElementById("opinions-goto-team-btn")?.addEventListener("click", () => navigateToTab("coordination"));
   }
 
   // Brief tab events
@@ -2804,11 +2949,13 @@ function render(): void {
       btn.addEventListener("click", () => {
         state.entryStatus = btn.dataset.entryStatus || "all";
         state.entryLimit = 60;
-        document.querySelectorAll<HTMLButtonElement>("[data-entry-status]").forEach((b) => {
-          b.classList.toggle("active", (b.dataset.entryStatus || "").toLowerCase() === state.entryStatus.toLowerCase());
-        });
-        updateEntriesListOnly();
+        render();
       });
+    });
+    document.getElementById("clear-custom-status-chip")?.addEventListener("click", () => {
+      state.entryStatus = "all";
+      state.entryLimit = 60;
+      render();
     });
     const mount = document.getElementById("entries-list-mount");
     if (mount) {
@@ -2824,17 +2971,29 @@ function render(): void {
   document.getElementById("connect-copy-cmd-btn")?.addEventListener("click", (ev) => {
     copyTextWithFeedback(ev.currentTarget as HTMLElement, "bun run app:local", "Copy start cmd");
   });
+  document.getElementById("dev-copy-token-btn")?.addEventListener("click", (ev) => {
+    copyTextWithFeedback(ev.currentTarget as HTMLElement, state.mintedToken, "Copy token");
+  });
   document.getElementById("dev-mint-btn")?.addEventListener("click", async () => {
     const provider = (document.getElementById("dev-prov") as HTMLSelectElement).value;
     const handle = (document.getElementById("dev-handle") as HTMLInputElement).value.trim();
     const name = (document.getElementById("dev-name") as HTMLInputElement).value.trim();
-    if (!handle) return;
-    const res = await api<{ token: string; contributor: { handle: string } }>("/api/v1/tokens/dev", {
-      method: "POST",
-      body: JSON.stringify({ provider, handle, name: name || handle }),
-    });
-    state.mintedToken = res.token;
-    state.mintedHandle = res.contributor.handle;
+    if (!handle) {
+      state.devMintError = "Please enter a handle first.";
+      render();
+      return;
+    }
+    state.devMintError = "";
+    try {
+      const res = await api<{ token: string; contributor: { handle: string } }>("/api/v1/tokens/dev", {
+        method: "POST",
+        body: JSON.stringify({ provider, handle, name: name || handle }),
+      });
+      state.mintedToken = res.token;
+      state.mintedHandle = res.contributor.handle;
+    } catch (err) {
+      state.devMintError = err instanceof Error ? err.message : String(err);
+    }
     render();
   });
 }
@@ -2844,6 +3003,10 @@ document.querySelectorAll<HTMLButtonElement>("#web-nav .nav-link, #web-bottom-na
   btn.addEventListener("click", () => {
     navigateToTab((btn.dataset.tab as TabId) || "brief");
   });
+});
+
+document.getElementById("web-backoffice-top-btn")?.addEventListener("click", () => {
+  navigateToTab("connect");
 });
 
 document.getElementById("web-home-btn")?.addEventListener("click", () => {
@@ -2940,7 +3103,7 @@ document.addEventListener("click", () => {
 window.addEventListener("popstate", () => {
   const route = parseRouteFromLocation();
   if (route.patchId) {
-    void openPatchPage(route.patchId, false);
+    void openPatchPage(route.patchId, false, route.mrTab);
   } else {
     state.activePatchId = null;
     state.patchData = null;

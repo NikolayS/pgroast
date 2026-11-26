@@ -290,10 +290,21 @@ describe("HTTP API & SPA smoke integration tests", () => {
     );
     expect(nullOrigin.status).toBe(403);
 
-    // HTML includes strict CSP & X-Frame-Options: DENY
+    // HTML includes strict CSP, Cache-Control: no-store & X-Frame-Options: DENY
     const rootRes = await appFetch(new Request("http://127.0.0.1:3432/"));
     expect(rootRes.headers.get("x-frame-options")).toBe("DENY");
+    expect(rootRes.headers.get("cache-control")).toBe("no-store");
     expect(rootRes.headers.get("content-security-policy")).toContain("frame-ancestors 'none'");
+    expect(rootRes.headers.get("content-security-policy")).toContain("form-action 'self'");
+
+    // Reject shell-injection targetBranch on build-test job
+    const badBranch = await req("/api/jobs/build-test", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ cfId: 5879, targetBranch: "master; rm -rf /" }),
+    });
+    expect(badBranch.status).toBe(400);
+    expect(await badBranch.text()).toContain("Invalid targetBranch");
   });
 
   test("Experimental unified diff parser + inline comments compile cleanly to -hackers plain text", async () => {

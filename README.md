@@ -6,7 +6,7 @@ Given a pgsql-hackers thread or a CommitFest entry, it argues why the proposal m
 
 > Prepared by an AI harness; treat as a devil's advocate, not a verdict.
 
-Status: prototype. Output is local files only. Nothing is posted to mailing lists or to CommitFest, and there is no code that could do so.
+Status: prototype. The CLI writes local files only and never posts anywhere. The optional Personal Backoffice (`apps/local`) adds explicit-confirmation CommitFest actions, local Gmail drafts, and opt-in publishing of sanitized opinions to the Public App (`apps/web`). Nothing is ever auto-posted to `pgsql-hackers` or CommitFest.
 
 ## What you get
 
@@ -71,7 +71,7 @@ Full design: [docs/design.md](docs/design.md).
 ## Requirements
 
 1. **An AI coding CLI, installed and signed in with your subscription.** One of:
-   - [Claude Code](https://claude.com/claude-code): install it, run `claude` once and sign in (`/login`). The account needs access to Opus, and to Mythos 5.2 or Fable 5.2.
+   - [Claude Code](https://claude.com/claude-code): install it, run `claude` once and sign in (`/login`). The account needs access to Claude Opus (`opus`).
    - Codex CLI: install it and run `codex login`.
 
    PG Roast starts that CLI for every model call, so the calls count toward the limits of the account the CLI is signed in to. A roast is 12 to 20 calls. No API key is needed or used: `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`, `OPENAI_API_KEY` and `CODEX_API_KEY` are removed from the CLI's environment, and a call fails if the CLI reports that it is using a key.
@@ -98,10 +98,10 @@ bun install
 # Start Postgres 19 via Docker if you do not already run local Postgres 19/18
 docker compose -f apps/local/docker-compose.yml up -d
 
-# Optional: copy .env.example to .env if Postgres runs on a custom port (for example 5439 for PG 19)
+# Copy .env.example to .env (pre-configured for the Docker Postgres 19 container above)
 cp .env.example .env
 
-# Optional: load the precedent index for CLI roasts
+# Optional: load the 2,547-row precedent index for CLI roasts
 bun run src/cli.ts init-db
 
 # Start your Personal Backoffice at http://127.0.0.1:3432
@@ -145,13 +145,7 @@ CLAUDE_CONFIG_DIR=~/.claude npx pgroast@latest doctor
 
 Fetched pages are cached in `~/.cache/pgroast` when installed from npm and in `data/cache/` in a clone (`PGROAST_CACHE_DIR` overrides both).
 
-Models on the claude backend: roasters run on `opus` (`PGROAST_ROASTER_MODEL`), critic and synthesis on `claude-mythos-5-2` (`PGROAST_CRITIC_MODEL`). If your account does not have Mythos 5.2, use Fable 5.2, which is the same underlying model:
-
-```
-export PGROAST_CRITIC_MODEL=claude-fable-5-2
-```
-
-Only Opus, Mythos and Fable models are accepted on the claude backend. To use Codex instead, pass `--backend codex`.
+Models on the claude backend: roasters, critic, and synthesis default to `opus` (`PGROAST_ROASTER_MODEL` and `PGROAST_CRITIC_MODEL` override them). To use Codex instead, pass `--backend codex`.
 
 ## Run
 

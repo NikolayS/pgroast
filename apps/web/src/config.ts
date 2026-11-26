@@ -17,12 +17,33 @@ export interface WebConfig {
   maxPublishBytes: number;
   rateLimitPerMinute: number;
   allowDevTokenMint: boolean;
+  briefMaintainers: string[];
+  allowedHosts: string[];
+}
+
+function parseCsvList(raw: string | undefined): string[] {
+  return (raw || "")
+    .split(",")
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
 }
 
 export function loadWebConfig(): WebConfig {
   const port = Number(process.env.PGROAST_WEB_PORT || process.env.PORT || 3433);
   const host = process.env.PGROAST_WEB_HOST || "127.0.0.1";
   const publicOrigin = (process.env.PGROAST_WEB_ORIGIN || `http://${host}:${port}`).replace(/\/$/, "");
+  const isLoopbackOrigin = /^https?:\/\/(?:127\.0\.0\.1|localhost|\[::1\])(?::\d+)?$/i.test(publicOrigin);
+
+  const allowedSet = new Set<string>(["pgroast.dev", "www.pgroast.dev", "pgroast.postgres.ai"]);
+  try {
+    allowedSet.add(new URL(publicOrigin).host.toLowerCase());
+  } catch {
+    // ignore malformed origin
+  }
+  for (const h of parseCsvList(process.env.PGROAST_WEB_ALLOWED_HOSTS)) {
+    allowedSet.add(h);
+  }
+
   return {
     port,
     host,
@@ -40,11 +61,8 @@ export function loadWebConfig(): WebConfig {
     adminSecret: process.env.PGROAST_WEB_ADMIN_SECRET || "",
     maxPublishBytes: Math.max(65536, Number(process.env.PGROAST_WEB_MAX_PUBLISH_BYTES || 4 * 1024 * 1024)),
     rateLimitPerMinute: Math.max(5, Number(process.env.PGROAST_WEB_RATE_LIMIT_PER_MIN || 60)),
-    allowDevTokenMint:
-      process.env.PGROAST_WEB_DEV_AUTH === "0"
-        ? false
-        : process.env.PGROAST_WEB_DEV_AUTH === "1" ||
-          host === "127.0.0.1" ||
-          host === "localhost",
+    allowDevTokenMint: process.env.PGROAST_WEB_DEV_AUTH === "1" && isLoopbackOrigin,
+    briefMaintainers: parseCsvList(process.env.PGROAST_WEB_BRIEF_MAINTAINERS),
+    allowedHosts: Array.from(allowedSet),
   };
 }

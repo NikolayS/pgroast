@@ -104,11 +104,11 @@ describe("pgroast-web public companion API & security gates", () => {
     expect(dlMd.status).toBe(200);
     expect(await dlMd.text()).toContain("CF 5879");
 
-    // Patch collaboration endpoint returns entry, opinions, and unanimous consensus
+    // Patch collaboration endpoint returns entry, opinions, and single_opinion status for 1 run
     const patchRes = await req("/api/v1/entries/5879");
     expect(patchRes.status).toBe(200);
     const patchJson = (await patchRes.json()) as { consensus: { status: string; totalOpinions: number }; opinions: unknown[] };
-    expect(patchJson.consensus.status).toBe("unanimous");
+    expect(patchJson.consensus.status).toBe("single_opinion");
     expect(patchJson.consensus.totalOpinions).toBe(1);
     expect(patchJson.opinions.length).toBe(1);
 
@@ -201,13 +201,13 @@ describe("pgroast-web public companion API & security gates", () => {
         return new Response(JSON.stringify({ access_token: "gho_test_token" }), { status: 200 });
       }
       if (url === "https://api.github.com/user") {
-        return new Response(JSON.stringify({ login: "kirk-pg", name: "Kirk Wolak", avatar_url: "https://avatars.githubusercontent.com/u/1" }), { status: 200 });
+        return new Response(JSON.stringify({ id: 4201, login: "kirk-pg", name: "Kirk Wolak", avatar_url: "https://avatars.githubusercontent.com/u/1" }), { status: 200 });
       }
       if (url === "https://oauth2.googleapis.com/token") {
         return new Response(JSON.stringify({ access_token: "ya29_test_token" }), { status: 200 });
       }
       if (url === "https://openidconnect.googleapis.com/v1/userinfo") {
-        return new Response(JSON.stringify({ sub: "123", email: "andrey@example.com", name: "Andrey Borodin", picture: "" }), { status: 200 });
+        return new Response(JSON.stringify({ sub: "123", email: "andrey@example.com", email_verified: true, name: "Andrey Borodin", picture: "" }), { status: 200 });
       }
       return new Response("not mocked", { status: 404 });
     }) as typeof fetch;
@@ -400,5 +400,184 @@ describe("pgroast-web public companion API & security gates", () => {
     expect(matched.matchedFileMentions).toBe(1);
     expect(matched.files[0]?.hunks[0]?.lines[1]?.comments?.[0]?.excerpt).toContain("physical slots");
     expect(matched.files[0]?.mentions?.[0]?.from).toBe("Reviewer Two");
+  });
+
+  test("P0 security regressions: dev auth default-off, brief XSS & authorization, opinion non-wipe, Google sub isolation, Host allowlist, token leak", async () => {
+    // 1. Dev token minting defaults OFF even on 127.0.0.1 unless PGROAST_WEB_DEV_AUTH=1 on loopback origin
+    const savedDev = process.env.PGROAST_WEB_DEV_AUTH;
+    const savedOrigin = process.env.PGROAST_WEB_ORIGIN;
+    delete process.env.PGROAST_WEB_DEV_AUTH;
+    process.env.PGROAST_WEB_ORIGIN = "https://pgroast.postgres.ai";
+    const { loadWebConfig } = await import("../src/config.ts");
+    expect(loadWebConfig().allowDevTokenMint).toBe(false);
+    process.env.PGROAST_WEB_DEV_AUTH = "1";
+    expect(loadWebConfig().allowDevTokenMint).toBe(false); // non-loopback publicOrigin blocks dev auth!
+    process.env.PGROAST_WEB_ORIGIN = "http://127.0.0.1:3433";
+    expect(loadWebConfig().allowDevTokenMint).toBe(true);
+    if (savedDev === undefined) delete process.env.PGROAST_WEB_DEV_AUTH;
+    else process.env.PGROAST_WEB_DEV_AUTH = savedDev;
+    if (savedOrigin === undefined) delete process.env.PGROAST_WEB_ORIGIN;
+    else process.env.PGROAST_WEB_ORIGIN = savedOrigin;
+
+    // 2. Non-owner / non-maintainer CANNOT overwrite existing brief OR hijack latest brief (403)
+    const attackerMint = await req("/api/v1/tokens/dev", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ provider: "github", handle: "random-attacker", name: "Attacker" }),
+    });
+    expect(attackerMint.status).toBe(201);
+    const attackerToken = ((await attackerMint.json()) as { token: string }).token;
+
+    const hijackSameSlug = await req("/api/v1/publish/brief", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${attackerToken}` },
+      body: JSON.stringify({ slug: "pg20-3-brief", title: "Hijacked Brief" }),
+    });
+    expect(hijackSameSlug.status).toBe(403);
+
+    const hijackNewSlug = await req("/api/v1/publish/brief", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${attackerToken}` },
+      body: JSON.stringify({ slug: "attacker-latest", title: "Hijacked Latest" }),
+    });
+    expect(hijackNewSlug.status).toBe(403);
+
+    // 3. Stored XSS & javascript: URL defense in briefs (hash-based CSP, no unsafe-inline script, coerced ints)
+    const xssBriefRes = await req("/api/v1/publish/brief", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${pubToken}` },
+      body: JSON.stringify({
+        slug: "xss-check-brief",
+        title: "XSS Defense Brief",
+        commitfestLabel: "PG20-3",
+        stats: {
+          totals: { total: "<script>alert(1)</script>", open: 1, closed: 0 },
+          verdicts: [{ verdict: "NEEDS-COMMITTER-EYES", all: "<img src=x onerror=alert(1)>", open: 1 }],
+        },
+        shortlist: [
+          {
+            cf_id: 7777,
+            title: "Safe $$' title test",
+            status: "Needs review",
+            authors: "Author",
+            verdict: "NEEDS-COMMITTER-EYES",
+            kind: "bugfix",
+            seen_in_production: true,
+            workaround: "Use EXPLAIN",
+            thread_url: "javascript:alert(document.domain)",
+          },
+        ],
+        closing: [],
+        entries: [
+          {
+            cf_id: 7777,
+            title: "Safe $$' title test",
+            status: "Needs review",
+            authors: "Author",
+            verdict: "NEEDS-COMMITTER-EYES",
+            kind: "bugfix",
+            seen_in_production: true,
+            workaround: "Use EXPLAIN",
+            thread_url: "javascript:alert(1)",
+          },
+        ],
+      }),
+    });
+    expect(xssBriefRes.status).toBe(201);
+    const xssHtmlRes = await req("/briefs/xss-check-brief/embed");
+    expect(xssHtmlRes.status).toBe(200);
+    const xssCsp = xssHtmlRes.headers.get("content-security-policy") || "";
+    expect(xssCsp).toContain("script-src 'sha256-");
+    expect(xssCsp).not.toContain("script-src 'unsafe-inline'");
+    const xssHtml = await xssHtmlRes.text();
+    expect(xssHtml).not.toContain("javascript:alert");
+    expect(xssHtml).not.toContain("<script>alert(1)</script>");
+    expect(xssHtml).not.toContain("onerror=alert");
+
+    // 4. Opinion publish MUST NOT wipe canonical public_entries fields (kind, seen_in_production, workaround)
+    const opOn7777 = await req("/api/v1/publish/opinion", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${attackerToken}` },
+      body: JSON.stringify({
+        cf_id: 7777,
+        entry: { cf_id: 7777, title: "Overwritten?", status: "Closed" },
+        backend: "claude",
+        verdict: "LIKELY-REJECT",
+        summary: "Checking non-wipe invariant.",
+      }),
+    });
+    expect(opOn7777.status).toBe(201);
+    const entry7777 = await db.getEntry(7777);
+    expect(entry7777?.kind).toBe("bugfix");
+    expect(entry7777?.seen_in_production).toBe(true);
+    expect(entry7777?.workaround).toBe("Use EXPLAIN");
+    expect(entry7777?.title).toBe("Safe $$' title test");
+
+    // 5. Title containing $$ / $' renders cleanly in SSR HTML without replacement corruption
+    const ssr7777 = await (await req("/patch/7777")).text();
+    expect(ssr7777).toContain("CF 7777: Safe $$' title test");
+
+    // 6. X-Forwarded-Host cache-poisoning rejection + Vary: Host
+    const poisonedRobots = await req("/robots.txt", {
+      headers: { "X-Forwarded-Host": "evil.attacker.tld" },
+    });
+    expect(poisonedRobots.headers.get("vary")).toContain("Host");
+    const poisonedText = await poisonedRobots.text();
+    expect(poisonedText).not.toContain("evil.attacker.tld");
+
+    // 7. Base64url pgroast_pub_ token leak with _ or - is blocked 422
+    const leakPubTok = await req("/api/v1/publish/opinion", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${pubToken}` },
+      body: JSON.stringify({
+        cf_id: 7777,
+        verdict: "NEEDS-COMMITTER-EYES",
+        summary: "Oops leaked pgroast_pub_abcDEF_123-45678901234567890",
+      }),
+    });
+    expect(leakPubTok.status).toBe(422);
+
+    // 8. Google OAuth sub separation: two accounts with same email local-part NEVER collide, and unverified email is rejected
+    const googleCollisionFetch = (async (input: string | URL | Request) => {
+      const u = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+      if (u === "https://oauth2.googleapis.com/token") {
+        return new Response(JSON.stringify({ access_token: "tok" }), { status: 200 });
+      }
+      if (u === "https://openidconnect.googleapis.com/v1/userinfo") {
+        const auth = input instanceof Request ? input.headers.get("authorization") : "";
+        void auth;
+        return new Response(
+          JSON.stringify({ sub: "google-sub-different-999", email: "andrey@other-domain.org", email_verified: true, name: "Other Andrey" }),
+          { status: 200 },
+        );
+      }
+      return new Response("not found", { status: 404 });
+    }) as typeof fetch;
+    const gApp = await createWebHandler({
+      db,
+      config: { publicOrigin: "https://pgroast.postgres.ai", googleClientId: "gid", googleClientSecret: "gsec" },
+      oauthFetch: googleCollisionFetch,
+    });
+    const gs = await gApp.fetch(new Request("http://127.0.0.1:3433/auth/google"));
+    const st = new URL(gs.headers.get("location")!).searchParams.get("state")!;
+    const ck = gs.headers.get("set-cookie")!.split(";")[0]!;
+    const gcb = await gApp.fetch(
+      new Request(`http://127.0.0.1:3433/auth/google/callback?code=c&state=${st}`, { headers: { Cookie: ck } }),
+    );
+    expect(gcb.status).toBe(200);
+    const gcbHtml = await gcb.text();
+    expect(gcbHtml).toContain("@andrey-"); // distinct suffixed handle, NOT colliding with @andrey (sub=123)!
+
+    // 9. Overflowing cf_id returns 400 (not 500 PG int4 overflow)
+    const bigCf = await req("/api/v1/entries/99999999999999");
+    expect(bigCf.status).toBe(400);
+
+    // 10. SPA navigation header X-PgRoast-View: 1 increments page_views
+    const beforeViews = ((await (await req("/api/v1/views")).json()) as { total: number }).total;
+    await req("/api/v1/entries/7777", { headers: { "X-PgRoast-View": "1", "User-Agent": "Mozilla/5.0" } });
+    // Give fire-and-forget insert a moment to flush
+    await new Promise((r) => setTimeout(r, 80));
+    const afterViews = ((await (await req("/api/v1/views")).json()) as { total: number }).total;
+    expect(afterViews).toBeGreaterThan(beforeViews);
   });
 });

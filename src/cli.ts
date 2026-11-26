@@ -314,7 +314,13 @@ function initDb(): number {
   }
   const kv = parseDsn(process.env.PGROAST_DSN ?? DEFAULT_DSN);
   const db = kv.dbname ?? "pgroast";
-  const env = { ...process.env, ...(kv.host ? { PGHOST: kv.host } : {}), ...(kv.port ? { PGPORT: kv.port } : {}), ...(kv.user ? { PGUSER: kv.user } : {}) };
+  const env = {
+    ...process.env,
+    ...(kv.host ? { PGHOST: kv.host } : {}),
+    ...(kv.port ? { PGPORT: kv.port } : {}),
+    ...(kv.user ? { PGUSER: kv.user } : {}),
+    ...(kv.password ? { PGPASSWORD: kv.password } : {}),
+  };
   const run = (cmd: string, argv: string[], input?: Buffer) => spawnSync(cmd, argv, { env, input, encoding: "utf8", maxBuffer: 1 << 28 });
   const has = run("psql", ["-XAtq", "-d", db, "-c", "select to_regclass('public.precedent') is not null"]);
   if (has.error) {

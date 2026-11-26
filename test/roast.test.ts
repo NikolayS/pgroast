@@ -131,7 +131,7 @@ describe("models", () => {
     expect(() => assertAllowedModel("gpt-x")).toThrow();
   });
   test("defaults and env", () => {
-    expect(modelsFromEnv({})).toEqual({ roaster: "opus", critic: "claude-mythos-5-2", synth: "claude-mythos-5-2", brief: "opus" });
+    expect(modelsFromEnv({})).toEqual({ roaster: "opus", critic: "opus", synth: "opus", brief: "opus" });
     expect(modelsFromEnv({ PGROAST_ROASTER_MODEL: "claude-opus-5-5", PGROAST_CRITIC_MODEL: "opus" }).critic).toBe("opus");
     expect(() => modelsFromEnv({ PGROAST_ROASTER_MODEL: "sonnet" })).toThrow();
   });
@@ -648,7 +648,7 @@ describe("pipeline (fake model)", () => {
     expect(r.stats.llm_calls).toBe(12);
     void enrichPrompts;
     for (const c of backend.calls) {
-      expect(c.model).toBe(c.label === "critic" || c.label === "synth" ? "claude-mythos-5-2" : "opus");
+      expect(c.model).toBe("opus");
     }
   });
 
@@ -1364,7 +1364,7 @@ describe("tone lint", () => {
     });
     const calls = b.calls.filter((c) => c.label === "tone-repair");
     expect(calls.length).toBe(1);
-    expect(calls[0]!.model).toBe("claude-mythos-5-2");
+    expect(calls[0]!.model).toBe("opus");
     const o = r.objections[0]!;
     expect(o.title).toBe("The material does not show who needs this");
     expect(o.author_must_show).toContain("Which users asked for it?");

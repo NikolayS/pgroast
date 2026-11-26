@@ -71,7 +71,7 @@ export function getDefaultSettings(): AppSettings {
     defaultClaudeModel: "opus",
     defaultAgyModel: "gemini-4-neon-high",
     interestedTopics: "",
-    publicHubUrl: process.env.PGROAST_PUBLIC_HUB_URL || "http://127.0.0.1:3433",
+    publicHubUrl: process.env.PGROAST_PUBLIC_HUB_URL || "https://pgroast.postgres.ai",
     authProvider: "",
     authHandle: "",
     authName: "",

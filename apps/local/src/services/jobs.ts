@@ -431,7 +431,11 @@ export class JobRunner {
     const ts = Date.now().toString(36);
     const worktreePath = join(wtRoot, `cf-${params.cfId}-${ts}`);
     const logPath = join(LOGS_DIR, `${id}.log`);
-    const branch = params.targetBranch || "master";
+    const rawBranch = (params.targetBranch || "master").trim();
+    if (!/^[A-Za-z0-9._/-]+$/.test(rawBranch) || rawBranch.startsWith("-") || rawBranch.includes("..")) {
+      throw new Error(`Invalid targetBranch "${rawBranch}": only alphanumeric, '.', '_', '/', '-' allowed.`);
+    }
+    const branch = rawBranch;
     const suites = params.suites?.length ? params.suites : ["regress"];
     const pgPort = allocateEphemeralPgPort();
 
@@ -540,11 +544,11 @@ echo "=== Build & test complete (PGPORT=${pgPort}) ==="
     cfId?: number;
     workItemId?: number;
     worktreePath?: string;
-    backend: "claude" | "agy";
+    backend: "claude" | "agy" | "codex";
     model?: string;
     focusPrompt?: string;
     blindVerify?: boolean;
-    previousBackend?: "claude" | "agy";
+    previousBackend?: "claude" | "agy" | "codex";
   }): Promise<JobRecord> {
     const settings = await this.db.getSettings();
     const isBlind = Boolean(params.blindVerify);
@@ -553,14 +557,16 @@ echo "=== Build & test complete (PGPORT=${pgPort}) ==="
     // Cross-family default for blind verification gate!
     let backend = params.backend;
     if (isBlind && params.previousBackend) {
-      backend = params.previousBackend === "claude" ? "agy" : "claude";
+      backend = params.previousBackend === "claude" ? "codex" : "claude";
     }
 
     const model =
       params.model ||
       (backend === "agy"
-        ? settings.defaultAgyModel || "gemini-4-neon-xhigh"
-        : settings.defaultClaudeModel || "claude-fable-5-2");
+        ? settings.defaultAgyModel || "gemini-4-neon-high"
+        : backend === "codex"
+          ? "codex-default"
+          : settings.defaultClaudeModel || "opus");
 
     const id = makeJobId(kind);
     const logPath = join(LOGS_DIR, `${id}.log`);
@@ -579,11 +585,11 @@ echo "=== Build & test complete (PGPORT=${pgPort}) ==="
     const brief = isBlind
       ? [
           `You are an independent veteran PostgreSQL committer executing a BLIND VERIFICATION PASS for ${entry ? `CF ${entry.cf_id}: ${entry.title}` : `Work Item #${params.workItemId ?? ""}`}.`,
-          "Follow pg-correctness-harness Full Review Gate:",
+          "Follow the Full Review Gate:",
           "- Independently verify every runnable SQL/isolation/TAP reproducer from a clean state.",
           "- Verify baseline behavior vs patched behavior on the exact claimed upstream base.",
           "- Audit surrounding PostgreSQL C code for concurrency, locking, subtransaction/error cleanup, privilege, and backbranch issues.",
-          "- Grade any draft message against Nik's voice and public-confidentiality rules.",
+          "- Check any draft message for plain-text 72-column etiquette and public-confidentiality rules.",
           `- Write your structured Evidence Record to ${evidenceOutPath} and summarize your verdict.`,
           params.focusPrompt ? `Additional focus:\n${params.focusPrompt}` : "",
           SAFETY_BRIEF_LINES,
@@ -591,7 +597,7 @@ echo "=== Build & test complete (PGPORT=${pgPort}) ==="
           .filter(Boolean)
           .join("\n\n")
       : [
-          `You are running an adversarial PostgreSQL correctness investigation under pg-correctness-harness for ${entry ? `CF ${entry.cf_id}: ${entry.title}` : `Work Item #${params.workItemId ?? ""}`}.`,
+          `You are running an adversarial PostgreSQL correctness investigation for ${entry ? `CF ${entry.cf_id}: ${entry.title}` : `Work Item #${params.workItemId ?? ""}`}.`,
           "- Read whole affected functions, callers, locks, memory contexts, and error paths.",
           "- Design falsifiable SQL, isolation, or TAP tests targeting real edge cases (savepoints, concurrent DDL, crash/recovery, standby, NULLs, permissions).",
           "- Run tests against the isolated assertion build in this worktree and record exact commands, commits, and decisive output.",
@@ -620,6 +626,9 @@ echo "=== Build & test complete (PGPORT=${pgPort}) ==="
     if (backend === "agy") {
       cmd = "agy";
       args = ["--model", model, "--output-format", "json", "-p", brief];
+    } else if (backend === "codex") {
+      cmd = "codex";
+      args = ["exec", "--full-auto", brief];
     } else {
       cmd = "claude";
       args = ["--dangerously-skip-permissions", "--model", model, "-p", brief];
@@ -664,6 +673,12 @@ echo "=== Build & test complete (PGPORT=${pgPort}) ==="
     }
 
     const remoteRepo = settings.hetznerRemoteRepo.trim() || "~/postgres";
+    if (!/^[~A-Za-z0-9._/-]+$/.test(remoteRepo) || remoteRepo.includes("..")) {
+      throw new Error(`Invalid Hetzner remote repo path: "${remoteRepo}"`);
+    }
+    const quotedRemoteRepo = remoteRepo.startsWith("~/")
+      ? `"$HOME/${remoteRepo.slice(2)}"`
+      : `'${remoteRepo}'`;
     const id = makeJobId("hetzner_run");
     const logPath = join(LOGS_DIR, `${id}.log`);
 
@@ -671,10 +686,10 @@ echo "=== Build & test complete (PGPORT=${pgPort}) ==="
       params.profile === "custom" && params.customCommand?.trim()
         ? params.customCommand.trim()
         : params.profile === "asan"
-          ? `cd ${remoteRepo} && meson setup build-asan --buildtype=debug -Dcassert=true -Db_sanitize=address,undefined -Dtap_tests=enabled --wipe || true && ninja -C build-asan && meson test -C build-asan --suite regress --print-errorlogs`
+          ? `cd ${quotedRemoteRepo} && meson setup build-asan --buildtype=debug -Dcassert=true -Db_sanitize=address,undefined -Dtap_tests=enabled --wipe || true && ninja -C build-asan && meson test -C build-asan --suite regress --print-errorlogs`
           : params.profile === "wal_consistency"
-            ? `cd ${remoteRepo} && PGOPTIONS="-c wal_consistency_checking=all" meson test -C build --suite recovery --print-errorlogs`
-            : `cd ${remoteRepo} && meson test -C build --suite tap --print-errorlogs`;
+            ? `cd ${quotedRemoteRepo} && PGOPTIONS="-c wal_consistency_checking=all" meson test -C build --suite recovery --print-errorlogs`
+            : `cd ${quotedRemoteRepo} && meson test -C build --suite tap --print-errorlogs`;
 
     const job = await this.db.createJob({
       id,

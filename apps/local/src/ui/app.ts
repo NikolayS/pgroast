@@ -290,7 +290,7 @@ function classifyApiError(method: string, url: string, status: number | null, ra
       method,
       url,
       status: null,
-      hint: "The local server may have restarted, stopped, or timed out while syncing. Click Retry, or check that `bun run src/server.ts` is running on 127.0.0.1:3432.",
+      hint: "The local server may have restarted, stopped, or timed out while syncing. Click Retry, or check that `bun run app:local` is running on 127.0.0.1:3432.",
       details: `${method} ${url}\nNetwork error: ${raw || "Failed to fetch"}`,
     });
   }
@@ -455,7 +455,7 @@ function toastError(err: unknown, context?: string, onRetry?: () => void): void 
     "error",
     {
       hint: isNet
-        ? "The local server may have restarted or stopped. Click Retry, or verify `bun run src/server.ts` is running."
+        ? "The local server may have restarted or stopped. Click Retry, or verify `bun run app:local` is running."
         : "Expand details below to see the exact error.",
       details: raw,
       onRetry,
@@ -973,9 +973,22 @@ async function loadEntries(): Promise<void> {
   } catch (err) {
     toastError(err);
   } finally {
+    const active = document.activeElement as HTMLInputElement | null;
+    const wasSearchFocused = active?.id === "exp-search";
+    const selStart = wasSearchFocused ? active.selectionStart : null;
+    const selEnd = wasSearchFocused ? active.selectionEnd : null;
     state.loading.explorer = false;
     setTopProgress();
     render();
+    if (wasSearchFocused) {
+      const nextInp = document.getElementById("exp-search") as HTMLInputElement | null;
+      if (nextInp) {
+        nextInp.focus();
+        if (selStart != null && selEnd != null) {
+          try { nextInp.setSelectionRange(selStart, selEnd); } catch { /* ignore */ }
+        }
+      }
+    }
   }
 }
 
@@ -1058,7 +1071,7 @@ async function loadDiffForEntry(cfId: number): Promise<void> {
 }
 
 function getPublicAppUrl(cfId?: number | null): string {
-  const base = (state.hubStatus?.url || state.settings?.publicHubUrl || "http://127.0.0.1:3433").replace(/\/$/, "");
+  const base = (state.hubStatus?.url || state.settings?.publicHubUrl || "https://pgroast.postgres.ai").replace(/\/$/, "");
   return cfId && cfId > 0 ? `${base}/patch/${cfId}` : `${base}/`;
 }
 
@@ -1978,7 +1991,7 @@ function renderGatePanel(gates: AllGatesResult | null): string {
   const labels: Record<string, string> = {
     confidentiality: "1. Public-Confidentiality (HARD BLOCK)",
     cfbot_attachments: "2. cfbot Attachment Guard",
-    plain_text_etiquette: "3. Plain-Text, Wrap & Nik-Voice Etiquette",
+    plain_text_etiquette: "3. Plain-Text, 72-Column Wrap & -hackers Etiquette",
     duplicate_freshness: "4. Final Duplicate & Thread Freshness",
   };
   return `
@@ -2056,6 +2069,8 @@ function renderWorkbenchView(): string {
   const opinionsList = runs.length > 0
     ? runs.map((r) => ({
         backend: r.backend,
+        roastLevel: r.roast_level || "medium",
+        roastFlavour: r.roast_flavour || "default",
         models: r.models_json && r.models_json !== "{}" ? r.models_json : "",
         verdict: r.verdict,
         confidence: r.confidence,
@@ -2068,6 +2083,8 @@ function renderWorkbenchView(): string {
     : roast
       ? [{
           backend: roast.backend || "imported",
+          roastLevel: roast.roast_level || "medium",
+          roastFlavour: roast.roast_flavour || "default",
           models: roast.models ? Object.values(roast.models).filter(Boolean).slice(0, 2).join(" / ") : "",
           verdict: String(roast.verdict || entry.verdict || ""),
           confidence: String(roast.confidence || entry.confidence || ""),
@@ -2247,16 +2264,15 @@ function renderWorkbenchView(): string {
             <div class="form-field">
               <label>Claude Critic/Synth Model</label>
               <select id="roast-claude-model">
-                <option value="claude-fable-5-2">claude-fable-5-2</option>
-                <option value="claude-mythos-5-2">claude-mythos-5-2</option>
-                <option value="opus">opus (Opus 5.5)</option>
+                <option value="opus" selected>opus (default — works on all Claude accounts)</option>
+                <option value="claude-opus-4-6">claude-opus-4-6</option>
               </select>
             </div>
             <div class="form-field">
               <label>Antigravity (agy) Model</label>
               <select id="roast-agy-model">
-                <option value="gemini-4-neon-xhigh">gemini-4-neon-xhigh</option>
                 <option value="gemini-4-neon-high">gemini-4-neon-high</option>
+                <option value="gemini-4-neon-xhigh">gemini-4-neon-xhigh</option>
                 <option value="claude-opus-5-5-high">claude-opus-5-5-high</option>
               </select>
             </div>
@@ -2470,17 +2486,18 @@ function renderWorkbenchView(): string {
           <div class="form-field">
             <label>Primary Reviewer Family</label>
             <select id="ai-rev-backend">
-              <option value="claude">Claude Code (Opus / Fable / Mythos)</option>
-              <option value="agy">Antigravity (agy Gemini 4 Neon)</option>
+              <option value="claude">Claude Code (Opus)</option>
+              <option value="codex">Codex CLI</option>
+              <option value="agy">Antigravity (agy)</option>
             </select>
           </div>
           <div class="form-field">
             <label>Model</label>
-            <input type="text" id="ai-rev-model" value="claude-fable-5-2" />
+            <input type="text" id="ai-rev-model" value="opus" />
           </div>
         </div>
         <div class="form-field">
-          <label>Specific Focus / Hypothesis (pg-correctness-harness)</label>
+          <label>Specific Focus / Hypothesis</label>
           <textarea id="ai-rev-focus" rows="2" placeholder="e.g. Check concurrent VACUUM page deletion &amp; lock strength in verify_gist.c…"></textarea>
         </div>
         <div class="inline-row">
@@ -2748,14 +2765,18 @@ function renderWorkbenchView(): string {
               : `
             <div class="table-wrap" style="border:none;">
               <table>
-                <thead><tr><th>Run By</th><th>Backend / Models</th><th>Verdict</th><th>Confidence</th><th>Date</th></tr></thead>
+                <thead><tr><th>Run By</th><th>Backend &amp; Profile</th><th>Verdict</th><th>Confidence</th><th>Date</th></tr></thead>
                 <tbody>
                   ${opinionsList
                     .map(
                       (op) => `
                     <tr>
                       <td>${renderContribCell(op)}</td>
-                      <td class="mono" style="font-size:11.5px;"><strong>${esc(op.backend)}</strong>${op.models ? ` <span class="muted">${esc(op.models.slice(0, 60))}</span>` : ""}</td>
+                      <td class="mono" style="font-size:11.5px;">
+                        <strong>${esc(op.backend)}</strong>
+                        <span class="pill pill-neutral" style="font-size:10px;margin-left:4px;">${esc(op.roastLevel)} · ${esc(op.roastFlavour)}</span>
+                        ${op.models ? `<div class="muted" style="font-size:10.5px;">${esc(op.models.slice(0, 60))}</div>` : ""}
+                      </td>
                       <td>${verdictPill(op.verdict)}</td>
                       <td class="muted">${esc(op.confidence || "—")}</td>
                       <td class="dim mono" style="font-size:11px;">${esc(op.date || "—")}</td>
@@ -3602,13 +3623,17 @@ function bindViewEvents(): void {
     if (!state.detail) return;
     const entry = state.detail.entry;
     const roast = state.detail.roast;
-    const hubUrl = state.hubStatus?.url || state.settings?.publicHubUrl || "http://127.0.0.1:3433";
+    const latestRun = state.detail.runs?.[0];
+    const defaultBackend = latestRun?.backend || roast?.backend || state.aiSummary?.available?.[0] || "claude";
+    const defaultLevel = (latestRun?.roast_level || roast?.roast_level || state.roastLevel || "medium").toLowerCase();
+    const defaultFlavour = (latestRun?.roast_flavour || roast?.roast_flavour || state.roastFlavour || "default").toLowerCase();
+    const hubUrl = state.hubStatus?.url || state.settings?.publicHubUrl || "https://pgroast.postgres.ai";
     showConfirmModal({
       title: `Publish Sanitized Opinion for CF #${entry.cf_id} to ${hubUrl}`,
       bodyHtml: `
         <p class="muted" style="margin-top:0;font-size:12px;">Runs the Public-Confidentiality Hard Gate locally and server-side before posting. No internal model codenames, local paths, or private notes allowed.</p>
         <div class="form-grid">
-          <div class="form-field"><label>Backend / Harness Label (public-safe)</label><input type="text" id="hub-op-backend" value="ai-harness" /></div>
+          <div class="form-field"><label>Backend / Harness Label (public-safe)</label><input type="text" id="hub-op-backend" value="${esc(defaultBackend)}" /></div>
           <div class="form-field">
             <label>Verdict</label>
             <select id="hub-op-verdict">
@@ -3616,6 +3641,27 @@ function bindViewEvents(): void {
               <option value="NEEDS-COMMITTER-EYES" ${entry.verdict === "NEEDS-COMMITTER-EYES" ? "selected" : ""}>Needs committer eyes</option>
               <option value="NEEDS-DESIGN-DISCUSSION" ${entry.verdict === "NEEDS-DESIGN-DISCUSSION" ? "selected" : ""}>Needs design discussion</option>
               <option value="LIKELY-REJECT" ${entry.verdict === "LIKELY-REJECT" ? "selected" : ""}>Likely reject</option>
+            </select>
+          </div>
+          <div class="form-field">
+            <label>Roast Level</label>
+            <select id="hub-op-level">
+              <option value="light" ${defaultLevel === "light" ? "selected" : ""}>Light (constructive)</option>
+              <option value="medium" ${defaultLevel === "medium" ? "selected" : ""}>Medium (balanced)</option>
+              <option value="dark" ${defaultLevel === "dark" ? "selected" : ""}>Dark (harsh)</option>
+            </select>
+          </div>
+          <div class="form-field">
+            <label>Hacker Flavour (AI guess — not the real person)</label>
+            <select id="hub-op-flavour">
+              <option value="default" ${defaultFlavour === "default" ? "selected" : ""}>Default</option>
+              <option value="tom-lane" ${defaultFlavour === "tom-lane" ? "selected" : ""}>Tom Lane style (AI guess)</option>
+              <option value="peter-eisentraut" ${defaultFlavour === "peter-eisentraut" ? "selected" : ""}>Peter Eisentraut style (AI guess)</option>
+              <option value="robert-haas" ${defaultFlavour === "robert-haas" ? "selected" : ""}>Robert Haas style (AI guess)</option>
+              <option value="andres-freund" ${defaultFlavour === "andres-freund" ? "selected" : ""}>Andres Freund style (AI guess)</option>
+              <option value="heikki-linnakangas" ${defaultFlavour === "heikki-linnakangas" ? "selected" : ""}>Heikki Linnakangas style (AI guess)</option>
+              <option value="bruce-momjian" ${defaultFlavour === "bruce-momjian" ? "selected" : ""}>Bruce Momjian style (AI guess)</option>
+              <option value="alexander-korotkov" ${defaultFlavour === "alexander-korotkov" ? "selected" : ""}>Alexander Korotkov style (AI guess)</option>
             </select>
           </div>
         </div>
@@ -3627,7 +3673,9 @@ function bindViewEvents(): void {
           method: "POST",
           body: JSON.stringify({
             cfId: entry.cf_id,
-            backend: (document.getElementById("hub-op-backend") as HTMLInputElement).value.trim() || "ai-harness",
+            backend: (document.getElementById("hub-op-backend") as HTMLInputElement).value.trim() || "claude",
+            roastLevel: (document.getElementById("hub-op-level") as HTMLSelectElement).value || "medium",
+            roastFlavour: (document.getElementById("hub-op-flavour") as HTMLSelectElement).value || "default",
             verdict: (document.getElementById("hub-op-verdict") as HTMLSelectElement).value,
             confidence: entry.confidence || "medium",
             summary: (document.getElementById("hub-op-summary") as HTMLTextAreaElement).value.trim(),
@@ -4068,8 +4116,8 @@ function bindViewEvents(): void {
     const roastLevel = state.roastLevel || "medium";
     const roastFlavour = state.roastFlavour || "default";
     const rounds = Number((document.getElementById("roast-rounds") as HTMLSelectElement)?.value ?? 1);
-    const claudeModel = (document.getElementById("roast-claude-model") as HTMLSelectElement)?.value || "claude-fable-5-2";
-    const agyModel = (document.getElementById("roast-agy-model") as HTMLSelectElement)?.value || "gemini-4-neon-xhigh";
+    const claudeModel = (document.getElementById("roast-claude-model") as HTMLSelectElement)?.value || "opus";
+    const agyModel = (document.getElementById("roast-agy-model") as HTMLSelectElement)?.value || "gemini-4-neon-high";
     const selfMode = Boolean((document.getElementById("roast-self") as HTMLInputElement)?.checked);
     const dryRun = Boolean((document.getElementById("roast-dryrun") as HTMLInputElement)?.checked);
     try {
@@ -4086,8 +4134,9 @@ function bindViewEvents(): void {
 
   document.getElementById("run-pushback-btn")?.addEventListener("click", async () => {
     if (!state.selectedCfId) return;
-    const rawBackend = (document.getElementById("roast-backend") as HTMLSelectElement)?.value || state.settings?.defaultBackend || "claude";
-    const backend = rawBackend === "dual" || rawBackend === "auto" ? "claude" : rawBackend;
+    const rawBackend = (document.getElementById("roast-backend") as HTMLSelectElement)?.value || state.settings?.defaultBackend || "auto";
+    const firstAvail = state.aiSummary?.available?.[0] || "claude";
+    const backend = rawBackend === "dual" || rawBackend === "auto" ? firstAvail : rawBackend;
     try {
       const { job } = await api<{ job: JobRecord }>("/api/jobs/pushback", {
         method: "POST",
@@ -4163,7 +4212,7 @@ function bindViewEvents(): void {
     const val = (ev.target as HTMLSelectElement).value;
     const modelInp = document.getElementById("ai-rev-model") as HTMLInputElement | null;
     if (modelInp) {
-      modelInp.value = val === "agy" ? "gemini-4-neon-xhigh" : "claude-fable-5-2";
+      modelInp.value = val === "agy" ? "gemini-4-neon-high" : val === "codex" ? "codex-default" : "opus";
     }
   });
 
@@ -5752,7 +5801,7 @@ function initGlobalControls(): void {
         </div>
         <div class="guide-card">
           <h4>⚙ Settings, Doctor &amp; Themes <kbd>8</kbd></h4>
-          <p>Check CLI health (only <strong>1 AI CLI</strong> required), connect GitHub/Google or CommitFest cookies, configure custom skills or My Topics, and switch between 7 color themes in the sidebar.</p>
+          <p>Check CLI health (only <strong>1 AI CLI</strong> required), connect GitHub/Google or CommitFest cookies, configure custom skills or My Topics, and switch between 8 color themes in the sidebar.</p>
         </div>
       </div>
     `;

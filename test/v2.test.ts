@@ -197,7 +197,7 @@ describe("v2 llm backends (agy, dual, CLAUDE_CONFIG_DIR)", () => {
 
     // Flip critic to claude via PGROAST_DUAL_CRITIC_BACKEND=claude.
     const flipped = modelsFromEnv({ PGROAST_DUAL_CRITIC_BACKEND: "claude" }, "dual");
-    expect(flipped.critic).toBe("claude-mythos-5-2");
+    expect(flipped.critic).toBe("opus");
     expect(flipped.synth).toBe(DEFAULT_AGY_CRITIC_MODEL);
 
     const seen: { family: string; label: string; model: string }[] = [];

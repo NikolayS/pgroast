@@ -1,5 +1,32 @@
 # Changelog
 
+## v0.3.0-alpha.7 (2026-11-26)
+
+This release hardens security and authorization across `apps/web` and `apps/local`, fixes the 2-minute local install and default Claude model setup for external accounts, and improves first-time `-hackers` visitor UX on the Public App.
+
+### Changes
+
+- **Public App security and backend hardening (`apps/web`):**
+  - Defaulted dev token minting to off unless `PGROAST_WEB_DEV_AUTH=1` is set on a loopback `PGROAST_WEB_ORIGIN`.
+  - Eliminated stored XSS and `javascript:` link injection in interactive briefs (`brief.ts`) by coercing numeric fields, allowlisting `http:`/`https:` URLs, replacing `script-src 'unsafe-inline'` with a SHA-256 script hash, and adding `form-action 'self'` to the SPA CSP.
+  - Restricted `POST /api/v1/publish/brief` to configured `PGROAST_WEB_BRIEF_MAINTAINERS` or the existing brief publisher so other accounts cannot overwrite briefs or bulk-modify entries.
+  - Fixed `publishOpinion` to use `ON CONFLICT (cf_id) DO NOTHING` so opinion submissions never wipe `kind`, `seen_in_production`, or `workaround` on canonical entries.
+  - Keyed Google and GitHub OAuth accounts by immutable `provider_user_id` (`sub` / numeric GitHub ID), required `email_verified: true` for Google, and suffixed colliding handles cleanly.
+  - Allowlisted `X-Forwarded-Host` against `PGROAST_WEB_ALLOWED_HOSTS` (with `Vary: Host`) to prevent CDN cache poisoning on `/robots.txt`, `/sitemap.xml`, `/llms.txt`, and `/llms-full.txt`.
+  - Added rate limits, 10-second timeouts, 4 MB streaming byte caps, in-flight deduplication, 60-second negative caching, and CPU budgets to `mr.ts` thread/diff fetches and matching.
+  - Validated signed 32-bit `cf_id` bounds, fixed base64url `pgroast_pub_` token leak detection, switched `/api/v1/health` to `COUNT(*)`, fixed `$` replacement edge cases in SSR titles, separated `single_opinion` from `unanimous`, and tracked SPA patch clicks via `X-PgRoast-View: 1`.
+- **Public App UX and `-hackers` visitor flow (`apps/web`):**
+  - Routed first-time visitor `Setup Backoffice` CTAs to the setup guide instead of dead `127.0.0.1:3432` links while keeping clearly labeled local links for reviewers already running `bun run app:local`.
+  - Replaced living committer names on the landing-page hero card with PostgreSQL subsystem lenses while keeping optional reviewer-inspired flavours (with explicit AI-guess disclaimers) in the local Backoffice.
+  - Parallelized direct `/patch/<cf-id>` loads, persisted `?view=discussion|changes` in the URL, added Discussion/Changes jump buttons on baseline-only patch views, fixed `#footer-views-link` scrolling to `#site-traffic`, fixed `diff-file-nav` when filtering commented files, preserved manually opened diff files when toggling `Viewed`, disabled unconfigured OAuth buttons, added removable chips for closed statuses in Entries, and added mobile access to Team claims.
+- **2-minute onboarding, default models, and Backoffice fixes (`src/`, `apps/local`, `README.md`, `.env.example`):**
+  - Passed `PGPASSWORD` in `pgroast init-db`, aligned `.env.example` with `apps/local/docker-compose.yml`, and removed internal model codenames from `README.md` and Backoffice defaults (defaulting Claude critic/synth to `opus` so any Claude Code account works out of the box).
+  - Updated `README.md` to describe the split between the local-only CLI and the optional Personal Backoffice accurately.
+  - Added Roast Level and Hacker Flavour selectors (plus pre-filled backend) to the Backoffice Publish Opinion modal and displayed level/flavour in Model Opinions.
+  - Validated `targetBranch` and shell-quoted `hetznerRemoteRepo` in `jobs.ts`, unsubscribed finished SSE streams, added `Cache-Control: no-store` to Backoffice HTML, sanitized attachment MIME headers, added fetch timeouts and full-brief confidentiality scanning in `hub.ts`, fixed Pushback backend selection, added Codex support to AI Code Review, and preserved `exp-search` focus during Explorer search refreshes.
+- **Regression tests:**
+  - Added P0 security and behavior tests in `apps/web/test/web.test.ts` and `apps/local/test/api.test.ts` (`201` passing tests across the monorepo).
+
 ## v0.3.0-alpha.6 (2026-11-26)
 
 This release upgrades the Public App (`apps/web`) and Personal Backoffice (`apps/local`) with 8 UI themes, a first-visitor explainer, SEO/GEO endpoints, GitHub/GitLab-style diff-to-thread matching, a redesigned Roast Studio, Alexander Korotkov flavour with clear AI disclaimers, privacy-friendly page-view tracking, and version links in both footers.

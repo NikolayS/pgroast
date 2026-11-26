@@ -638,7 +638,8 @@ export function buildRfc2822Message(input: Rfc2822Input): {
 
     for (const att of validAttachments) {
       const safeFilename = sanitizeHeaderValue(att.filename).replace(/"/g, "");
-      const mimeType = att.mimeType || (safeFilename.endsWith(".md") ? "text/markdown" : "text/plain");
+      const rawMime = att.mimeType || (safeFilename.endsWith(".md") ? "text/markdown" : "text/plain");
+      const mimeType = sanitizeHeaderValue(rawMime).replace(/[^a-zA-Z0-9/+._-]/g, "") || "application/octet-stream";
       const b64 = att.contentBase64
         ? att.contentBase64.replace(/\s+/g, "")
         : Buffer.from(att.contentText ?? "", "utf8").toString("base64");

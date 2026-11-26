@@ -1,4 +1,6 @@
+import { createHash } from "node:crypto";
 import type { PublishedBriefRecord } from "./db.ts";
+import { safeHttpUrl } from "./security.ts";
 
 interface BriefStats {
   totals?: {
@@ -63,6 +65,11 @@ interface BriefEntryItem {
   thread_url?: string;
 }
 
+function safeNonNegInt(v: unknown, fallback = 0): number {
+  const n = Number(v);
+  return Number.isFinite(n) ? Math.max(0, Math.trunc(n)) : fallback;
+}
+
 function esc(s: unknown): string {
   return String(s ?? "")
     .replace(/&/g, "&amp;")
@@ -73,13 +80,64 @@ function esc(s: unknown): string {
 }
 
 function humanVerdict(v: string): string {
-  if (!v || v === "UNROASTED") return "Not reviewed";
+  if (!v || v === "UNROASTED") return "Not roasted";
   if (v === "NO-FUNDAMENTAL-OBJECTION") return "No fundamental objection";
   if (v === "NEEDS-COMMITTER-EYES") return "Needs committer eyes";
   if (v === "NEEDS-DESIGN-DISCUSSION") return "Needs design discussion";
   if (v === "LIKELY-REJECT") return "Likely reject";
   return v;
 }
+
+const BRIEF_INLINE_SCRIPT = `
+(function(){
+  document.querySelectorAll('[data-sl-tab]').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      document.querySelectorAll('[data-sl-tab]').forEach(function(b){ b.classList.remove('active'); });
+      btn.classList.add('active');
+      var mode = btn.getAttribute('data-sl-tab');
+      document.querySelectorAll('#sl-table tbody tr').forEach(function(tr){
+        var show = true;
+        if (mode === 'bugfix') show = tr.getAttribute('data-kind') === 'bugfix';
+        else if (mode === 'feature') show = tr.getAttribute('data-kind') !== 'bugfix';
+        else if (mode === 'prod') show = tr.getAttribute('data-prod') === '1';
+        tr.style.display = show ? '' : 'none';
+      });
+    });
+  });
+
+  var qEl = document.getElementById('q');
+  var vfEl = document.getElementById('vf');
+  var sfEl = document.getElementById('sf');
+  function filterAll(){
+    var q = (qEl.value || '').trim().toLowerCase();
+    var v = vfEl.value;
+    var s = sfEl.value.toLowerCase();
+    document.querySelectorAll('#all-table tbody tr').forEach(function(tr){
+      var okQ = !q || (tr.getAttribute('data-search') || '').indexOf(q) !== -1;
+      var okV = v === 'all' || tr.getAttribute('data-verdict') === v;
+      var okS = s === 'all' || (tr.getAttribute('data-status') || '').toLowerCase().indexOf(s) !== -1;
+      tr.style.display = (okQ && okV && okS) ? '' : 'none';
+    });
+  }
+  qEl.addEventListener('input', filterAll);
+  vfEl.addEventListener('change', filterAll);
+  sfEl.addEventListener('change', filterAll);
+
+  document.querySelectorAll('[data-filter-status]').forEach(function(td){
+    td.addEventListener('click', function(){
+      var st = td.getAttribute('data-filter-status') || 'all';
+      var vd = td.getAttribute('data-filter-verdict') || 'all';
+      vfEl.value = vd;
+      sfEl.value = ['Ready for Committer','Needs review','Waiting on Author'].indexOf(st) !== -1 ? st : 'all';
+      qEl.value = '';
+      filterAll();
+      document.getElementById('all-entries-card').scrollIntoView({ behavior: 'smooth' });
+    });
+  });
+})();
+`;
+
+export const BRIEF_SCRIPT_SHA256 = createHash("sha256").update(BRIEF_INLINE_SCRIPT, "utf8").digest("base64");
 
 function verdictDotColor(v: string): string {
   if (v === "NO-FUNDAMENTAL-OBJECTION") return "#4cb782";
@@ -90,14 +148,15 @@ function verdictDotColor(v: string): string {
 }
 
 function renderSvgDonut(segments: Array<{ label: string; value: number; color: string }>): string {
-  const total = segments.reduce((acc, s) => acc + s.value, 0);
+  const safeSegments = segments.map((s) => ({ ...s, value: safeNonNegInt(s.value) }));
+  const total = safeSegments.reduce((acc, s) => acc + s.value, 0);
   if (total === 0) return "";
   const cx = 60;
   const cy = 60;
   const r = 46;
   const sw = 14;
   let startDeg = 0;
-  const arcs = segments
+  const arcs = safeSegments
     .filter((s) => s.value > 0)
     .map((s) => {
       const frac = s.value / total;
@@ -136,47 +195,54 @@ export function renderInteractiveBriefHtml(brief: PublishedBriefRecord, localWor
   const shortlist = JSON.parse(brief.shortlist_json || "[]") as BriefShortlistItem[];
   const closing = JSON.parse(brief.closing_json || "[]") as BriefClosingItem[];
   const entries = JSON.parse(brief.entries_json || "[]") as BriefEntryItem[];
+  const safeWorkbenchBase = safeHttpUrl(localWorkbenchUrl).replace(/\/$/, "");
 
   const verdicts = stats.verdicts ?? [];
-  const vCount = (k: string) => verdicts.find((x) => x.verdict === k)?.all ?? 0;
+  const vCount = (k: string) => safeNonNegInt(verdicts.find((x) => x.verdict === k)?.all);
   const donutSvg = renderSvgDonut([
     { label: "No fundamental objection", value: vCount("NO-FUNDAMENTAL-OBJECTION"), color: "#4cb782" },
     { label: "Needs committer eyes", value: vCount("NEEDS-COMMITTER-EYES"), color: "#5e6ad2" },
     { label: "Needs design discussion", value: vCount("NEEDS-DESIGN-DISCUSSION"), color: "#e0a83c" },
     { label: "Likely reject", value: vCount("LIKELY-REJECT"), color: "#eb5757" },
-    { label: "Not reviewed", value: vCount("UNROASTED"), color: "#7c7e87" },
+    { label: "Not roasted", value: vCount("UNROASTED"), color: "#7c7e87" },
   ]);
 
   const topTopics = (stats.topTopics ?? []).slice(0, 10);
-  const maxTopic = Math.max(1, ...topTopics.map((t) => t.open || t.total));
+  const maxTopic = Math.max(1, ...topTopics.map((t) => safeNonNegInt(t.open) || safeNonNegInt(t.total)));
 
   const matrixRows = (stats.statusMatrix ?? [])
     .map(
-      (row) => `
+      (row) => {
+        const counts = row.counts ?? {};
+        return `
       <tr>
         <td><strong>${esc(row.status)}</strong></td>
-        <td class="num">${row.total}</td>
-        <td class="num clickable" data-filter-status="${esc(row.status)}" data-filter-verdict="NO-FUNDAMENTAL-OBJECTION">${row.counts["NO-FUNDAMENTAL-OBJECTION"] ?? 0}</td>
-        <td class="num clickable" data-filter-status="${esc(row.status)}" data-filter-verdict="NEEDS-COMMITTER-EYES">${row.counts["NEEDS-COMMITTER-EYES"] ?? 0}</td>
-        <td class="num clickable" data-filter-status="${esc(row.status)}" data-filter-verdict="NEEDS-DESIGN-DISCUSSION">${row.counts["NEEDS-DESIGN-DISCUSSION"] ?? 0}</td>
-        <td class="num clickable" data-filter-status="${esc(row.status)}" data-filter-verdict="LIKELY-REJECT">${row.counts["LIKELY-REJECT"] ?? 0}</td>
-        <td class="num muted">${row.counts.UNROASTED ?? 0}</td>
+        <td class="num">${safeNonNegInt(row.total)}</td>
+        <td class="num clickable" data-filter-status="${esc(row.status)}" data-filter-verdict="NO-FUNDAMENTAL-OBJECTION">${safeNonNegInt(counts["NO-FUNDAMENTAL-OBJECTION"])}</td>
+        <td class="num clickable" data-filter-status="${esc(row.status)}" data-filter-verdict="NEEDS-COMMITTER-EYES">${safeNonNegInt(counts["NEEDS-COMMITTER-EYES"])}</td>
+        <td class="num clickable" data-filter-status="${esc(row.status)}" data-filter-verdict="NEEDS-DESIGN-DISCUSSION">${safeNonNegInt(counts["NEEDS-DESIGN-DISCUSSION"])}</td>
+        <td class="num clickable" data-filter-status="${esc(row.status)}" data-filter-verdict="LIKELY-REJECT">${safeNonNegInt(counts["LIKELY-REJECT"])}</td>
+        <td class="num muted">${safeNonNegInt(counts.UNROASTED)}</td>
       </tr>
-    `,
+    `;
+      },
     )
     .join("");
 
   const slRows = shortlist
     .map(
-      (x, idx) => `
+      (x, idx) => {
+        const cfId = safeNonNegInt(x.cf_id);
+        const safeThread = safeHttpUrl(x.thread_url);
+        return `
       <tr data-kind="${esc(x.kind || "feature")}" data-prod="${x.seen_in_production ? "1" : "0"}" data-wa="${x.workaround ? "1" : "0"}">
         <td class="num muted">${idx + 1}</td>
         <td class="mono">
-          <strong>CF ${x.cf_id}</strong>
+          <strong>CF ${cfId}</strong>
           <div class="links">
-            <a href="https://commitfest.postgresql.org/patch/${x.cf_id}/" target="_blank" rel="noopener">CF ↗</a>
-            ${x.thread_url ? `<a href="${esc(x.thread_url)}" target="_blank" rel="noopener">Thread ↗</a>` : ""}
-            <a href="${esc(localWorkbenchUrl)}/?cf=${x.cf_id}" target="_blank" rel="noopener">Local ↗</a>
+            <a href="https://commitfest.postgresql.org/patch/${cfId}/" target="_blank" rel="noopener">CF ↗</a>
+            ${safeThread ? `<a href="${esc(safeThread)}" target="_blank" rel="noopener">Thread ↗</a>` : ""}
+            ${safeWorkbenchBase ? `<a href="${esc(`${safeWorkbenchBase}/?cf=${cfId}`)}" target="_blank" rel="noopener">Local ↗</a>` : ""}
           </div>
         </td>
         <td>
@@ -195,20 +261,24 @@ export function renderInteractiveBriefHtml(brief: PublishedBriefRecord, localWor
         <td class="muted">${esc((x.reasons ?? []).join(" · "))}</td>
         <td>${(x.experts ?? []).map((e) => `<span class="pill">${esc(e.name)}</span>`).join(" ") || "—"}</td>
       </tr>
-    `,
+    `;
+      },
     )
     .join("");
 
   const clRows = closing
     .map(
-      (x, idx) => `
+      (x, idx) => {
+        const cfId = safeNonNegInt(x.cf_id);
+        const safeThread = safeHttpUrl(x.thread_url);
+        return `
       <tr>
         <td class="num muted">${idx + 1}</td>
         <td class="mono">
-          <strong>CF ${x.cf_id}</strong>
+          <strong>CF ${cfId}</strong>
           <div class="links">
-            <a href="https://commitfest.postgresql.org/patch/${x.cf_id}/" target="_blank" rel="noopener">CF ↗</a>
-            ${x.thread_url ? `<a href="${esc(x.thread_url)}" target="_blank" rel="noopener">Thread ↗</a>` : ""}
+            <a href="https://commitfest.postgresql.org/patch/${cfId}/" target="_blank" rel="noopener">CF ↗</a>
+            ${safeThread ? `<a href="${esc(safeThread)}" target="_blank" rel="noopener">Thread ↗</a>` : ""}
           </div>
         </td>
         <td>
@@ -225,19 +295,23 @@ export function renderInteractiveBriefHtml(brief: PublishedBriefRecord, localWor
         </td>
         <td class="muted">${esc(x.next_step_for_author || "")}</td>
       </tr>
-    `,
+    `;
+      },
     )
     .join("");
 
   const allRows = entries
     .map(
-      (e) => `
-      <tr data-search="${esc(`${e.cf_id} ${e.title} ${e.authors} ${e.reviewers || ""} ${e.committer || ""} ${e.topic || ""}`).toLowerCase()}" data-verdict="${esc(e.verdict || "UNROASTED")}" data-status="${esc(e.status || "")}">
+      (e) => {
+        const cfId = safeNonNegInt(e.cf_id);
+        const safeThread = safeHttpUrl(e.thread_url);
+        return `
+      <tr data-search="${esc(`${cfId} ${e.title} ${e.authors} ${e.reviewers || ""} ${e.committer || ""} ${e.topic || ""}`).toLowerCase()}" data-verdict="${esc(e.verdict || "UNROASTED")}" data-status="${esc(e.status || "")}">
         <td class="mono">
-          <strong>${e.cf_id}</strong>
+          <strong>${cfId}</strong>
           <div class="links">
-            <a href="https://commitfest.postgresql.org/patch/${e.cf_id}/" target="_blank" rel="noopener">CF ↗</a>
-            ${e.thread_url ? `<a href="${esc(e.thread_url)}" target="_blank" rel="noopener">Thread ↗</a>` : ""}
+            <a href="https://commitfest.postgresql.org/patch/${cfId}/" target="_blank" rel="noopener">CF ↗</a>
+            ${safeThread ? `<a href="${esc(safeThread)}" target="_blank" rel="noopener">Thread ↗</a>` : ""}
           </div>
         </td>
         <td>
@@ -248,20 +322,24 @@ export function renderInteractiveBriefHtml(brief: PublishedBriefRecord, localWor
         <td class="muted">${esc(e.status || "—")}</td>
         <td class="muted">${esc(e.topic || "—")}</td>
       </tr>
-    `,
+    `;
+      },
     )
     .join("");
 
   const bugfixCount = shortlist.filter((x) => x.kind === "bugfix").length;
   const featureCount = shortlist.filter((x) => x.kind !== "bugfix").length;
   const prodCount = shortlist.filter((x) => x.seen_in_production).length;
+  const totalCount = safeNonNegInt(stats.totals?.total, entries.length);
+  const openCount = safeNonNegInt(stats.totals?.open, 0);
+  const closedCount = safeNonNegInt(stats.totals?.closed, 0);
 
   return `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:;" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'sha256-${BRIEF_SCRIPT_SHA256}'; img-src data:; form-action 'none';" />
 <title>${esc(brief.title)} — CommitFest Interactive Brief</title>
 <style>
 :root{--bg:#0b0c0e;--card:#121317;--border:rgba(255,255,255,.08);--border-s:rgba(255,255,255,.15);--text:#f0f1f4;--muted:#9a9ca6;--dim:#737682;--accent:#5e6ad2;--accent-t:#95a0ff;--hover:rgba(255,255,255,.05)}
@@ -334,7 +412,7 @@ tr:last-child td{border-bottom:none}
   </div>
 
   <div class="kpis">
-    <div class="kpi"><div class="kpi-l">Total entries</div><div class="kpi-v">${stats.totals?.total ?? entries.length}</div><div class="muted" style="font-size:11px;">${stats.totals?.open ?? 0} open · ${stats.totals?.closed ?? 0} closed</div></div>
+    <div class="kpi"><div class="kpi-l">Total entries</div><div class="kpi-v">${totalCount}</div><div class="muted" style="font-size:11px;">${openCount} open · ${closedCount} closed</div></div>
     <div class="kpi"><div class="kpi-l">No fundamental objection</div><div class="kpi-v" style="color:#4cb782">${vCount("NO-FUNDAMENTAL-OBJECTION")}</div></div>
     <div class="kpi"><div class="kpi-l">Needs committer eyes</div><div class="kpi-v" style="color:#5e6ad2">${vCount("NEEDS-COMMITTER-EYES")}</div></div>
     <div class="kpi"><div class="kpi-l">Needs design discussion</div><div class="kpi-v" style="color:#e0a83c">${vCount("NEEDS-DESIGN-DISCUSSION")}</div></div>
@@ -352,7 +430,7 @@ tr:last-child td{border-bottom:none}
           <div><span class="pill"><i style="background:#5e6ad2"></i>Needs committer eyes</span> <strong>${vCount("NEEDS-COMMITTER-EYES")}</strong></div>
           <div><span class="pill"><i style="background:#e0a83c"></i>Needs design discussion</span> <strong>${vCount("NEEDS-DESIGN-DISCUSSION")}</strong></div>
           <div><span class="pill"><i style="background:#eb5757"></i>Likely reject</span> <strong>${vCount("LIKELY-REJECT")}</strong></div>
-          <div><span class="pill"><i style="background:#7c7e87"></i>Not reviewed</span> <strong>${vCount("UNROASTED")}</strong></div>
+          <div><span class="pill"><i style="background:#7c7e87"></i>Not roasted</span> <strong>${vCount("UNROASTED")}</strong></div>
         </div>
       </div>
     </div>
@@ -361,13 +439,17 @@ tr:last-child td{border-bottom:none}
       <h2>Top PostgreSQL subsystems (open entries)</h2>
       ${topTopics
         .map(
-          (t) => `
+          (t) => {
+            const val = safeNonNegInt(t.open) || safeNonNegInt(t.total);
+            const pct = Math.min(100, Math.max(0, Math.round((val / maxTopic) * 100)));
+            return `
         <div class="hbar">
           <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${esc(t.topic)}">${esc(t.topic)}</div>
-          <div class="hbar-t"><div class="hbar-f" style="width:${Math.round(((t.open || t.total) / maxTopic) * 100)}%"></div></div>
-          <div class="num muted">${t.open || t.total}</div>
+          <div class="hbar-t"><div class="hbar-f" style="width:${pct}%"></div></div>
+          <div class="num muted">${val}</div>
         </div>
-      `,
+      `;
+          },
         )
         .join("") || `<div class="muted">No topic breakdown included.</div>`}
     </div>
@@ -380,7 +462,7 @@ tr:last-child td{border-bottom:none}
       <h2>CommitFest Status × Verdict Matrix <span class="muted" style="font-weight:400;font-size:12px;">(click any cell to filter full table below)</span></h2>
       <div style="overflow-x:auto;">
         <table>
-          <thead><tr><th>CF Status</th><th class="num">Total</th><th class="num">Clean</th><th class="num">Committer eyes</th><th class="num">Design disc.</th><th class="num">Likely reject</th><th class="num">Not reviewed</th></tr></thead>
+          <thead><tr><th>CF Status</th><th class="num">Total</th><th class="num">Clean</th><th class="num">Committer eyes</th><th class="num">Design disc.</th><th class="num">Likely reject</th><th class="num">Not roasted</th></tr></thead>
           <tbody>${matrixRows}</tbody>
         </table>
       </div>
@@ -425,7 +507,7 @@ tr:last-child td{border-bottom:none}
         <option value="NEEDS-COMMITTER-EYES">Needs committer eyes</option>
         <option value="NEEDS-DESIGN-DISCUSSION">Needs design discussion</option>
         <option value="LIKELY-REJECT">Likely reject</option>
-        <option value="UNROASTED">Not reviewed</option>
+        <option value="UNROASTED">Not roasted</option>
       </select>
       <select id="sf">
         <option value="all">All statuses</option>
@@ -443,54 +525,7 @@ tr:last-child td{border-bottom:none}
   </div>
 </div>
 
-<script>
-(function(){
-  document.querySelectorAll('[data-sl-tab]').forEach(function(btn){
-    btn.addEventListener('click', function(){
-      document.querySelectorAll('[data-sl-tab]').forEach(function(b){ b.classList.remove('active'); });
-      btn.classList.add('active');
-      var mode = btn.getAttribute('data-sl-tab');
-      document.querySelectorAll('#sl-table tbody tr').forEach(function(tr){
-        var show = true;
-        if (mode === 'bugfix') show = tr.getAttribute('data-kind') === 'bugfix';
-        else if (mode === 'feature') show = tr.getAttribute('data-kind') !== 'bugfix';
-        else if (mode === 'prod') show = tr.getAttribute('data-prod') === '1';
-        tr.style.display = show ? '' : 'none';
-      });
-    });
-  });
-
-  var qEl = document.getElementById('q');
-  var vfEl = document.getElementById('vf');
-  var sfEl = document.getElementById('sf');
-  function filterAll(){
-    var q = (qEl.value || '').trim().toLowerCase();
-    var v = vfEl.value;
-    var s = sfEl.value.toLowerCase();
-    document.querySelectorAll('#all-table tbody tr').forEach(function(tr){
-      var okQ = !q || (tr.getAttribute('data-search') || '').indexOf(q) !== -1;
-      var okV = v === 'all' || tr.getAttribute('data-verdict') === v;
-      var okS = s === 'all' || (tr.getAttribute('data-status') || '').toLowerCase().indexOf(s) !== -1;
-      tr.style.display = (okQ && okV && okS) ? '' : 'none';
-    });
-  }
-  qEl.addEventListener('input', filterAll);
-  vfEl.addEventListener('change', filterAll);
-  sfEl.addEventListener('change', filterAll);
-
-  document.querySelectorAll('[data-filter-status]').forEach(function(td){
-    td.addEventListener('click', function(){
-      var st = td.getAttribute('data-filter-status') || 'all';
-      var vd = td.getAttribute('data-filter-verdict') || 'all';
-      vfEl.value = vd;
-      sfEl.value = ['Ready for Committer','Needs review','Waiting on Author'].indexOf(st) !== -1 ? st : 'all';
-      qEl.value = '';
-      filterAll();
-      document.getElementById('all-entries-card').scrollIntoView({ behavior: 'smooth' });
-    });
-  });
-})();
-</script>
+<script>${BRIEF_INLINE_SCRIPT}</script>
 </body>
 </html>`;
 }
