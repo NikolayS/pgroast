@@ -1,5 +1,5 @@
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { renderBriefMarkdown, renderInteractiveBriefHtml } from "./brief.ts";
 import { loadWebConfig, WEB_ROOT, type WebConfig } from "./config.ts";
@@ -157,7 +157,7 @@ function humanVerdictLabel(v: string): string {
   if (v === "NEEDS-COMMITTER-EYES") return "Needs committer eyes";
   if (v === "NEEDS-DESIGN-DISCUSSION") return "Needs design discussion";
   if (v === "LIKELY-REJECT") return "Likely reject";
-  return v || "Not reviewed";
+  return v || "Not roasted";
 }
 
 function computePatchConsensus(
@@ -293,15 +293,44 @@ export async function createWebHandler(opts?: {
 
   const htmlPath = join(WEB_ROOT, "src", "ui", "index.html");
   const cssPath = join(WEB_ROOT, "src", "ui", "styles.css");
+  const appTsPath = join(WEB_ROOT, "src", "ui", "app.ts");
   const faviconPath = join(WEB_ROOT, "src", "ui", "favicon.svg");
   const touchIconPath = join(WEB_ROOT, "src", "ui", "apple-touch-icon.png");
   const manifestPath = join(WEB_ROOT, "src", "ui", "manifest.webmanifest");
-  const cssHash = createHash("sha256").update(readFileSync(cssPath, "utf8")).digest("hex").slice(0, 8);
-  const jsHash = createHash("sha256").update(bundleJs).digest("hex").slice(0, 8);
-  const favHash = createHash("sha256").update(readFileSync(faviconPath, "utf8")).digest("hex").slice(0, 8);
-  const touchHash = existsSync(touchIconPath)
+
+  let appMtime = existsSync(appTsPath) ? statSync(appTsPath).mtimeMs : 0;
+  let cssMtime = existsSync(cssPath) ? statSync(cssPath).mtimeMs : 0;
+  let favMtime = existsSync(faviconPath) ? statSync(faviconPath).mtimeMs : 0;
+  let cssHash = createHash("sha256").update(readFileSync(cssPath, "utf8")).digest("hex").slice(0, 8);
+  let jsHash = createHash("sha256").update(bundleJs).digest("hex").slice(0, 8);
+  let favHash = createHash("sha256").update(readFileSync(faviconPath, "utf8")).digest("hex").slice(0, 8);
+  let touchHash = existsSync(touchIconPath)
     ? createHash("sha256").update(readFileSync(touchIconPath)).digest("hex").slice(0, 8)
     : favHash;
+
+  // Seamless zero-downtime UI asset reload whenever UI files change on disk
+  async function refreshUiAssetsIfChanged(): Promise<void> {
+    try {
+      const curAppMtime = existsSync(appTsPath) ? statSync(appTsPath).mtimeMs : 0;
+      if (curAppMtime !== appMtime) {
+        bundleJs = await buildUiJs();
+        jsHash = createHash("sha256").update(bundleJs).digest("hex").slice(0, 8);
+        appMtime = curAppMtime;
+      }
+      const curCssMtime = existsSync(cssPath) ? statSync(cssPath).mtimeMs : 0;
+      if (curCssMtime !== cssMtime) {
+        cssHash = createHash("sha256").update(readFileSync(cssPath, "utf8")).digest("hex").slice(0, 8);
+        cssMtime = curCssMtime;
+      }
+      const curFavMtime = existsSync(faviconPath) ? statSync(faviconPath).mtimeMs : 0;
+      if (curFavMtime !== favMtime) {
+        favHash = createHash("sha256").update(readFileSync(faviconPath, "utf8")).digest("hex").slice(0, 8);
+        favMtime = curFavMtime;
+      }
+    } catch {
+      // keep previous valid bundle on transient mid-save read
+    }
+  }
 
   function issueOAuthState(provider: "github" | "google"): { state: string; cookie: string } {
     const now = Date.now();
@@ -550,6 +579,7 @@ export async function createWebHandler(opts?: {
       }
       const patchPageMatch = path.match(/^\/patch\/(\d+)\/?$/);
       if (method === "GET" && (path === "/" || path === "/index.html" || patchPageMatch)) {
+        await refreshUiAssetsIfChanged();
         const origin = resolveRequestOrigin(req, cfg.publicOrigin);
         const cfId = Number(patchPageMatch?.[1] || url.searchParams.get("cf") || 0);
         let title = "pgroast — PostgreSQL CommitFest Collaboration & AI Pre-Review";
@@ -568,7 +598,7 @@ export async function createWebHandler(opts?: {
           if (entry) {
             title = `CF ${entry.cf_id}: ${entry.title} — pgroast`;
             const parts = [
-              entry.verdict ? humanVerdictLabel(entry.verdict) : "Not reviewed",
+              entry.verdict ? humanVerdictLabel(entry.verdict) : "Not roasted",
               entry.status || "",
               entry.authors ? `by ${entry.authors}` : "",
             ].filter(Boolean);
@@ -627,7 +657,7 @@ export async function createWebHandler(opts?: {
         });
       }
       if (method === "GET" && path === "/app.js") {
-        if (process.env.PGROAST_WEB_DEV === "1") bundleJs = await buildUiJs();
+        await refreshUiAssetsIfChanged();
         const cache = url.searchParams.has("v") ? "public, max-age=31536000, immutable" : "no-store";
         return new Response(bundleJs, {
           headers: {

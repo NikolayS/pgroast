@@ -277,7 +277,7 @@ const VERDICT_META: Record<string, { label: string; short: string; color: string
   "NEEDS-COMMITTER-EYES": { label: "Needs committer eyes", short: "Committer eyes", color: "#5e6ad2", pillClass: "p-info" },
   "NEEDS-DESIGN-DISCUSSION": { label: "Needs design discussion", short: "Design disc.", color: "#e0a83c", pillClass: "p-warn" },
   "LIKELY-REJECT": { label: "Likely reject", short: "Likely reject", color: "#eb5757", pillClass: "p-danger" },
-  UNROASTED: { label: "Not reviewed", short: "Not reviewed", color: "#737682", pillClass: "" },
+  UNROASTED: { label: "Not roasted", short: "Not roasted", color: "#737682", pillClass: "" },
 };
 
 function esc(s: unknown): string {
@@ -290,7 +290,7 @@ function esc(s: unknown): string {
 }
 
 function getVerdictMeta(v: string) {
-  return VERDICT_META[v || "UNROASTED"] ?? { label: v || "Not reviewed", short: v || "Not reviewed", color: "#737682", pillClass: "" };
+  return VERDICT_META[v || "UNROASTED"] ?? { label: v || "Not roasted", short: v || "Not roasted", color: "#737682", pillClass: "" };
 }
 
 function verdictPill(v: string): string {
@@ -1447,7 +1447,7 @@ function renderStatsTab(): string {
     { key: "NEEDS-COMMITTER-EYES", label: "Needs committer eyes", value: vCount("NEEDS-COMMITTER-EYES"), color: "#5e6ad2" },
     { key: "NEEDS-DESIGN-DISCUSSION", label: "Needs design discussion", value: vCount("NEEDS-DESIGN-DISCUSSION"), color: "#e0a83c" },
     { key: "LIKELY-REJECT", label: "Likely reject", value: vCount("LIKELY-REJECT"), color: "#eb5757" },
-    { key: "UNROASTED", label: "Not reviewed", value: vCount("UNROASTED"), color: "#737682" },
+    { key: "UNROASTED", label: "Not roasted", value: vCount("UNROASTED"), color: "#737682" },
   ];
 
   const matrixRows = stats.statusMatrix ?? [];
@@ -1541,9 +1541,9 @@ function renderStatsTab(): string {
         <div class="kpi-sub">${openCount} open · ${closedCount} closed</div>
       </button>
       <button type="button" class="kpi" data-jump-verdict="all">
-        <div class="kpi-l">AI review coverage</div>
+        <div class="kpi-l">Roast coverage</div>
         <div class="kpi-v">${coveragePct}%</div>
-        <div class="kpi-sub">${roasted} of ${total} reviewed</div>
+        <div class="kpi-sub">${roasted} of ${total} roasted</div>
       </button>
       <button type="button" class="kpi" data-stats-status="Ready for Committer">
         <div class="kpi-l"><span class="dot" style="background:var(--ok)"></span>Ready for Committer</div>
@@ -1553,7 +1553,7 @@ function renderStatsTab(): string {
       <button type="button" class="kpi" data-jump-verdict="NO-FUNDAMENTAL-OBJECTION">
         <div class="kpi-l"><span class="dot" style="background:#4cb782"></span>No objection</div>
         <div class="kpi-v">${vCount("NO-FUNDAMENTAL-OBJECTION")}</div>
-        <div class="kpi-sub">Clean design signal</div>
+        <div class="kpi-sub">Roasted clean</div>
       </button>
       <button type="button" class="kpi" data-jump-verdict="LIKELY-REJECT">
         <div class="kpi-l"><span class="dot" style="background:#eb5757"></span>Likely reject</div>
@@ -1561,7 +1561,7 @@ function renderStatsTab(): string {
         <div class="kpi-sub">Closing candidates</div>
       </button>
       <button type="button" class="kpi" id="stats-goto-opinions">
-        <div class="kpi-l">Community opinions</div>
+        <div class="kpi-l">Community roasts</div>
         <div class="kpi-v">${state.opinions.length}</div>
         <div class="kpi-sub">${uniqueOpReviewers} reviewers · ${uniqueOpModels} models</div>
       </button>
@@ -1642,7 +1642,7 @@ function renderStatsTab(): string {
                 <th class="num">Committer eyes</th>
                 <th class="num">Design disc.</th>
                 <th class="num">Likely reject</th>
-                <th class="num">Not reviewed</th>
+                <th class="num">Not roasted</th>
               </tr>
             </thead>
             <tbody>
@@ -1910,13 +1910,15 @@ function renderBriefTab(): string {
   const total = stats.totals?.total ?? brief.entries.length;
   const openCount = stats.totals?.open ?? 0;
   const closedCount = stats.totals?.closed ?? 0;
+  const roastedCount = stats.totals?.roasted ?? Math.max(0, total - vCount("UNROASTED"));
+  const unroastedCount = Math.max(0, total - roastedCount);
 
   const donutSegments = [
     { key: "NO-FUNDAMENTAL-OBJECTION", label: "No fundamental objection", value: vCount("NO-FUNDAMENTAL-OBJECTION"), color: "#4cb782" },
     { key: "NEEDS-COMMITTER-EYES", label: "Needs committer eyes", value: vCount("NEEDS-COMMITTER-EYES"), color: "#5e6ad2" },
     { key: "NEEDS-DESIGN-DISCUSSION", label: "Needs design discussion", value: vCount("NEEDS-DESIGN-DISCUSSION"), color: "#e0a83c" },
     { key: "LIKELY-REJECT", label: "Likely reject", value: vCount("LIKELY-REJECT"), color: "#eb5757" },
-    { key: "UNROASTED", label: "Not reviewed", value: vCount("UNROASTED"), color: "#737682" },
+    { key: "UNROASTED", label: "Not roasted", value: vCount("UNROASTED"), color: "#737682" },
   ];
 
   const topTopics = (stats.topTopics ?? []).slice(0, 8);
@@ -1957,29 +1959,29 @@ function renderBriefTab(): string {
 
     <div class="kpis">
       <button type="button" class="kpi" data-jump-verdict="all">
-        <div class="kpi-l">Total entries</div>
-        <div class="kpi-v">${total}</div>
-        <div class="kpi-sub">${openCount} open · ${closedCount} closed</div>
+        <div class="kpi-l">Roasted / Total</div>
+        <div class="kpi-v">${roastedCount} <span class="dim" style="font-size:14px;font-weight:500;">/ ${total}</span></div>
+        <div class="kpi-sub">${unroastedCount} unroasted · ${openCount} open · ${closedCount} closed</div>
       </button>
       <button type="button" class="kpi" data-jump-verdict="NO-FUNDAMENTAL-OBJECTION">
         <div class="kpi-l"><span class="dot" style="background:#4cb782"></span>No objection</div>
         <div class="kpi-v" style="color:var(--ok)">${vCount("NO-FUNDAMENTAL-OBJECTION")}</div>
-        <div class="kpi-sub">Tap to view</div>
+        <div class="kpi-sub">Roasted clean</div>
       </button>
       <button type="button" class="kpi" data-jump-verdict="NEEDS-COMMITTER-EYES">
         <div class="kpi-l"><span class="dot" style="background:#5e6ad2"></span>Committer eyes</div>
         <div class="kpi-v" style="color:var(--accent-t)">${vCount("NEEDS-COMMITTER-EYES")}</div>
-        <div class="kpi-sub">Tap to view</div>
+        <div class="kpi-sub">Needs sign-off</div>
       </button>
       <button type="button" class="kpi" data-jump-verdict="NEEDS-DESIGN-DISCUSSION">
         <div class="kpi-l"><span class="dot" style="background:#e0a83c"></span>Design disc.</div>
         <div class="kpi-v" style="color:var(--warn)">${vCount("NEEDS-DESIGN-DISCUSSION")}</div>
-        <div class="kpi-sub">Tap to view</div>
+        <div class="kpi-sub">Needs debate</div>
       </button>
       <button type="button" class="kpi" data-jump-verdict="LIKELY-REJECT">
         <div class="kpi-l"><span class="dot" style="background:#eb5757"></span>Likely reject</div>
         <div class="kpi-v" style="color:var(--danger)">${vCount("LIKELY-REJECT")}</div>
-        <div class="kpi-sub">Tap to view</div>
+        <div class="kpi-sub">Hard blockers</div>
       </button>
       <button type="button" class="kpi" data-toggle-seg="closing">
         <div class="kpi-l">Shortlist / Close</div>
@@ -2168,7 +2170,7 @@ function renderEntriesTab(): string {
     ["NEEDS-COMMITTER-EYES", "Committer eyes", "#5e6ad2"],
     ["NEEDS-DESIGN-DISCUSSION", "Design disc.", "#e0a83c"],
     ["LIKELY-REJECT", "Likely reject", "#eb5757"],
-    ["UNROASTED", "Not reviewed", "#737682"],
+    ["UNROASTED", "Not roasted", "#737682"],
   ];
   const statusChips: Array<[string, string]> = [
     ["all", "All statuses"],
