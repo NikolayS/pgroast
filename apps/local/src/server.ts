@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { APP_ROOT, ensureDataDirs, expandHome } from "./config.ts";
@@ -149,6 +150,10 @@ export async function createAppHandler(opts?: {
       // ---- Static / SPA UI ----
       if (method === "GET" && (path === "/" || path === "/index.html")) {
         let html = existsSync(htmlPath) ? readFileSync(htmlPath, "utf8") : "<h1>pgroast-app</h1>";
+        if (existsSync(faviconPath)) {
+          const favHash = createHash("sha256").update(readFileSync(faviconPath, "utf8")).digest("hex").slice(0, 8);
+          html = html.replace("/favicon.svg", `/favicon.svg?v=${favHash}`);
+        }
         const fetchSite = (req.headers.get("sec-fetch-site") || "").toLowerCase();
         const fetchMode = (req.headers.get("sec-fetch-mode") || "").toLowerCase();
         const fetchDest = (req.headers.get("sec-fetch-dest") || "").toLowerCase();

@@ -281,6 +281,9 @@ export async function createWebHandler(opts?: {
   const cssHash = createHash("sha256").update(readFileSync(cssPath, "utf8")).digest("hex").slice(0, 8);
   const jsHash = createHash("sha256").update(bundleJs).digest("hex").slice(0, 8);
   const favHash = createHash("sha256").update(readFileSync(faviconPath, "utf8")).digest("hex").slice(0, 8);
+  const touchHash = existsSync(touchIconPath)
+    ? createHash("sha256").update(readFileSync(touchIconPath)).digest("hex").slice(0, 8)
+    : favHash;
 
   function issueOAuthState(provider: "github" | "google"): { state: string; cookie: string } {
     const now = Date.now();
@@ -341,19 +344,21 @@ export async function createWebHandler(opts?: {
     try {
       // ---- Static UI ----
       if (method === "GET" && (path === "/favicon.svg" || path === "/favicon.ico")) {
+        const cache = url.searchParams.has("v") ? "public, max-age=31536000, immutable" : "no-cache";
         return new Response(readFileSync(faviconPath, "utf8"), {
           headers: {
             "Content-Type": "image/svg+xml; charset=utf-8",
-            "Cache-Control": "public, max-age=86400",
+            "Cache-Control": cache,
             "X-Content-Type-Options": "nosniff",
           },
         });
       }
       if (method === "GET" && path === "/apple-touch-icon.png" && existsSync(touchIconPath)) {
+        const cache = url.searchParams.has("v") ? "public, max-age=31536000, immutable" : "no-cache";
         return new Response(readFileSync(touchIconPath), {
           headers: {
             "Content-Type": "image/png",
-            "Cache-Control": "public, max-age=86400",
+            "Cache-Control": cache,
             "X-Content-Type-Options": "nosniff",
           },
         });
@@ -404,6 +409,7 @@ export async function createWebHandler(opts?: {
         const html = readFileSync(htmlPath, "utf8")
           .replace(/<title>[^<]*<\/title>/, `<title>${escAttr(title)}</title>\n  ${ogTags}`)
           .replace("/favicon.svg", `/favicon.svg?v=${favHash}`)
+          .replace("/apple-touch-icon.png", `/apple-touch-icon.png?v=${touchHash}`)
           .replace("/styles.css", `/styles.css?v=${cssHash}`)
           .replace("/app.js", `/app.js?v=${jsHash}`);
         return new Response(html, {
