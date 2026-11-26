@@ -358,7 +358,17 @@ async function api<T = unknown>(url: string, init?: RequestInit): Promise<T> {
   }
   if (!res.ok) {
     const errObj = parsed as { error?: string };
-    throw classifyApiError(method, url, res.status, errObj.error || text || `HTTP ${res.status}`);
+    const msg = errObj.error || text || `HTTP ${res.status}`;
+    // If the local server restarted while this tab was open, reload once cleanly to pick up the new per-boot token
+    if (res.status === 401 && /localhost session token/i.test(msg)) {
+      const lastReload = Number(sessionStorage.getItem("pgroast-token-reload-ts") || "0");
+      if (Date.now() - lastReload > 5000) {
+        sessionStorage.setItem("pgroast-token-reload-ts", String(Date.now()));
+        sessionStorage.removeItem("pgroast-session-token");
+        window.location.reload();
+      }
+    }
+    throw classifyApiError(method, url, res.status, msg);
   }
   return parsed as T;
 }
@@ -831,6 +841,7 @@ async function loadHealth(): Promise<void> {
   if (data.skillsSummary) state.skillsSummary = data.skillsSummary;
 
   updateSidebarIdentity();
+  updateLocalSpaceSwitcher();
   const cntEl = document.getElementById("sidebar-entry-count");
   if (cntEl) cntEl.textContent = `${data.entriesCount} CF entries`;
   const authEl = document.getElementById("sidebar-auth-status");
@@ -1031,13 +1042,41 @@ async function loadDiffForEntry(cfId: number): Promise<void> {
   }
 }
 
+function getPublicAppUrl(cfId?: number | null): string {
+  const base = (state.hubStatus?.url || state.settings?.publicHubUrl || "http://127.0.0.1:3433").replace(/\/$/, "");
+  return cfId && cfId > 0 ? `${base}/patch/${cfId}` : `${base}/`;
+}
+
+function updateLocalSpaceSwitcher(): void {
+  const link = document.getElementById("local-space-public-link") as HTMLAnchorElement | null;
+  const desc = document.getElementById("local-space-public-desc");
+  const cfId = state.view === "workbench" ? state.selectedCfId : null;
+  const url = getPublicAppUrl(cfId);
+  if (link) link.href = url;
+  if (desc) {
+    const cleanHost = getPublicAppUrl().replace(/^https?:\/\//, "").replace(/\/$/, "");
+    desc.textContent = cfId
+      ? `Jump to CF #${cfId} in the Public App (${cleanHost}) to browse or share.`
+      : `Browse or share public CommitFest briefs & team opinions at ${cleanHost}.`;
+  }
+}
+
 async function openEntry(cfId: number): Promise<void> {
   state.view = "workbench";
+  state.selectedCfId = cfId;
   state.detail = null;
   state.diffData = null;
   state.diffComments = [];
   state.diffError = "";
   updateNavUi();
+  updateLocalSpaceSwitcher();
+  try {
+    const u = new URL(window.location.href);
+    u.searchParams.set("cf", String(cfId));
+    window.history.replaceState(null, "", u.toString());
+  } catch {
+    // ignore
+  }
   try {
     await loadEntryDetail(cfId);
   } catch {
@@ -2534,6 +2573,7 @@ function renderWorkbenchView(): string {
           </div>
         </div>
         <div class="inline-row">
+          <a class="btn btn-secondary btn-sm" href="${esc(getPublicAppUrl(entry.cf_id))}" target="_blank" rel="noopener" title="Open CF #${entry.cf_id} in the Public App">Public App ↗</a>
           <a class="btn btn-secondary btn-sm" href="https://commitfest.postgresql.org/patch/${entry.cf_id}/" target="_blank" rel="noopener">CF page ↗</a>
           ${entry.thread_url ? `<a class="btn btn-secondary btn-sm" href="${esc(entry.thread_url)}" target="_blank" rel="noopener">CF thread ↗</a>` : ""}
           ${entry.cfbot_build_url ? `<a class="btn btn-ghost btn-sm" href="${esc(entry.cfbot_build_url)}" target="_blank" rel="noopener">CFBot CI ↗</a>` : ""}
@@ -5068,6 +5108,25 @@ function initGlobalControls(): void {
     void switchView("shortlist");
     const main = document.getElementById("main-content");
     if (main) main.scrollTop = 0;
+  });
+
+  // Space Switcher (Personal Backoffice <-> Public App)
+  const localSpaceBtn = document.getElementById("local-space-btn");
+  const localSpaceMenu = document.getElementById("local-space-menu");
+  localSpaceBtn?.addEventListener("click", (ev) => {
+    ev.stopPropagation();
+    if (!localSpaceMenu) return;
+    updateLocalSpaceSwitcher();
+    const open = localSpaceMenu.hidden;
+    localSpaceMenu.hidden = !open;
+    localSpaceBtn.setAttribute("aria-expanded", String(open));
+  });
+  document.addEventListener("click", (ev) => {
+    if (!localSpaceMenu || localSpaceMenu.hidden) return;
+    if (!localSpaceMenu.contains(ev.target as Node) && ev.target !== localSpaceBtn) {
+      localSpaceMenu.hidden = true;
+      localSpaceBtn?.setAttribute("aria-expanded", "false");
+    }
   });
   document.getElementById("open-onboarding-btn")?.addEventListener("click", () => void openOnboarding(1));
   document.getElementById("ob-close-x")?.addEventListener("click", () => closeOnboarding());

@@ -14,9 +14,33 @@
           <div class="brand-logo">pg</div>
           <div class="brand-text">
             <div class="brand-title">pgroast</div>
-            <div class="brand-sub">Local Workbench</div>
+            <div class="brand-sub">Personal Backoffice</div>
           </div>
         </button>
+
+        <div class="space-switcher-wrap">
+          <button type="button" class="space-switcher-btn" id="local-space-btn" aria-expanded="false" title="You are in your private Personal Backoffice (127.0.0.1). Click to switch to the Public App.">
+            <span class="space-dot-private"></span>
+            <span class="space-switcher-label">Backoffice · Private</span>
+            <span class="space-switcher-chev">▾</span>
+          </button>
+          <div class="space-switcher-menu" id="local-space-menu" hidden>
+            <div class="space-menu-item is-active">
+              <div class="space-menu-head">
+                <span><span class="space-dot-private"></span> <strong>Personal Backoffice</strong></span>
+                <span class="space-tag-here">Here</span>
+              </div>
+              <div class="space-menu-desc">Private on <code>127.0.0.1:3432</code>. Work Items, AI CLIs, CommitFest cookies, Gmail drafts, Diff &amp; Review.</div>
+            </div>
+            <a class="space-menu-item space-menu-link" id="local-space-public-link" href="http://127.0.0.1:3433/" target="_blank" rel="noopener">
+              <div class="space-menu-head">
+                <span><span class="space-dot-public"></span> <strong>Public App ↗</strong></span>
+                <span class="space-tag-public">Read &amp; share</span>
+              </div>
+              <div class="space-menu-desc" id="local-space-public-desc">Open the public CommitFest companion to browse or share briefs &amp; opinions.</div>
+            </a>
+          </div>
+        </div>
 
         <nav class="nav-links" id="nav-links">
           <div class="nav-group-label">CommitFest</div>

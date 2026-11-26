@@ -387,6 +387,14 @@ export class WebDatabase {
     )) as PublicOpinionRecord[];
   }
 
+  async getEntry(cfId: number): Promise<PublicEntryRecord | null> {
+    const rows = (await this.sql.unsafe(
+      `SELECT * FROM ${this.t("public_entries")} WHERE cf_id = $1`,
+      [cfId],
+    )) as PublicEntryRecord[];
+    return rows[0] ?? null;
+  }
+
   async listEntries(opts?: { search?: string; verdict?: string; limit?: number }): Promise<PublicEntryRecord[]> {
     const where: string[] = [];
     const params: (string | number)[] = [];
@@ -476,7 +484,13 @@ export class WebDatabase {
     return rows[0] ?? null;
   }
 
-  async listCoordination(): Promise<SharedCoordinationRecord[]> {
+  async listCoordination(cfId?: number): Promise<SharedCoordinationRecord[]> {
+    if (cfId != null) {
+      return (await this.sql.unsafe(
+        `SELECT * FROM ${this.t("shared_coordination")} WHERE cf_id = $1 ORDER BY updated_at DESC LIMIT 50`,
+        [cfId],
+      )) as SharedCoordinationRecord[];
+    }
     return (await this.sql.unsafe(
       `SELECT * FROM ${this.t("shared_coordination")} ORDER BY updated_at DESC LIMIT 100`,
     )) as SharedCoordinationRecord[];

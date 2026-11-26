@@ -141,11 +141,16 @@ export async function createAppHandler(opts?: {
       if (method === "GET" && (path === "/" || path === "/index.html")) {
         let html = existsSync(htmlPath) ? readFileSync(htmlPath, "utf8") : "<h1>pgroast-app</h1>";
         const fetchSite = (req.headers.get("sec-fetch-site") || "").toLowerCase();
+        const fetchMode = (req.headers.get("sec-fetch-mode") || "").toLowerCase();
+        const fetchDest = (req.headers.get("sec-fetch-dest") || "").toLowerCase();
+        // Top-level browser navigations (e.g. clicking a handoff link from pgroast.postgres.ai)
+        // cannot be read by the referring origin due to Same-Origin Policy + frame-ancestors 'none'.
+        const isTopLevelNav = fetchMode === "navigate" && fetchDest === "document";
         const canInjectMetaToken =
           sec.requireAuth &&
           !sec.strictUrlTokenOnly &&
-          fetchSite !== "cross-site" &&
-          req.headers.get("origin") === null;
+          req.headers.get("origin") === null &&
+          (fetchSite !== "cross-site" || isTopLevelNav);
         if (canInjectMetaToken) {
           html = html.replace(
             "</head>",

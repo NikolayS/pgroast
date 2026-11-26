@@ -79,11 +79,39 @@ Full design: [docs/design.md](docs/design.md).
 3. **Postgres 19 (or 18)**, for the precedent index (database `pgroast`; `PGROAST_DSN` if it is not on the local socket) and for the web apps (`apps/local`, `apps/web`). `createdb` and `psql` are used once to load the index.
 4. A clone of the Postgres repository, only if you rebuild the index (`PGROAST_PG_REPO`) or run local worktree builds in `apps/local`.
 
-## Monorepo Layout (CLI + Local Workbench + Public Companion)
+## Monorepo Layout (CLI + Personal Backoffice + Public App)
+
+PG Roast splits into two web apps plus the CLI engine:
 
 - **`src/` (CLI):** adversarial design pre-review (`bun run src/cli.ts 5879`), batch runner, CommitFest shortlist (`pgroast shortlist`), and `pgsql-bugs` triage (`pgroast bugs`).
-- **`apps/local` (Local Workbench — `bun run app:local`, `http://127.0.0.1:3432`):** PostgreSQL-backed local workbench with Shortlist, Stats & Insights, Explorer (`⌘K`), Entry Workbench, PG Light Roast, experimental `Diff & Review` (inline comments → `-hackers` draft), Local Work Items, multi-tab job logs, and 4 pre-draft safety gates.
-- **`apps/web` (Public Companion — `bun run app:web`, `http://127.0.0.1:3433`):** public companion for interactive & downloadable CommitFest briefs, attributed multi-contributor model opinions, and opt-in team coordination. Trust flows strictly `local → public`.
+- **`apps/local` (Personal Backoffice — `bun run app:local`, `http://127.0.0.1:3432`):** your private workspace on your own machine. Compile Postgres, run your AI CLIs (`claude`, `codex`, `agy`, or `--backend dual`), inspect patch diffs in `Diff & Review`, track private Work Items, keep CommitFest cookies and Gmail drafts local, and explicitly publish sanitized opinions or briefs to the Public App.
+- **`apps/web` (Public App — `bun run app:web`, `http://127.0.0.1:3433`):** shared community hub for CommitFest briefs, per-patch collaboration pages (`/patch/<cf-id>`) with multi-reviewer AI opinions and consensus, downloadable offline briefs, and opt-in team claims. Trust flows strictly `local → public`; the public site never controls `127.0.0.1`.
+
+### Install and run your Personal Backoffice (2 minutes)
+
+Each reviewer runs their own Personal Backoffice locally:
+
+```bash
+git clone https://github.com/NikolayS/pgroast.git && cd pgroast
+bun install
+
+# Start Postgres 19 via Docker if you do not already run local Postgres 19/18
+docker compose -f apps/local/docker-compose.yml up -d
+
+# Optional: load the precedent index for CLI roasts
+bun run src/cli.ts init-db
+
+# Start your Personal Backoffice at http://127.0.0.1:3432
+bun run app:local
+```
+
+To update an existing checkout to the latest prerelease:
+
+```bash
+git pull --tags && bun install && bun run app:local
+```
+
+Inside `http://127.0.0.1:3432`, open **Settings** to point **Public Companion URL** at your shared Public App (for example `https://pgroast.postgres.ai`) and paste your publish-only token. Use the **Backoffice · Private ▾** switcher in the sidebar or **Public App ↗** on any patch to jump between your local workbench and the shared `/patch/<cf-id>` page.
 
 ## Get started
 
@@ -179,8 +207,8 @@ bun run src/eval/cli.ts score ID
 ## Tests
 
 ```
-bun test
-bunx tsc --noEmit
+bun run test:all
+bun run typecheck:all
 ```
 
 ## License

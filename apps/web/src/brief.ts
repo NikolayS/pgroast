@@ -92,24 +92,37 @@ function verdictDotColor(v: string): string {
 function renderSvgDonut(segments: Array<{ label: string; value: number; color: string }>): string {
   const total = segments.reduce((acc, s) => acc + s.value, 0);
   if (total === 0) return "";
+  const cx = 60;
+  const cy = 60;
   const r = 46;
-  const c = 2 * Math.PI * r;
-  let offset = 0;
-  const circles = segments
+  const sw = 14;
+  let startDeg = 0;
+  const arcs = segments
     .filter((s) => s.value > 0)
     .map((s) => {
-      const dash = (s.value / total) * c;
-      const el = `<circle cx="60" cy="60" r="${r}" fill="none" stroke="${s.color}" stroke-width="14" stroke-dasharray="${dash.toFixed(2)} ${(c - dash).toFixed(2)}" stroke-dashoffset="${(-offset).toFixed(2)}" transform="rotate(-90 60 60)"><title>${esc(s.label)}: ${s.value}</title></circle>`;
-      offset += dash;
-      return el;
+      const frac = s.value / total;
+      const sweepDeg = frac * 360;
+      const curStart = startDeg;
+      startDeg += sweepDeg;
+      if (frac >= 0.9999) {
+        return `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${s.color}" stroke-width="${sw}"><title>${esc(s.label)}: ${s.value}</title></circle>`;
+      }
+      const a0 = ((curStart - 90) * Math.PI) / 180;
+      const a1 = ((curStart + sweepDeg - 90) * Math.PI) / 180;
+      const x1 = cx + r * Math.cos(a0);
+      const y1 = cy + r * Math.sin(a0);
+      const x2 = cx + r * Math.cos(a1);
+      const y2 = cy + r * Math.sin(a1);
+      const largeArc = sweepDeg > 180 ? 1 : 0;
+      return `<path d="M ${x1.toFixed(3)} ${y1.toFixed(3)} A ${r} ${r} 0 ${largeArc} 1 ${x2.toFixed(3)} ${y2.toFixed(3)}" fill="none" stroke="${s.color}" stroke-width="${sw}" stroke-linecap="butt"><title>${esc(s.label)}: ${s.value}</title></path>`;
     })
     .join("");
   return `
     <svg viewBox="0 0 120 120" width="128" height="128" aria-label="Verdict distribution">
-      <circle cx="60" cy="60" r="${r}" fill="none" stroke="rgba(128,128,128,0.15)" stroke-width="14" />
-      ${circles}
-      <text x="60" y="57" text-anchor="middle" fill="currentColor" font-size="18" font-weight="600">${total}</text>
-      <text x="60" y="72" text-anchor="middle" fill="#8b8d98" font-size="9.5">entries</text>
+      <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="rgba(128,128,128,0.15)" stroke-width="${sw}" />
+      ${arcs}
+      <text x="${cx}" y="57" text-anchor="middle" fill="currentColor" font-size="18" font-weight="600">${total}</text>
+      <text x="${cx}" y="72" text-anchor="middle" fill="#8b8d98" font-size="9.5">entries</text>
     </svg>
   `;
 }
@@ -247,49 +260,64 @@ export function renderInteractiveBriefHtml(brief: PublishedBriefRecord, localWor
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:;" />
 <title>${esc(brief.title)} — CommitFest Interactive Brief</title>
 <style>
-:root{--bg:#0c0d0f;--card:#141518;--border:rgba(255,255,255,.08);--border-s:rgba(255,255,255,.15);--text:#ececef;--muted:#9a9ba3;--dim:#7c7e87;--accent:#5e6ad2;--accent-t:#8f98f0;--hover:rgba(255,255,255,.04)}
-@media (prefers-color-scheme:light){:root{--bg:#ffffff;--card:#ffffff;--border:rgba(0,0,0,.08);--border-s:rgba(0,0,0,.15);--text:#1a1b1e;--muted:#5f6168;--dim:#74767e;--accent:#5e6ad2;--accent-t:#4e5bc4;--hover:rgba(0,0,0,.04)}}
-*{box-sizing:border-box}
-body{margin:0;padding:24px;background:var(--bg);color:var(--text);font:13px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased}
-.wrap{max-width:1180px;margin:0 auto}
+:root{--bg:#0b0c0e;--card:#121317;--border:rgba(255,255,255,.08);--border-s:rgba(255,255,255,.15);--text:#f0f1f4;--muted:#9a9ca6;--dim:#737682;--accent:#5e6ad2;--accent-t:#95a0ff;--hover:rgba(255,255,255,.05)}
+@media (prefers-color-scheme:light){:root{--bg:#ffffff;--card:#f7f8fa;--border:rgba(0,0,0,.08);--border-s:rgba(0,0,0,.15);--text:#15161a;--muted:#5b5e69;--dim:#797d8a;--accent:#5e6ad2;--accent-t:#4a56c4;--hover:rgba(0,0,0,.04)}}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{overflow-x:clip;max-width:100%}
+body{margin:0;padding:24px;padding-bottom:calc(24px + env(safe-area-inset-bottom));background:var(--bg);color:var(--text);font:13.5px/1.5 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1120px;margin:0 auto}
 a{color:var(--accent-t);text-decoration:none} a:hover{text-decoration:underline}
-h1{font-size:20px;font-weight:600;margin:0 0 4px;letter-spacing:-.01em}
-h2{font-size:14px;font-weight:600;margin:0 0 12px;letter-spacing:-.01em}
+h1{font-size:20px;font-weight:600;margin:0 0 4px;letter-spacing:-.02em}
+h2{font-size:14.5px;font-weight:600;margin:0 0 12px;letter-spacing:-.01em}
 .muted{color:var(--muted)} .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
 .num{text-align:right;font-variant-numeric:tabular-nums}
-.banner{border:1px solid var(--border-s);border-radius:8px;padding:11px 14px;margin:14px 0 18px;font-size:12.5px;color:var(--muted)}
-.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(148px,1fr));gap:10px;margin-bottom:18px}
-.kpi{border:1px solid var(--border);border-radius:8px;padding:12px 14px}
-.kpi-l{font-size:12px;color:var(--dim);font-weight:500}
-.kpi-v{font-size:22px;font-weight:600;margin-top:4px;font-variant-numeric:tabular-nums}
-.grid2{display:grid;grid-template-columns:1.1fr 1fr;gap:16px;margin-bottom:16px}
+.banner{border:1px solid var(--border);background:var(--card);border-radius:9px;padding:10px 13px;margin:12px 0 16px;font-size:12.5px;color:var(--muted)}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:9px;margin-bottom:16px}
+.kpi{border:1px solid var(--border);background:var(--card);border-radius:9px;padding:11px 13px}
+.kpi-l{font-size:11.5px;color:var(--dim);font-weight:500}
+.kpi-v{font-size:21px;font-weight:600;margin-top:4px;font-variant-numeric:tabular-nums}
+.grid2{display:grid;grid-template-columns:1.1fr 1fr;gap:14px;margin-bottom:14px}
 @media(max-width:900px){.grid2{grid-template-columns:1fr}}
-.card{border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:16px}
-.pill{display:inline-flex;align-items:center;gap:6px;padding:1px 8px;border-radius:99px;border:1px solid var(--border);font-size:11px;font-weight:500;white-space:nowrap}
+.card{border:1px solid var(--border);background:var(--card);border-radius:10px;padding:15px;margin-bottom:14px}
+.pill{display:inline-flex;align-items:center;gap:6px;padding:2px 8px;border-radius:99px;border:1px solid var(--border);background:var(--bg);font-size:11px;font-weight:500;white-space:nowrap}
 .pill i{width:6px;height:6px;border-radius:50%;display:inline-block}
-.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
-.tab{height:26px;padding:0 10px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;font:500 12px inherit}
+.tabs{display:flex;gap:6px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;margin-bottom:12px;padding-bottom:2px}
+.tabs::-webkit-scrollbar{display:none}
+.tab{flex-shrink:0;height:30px;padding:0 11px;border-radius:99px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;font:500 12px inherit}
 .tab:hover{background:var(--hover);color:var(--text)}
 .tab.active{background:var(--hover);color:var(--text);border-color:var(--border-s)}
 table{width:100%;border-collapse:collapse;font-size:12.5px}
-th{text-align:left;padding:7px 10px;font-size:12px;font-weight:500;color:var(--dim);border-bottom:1px solid var(--border)}
-td{padding:8px 10px;border-bottom:1px solid var(--border);vertical-align:top}
+th{text-align:left;padding:7px 10px;font-size:11.5px;font-weight:500;color:var(--dim);border-bottom:1px solid var(--border);white-space:nowrap}
+td{padding:9px 10px;border-bottom:1px solid var(--border);vertical-align:top}
 tr:last-child td{border-bottom:none}
-.links{display:flex;gap:8px;margin-top:3px;font-size:11px}
+.links{display:flex;gap:10px;margin-top:4px;font-size:11.5px}
 .sub{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:4px}
-.hbar{display:grid;grid-template-columns:175px 1fr 42px;gap:8px;align-items:center;margin-bottom:7px;font-size:12px}
-.hbar-t{height:7px;border-radius:99px;background:var(--hover);overflow:hidden}
+.hbar{display:grid;grid-template-columns:165px 1fr 38px;gap:8px;align-items:center;margin-bottom:8px;font-size:12px}
+.hbar-t{height:6px;border-radius:99px;background:var(--hover);overflow:hidden}
 .hbar-f{height:100%;background:var(--accent);border-radius:99px}
 .controls{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
-.controls input,.controls select{height:28px;padding:0 10px;border-radius:6px;border:1px solid var(--border-s);background:transparent;color:var(--text);font:12.5px inherit}
-.controls input{flex:1;min-width:220px}
+.controls input,.controls select{height:34px;padding:0 10px;border-radius:8px;border:1px solid var(--border-s);background:var(--bg);color:var(--text);font:13px inherit}
+.controls input{flex:1;min-width:200px}
 .clickable{cursor:pointer} .clickable:hover{background:var(--hover);color:var(--accent-t)}
-.donut-row{display:flex;align-items:center;gap:20px;flex-wrap:wrap}
+.donut-row{display:flex;align-items:center;gap:18px;flex-wrap:wrap}
 .legend{display:flex;flex-direction:column;gap:6px;font-size:12px}
+@media(max-width:720px){
+  body{padding:14px;padding-bottom:calc(20px + env(safe-area-inset-bottom))}
+  h1{font-size:17.5px}
+  .kpis{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  .card{padding:13px}
+  .controls input,.controls select{font-size:16px;height:40px;width:100%;min-width:0}
+  .hbar{grid-template-columns:1fr 38px;gap:4px 8px}
+  .hbar-t{grid-column:1 / -1}
+  #sl-table thead,#cl-table thead,#all-table thead{display:none}
+  #sl-table tbody tr,#cl-table tbody tr,#all-table tbody tr{display:block;padding:12px 0;border-bottom:1px solid var(--border)}
+  #sl-table tbody td,#cl-table tbody td,#all-table tbody td{display:block;padding:2px 0;border:none;text-align:left}
+  #sl-table tbody td:first-child,#cl-table tbody td:first-child{font-size:11px}
+}
 </style>
 </head>
 <body>
@@ -380,7 +408,7 @@ tr:last-child td{border-bottom:none}
   <div class="card">
     <h2>Worth Closing or Rethinking (${closing.length})</h2>
     <div style="overflow-x:auto;">
-      <table>
+      <table id="cl-table">
         <thead><tr><th class="num">#</th><th>CF</th><th>Proposal</th><th>Verdict / Failing Level</th><th>Workaround / Reasons</th><th>Actionable next step</th></tr></thead>
         <tbody>${clRows || `<tr><td colspan="6" class="muted">No closing candidates.</td></tr>`}</tbody>
       </table>

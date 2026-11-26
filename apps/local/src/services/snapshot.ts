@@ -464,7 +464,7 @@ ${tracker}
 
   const indexPath = join(outDir, "index.html");
   writeFileSync(indexPath, indexHtml, "utf8");
-  db.logAudit("export_static_snapshot", outDir, {
+  await db.logAudit("export_static_snapshot", outDir, {
     entries: entryPagesCount,
     shortlist: sl.shortlist.length,
     closing: sl.top50Closing.length,

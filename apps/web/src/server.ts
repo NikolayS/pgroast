@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { renderBriefMarkdown, renderInteractiveBriefHtml } from "./brief.ts";
@@ -5,8 +6,101 @@ import { loadWebConfig, WEB_ROOT, type WebConfig } from "./config.ts";
 import { WebDatabase, type PublicEntryRecord } from "./db.ts";
 import { checkPublicPayloadSafe, securityHeaders } from "./security.ts";
 
-function json(data: unknown, status = 200): Response {
-  return new Response(JSON.stringify(data), {
+function escAttr(s: unknown): string {
+  return String(s ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function humanVerdictLabel(v: string): string {
+  if (v === "NO-FUNDAMENTAL-OBJECTION") return "No fundamental objection";
+  if (v === "NEEDS-COMMITTER-EYES") return "Needs committer eyes";
+  if (v === "NEEDS-DESIGN-DISCUSSION") return "Needs design discussion";
+  if (v === "LIKELY-REJECT") return "Likely reject";
+  return v || "Not reviewed";
+}
+
+function computePatchConsensus(
+  opinions: Array<{ verdict: string; contributor_handle: string; contributor_name: string; backend: string }>,
+  baselineVerdict?: string,
+) {
+  const counts: Record<string, number> = {};
+  const reviewers = new Set<string>();
+  const models = new Set<string>();
+  for (const op of opinions) {
+    const v = op.verdict || "UNROASTED";
+    counts[v] = (counts[v] || 0) + 1;
+    if (op.contributor_handle || op.contributor_name) reviewers.add(op.contributor_handle || op.contributor_name);
+    if (op.backend) models.add(op.backend);
+  }
+  const ranked = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+  const total = opinions.length;
+  if (total === 0) {
+    return {
+      status: "baseline_only" as const,
+      leadingVerdict: baselineVerdict || "UNROASTED",
+      totalOpinions: 0,
+      uniqueReviewers: 0,
+      uniqueModels: 0,
+      breakdown: counts,
+      headline: baselineVerdict && baselineVerdict !== "UNROASTED"
+        ? `Baseline brief pass: ${humanVerdictLabel(baselineVerdict)}. Waiting for additional reviewer AI opinions to build consensus.`
+        : "No reviewer AI opinions published yet for this patch.",
+    };
+  }
+  const [topVerdict, topCount] = ranked[0]!;
+  const pct = Math.round((topCount / total) * 100);
+  if (ranked.length === 1) {
+    return {
+      status: "unanimous" as const,
+      leadingVerdict: topVerdict,
+      totalOpinions: total,
+      uniqueReviewers: reviewers.size,
+      uniqueModels: models.size,
+      breakdown: counts,
+      headline: `Unanimous across ${total} opinion${total === 1 ? "" : "s"} (${reviewers.size} reviewer${reviewers.size === 1 ? "" : "s"}): ${humanVerdictLabel(topVerdict)}.`,
+    };
+  }
+  if (pct >= 60) {
+    return {
+      status: "majority" as const,
+      leadingVerdict: topVerdict,
+      totalOpinions: total,
+      uniqueReviewers: reviewers.size,
+      uniqueModels: models.size,
+      breakdown: counts,
+      headline: `Majority (${topCount}/${total}) lean ${humanVerdictLabel(topVerdict)}, with ${total - topCount} differing opinion${total - topCount === 1 ? "" : "s"}.`,
+    };
+  }
+  return {
+    status: "split" as const,
+    leadingVerdict: topVerdict,
+    totalOpinions: total,
+    uniqueReviewers: reviewers.size,
+    uniqueModels: models.size,
+    breakdown: counts,
+    headline: `Split opinions across ${total} runs (${reviewers.size} reviewer${reviewers.size === 1 ? "" : "s"}): compare arguments below to find common ground.`,
+  };
+}
+
+function json(data: unknown, status = 200, req?: Request): Response {
+  const payload = JSON.stringify(data);
+  const acceptEnc = req?.headers.get("accept-encoding") || "";
+  if (payload.length > 2048 && /\bgzip\b/i.test(acceptEnc)) {
+    const gz = Bun.gzipSync(Buffer.from(payload, "utf8"));
+    return new Response(gz, {
+      status,
+      headers: {
+        "Content-Type": "application/json; charset=utf-8",
+        "Content-Encoding": "gzip",
+        Vary: "Accept-Encoding",
+        ...securityHeaders("json"),
+      },
+    });
+  }
+  return new Response(payload, {
     status,
     headers: {
       "Content-Type": "application/json; charset=utf-8",
@@ -49,6 +143,9 @@ export async function createWebHandler(opts?: { db?: WebDatabase; config?: Parti
 
   const htmlPath = join(WEB_ROOT, "src", "ui", "index.html");
   const cssPath = join(WEB_ROOT, "src", "ui", "styles.css");
+  const faviconPath = join(WEB_ROOT, "src", "ui", "favicon.svg");
+  const cssHash = createHash("sha256").update(readFileSync(cssPath, "utf8")).digest("hex").slice(0, 8);
+  const jsHash = createHash("sha256").update(bundleJs).digest("hex").slice(0, 8);
 
   async function fetchHandler(req: Request): Promise<Response> {
     const url = new URL(req.url);
@@ -57,34 +154,94 @@ export async function createWebHandler(opts?: { db?: WebDatabase; config?: Parti
 
     try {
       // ---- Static UI ----
-      if (method === "GET" && (path === "/" || path === "/index.html")) {
-        const html = readFileSync(htmlPath, "utf8");
+      if (method === "GET" && (path === "/favicon.svg" || path === "/favicon.ico")) {
+        return new Response(readFileSync(faviconPath, "utf8"), {
+          headers: {
+            "Content-Type": "image/svg+xml; charset=utf-8",
+            "Cache-Control": "public, max-age=86400",
+            "X-Content-Type-Options": "nosniff",
+          },
+        });
+      }
+      if (method === "GET" && path === "/robots.txt") {
+        return new Response("User-agent: *\nAllow: /\n", {
+          headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "public, max-age=86400" },
+        });
+      }
+      const patchPageMatch = path.match(/^\/patch\/(\d+)\/?$/);
+      if (method === "GET" && (path === "/" || path === "/index.html" || patchPageMatch)) {
+        const cfId = Number(patchPageMatch?.[1] || url.searchParams.get("cf") || 0);
+        let title = "pgroast — Public CommitFest Triage & Collaboration";
+        let desc = "PostgreSQL CommitFest pre-review triage briefs, multi-model reviewer opinions, and common-ground consensus.";
+        if (cfId > 0) {
+          const entry = await db.getEntry(cfId);
+          if (entry) {
+            title = `CF ${entry.cf_id}: ${entry.title} — pgroast`;
+            const parts = [
+              entry.verdict ? humanVerdictLabel(entry.verdict) : "Not reviewed",
+              entry.status || "",
+              entry.authors ? `by ${entry.authors}` : "",
+            ].filter(Boolean);
+            desc = parts.join(" · ");
+          } else {
+            title = `CF ${cfId} — pgroast`;
+          }
+        }
+        const ogTags = [
+          `<meta name="description" content="${escAttr(desc)}" />`,
+          `<meta property="og:type" content="website" />`,
+          `<meta property="og:site_name" content="pgroast" />`,
+          `<meta property="og:title" content="${escAttr(title)}" />`,
+          `<meta property="og:description" content="${escAttr(desc)}" />`,
+          `<meta name="twitter:card" content="summary" />`,
+          `<meta name="twitter:title" content="${escAttr(title)}" />`,
+          `<meta name="twitter:description" content="${escAttr(desc)}" />`,
+        ].join("\n  ");
+        const html = readFileSync(htmlPath, "utf8")
+          .replace(/<title>[^<]*<\/title>/, `<title>${escAttr(title)}</title>\n  ${ogTags}`)
+          .replace("/styles.css", `/styles.css?v=${cssHash}`)
+          .replace("/app.js", `/app.js?v=${jsHash}`);
         return new Response(html, {
-          headers: { "Content-Type": "text/html; charset=utf-8", ...securityHeaders("app") },
+          headers: {
+            "Content-Type": "text/html; charset=utf-8",
+            "Cache-Control": "no-store",
+            ...securityHeaders("app"),
+          },
         });
       }
       if (method === "GET" && path === "/styles.css") {
+        const cache = url.searchParams.has("v") ? "public, max-age=31536000, immutable" : "no-store";
         return new Response(readFileSync(cssPath, "utf8"), {
-          headers: { "Content-Type": "text/css; charset=utf-8", ...securityHeaders("app") },
+          headers: {
+            "Content-Type": "text/css; charset=utf-8",
+            "Cache-Control": cache,
+            ...securityHeaders("app"),
+          },
         });
       }
       if (method === "GET" && path === "/app.js") {
         if (process.env.PGROAST_WEB_DEV === "1") bundleJs = await buildUiJs();
+        const cache = url.searchParams.has("v") ? "public, max-age=31536000, immutable" : "no-store";
         return new Response(bundleJs, {
-          headers: { "Content-Type": "application/javascript; charset=utf-8", ...securityHeaders("app") },
+          headers: {
+            "Content-Type": "application/javascript; charset=utf-8",
+            "Cache-Control": cache,
+            ...securityHeaders("app"),
+          },
         });
       }
 
       // ---- Health ----
       if (method === "GET" && path === "/api/v1/health") {
         const pgInfo = await db.getServerInfo();
+        const pgMajor = pgInfo.version.match(/PostgreSQL\s+(\d+)/i)?.[0] || "PostgreSQL";
         const briefs = await db.listBriefs();
         const opinions = await db.listOpinions(undefined, 1000);
         const entries = await db.listEntries({ limit: 1000 });
         return json({
           ok: true,
           app: "pgroast-web",
-          database: pgInfo,
+          database: { version: pgMajor, database: pgInfo.database },
           counts: {
             briefs: briefs.length,
             entries: entries.length,
@@ -96,7 +253,7 @@ export async function createWebHandler(opts?: { db?: WebDatabase; config?: Parti
             devTokenMintEnabled: cfg.allowDevTokenMint,
           },
           localWorkbenchUrl: cfg.localWorkbenchUrl,
-        });
+        }, 200, req);
       }
 
       // ---- Identity-only OAuth entrypoints (GitHub / Google) ----
@@ -158,7 +315,7 @@ export async function createWebHandler(opts?: { db?: WebDatabase; config?: Parti
           shortlist: JSON.parse(brief.shortlist_json || "[]"),
           closing: JSON.parse(brief.closing_json || "[]"),
           entries: JSON.parse(brief.entries_json || "[]"),
-        });
+        }, 200, req);
       }
 
       const briefEmbedMatch = path.match(/^\/briefs\/([^/]+)\/(embed|download\.html|download\.md|download\.json)$/);
@@ -214,13 +371,25 @@ export async function createWebHandler(opts?: { db?: WebDatabase; config?: Parti
           verdict: url.searchParams.get("verdict") || undefined,
           limit: Number(url.searchParams.get("limit") || 300),
         });
-        return json({ entries });
+        return json({ entries }, 200, req);
+      }
+
+      const entryDetailMatch = path.match(/^\/api\/v1\/entries\/(\d+)$/);
+      if (method === "GET" && entryDetailMatch) {
+        const cfId = Number(entryDetailMatch[1]);
+        const [entry, opinions, coordination] = await Promise.all([
+          db.getEntry(cfId),
+          db.listOpinions(cfId, 100),
+          db.listCoordination(cfId),
+        ]);
+        const consensus = computePatchConsensus(opinions, entry?.verdict);
+        return json({ cf_id: cfId, entry, opinions, coordination, consensus }, 200, req);
       }
 
       if (method === "GET" && path === "/api/v1/opinions") {
         const cfIdParam = url.searchParams.get("cfId");
         const opinions = await db.listOpinions(cfIdParam ? Number(cfIdParam) : undefined, 150);
-        return json({ opinions });
+        return json({ opinions }, 200, req);
       }
 
       const entryOpMatch = path.match(/^\/api\/v1\/entries\/(\d+)\/opinions$/);

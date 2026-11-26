@@ -35,8 +35,10 @@ export function loadWebConfig(): WebConfig {
     googleClientId: process.env.GOOGLE_CLIENT_ID || "",
     googleClientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
     allowDevTokenMint:
-      process.env.PGROAST_WEB_DEV_AUTH === "1" ||
-      host === "127.0.0.1" ||
-      host === "localhost",
+      process.env.PGROAST_WEB_DEV_AUTH === "0"
+        ? false
+        : process.env.PGROAST_WEB_DEV_AUTH === "1" ||
+          host === "127.0.0.1" ||
+          host === "localhost",
   };
 }

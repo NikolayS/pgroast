@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <rect width="64" height="64" rx="14" fill="#0f1117"/>
+  <rect x="1.5" y="1.5" width="61" height="61" rx="12.5" fill="none" stroke="#5e6ad2" stroke-opacity="0.45" stroke-width="2"/>
+  <circle cx="50" cy="14" r="5" fill="#4cb782"/>
+  <text x="30" y="43" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Display', ui-sans-serif, system-ui, sans-serif" font-size="30" font-weight="700" fill="#f0f1f4" letter-spacing="-1.5">pg</text>
+</svg>

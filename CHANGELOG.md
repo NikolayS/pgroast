@@ -1,5 +1,29 @@
 # Changelog
 
+## v0.3.0-alpha.2 (2026-11-26)
+
+This update makes the Public App (`apps/web`) work smoothly on iPhone, turns every CommitFest entry into a full patch collaboration page (`/patch/<cf-id>`), adds a clear Space Switcher between the Public App and your Personal Backoffice (`apps/local`), and fixes cross-site handoff into `http://127.0.0.1:3432`.
+
+### Changes
+
+- **Full public patch collaboration pages (`/patch/<cf-id>` and `/?cf=<cf-id>`):**
+  - Replaced the narrow right-side drawer with a dedicated patch page that shows Common Ground & Consensus (unanimous, majority, split, or baseline pass), a visual verdict agreement bar, all contributed reviewer and AI opinions, team coordination claims, and active subsystem reviewers.
+  - Added `GET /api/v1/entries/:id` with live consensus calculation and gzip compression for large JSON responses.
+  - Added browser history support (`pushState` / `popstate`) so Back and iPhone swipe-back return cleanly to the previous tab.
+  - Injected per-patch `<title>` and OpenGraph tags on `/patch/<cf-id>` for link previews in Slack, Telegram, and iMessage.
+- **Mobile-first Linear UI for iPhone (`apps/web`):**
+  - Replaced the nested iframe on the Brief tab with native SPA rendering (eliminating iOS double-scroll traps while keeping offline `.html`, `.md`, `.json`, and standalone `/embed` downloads).
+  - Added a frosted-glass top header, a 5-tab iOS bottom navigation bar with `safe-area-inset-bottom` padding, 16px mobile search inputs (preventing Safari auto-zoom), DOM-only search filtering so the iOS keyboard stays open, and CF Status filter chips.
+  - Added content-hashed cache-busting (`/styles.css?v=...`, `/app.js?v=...`), `favicon.svg` / `favicon.ico`, `/robots.txt`, and removed duplicate 736-entry downloads on initial load.
+  - Replaced `<circle stroke-dasharray>` + negative `stroke-dashoffset` in the verdict donut with SVG `<path>` arcs to fix the 12-o'clock notch glitch on Safari/WebKit.
+  - Scrubbed local host/compiler build details from public `/api/v1/health` and footer output.
+- **Clear Public App ↔ Personal Backoffice navigation (`apps/web` + `apps/local`):**
+  - Added a Space Switcher pill in both headers (`● Public ▾` on `apps/web`, `● Backoffice · Private ▾` on `apps/local`) with bidirectional `/patch/<cf-id>` ↔ `/?cf=<cf-id>` links and 1-tap link copying for iPhone-to-laptop handoff.
+  - Fixed `apps/local` session-token injection on top-level cross-site browser navigations (`Sec-Fetch-Mode: navigate` + `Sec-Fetch-Dest: document`) so clicking `Work on CF … in Backoffice ↗` from a public host works on the first click while still blocking cross-site `fetch`/CORS/iframe requests. Added clean auto-reload if the local server restarts while a tab is open.
+  - Fixed `PGROAST_WEB_DEV_AUTH=0` precedence in `apps/web/src/config.ts` so public tunnels run strictly read-only.
+- **Documentation (`README.md`):**
+  - Added a 2-minute install and update section for teammates setting up their own local Personal Backoffice.
+
 ## v0.3.0-alpha.1 (2026-11-25)
 
 v0.3 brings the new pre-review engine (`agy` + `dual` cross-family backends, multi-thread and latest-patch ingestion, novelty grouping, CommitFest shortlists, `pgsql-bugs` triage), the local PostgreSQL-backed web workbench (`apps/local`), and the public CommitFest companion (`apps/web`) into one monorepo on `main`.

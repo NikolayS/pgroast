@@ -2,42 +2,120 @@
 <html lang="en" data-theme="dark">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>pgroast.dev — PostgreSQL CommitFest Pre-Review &amp; Triage Companion</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0b0c0e" media="(prefers-color-scheme: dark)" />
+  <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>pgroast — Public CommitFest App</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
   <link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
   <header class="topbar">
     <div class="topbar-inner">
-      <button type="button" class="brand" id="web-home-btn">
-        <span class="brand-logo">pg</span>
-        <span class="brand-title">pgroast.dev</span>
-        <span class="brand-tag">CommitFest Companion</span>
-      </button>
-      <nav class="nav" id="web-nav">
-        <button type="button" class="nav-link active" data-tab="brief">Interactive Brief</button>
-        <button type="button" class="nav-link" data-tab="opinions">Model Opinions</button>
-        <button type="button" class="nav-link" data-tab="entries">All Entries</button>
-        <button type="button" class="nav-link" data-tab="coordination">Team Coordination</button>
-        <button type="button" class="nav-link" data-tab="connect">Connect Local</button>
+      <div class="brand-cluster">
+        <button type="button" class="brand" id="web-home-btn" aria-label="pgroast Public home">
+          <span class="brand-logo">pg</span>
+          <span class="brand-title">pgroast</span>
+        </button>
+        <div class="space-wrap">
+          <button type="button" class="space-pill space-public" id="web-space-btn" aria-expanded="false" aria-haspopup="dialog" title="Switch between Public App and Personal Backoffice">
+            <span class="space-dot"></span>
+            <span>Public</span>
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <nav class="nav" id="web-nav" aria-label="Primary navigation">
+        <button type="button" class="nav-link active" data-tab="brief">Brief</button>
+        <button type="button" class="nav-link" data-tab="entries">Entries</button>
+        <button type="button" class="nav-link" data-tab="opinions">Opinions</button>
+        <button type="button" class="nav-link" data-tab="coordination">Team</button>
+        <button type="button" class="nav-link" data-tab="connect">Backoffice</button>
       </nav>
+
       <div class="topbar-actions">
-        <button type="button" class="btn btn-ghost btn-sm" id="web-theme-btn">Theme</button>
-        <button type="button" class="btn btn-primary btn-sm" id="web-signin-btn">Sign in / Token</button>
+        <button type="button" class="icon-btn" id="web-quick-search-btn" aria-label="Search entries" title="Search entries">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        </button>
+        <button type="button" class="icon-btn" id="web-theme-btn" aria-label="Toggle theme" title="Toggle theme">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.41 1.41m11.32 11.32 1.41 1.41M2 12h2m16 0h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
+        </button>
+        <a class="btn btn-backoffice btn-sm desktop-only" id="web-backoffice-top-btn" href="http://127.0.0.1:3432/" target="_blank" rel="noopener" title="Open your private local Personal Backoffice (127.0.0.1:3432)">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          <span>Backoffice ↗</span>
+        </a>
       </div>
     </div>
   </header>
 
   <main class="container" id="web-main">
-    <div class="muted" style="padding:40px 0;text-align:center;">Loading CommitFest companion…</div>
+    <div class="loading-state">
+      <div class="spinner"></div>
+      <div class="muted">Loading CommitFest public app…</div>
+    </div>
   </main>
 
   <footer class="footer">
     <div class="container footer-inner">
-      <span>Companion to <a href="https://commitfest.postgresql.org/" target="_blank" rel="noopener">commitfest.postgresql.org</a> &amp; <a href="https://www.postgresql.org/list/pgsql-hackers/" target="_blank" rel="noopener">pgsql-hackers</a>. AI-assisted first passes are triage aids, never committer decisions.</span>
-      <span id="footer-db-info" class="muted"></span>
+      <span><strong>Public App</strong> — companion to <a href="https://commitfest.postgresql.org/" target="_blank" rel="noopener">commitfest.postgresql.org</a> &amp; <a href="https://www.postgresql.org/list/pgsql-hackers/" target="_blank" rel="noopener">pgsql-hackers</a> · <a href="https://github.com/NikolayS/pgroast" target="_blank" rel="noopener">GitHub (open source) ↗</a></span>
+      <span id="footer-db-info" class="dim"></span>
     </div>
   </footer>
+
+  <!-- iOS-style bottom tab bar (visible on mobile < 768px) -->
+  <nav class="bottom-nav" id="web-bottom-nav" aria-label="Mobile navigation">
+    <button type="button" class="btab active" data-tab="brief">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><rect x="7" y="10" width="3" height="7" rx="1"/><rect x="12" y="6" width="3" height="11" rx="1"/><rect x="17" y="13" width="3" height="4" rx="1"/></svg>
+      <span>Brief</span>
+    </button>
+    <button type="button" class="btab" data-tab="entries">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/></svg>
+      <span>Entries</span>
+    </button>
+    <button type="button" class="btab" data-tab="opinions">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      <span>Opinions</span>
+    </button>
+    <button type="button" class="btab" data-tab="coordination">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      <span>Team</span>
+    </button>
+    <button type="button" class="btab" data-tab="connect">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+      <span>Backoffice</span>
+    </button>
+  </nav>
+
+  <!-- Space Switcher Sheet (Public App <-> Personal Backoffice) -->
+  <div class="sheet-backdrop" id="space-backdrop" hidden>
+    <div class="sheet sheet-compact" id="space-sheet" role="dialog" aria-modal="true" aria-label="Switch pgroast space">
+      <div class="sheet-handle-wrap"><div class="sheet-handle"></div></div>
+      <div class="sheet-head">
+        <strong style="font-size:14px;">Switch Space</strong>
+        <button type="button" class="icon-btn" id="space-close-btn" aria-label="Close">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+        </button>
+      </div>
+      <div class="sheet-body" id="space-sheet-body"></div>
+    </div>
+  </div>
+
+  <!-- Linear-style detail sheet / drawer -->
+  <div class="sheet-backdrop" id="detail-backdrop" hidden>
+    <div class="sheet" id="detail-sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
+      <div class="sheet-handle-wrap"><div class="sheet-handle"></div></div>
+      <div class="sheet-head">
+        <div id="sheet-meta-top" class="row" style="gap:6px;"></div>
+        <button type="button" class="icon-btn" id="sheet-close-btn" aria-label="Close">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+        </button>
+      </div>
+      <div class="sheet-body" id="sheet-body"></div>
+    </div>
+  </div>
 
   <script type="module" src="/app.js"></script>
 </body>
