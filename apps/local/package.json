@@ -1,6 +1,6 @@
 {
   "name": "pgroast-app",
-  "version": "0.3.0-alpha.2",
+  "version": "0.3.0-alpha.3",
   "description": "Local-first PostgreSQL CommitFest, -hackers, and -bugs workbench driven by Claude Code and Antigravity under human supervision.",
   "private": true,
   "type": "module",

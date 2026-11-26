@@ -1,6 +1,6 @@
 {
   "name": "pgroast-web",
-  "version": "0.3.0-alpha.2",
+  "version": "0.3.0-alpha.3",
   "private": true,
   "type": "module",
   "description": "Public PostgreSQL CommitFest pre-review companion, interactive & downloadable briefs, and multi-contributor model opinions (pgroast.dev)",

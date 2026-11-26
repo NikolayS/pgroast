@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { renderBriefMarkdown, renderInteractiveBriefHtml } from "./brief.ts";
 import { loadWebConfig, WEB_ROOT, type WebConfig } from "./config.ts";
 import { WebDatabase, type PublicEntryRecord } from "./db.ts";
+import { fetchMrDiffForCf, fetchMrDiscussionForCf } from "./mr.ts";
 import { checkPublicPayloadSafe, securityHeaders } from "./security.ts";
 
 function escAttr(s: unknown): string {
@@ -384,6 +385,29 @@ export async function createWebHandler(opts?: { db?: WebDatabase; config?: Parti
         ]);
         const consensus = computePatchConsensus(opinions, entry?.verdict);
         return json({ cf_id: cfId, entry, opinions, coordination, consensus }, 200, req);
+      }
+
+      const entryThreadMatch = path.match(/^\/api\/v1\/entries\/(\d+)\/thread$/);
+      if (method === "GET" && entryThreadMatch) {
+        const cfId = Number(entryThreadMatch[1]);
+        const entry = await db.getEntry(cfId);
+        try {
+          const discussion = await fetchMrDiscussionForCf(cfId, entry?.thread_url || undefined);
+          return json(discussion, 200, req);
+        } catch (err) {
+          return errJson(err instanceof Error ? err.message : String(err), 404);
+        }
+      }
+
+      const entryDiffMatch = path.match(/^\/api\/v1\/entries\/(\d+)\/diff$/);
+      if (method === "GET" && entryDiffMatch) {
+        const cfId = Number(entryDiffMatch[1]);
+        try {
+          const diff = await fetchMrDiffForCf(cfId);
+          return json(diff, 200, req);
+        } catch (err) {
+          return errJson(err instanceof Error ? err.message : String(err), 404);
+        }
       }
 
       if (method === "GET" && path === "/api/v1/opinions") {

@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { WebDatabase } from "../src/db.ts";
+import { parseMrUnifiedDiff, splitBodyIntoBlocks } from "../src/mr.ts";
 import { createWebHandler } from "../src/server.ts";
 
 let db: WebDatabase;
@@ -102,5 +103,38 @@ describe("pgroast-web public companion API & security gates", () => {
     const dlMd = await req("/briefs/pg20-3-brief/download.md");
     expect(dlMd.status).toBe(200);
     expect(await dlMd.text()).toContain("CF 5879");
+
+    // Patch collaboration endpoint returns entry, opinions, and unanimous consensus
+    const patchRes = await req("/api/v1/entries/5879");
+    expect(patchRes.status).toBe(200);
+    const patchJson = (await patchRes.json()) as { consensus: { status: string; totalOpinions: number }; opinions: unknown[] };
+    expect(patchJson.consensus.status).toBe("unanimous");
+    expect(patchJson.consensus.totalOpinions).toBe(1);
+    expect(patchJson.opinions.length).toBe(1);
+
+    // Patch HTML page renders dynamic title & OG tags
+    const patchHtmlRes = await req("/patch/5879");
+    expect(patchHtmlRes.status).toBe(200);
+    const patchHtml = await patchHtmlRes.text();
+    expect(patchHtml).toContain("CF 5879: amcheck: support for GiST");
+    expect(patchHtml).toContain("og:title");
+  });
+
+  test("MR helpers split quoted -hackers blocks and parse unified diffs cleanly", () => {
+    const blocks = splitBodyIntoBlocks("Hi,\n\n> On Tue, Alice wrote:\n> > old quote\n\nLooks good to me!\n");
+    expect(blocks.length).toBe(3);
+    expect(blocks[0]?.kind).toBe("text");
+    expect(blocks[1]?.kind).toBe("quote");
+    expect(blocks[1]?.lineCount).toBe(2);
+    expect(blocks[2]?.kind).toBe("text");
+    expect(blocks[2]?.content).toContain("Looks good to me!");
+
+    const diff = parseMrUnifiedDiff(
+      "diff --git a/src/foo.c b/src/foo.c\n--- a/src/foo.c\n+++ b/src/foo.c\n@@ -10,2 +10,3 @@\n ctx\n-old\n+new1\n+new2\n",
+    );
+    expect(diff.files.length).toBe(1);
+    expect(diff.totalAdditions).toBe(2);
+    expect(diff.totalDeletions).toBe(1);
+    expect(diff.files[0]?.hunks[0]?.lines.length).toBe(4);
   });
 });

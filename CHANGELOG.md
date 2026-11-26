@@ -1,5 +1,22 @@
 # Changelog
 
+## v0.3.0-alpha.3 (2026-11-26)
+
+This release adds GitLab MR-style `Discussion` and `Changes` tabs to every public patch page (`/patch/<cf-id>`) and promotes CommitFest analytics and leaderboards to a dedicated top-level **Stats** tab in the Public App (`apps/web`).
+
+### Changes
+
+- **GitLab MR-style `-hackers` Discussion & CFBot Diff tabs on `/patch/<cf-id>` (`apps/web/src/mr.ts`):**
+  - Added `GET /api/v1/entries/:id/thread` (reusing `src/thread/parse.ts` with a 15-minute TTL cache) to render `pgsql-hackers` threads as a clean chronological MR timeline.
+  - Collapsed `> quoted` email replies into expandable `<details>` folds, added inline system events when new patch revisions are uploaded (`v1`, `v2`, `v2026-09`), marked the original author with an `Author` badge, and listed downloadable patch attachment chips with quick revision-jump pills.
+  - Added `GET /api/v1/entries/:id/diff` (15-minute TTL cache) to pull and render the latest unified diff from `postgresql-cfbot` (`master...cf/<id>.diff`) with file summary (`+additions / -deletions`), collapsible file cards, and syntax-tinted hunks.
+  - Both tabs stay strictly read-only on the public site and link directly to your local Personal Backoffice (`http://127.0.0.1:3432/?cf=<id>`) to draft replies or comment inline.
+- **First-class Public `Stats` tab (`apps/web`):**
+  - Added a dedicated **Stats** tab in both desktop navigation and the iPhone bottom tab bar.
+  - Includes CommitFest throughput and AI review coverage KPIs, verdict distribution donut, heat-shaded Status × Verdict matrix, PostgreSQL subsystem health bars (open, clean, and Ready for Committer signal), and clickable **Top Authors / Top Reviewers / Top Committers** leaderboards (3-column on desktop, segmented switcher on iPhone).
+- **Tests:**
+  - Added unit tests for `/api/v1/entries/:id` consensus, dynamic `/patch/:id` OpenGraph tags, quoted `-hackers` block splitting, and unified diff parsing (`198` total passing tests across the monorepo).
+
 ## v0.3.0-alpha.2 (2026-11-26)
 
 This update makes the Public App (`apps/web`) work smoothly on iPhone, turns every CommitFest entry into a full patch collaboration page (`/patch/<cf-id>`), adds a clear Space Switcher between the Public App and your Personal Backoffice (`apps/local`), and fixes cross-site handoff into `http://127.0.0.1:3432`.

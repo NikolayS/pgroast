@@ -1,4 +1,77 @@
-type TabId = "brief" | "entries" | "opinions" | "coordination" | "connect";
+type TabId = "brief" | "stats" | "entries" | "opinions" | "coordination" | "connect";
+type MrTabId = "overview" | "discussion" | "changes";
+
+interface MrBodyBlock {
+  kind: "text" | "quote";
+  content: string;
+  lineCount: number;
+}
+
+interface MrAttachment {
+  name: string;
+  url: string;
+  contentType: string;
+  sizeText: string;
+  isPatch: boolean;
+  isNoCfbot: boolean;
+}
+
+interface MrTimelineMessage {
+  index: number;
+  messageId: string;
+  url: string;
+  from: string;
+  date: string;
+  subject: string;
+  isAuthor: boolean;
+  patchRevision: string | null;
+  patchCount: number;
+  blocks: MrBodyBlock[];
+  attachments: MrAttachment[];
+}
+
+interface MrDiscussionData {
+  cfId: number;
+  threadUrl: string;
+  subject: string;
+  lists: string[];
+  messageCount: number;
+  participants: Array<{ name: string; count: number; isAuthor: boolean }>;
+  revisions: Array<{ tag: string; date: string; from: string; messageIndex: number; fileCount: number }>;
+  messages: MrTimelineMessage[];
+  cachedAt: string;
+}
+
+interface MrDiffLine {
+  type: "ctx" | "add" | "del";
+  oldLine: number | null;
+  newLine: number | null;
+  content: string;
+}
+
+interface MrDiffHunk {
+  header: string;
+  lines: MrDiffLine[];
+}
+
+interface MrDiffFile {
+  oldPath: string;
+  newPath: string;
+  additions: number;
+  deletions: number;
+  hunks: MrDiffHunk[];
+}
+
+interface MrDiffData {
+  cfId: number;
+  source: string;
+  compareUrl: string;
+  files: MrDiffFile[];
+  totalAdditions: number;
+  totalDeletions: number;
+  truncated: boolean;
+  cachedAt: string;
+}
 
 interface HealthInfo {
   database: { version: string; database: string };
@@ -18,10 +91,15 @@ interface BriefSummary {
 }
 
 interface BriefStats {
-  totals?: { total?: number; open?: number; closed?: number; roasted?: number; unroasted?: number };
+  totals?: { total?: number; open?: number; closed?: number; roasted?: number; unroasted?: number; openRoasted?: number; openUnroasted?: number };
   verdicts?: Array<{ verdict: string; all: number; open: number }>;
   statusMatrix?: Array<{ status: string; isClosed: boolean; total: number; counts: Record<string, number> }>;
   topTopics?: Array<{ topic: string; total: number; open: number; roasted: number; clean: number; ready: number }>;
+  leaderboards?: {
+    authors?: Array<{ name: string; count: number }>;
+    reviewers?: Array<{ name: string; count: number }>;
+    committers?: Array<{ name: string; count: number }>;
+  };
 }
 
 interface BriefShortlistItem {
@@ -132,8 +210,16 @@ const state = {
   tab: "brief" as TabId,
   returnTab: "brief" as TabId,
   activePatchId: null as number | null,
+  mrTab: "overview" as MrTabId,
   patchLoading: false,
   patchData: null as PatchPageData | null,
+  mrDiscussionLoading: false,
+  mrDiscussionError: "",
+  mrDiscussion: null as MrDiscussionData | null,
+  mrDiffLoading: false,
+  mrDiffError: "",
+  mrDiff: null as MrDiffData | null,
+  statsLbTab: "authors" as "authors" | "reviewers" | "committers",
   health: null as HealthInfo | null,
   briefs: [] as BriefSummary[],
   selectedBriefSlug: "latest",
@@ -264,15 +350,60 @@ function parseRouteFromLocation(): { patchId: number | null; tab: TabId } {
   const cfParam = Number(pathMatch?.[1] || u.searchParams.get("cf") || 0);
   if (cfParam > 0) return { patchId: cfParam, tab: state.tab };
   const tabParam = u.searchParams.get("tab") as TabId | null;
-  const validTabs: TabId[] = ["brief", "entries", "opinions", "coordination", "connect"];
+  const validTabs: TabId[] = ["brief", "stats", "entries", "opinions", "coordination", "connect"];
   return { patchId: null, tab: tabParam && validTabs.includes(tabParam) ? tabParam : "brief" };
+}
+
+async function loadMrDiscussion(cfId: number): Promise<void> {
+  if (state.mrDiscussion?.cfId === cfId || state.mrDiscussionLoading) return;
+  state.mrDiscussionLoading = true;
+  state.mrDiscussionError = "";
+  render();
+  try {
+    const data = await api<MrDiscussionData>(`/api/v1/entries/${cfId}/thread`);
+    if (state.activePatchId !== cfId) return;
+    state.mrDiscussion = data;
+    state.mrDiscussionLoading = false;
+    render();
+  } catch (err) {
+    if (state.activePatchId !== cfId) return;
+    state.mrDiscussionLoading = false;
+    state.mrDiscussionError = err instanceof Error ? err.message : String(err);
+    render();
+  }
+}
+
+async function loadMrDiff(cfId: number): Promise<void> {
+  if (state.mrDiff?.cfId === cfId || state.mrDiffLoading) return;
+  state.mrDiffLoading = true;
+  state.mrDiffError = "";
+  render();
+  try {
+    const data = await api<MrDiffData>(`/api/v1/entries/${cfId}/diff`);
+    if (state.activePatchId !== cfId) return;
+    state.mrDiff = data;
+    state.mrDiffLoading = false;
+    render();
+  } catch (err) {
+    if (state.activePatchId !== cfId) return;
+    state.mrDiffLoading = false;
+    state.mrDiffError = err instanceof Error ? err.message : String(err);
+    render();
+  }
 }
 
 async function openPatchPage(cfId: number, pushHistory = true): Promise<void> {
   if (!state.activePatchId) state.returnTab = state.tab;
   state.activePatchId = cfId;
+  state.mrTab = "overview";
   state.patchLoading = true;
   state.patchData = null;
+  state.mrDiscussion = null;
+  state.mrDiscussionLoading = false;
+  state.mrDiscussionError = "";
+  state.mrDiff = null;
+  state.mrDiffLoading = false;
+  state.mrDiffError = "";
   syncTopBackofficeLink();
 
   if (pushHistory) {
@@ -461,6 +592,239 @@ function formatModelsLabel(modelsJson: string): string {
   }
 }
 
+function renderMrDiscussionTab(cfId: number, backofficeHref: string): string {
+  if (state.mrDiscussionLoading) {
+    return `
+      <div class="card">
+        <div class="loading-state" style="padding:36px 0;">
+          <div class="spinner"></div>
+          <div class="muted">Loading pgsql-hackers discussion thread for CF ${cfId}…</div>
+        </div>
+      </div>
+    `;
+  }
+  if (state.mrDiscussionError) {
+    return `
+      <div class="card">
+        <div class="empty-state">
+          <div style="font-weight:600;color:var(--text);margin-bottom:6px;">Could not load -hackers discussion</div>
+          <div class="muted" style="margin-bottom:12px;">${esc(state.mrDiscussionError)}</div>
+          <div class="row" style="justify-content:center;gap:8px;">
+            <button type="button" class="btn btn-secondary" id="mr-retry-thread-btn">Retry</button>
+            <a class="btn btn-primary" href="https://commitfest.postgresql.org/patch/${cfId}/" target="_blank" rel="noopener">Open on CommitFest ↗</a>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+  const disc = state.mrDiscussion;
+  if (!disc || disc.messages.length === 0) {
+    return `<div class="card"><div class="empty-state">No messages found on this thread yet.</div></div>`;
+  }
+
+  return `
+    <div class="mr-toolbar">
+      <div class="row" style="gap:6px;">
+        <span class="tag-micro"><strong>${disc.messageCount}</strong> messages</span>
+        <span class="tag-micro"><strong>${disc.participants.length}</strong> participants</span>
+        ${disc.revisions.length ? `<span class="tag-micro" style="color:var(--ok);"><strong>${disc.revisions.length}</strong> patch upload${disc.revisions.length === 1 ? "" : "s"}</span>` : ""}
+      </div>
+      <div class="row" style="gap:6px;">
+        <button type="button" class="btn btn-ghost btn-sm" id="mr-toggle-quotes-btn">Expand quotes</button>
+        <button type="button" class="btn btn-secondary btn-sm" id="mr-jump-latest-btn">Latest ↓</button>
+        <a class="btn btn-backoffice btn-sm" href="${esc(backofficeHref)}" target="_blank" rel="noopener">Reply in Backoffice ↗</a>
+      </div>
+    </div>
+
+    ${
+      disc.revisions.length > 0
+        ? `
+      <div class="chips" style="margin-bottom:12px;" aria-label="Patch revisions">
+        ${disc.revisions
+          .map(
+            (r) => `
+          <button type="button" class="chip" data-jump-msg="${r.messageIndex}">
+            <span class="dot" style="background:var(--ok)"></span>
+            <strong class="mono">${esc(r.tag)}</strong>
+            <span class="dim">${esc(r.date.slice(0, 10))}</span>
+          </button>
+        `,
+          )
+          .join("")}
+      </div>
+    `
+        : ""
+    }
+
+    <div class="mr-timeline" id="mr-timeline">
+      ${disc.messages
+        .map((m) => {
+          const initials = (m.from || "?").slice(0, 2).toUpperCase();
+          const sysEvent =
+            m.patchRevision && m.patchCount > 0
+              ? `
+            <div class="mr-sys-event">
+              <span class="mr-sys-icon">↑</span>
+              <span><strong>${esc(m.from)}</strong> uploaded <strong class="mono">${esc(m.patchRevision)}</strong> (${m.patchCount} patch file${m.patchCount === 1 ? "" : "s"}) · <span class="mono dim">${esc(m.date.slice(0, 10))}</span></span>
+            </div>
+          `
+              : "";
+          const bodyHtml = m.blocks
+            .map((b) => {
+              if (b.kind === "quote") {
+                return `
+                  <details class="mr-quote-fold">
+                    <summary>▸ Show quoted text (${b.lineCount} line${b.lineCount === 1 ? "" : "s"})</summary>
+                    <pre class="mr-quote-pre">${esc(b.content)}</pre>
+                  </details>
+                `;
+              }
+              return `<p class="mr-text-block">${esc(b.content)}</p>`;
+            })
+            .join("");
+          const attHtml =
+            m.attachments.length > 0
+              ? `
+            <div class="mr-att-row">
+              ${m.attachments
+                .map(
+                  (a) => `
+                <a class="mr-att-chip ${a.isPatch && !a.isNoCfbot ? "is-patch" : ""}" href="${esc(a.url)}" target="_blank" rel="noopener">
+                  <span>${a.isPatch ? "🩹" : "📎"}</span>
+                  <span class="mono">${esc(a.name)}</span>
+                  ${a.sizeText ? `<span class="dim">${esc(a.sizeText)}</span>` : ""}
+                </a>
+              `,
+                )
+                .join("")}
+            </div>
+          `
+              : "";
+          return `
+            ${sysEvent}
+            <article class="mr-msg ${m.isAuthor ? "is-author" : ""}" id="mr-msg-${m.index}">
+              <div class="mr-msg-head">
+                <div class="mr-msg-author">
+                  <span class="mr-avatar">${esc(initials)}</span>
+                  <strong style="font-size:13px;">${esc(m.from)}</strong>
+                  ${m.isAuthor ? `<span class="mr-author-badge">Author</span>` : ""}
+                  ${m.patchRevision ? `<span class="mr-rev-badge mono">${esc(m.patchRevision)}</span>` : ""}
+                </div>
+                <div class="row" style="gap:8px;font-size:11.5px;">
+                  <span class="mono dim">#${m.index + 1} · ${esc(m.date.slice(0, 16).replace("T", " "))} UTC</span>
+                  <a href="${esc(m.url)}" target="_blank" rel="noopener">Archive ↗</a>
+                </div>
+              </div>
+              <div class="mr-msg-body">${bodyHtml || `<span class="muted">(empty body)</span>`}</div>
+              ${attHtml}
+            </article>
+          `;
+        })
+        .join("")}
+    </div>
+
+    <div class="collab-cta" style="margin-top:14px;">
+      <div style="font-weight:600;font-size:13.5px;">Read-only archive view</div>
+      <div class="muted" style="font-size:12.5px;">
+        Public discussions never auto-post to <code>pgsql-hackers</code>. Open CF ${cfId} in your Personal Backoffice to draft a plain-text 72-column reply with all 4 safety gates.
+      </div>
+      <div class="row" style="gap:8px;">
+        <a class="btn btn-primary btn-sm" href="${esc(backofficeHref)}" target="_blank" rel="noopener">Draft reply in Backoffice ↗</a>
+        <a class="btn btn-secondary btn-sm" href="${esc(disc.threadUrl)}" target="_blank" rel="noopener">Original postgresql.org thread ↗</a>
+      </div>
+    </div>
+  `;
+}
+
+function renderMrDiffTab(cfId: number, backofficeHref: string): string {
+  if (state.mrDiffLoading) {
+    return `
+      <div class="card">
+        <div class="loading-state" style="padding:36px 0;">
+          <div class="spinner"></div>
+          <div class="muted">Fetching latest CFBot unified diff (master…cf/${cfId})…</div>
+        </div>
+      </div>
+    `;
+  }
+  if (state.mrDiffError) {
+    return `
+      <div class="card">
+        <div class="empty-state">
+          <div style="font-weight:600;color:var(--text);margin-bottom:6px;">CFBot diff unavailable</div>
+          <div class="muted" style="max-width:520px;margin:0 auto 12px;">${esc(state.mrDiffError)}</div>
+          <div class="row" style="justify-content:center;gap:8px;">
+            <button type="button" class="btn btn-secondary" id="mr-retry-diff-btn">Retry</button>
+            <a class="btn btn-primary" href="https://commitfest.postgresql.org/patch/${cfId}/" target="_blank" rel="noopener">Check patch on CommitFest ↗</a>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+  const diff = state.mrDiff;
+  if (!diff || diff.files.length === 0) {
+    return `<div class="card"><div class="empty-state">No diff hunks available for CF ${cfId}.</div></div>`;
+  }
+
+  return `
+    <div class="mr-toolbar">
+      <div class="row" style="gap:8px;">
+        <span class="tag-micro"><strong>${diff.files.length}</strong> file${diff.files.length === 1 ? "" : "s"}</span>
+        <span class="mono diff-stat-add">+${diff.totalAdditions}</span>
+        <span class="mono diff-stat-del">-${diff.totalDeletions}</span>
+        ${diff.truncated ? `<span class="tag-micro tag-wa">Truncated for fast browsing</span>` : ""}
+      </div>
+      <div class="row" style="gap:6px;">
+        <button type="button" class="btn btn-ghost btn-sm" id="mr-toggle-files-btn">Collapse all</button>
+        <a class="btn btn-secondary btn-sm" href="${esc(diff.compareUrl)}" target="_blank" rel="noopener">GitHub Compare ↗</a>
+        <a class="btn btn-backoffice btn-sm" href="${esc(backofficeHref)}" target="_blank" rel="noopener">Comment inline in Backoffice ↗</a>
+      </div>
+    </div>
+
+    <div class="diff-files" id="mr-diff-files">
+      ${diff.files
+        .map(
+          (f, idx) => `
+        <details class="diff-file" ${idx < 5 ? "open" : ""}>
+          <summary>
+            <span class="diff-path">${esc(f.newPath || f.oldPath)}</span>
+            <span class="row" style="gap:8px;flex-shrink:0;">
+              <span class="mono diff-stat-add">+${f.additions}</span>
+              <span class="mono diff-stat-del">-${f.deletions}</span>
+            </span>
+          </summary>
+          <div class="diff-scroll">
+            <table class="diff-table">
+              <tbody>
+                ${f.hunks
+                  .map(
+                    (h) => `
+                  <tr class="diff-hunk"><td colspan="3">${esc(h.header)}</td></tr>
+                  ${h.lines
+                    .map(
+                      (ln) => `
+                    <tr class="diff-${ln.type}">
+                      <td class="diff-ln">${ln.oldLine ?? ""}</td>
+                      <td class="diff-ln">${ln.newLine ?? ""}</td>
+                      <td class="diff-code">${ln.type === "add" ? "+" : ln.type === "del" ? "-" : " "}${esc(ln.content)}</td>
+                    </tr>
+                  `,
+                    )
+                    .join("")}
+                `,
+                  )
+                  .join("")}
+              </tbody>
+            </table>
+          </div>
+        </details>
+      `,
+        )
+        .join("")}
+    </div>
+  `;
+}
+
 function renderPatchPage(): string {
   const cfId = state.activePatchId!;
   const slMatch = state.briefDetail?.shortlist.find((x) => x.cf_id === cfId);
@@ -488,8 +852,14 @@ function renderPatchPage(): string {
   const coordination = state.patchData?.coordination ?? state.coordination.filter((c) => c.cf_id === cfId);
   const consensus = state.patchData?.consensus;
 
-  const backLabel = state.returnTab === "entries" ? "Entries" : state.returnTab === "opinions" ? "Opinions" : "Brief";
-  const publicShareHref = `${window.location.origin}/patch/${cfId}`;
+  const backLabel =
+    state.returnTab === "entries"
+      ? "Entries"
+      : state.returnTab === "opinions"
+        ? "Opinions"
+        : state.returnTab === "stats"
+          ? "Stats"
+          : "Brief";
   const backofficeHref = getLocalBackofficeUrl(cfId);
 
   // Build visual consensus bar segments
@@ -551,6 +921,27 @@ function renderPatchPage(): string {
       </div>
     </div>
 
+    <div class="mr-tabs" role="tablist" aria-label="Patch MR views">
+      <button type="button" class="mr-tab ${state.mrTab === "overview" ? "active" : ""}" data-mr-tab="overview">
+        <span>Overview &amp; Consensus</span>
+        <span class="mr-tab-count">${opinions.length}</span>
+      </button>
+      <button type="button" class="mr-tab ${state.mrTab === "discussion" ? "active" : ""}" data-mr-tab="discussion">
+        <span>Discussion</span>
+        ${state.mrDiscussion ? `<span class="mr-tab-count">${state.mrDiscussion.messageCount}</span>` : ""}
+      </button>
+      <button type="button" class="mr-tab ${state.mrTab === "changes" ? "active" : ""}" data-mr-tab="changes">
+        <span>Changes</span>
+        ${state.mrDiff ? `<span class="mr-tab-count">${state.mrDiff.files.length}</span>` : ""}
+      </button>
+    </div>
+
+    ${
+      state.mrTab === "discussion"
+        ? renderMrDiscussionTab(cfId, backofficeHref)
+        : state.mrTab === "changes"
+          ? renderMrDiffTab(cfId, backofficeHref)
+          : `
     <div class="patch-grid">
       <div class="patch-main">
         <!-- 1. Common Ground & Consensus -->
@@ -770,6 +1161,275 @@ function renderPatchPage(): string {
           </div>
         </div>
       </aside>
+    </div>
+    `
+    }
+  `;
+}
+
+/* ---- First-Class Public Stats Tab ---- */
+function renderStatsTab(): string {
+  const brief = state.briefDetail;
+  if (!brief) {
+    return `<div class="card"><div class="empty-state">No CommitFest brief stats published yet.</div></div>`;
+  }
+  const stats = brief.stats || {};
+  const verdicts = stats.verdicts ?? [];
+  const vCount = (k: string) => verdicts.find((x) => x.verdict === k)?.all ?? 0;
+  const total = stats.totals?.total ?? state.entries.length;
+  const openCount = stats.totals?.open ?? 0;
+  const closedCount = stats.totals?.closed ?? 0;
+  const roasted = stats.totals?.roasted ?? Math.max(0, total - vCount("UNROASTED"));
+  const coveragePct = total > 0 ? Math.round((roasted / total) * 100) : 0;
+  const rfcCount = (stats.statusMatrix ?? []).find((r) => r.status.toLowerCase().includes("ready for committer"))?.total ?? 0;
+
+  const donutSegments = [
+    { key: "NO-FUNDAMENTAL-OBJECTION", label: "No fundamental objection", value: vCount("NO-FUNDAMENTAL-OBJECTION"), color: "#4cb782" },
+    { key: "NEEDS-COMMITTER-EYES", label: "Needs committer eyes", value: vCount("NEEDS-COMMITTER-EYES"), color: "#5e6ad2" },
+    { key: "NEEDS-DESIGN-DISCUSSION", label: "Needs design discussion", value: vCount("NEEDS-DESIGN-DISCUSSION"), color: "#e0a83c" },
+    { key: "LIKELY-REJECT", label: "Likely reject", value: vCount("LIKELY-REJECT"), color: "#eb5757" },
+    { key: "UNROASTED", label: "Not reviewed", value: vCount("UNROASTED"), color: "#737682" },
+  ];
+
+  const matrixRows = stats.statusMatrix ?? [];
+  const maxMatrixCell = Math.max(
+    1,
+    ...matrixRows.flatMap((r) => [
+      r.counts["NO-FUNDAMENTAL-OBJECTION"] ?? 0,
+      r.counts["NEEDS-COMMITTER-EYES"] ?? 0,
+      r.counts["NEEDS-DESIGN-DISCUSSION"] ?? 0,
+      r.counts["LIKELY-REJECT"] ?? 0,
+    ]),
+  );
+  const heatStyle = (val: number, rgb: string) => {
+    if (!val) return "";
+    const alpha = Math.min(0.32, 0.06 + (val / maxMatrixCell) * 0.26).toFixed(2);
+    return `background:rgb(${rgb} / ${alpha});font-weight:600;`;
+  };
+
+  // Subsystems with open + clean + ready breakdown
+  const topics = (stats.topTopics ?? []).slice(0, 14);
+  const maxTopicTotal = Math.max(1, ...topics.map((t) => t.total || t.open));
+
+  // Compute leaderboards from stats.leaderboards OR derive from entries on the fly if absent!
+  const deriveLeaderboard = (field: "authors" | "reviewers" | "committer"): Array<{ name: string; count: number }> => {
+    const counts = new Map<string, number>();
+    for (const e of state.entries) {
+      const raw = (e[field] || "").trim();
+      if (!raw || raw === "—") continue;
+      for (const part of raw.split(/,\s*/)) {
+        const clean = part.replace(/\s*\([^)]*\)\s*/g, "").trim();
+        if (!clean || clean === "—") continue;
+        counts.set(clean, (counts.get(clean) || 0) + 1);
+      }
+    }
+    return Array.from(counts.entries())
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 15);
+  };
+
+  const authorsLb = stats.leaderboards?.authors?.length ? stats.leaderboards.authors.slice(0, 15) : deriveLeaderboard("authors");
+  const reviewersLb = stats.leaderboards?.reviewers?.length ? stats.leaderboards.reviewers.slice(0, 15) : deriveLeaderboard("reviewers");
+  const committersLb = stats.leaderboards?.committers?.length ? stats.leaderboards.committers.slice(0, 15) : deriveLeaderboard("committer");
+
+  // Multi-model opinion stats
+  const uniqueOpReviewers = new Set(state.opinions.map((o) => o.contributor_handle || o.contributor_name)).size;
+  const uniqueOpModels = new Set(state.opinions.map((o) => o.backend)).size;
+
+  const renderLbCard = (id: "authors" | "reviewers" | "committers", title: string, rows: Array<{ name: string; count: number }>) => `
+    <div class="card lb-card ${state.statsLbTab !== id ? "mobile-hidden" : ""}" style="margin-bottom:0;">
+      <div class="card-head" style="margin-bottom:8px;">
+        <h3>${title}</h3>
+        <span class="dim" style="font-size:11.5px;">Tap to filter</span>
+      </div>
+      <div class="lb-list">
+        ${
+          rows.length === 0
+            ? `<div class="muted" style="font-size:12px;">No data.</div>`
+            : rows
+                .map(
+                  (r, i) => `
+            <button type="button" class="lb-row" data-stats-person="${esc(r.name)}">
+              <span class="lb-rank mono">${i + 1}</span>
+              <span class="lb-name">${esc(r.name)}</span>
+              <span class="lb-count mono">${r.count}</span>
+            </button>
+          `,
+                )
+                .join("")
+        }
+      </div>
+    </div>
+  `;
+
+  return `
+    <div class="page-head">
+      <div>
+        <h1 class="page-title">CommitFest Stats &amp; Intelligence</h1>
+        <div class="page-sub">${esc(brief.commitfest_label)} · Updated ${esc(brief.created_at.slice(0, 10))} · Click any metric, cell, subsystem, or person to drill into Entries</div>
+      </div>
+      <div class="row" style="gap:6px;">
+        <a class="btn btn-secondary btn-sm" href="/briefs/${encodeURIComponent(brief.slug)}/download.html">Download HTML</a>
+        <a class="btn btn-ghost btn-sm" href="/briefs/${encodeURIComponent(brief.slug)}/download.json">JSON</a>
+      </div>
+    </div>
+
+    <div class="kpis">
+      <button type="button" class="kpi" data-jump-verdict="all">
+        <div class="kpi-l">Total entries</div>
+        <div class="kpi-v">${total}</div>
+        <div class="kpi-sub">${openCount} open · ${closedCount} closed</div>
+      </button>
+      <button type="button" class="kpi" data-jump-verdict="all">
+        <div class="kpi-l">AI review coverage</div>
+        <div class="kpi-v">${coveragePct}%</div>
+        <div class="kpi-sub">${roasted} of ${total} reviewed</div>
+      </button>
+      <button type="button" class="kpi" data-stats-status="Ready for Committer">
+        <div class="kpi-l"><span class="dot" style="background:var(--ok)"></span>Ready for Committer</div>
+        <div class="kpi-v" style="color:var(--ok)">${rfcCount}</div>
+        <div class="kpi-sub">Tap to view queue</div>
+      </button>
+      <button type="button" class="kpi" data-jump-verdict="NO-FUNDAMENTAL-OBJECTION">
+        <div class="kpi-l"><span class="dot" style="background:#4cb782"></span>No objection</div>
+        <div class="kpi-v">${vCount("NO-FUNDAMENTAL-OBJECTION")}</div>
+        <div class="kpi-sub">Clean design signal</div>
+      </button>
+      <button type="button" class="kpi" data-jump-verdict="LIKELY-REJECT">
+        <div class="kpi-l"><span class="dot" style="background:#eb5757"></span>Likely reject</div>
+        <div class="kpi-v" style="color:var(--danger)">${vCount("LIKELY-REJECT")}</div>
+        <div class="kpi-sub">Closing candidates</div>
+      </button>
+      <button type="button" class="kpi" id="stats-goto-opinions">
+        <div class="kpi-l">Community opinions</div>
+        <div class="kpi-v">${state.opinions.length}</div>
+        <div class="kpi-sub">${uniqueOpReviewers} reviewers · ${uniqueOpModels} models</div>
+      </button>
+    </div>
+
+    <div class="grid2" style="margin-bottom:14px;">
+      <div class="card" style="margin-bottom:0;">
+        <div class="card-head">
+          <h2>Verdict Distribution</h2>
+          <span class="dim" style="font-size:12px;">Tap any verdict to filter</span>
+        </div>
+        <div class="donut-row">
+          ${renderSvgDonut(donutSegments)}
+          <div class="legend">
+            ${donutSegments
+              .map((s) => {
+                const pct = total > 0 ? Math.round((s.value / total) * 100) : 0;
+                return `
+              <button type="button" class="legend-btn" data-jump-verdict="${s.key}">
+                <span class="legend-left"><span class="dot" style="background:${s.color}"></span><span>${esc(s.label)}</span></span>
+                <span class="mono"><strong>${s.value}</strong> <span class="dim">(${pct}%)</span></span>
+              </button>
+            `;
+              })
+              .join("")}
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:0;">
+        <div class="card-head">
+          <h2>Top PostgreSQL Subsystems</h2>
+          <span class="dim" style="font-size:12px;">Open · Clean · Ready</span>
+        </div>
+        <div class="subsys-list">
+          ${
+            topics
+              .map((t) => {
+                const tTotal = Math.max(1, t.total || t.open);
+                const wAll = Math.max(4, Math.round((tTotal / maxTopicTotal) * 100));
+                const cleanPct = Math.round(((t.clean || 0) / tTotal) * 100);
+                const readyPct = Math.round(((t.ready || 0) / tTotal) * 100);
+                return `
+              <button type="button" class="subsys-row" data-stats-topic="${esc(t.topic)}">
+                <div class="subsys-head">
+                  <span class="hbar-label">${esc(t.topic)}</span>
+                  <span class="mono dim">${t.open || t.total} open${t.clean ? ` · <span style="color:var(--ok)">${t.clean} clean</span>` : ""}${t.ready ? ` · <span style="color:var(--accent-t)">${t.ready} RFC</span>` : ""}</span>
+                </div>
+                <div class="subsys-bar" style="width:${wAll}%;">
+                  ${cleanPct > 0 ? `<div style="width:${cleanPct}%;background:var(--ok);"></div>` : ""}
+                  ${readyPct > 0 ? `<div style="width:${readyPct}%;background:var(--accent);"></div>` : ""}
+                  <div style="flex:1;background:rgb(94 106 210 / 0.35);"></div>
+                </div>
+              </button>
+            `;
+              })
+              .join("") || `<div class="muted">No subsystem breakdown included in this brief.</div>`
+          }
+        </div>
+      </div>
+    </div>
+
+    ${
+      matrixRows.length
+        ? `
+      <div class="card">
+        <div class="card-head">
+          <h2>CommitFest Status × Verdict Heatmap</h2>
+          <span class="dim" style="font-size:12px;">Click any cell to open matching patches</span>
+        </div>
+        <div class="table-scroll">
+          <table class="matrix">
+            <thead>
+              <tr>
+                <th>CF Status</th>
+                <th class="num">Total</th>
+                <th class="num">No objection</th>
+                <th class="num">Committer eyes</th>
+                <th class="num">Design disc.</th>
+                <th class="num">Likely reject</th>
+                <th class="num">Not reviewed</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${matrixRows
+                .map((row) => {
+                  const cOk = row.counts["NO-FUNDAMENTAL-OBJECTION"] ?? 0;
+                  const cEyes = row.counts["NEEDS-COMMITTER-EYES"] ?? 0;
+                  const cDesign = row.counts["NEEDS-DESIGN-DISCUSSION"] ?? 0;
+                  const cRej = row.counts["LIKELY-REJECT"] ?? 0;
+                  const cUn = row.counts.UNROASTED ?? 0;
+                  return `
+                <tr>
+                  <td><strong>${esc(row.status)}</strong></td>
+                  <td class="num">${row.total}</td>
+                  <td class="num matrix-cell" style="${heatStyle(cOk, "76 183 130")}" data-mx-status="${esc(row.status)}" data-mx-verdict="NO-FUNDAMENTAL-OBJECTION">${cOk}</td>
+                  <td class="num matrix-cell" style="${heatStyle(cEyes, "94 106 210")}" data-mx-status="${esc(row.status)}" data-mx-verdict="NEEDS-COMMITTER-EYES">${cEyes}</td>
+                  <td class="num matrix-cell" style="${heatStyle(cDesign, "224 168 60")}" data-mx-status="${esc(row.status)}" data-mx-verdict="NEEDS-DESIGN-DISCUSSION">${cDesign}</td>
+                  <td class="num matrix-cell" style="${heatStyle(cRej, "235 87 87")}" data-mx-status="${esc(row.status)}" data-mx-verdict="LIKELY-REJECT">${cRej}</td>
+                  <td class="num dim matrix-cell" data-mx-status="${esc(row.status)}" data-mx-verdict="UNROASTED">${cUn}</td>
+                </tr>
+              `;
+                })
+                .join("")}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `
+        : ""
+    }
+
+    <div class="card-head" style="margin:16px 0 10px;">
+      <h2>Community Leaderboards</h2>
+      <span class="dim" style="font-size:12px;">Click any contributor to see their patches</span>
+    </div>
+
+    <div class="lb-mobile-seg" role="tablist" aria-label="Leaderboard categories">
+      <button type="button" class="seg-btn ${state.statsLbTab === "authors" ? "active" : ""}" data-lb-tab="authors">Authors</button>
+      <button type="button" class="seg-btn ${state.statsLbTab === "reviewers" ? "active" : ""}" data-lb-tab="reviewers">Reviewers</button>
+      <button type="button" class="seg-btn ${state.statsLbTab === "committers" ? "active" : ""}" data-lb-tab="committers">Committers</button>
+    </div>
+
+    <div class="lb-grid">
+      ${renderLbCard("authors", "Top Authors", authorsLb)}
+      ${renderLbCard("reviewers", "Top Reviewers", reviewersLb)}
+      ${renderLbCard("committers", "Top Committers", committersLb)}
     </div>
   `;
 }
@@ -1448,14 +2108,96 @@ function render(): void {
     document.getElementById("patch-copy-local-side")?.addEventListener("click", (ev) => {
       copyTextWithFeedback(ev.currentTarget as HTMLElement, backofficeHref, "Copy local link");
     });
+
+    // GitLab MR-style tab switching (Overview / Discussion / Changes)
+    document.querySelectorAll<HTMLButtonElement>("[data-mr-tab]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const next = (btn.dataset.mrTab as MrTabId) || "overview";
+        state.mrTab = next;
+        if (next === "discussion") {
+          void loadMrDiscussion(cfId);
+        } else if (next === "changes") {
+          void loadMrDiff(cfId);
+        }
+        render();
+      });
+    });
+
+    // Discussion tab controls
+    document.getElementById("mr-retry-thread-btn")?.addEventListener("click", () => {
+      state.mrDiscussion = null;
+      state.mrDiscussionError = "";
+      void loadMrDiscussion(cfId);
+    });
+    document.getElementById("mr-jump-latest-btn")?.addEventListener("click", () => {
+      const msgs = document.querySelectorAll("#mr-timeline .mr-msg");
+      msgs[msgs.length - 1]?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+    document.getElementById("mr-toggle-quotes-btn")?.addEventListener("click", (ev) => {
+      const btn = ev.currentTarget as HTMLButtonElement;
+      const folds = Array.from(document.querySelectorAll<HTMLDetailsElement>("#mr-timeline details.mr-quote-fold"));
+      const anyClosed = folds.some((d) => !d.open);
+      folds.forEach((d) => {
+        d.open = anyClosed;
+      });
+      btn.textContent = anyClosed ? "Collapse quotes" : "Expand quotes";
+    });
+    document.querySelectorAll<HTMLButtonElement>("[data-jump-msg]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        document.getElementById(`mr-msg-${btn.dataset.jumpMsg}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+    });
+
+    // Changes tab controls
+    document.getElementById("mr-retry-diff-btn")?.addEventListener("click", () => {
+      state.mrDiff = null;
+      state.mrDiffError = "";
+      void loadMrDiff(cfId);
+    });
+    document.getElementById("mr-toggle-files-btn")?.addEventListener("click", (ev) => {
+      const btn = ev.currentTarget as HTMLButtonElement;
+      const files = Array.from(document.querySelectorAll<HTMLDetailsElement>("#mr-diff-files details.diff-file"));
+      const anyOpen = files.some((d) => d.open);
+      files.forEach((d) => {
+        d.open = !anyOpen;
+      });
+      btn.textContent = anyOpen ? "Expand all" : "Collapse all";
+    });
     return;
   }
 
   if (state.tab === "brief") root.innerHTML = renderBriefTab();
+  else if (state.tab === "stats") root.innerHTML = renderStatsTab();
   else if (state.tab === "entries") root.innerHTML = renderEntriesTab();
   else if (state.tab === "opinions") root.innerHTML = renderOpinionsTab();
   else if (state.tab === "coordination") root.innerHTML = renderCoordinationTab();
   else root.innerHTML = renderConnectTab();
+
+  // Stats tab events
+  if (state.tab === "stats") {
+    document.getElementById("stats-goto-opinions")?.addEventListener("click", () => navigateToTab("opinions"));
+    document.querySelectorAll<HTMLElement>("[data-stats-status]").forEach((el) => {
+      el.addEventListener("click", () => {
+        jumpToEntries({ status: el.dataset.statsStatus || "all", verdict: "all", search: "" });
+      });
+    });
+    document.querySelectorAll<HTMLElement>("[data-stats-topic]").forEach((el) => {
+      el.addEventListener("click", () => {
+        jumpToEntries({ search: el.dataset.statsTopic || "", verdict: "all", status: "all" });
+      });
+    });
+    document.querySelectorAll<HTMLElement>("[data-stats-person]").forEach((el) => {
+      el.addEventListener("click", () => {
+        jumpToEntries({ search: el.dataset.statsPerson || "", verdict: "all", status: "all" });
+      });
+    });
+    document.querySelectorAll<HTMLButtonElement>("[data-lb-tab]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        state.statsLbTab = (btn.dataset.lbTab as typeof state.statsLbTab) || "authors";
+        render();
+      });
+    });
+  }
 
   // Shared row links (Opinions / Coordination)
   if (state.tab === "opinions" || state.tab === "coordination") {
