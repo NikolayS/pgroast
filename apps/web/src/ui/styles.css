@@ -660,6 +660,192 @@ input, select { height: 34px; }
 .export-item:hover { background: var(--hover); }
 .export-item span.dim { font-size: 11px; font-weight: 400; }
 
+/* ---- First-Visitor Welcome / How pgroast Works Card ---- */
+.intro-card {
+  background: linear-gradient(160deg, color-mix(in srgb, var(--accent-soft) 55%, var(--surface)) 0%, var(--surface) 48%);
+  border: 1px solid var(--border-s);
+  border-radius: 14px;
+  padding: 18px 20px;
+  margin-bottom: 16px;
+}
+.intro-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+.intro-kicker {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--accent-t);
+  margin-bottom: 4px;
+}
+.intro-title {
+  margin: 0 0 6px;
+  font-size: 18px;
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+  color: var(--text);
+}
+.intro-lead {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.52;
+  color: var(--muted);
+  max-width: 78ch;
+}
+.intro-hide-btn {
+  flex-shrink: 0;
+}
+.intro-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.intro-step {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.intro-step-human {
+  border-color: color-mix(in srgb, var(--ok) 38%, var(--border));
+  background: color-mix(in srgb, var(--ok) 6%, var(--surface-2));
+}
+.intro-step-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text);
+}
+.intro-num {
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent-t);
+  font-size: 11px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.intro-step-human .intro-num {
+  background: color-mix(in srgb, var(--ok) 18%, transparent);
+  color: var(--ok);
+}
+.intro-step p {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+.intro-step strong {
+  color: var(--text);
+}
+.intro-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.intro-rbadge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  border: 1px solid var(--border-s);
+}
+.intro-rbadge-light {
+  background: color-mix(in srgb, var(--ok) 14%, transparent);
+  color: var(--ok);
+  border-color: color-mix(in srgb, var(--ok) 34%, transparent);
+}
+.intro-rbadge-medium {
+  background: color-mix(in srgb, var(--warn) 14%, transparent);
+  color: var(--warn);
+  border-color: color-mix(in srgb, var(--warn) 34%, transparent);
+}
+.intro-rbadge-dark {
+  background: color-mix(in srgb, var(--danger) 16%, transparent);
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 36%, transparent);
+}
+.intro-flavour-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.intro-flavour-list .chip {
+  font-size: 11px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--muted);
+}
+.intro-foot {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.intro-collapsed {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 12px;
+  margin-bottom: 14px;
+  border-radius: 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.intro-collapsed-text {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  line-height: 1.4;
+}
+.intro-collapsed strong {
+  color: var(--text);
+}
+@media (max-width: 720px) {
+  .intro-card {
+    padding: 14px;
+  }
+  .intro-head {
+    flex-direction: column;
+    gap: 10px;
+  }
+  .intro-title {
+    font-size: 16.5px;
+  }
+  .intro-grid {
+    grid-template-columns: 1fr;
+  }
+  .intro-collapsed {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
 /* ---- Notice Strip ---- */
 .notice-strip {
   font-size: 12px;

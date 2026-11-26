@@ -237,6 +237,13 @@ const state = {
   coordination: [] as CoordItem[],
   mintedToken: "",
   mintedHandle: "",
+  introCollapsed: (() => {
+    try {
+      return localStorage.getItem("pgroast-web-intro-collapsed") === "1";
+    } catch {
+      return false;
+    }
+  })(),
 };
 
 const VERDICT_META: Record<string, { label: string; short: string; color: string; pillClass: string }> = {
@@ -1554,10 +1561,104 @@ function renderBriefListHtml(brief: BriefDetail): string {
   `;
 }
 
+function renderIntroCard(): string {
+  if (state.introCollapsed) {
+    return `
+      <div class="intro-collapsed">
+        <div class="intro-collapsed-text">
+          <span class="intro-bean" aria-hidden="true">☕</span>
+          <span><strong>How pgroast works:</strong> reviewers and AIs roast CommitFest patches (and their own drafts) by level and flavour; humans verify findings and deliver reviews to <code class="mono">pgsql-hackers</code>.</span>
+        </div>
+        <button type="button" class="btn btn-secondary btn-sm" id="intro-toggle-btn">Show guide ▾</button>
+      </div>
+    `;
+  }
+
+  return `
+    <section class="intro-card" aria-label="How pgroast works">
+      <div class="intro-head">
+        <div>
+          <div class="intro-kicker">Open-source PostgreSQL CommitFest collaboration</div>
+          <h2 class="intro-title">Review CommitFest patches together — humans + AIs</h2>
+          <p class="intro-lead">
+            CommitFest has hundreds of open patches waiting for review. Each contributor runs a private local <strong>Backoffice</strong> with their own AI models to adversarial-review (&ldquo;roast&rdquo;) patches — or pre-check their own patch before posting — then publishes sanitized opinions here so we can compare notes and find common ground.
+          </p>
+        </div>
+        <button type="button" class="btn btn-secondary btn-sm intro-hide-btn" id="intro-toggle-btn" title="Collapse intro guide">Hide guide ▴</button>
+      </div>
+
+      <div class="intro-grid">
+        <div class="intro-step">
+          <div class="intro-step-head">
+            <span class="intro-num">1</span>
+            <strong>Roast any patch — or your own</strong>
+          </div>
+          <p>
+            Run design and architecture pre-reviews against any CommitFest entry or <code class="mono">pgsql-hackers</code> thread, checked against 2,500+ prior rejected attempts and reverts. Authors can also roast their own local draft (<code class="mono">pgroast --self</code>) before submitting.
+          </p>
+        </div>
+
+        <div class="intro-step">
+          <div class="intro-step-head">
+            <span class="intro-num">2</span>
+            <strong>Choose a roast level</strong>
+          </div>
+          <div class="intro-pills">
+            <span class="intro-rbadge intro-rbadge-light">Light</span>
+            <span class="intro-rbadge intro-rbadge-medium">Medium</span>
+            <span class="intro-rbadge intro-rbadge-dark">Dark</span>
+          </div>
+          <p>
+            <strong>Light</strong> gives constructive author pre-flight feedback. <strong>Medium</strong> runs a balanced committer review. <strong>Dark</strong> stress-tests maintenance burden, demand, WAL/locking edge cases, and core vs. extension fit without pulling punches.
+          </p>
+        </div>
+
+        <div class="intro-step">
+          <div class="intro-step-head">
+            <span class="intro-num">3</span>
+            <strong>Pick a hacker flavour</strong>
+          </div>
+          <div class="intro-flavour-list">
+            <span class="chip">Default</span>
+            <span class="chip">Tom Lane</span>
+            <span class="chip">Peter Eisentraut</span>
+            <span class="chip">Robert Haas</span>
+            <span class="chip">Andres Freund</span>
+            <span class="chip">Heikki Linnakangas</span>
+            <span class="chip">Bruce Momjian</span>
+          </div>
+          <p>
+            Focus the review through AI-simulated technical lenses and styles. Every report and public opinion remembers its roast level and flavour.
+          </p>
+        </div>
+
+        <div class="intro-step intro-step-human">
+          <div class="intro-step-head">
+            <span class="intro-num">4</span>
+            <strong>A human takes ownership → <code class="mono">pgsql-hackers</code></strong>
+          </div>
+          <p>
+            AI roasts are starting points, never committer decisions, and nothing is ever auto-posted. A human reviewer claims a patch, reads the code and thread, checks every finding, and sends their own verified review to <code class="mono">pgsql-hackers</code>.
+          </p>
+        </div>
+      </div>
+
+      <div class="intro-foot">
+        <div class="row" style="gap:8px;flex-wrap:wrap;">
+          <button type="button" class="btn btn-primary btn-sm" id="intro-setup-btn">Set up your Backoffice →</button>
+          <button type="button" class="btn btn-secondary btn-sm" id="intro-opinions-btn">See live opinions (${state.opinions.length})</button>
+        </div>
+        <span class="dim" style="font-size:12px;">Tap any patch below to open its consensus, <code class="mono">-hackers</code> discussion, and live diff.</span>
+      </div>
+    </section>
+  `;
+}
+
 function renderBriefTab(): string {
   const brief = state.briefDetail;
   if (!brief) {
     return `
+      ${renderIntroCard()}
       <div class="card">
         <div class="card-head">
           <h2>Interactive CommitFest Brief</h2>
@@ -1619,9 +1720,7 @@ function renderBriefTab(): string {
       </div>
     </div>
 
-    <div class="notice-strip">
-      <strong>Public Collaboration Hub:</strong> AI-assisted first passes from reviewers' local backoffice tools — never committer decisions. Tap any patch to open its full collaboration &amp; consensus page.
-    </div>
+    ${renderIntroCard()}
 
     <div class="kpis">
       <button type="button" class="kpi" data-jump-verdict="all">
@@ -2228,6 +2327,21 @@ function render(): void {
   // Brief tab events
   document.getElementById("goto-connect-btn")?.addEventListener("click", () => {
     navigateToTab("connect");
+  });
+  document.getElementById("intro-setup-btn")?.addEventListener("click", () => {
+    navigateToTab("connect");
+  });
+  document.getElementById("intro-opinions-btn")?.addEventListener("click", () => {
+    navigateToTab("opinions");
+  });
+  document.getElementById("intro-toggle-btn")?.addEventListener("click", () => {
+    state.introCollapsed = !state.introCollapsed;
+    try {
+      localStorage.setItem("pgroast-web-intro-collapsed", state.introCollapsed ? "1" : "0");
+    } catch {
+      // ignore
+    }
+    render();
   });
 
   const exportBtn = document.getElementById("export-toggle-btn");
