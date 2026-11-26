@@ -2065,6 +2065,8 @@ details.diff-file[open] > summary {
   border-radius: 12px;
   padding: 13px 15px;
   margin-bottom: 12px;
+  min-width: 0;
+  overflow: hidden;
 }
 .mr-tldr-head {
   display: flex;
@@ -2078,24 +2080,32 @@ details.diff-file[open] > summary {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
+  min-width: 0;
 }
 .mr-tldr-box {
   background: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 9px 11px;
+  min-width: 0;
+  overflow: hidden;
 }
 .mr-tldr-label {
   font-size: 11px;
   font-weight: 600;
   color: var(--accent-t);
   margin-bottom: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .mr-tldr-box p {
   margin: 0;
   font-size: 12.5px;
   line-height: 1.48;
   color: var(--muted);
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 .mr-rev-strip {
   display: flex;
@@ -2259,7 +2269,7 @@ details.diff-file[open] > summary {
   white-space: normal;
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", sans-serif;
 }
-@media (max-width: 720px) {
+@media (max-width: 860px) {
   .mr-tldr-grid {
     grid-template-columns: 1fr;
   }

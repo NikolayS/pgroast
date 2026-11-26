@@ -161,7 +161,10 @@ function inferPatchRevision(attachments: MrAttachment[]): { tag: string | null; 
   const patchFiles = attachments.filter((a) => a.isPatch && !a.isNoCfbot);
   if (patchFiles.length === 0) return { tag: null, patchCount: 0 };
   for (const a of patchFiles) {
-    const m = a.name.match(/\b(v\d+(?:[-_.]\d+)?)\b/i) || a.name.match(/(?:^|[-_.])(v\d+)(?:[-_.]|$)/i);
+    // Match v1 / v12 (ignore -0001 patch-series ordinal) or date-style v2026-09
+    const dateRev = a.name.match(/\b(v20\d{2}[-_.]\d{2}(?:[-_.]\d{2})?)\b/i);
+    if (dateRev?.[1]) return { tag: dateRev[1].toLowerCase(), patchCount: patchFiles.length };
+    const m = a.name.match(/(?:^|[-_.])(v\d+)(?:[-_.]|$)/i);
     if (m?.[1]) return { tag: m[1].toLowerCase(), patchCount: patchFiles.length };
   }
   return { tag: "patch", patchCount: patchFiles.length };
@@ -294,29 +297,49 @@ export async function fetchMrDiscussionForCf(cfId: number, knownThreadUrl?: stri
 }
 
 function extractCleanExcerpt(blocks: MrBodyBlock[], maxLen = 280): string {
-  const prose = blocks
-    .filter((b) => b.kind === "text")
-    .map((b) =>
-      b.content
-        .split("\n")
-        .filter((ln) => {
-          const t = ln.trim();
-          if (!t) return false;
-          if (/^On\s+.+wrote:\s*$/i.test(t)) return false;
-          if (/^(?:Hi|Hello|Dear|Regards|Thanks|Cheers|Best)[,!.\s]*$/i.test(t)) return false;
-          if (/^--\s*$/.test(t)) return false;
-          return true;
-        })
-        .join(" "),
-    )
+  const paragraphs: string[] = [];
+  for (const b of blocks) {
+    if (b.kind !== "text") continue;
+    const rawLines = b.content.split("\n");
+    const kept: string[] = [];
+    for (const ln of rawLines) {
+      const t = ln.trim();
+      if (!t) {
+        if (kept.length > 0) {
+          paragraphs.push(kept.join(" "));
+          kept.length = 0;
+        }
+        continue;
+      }
+      if (/^On\s+.+wrote:\s*$/i.test(t)) continue;
+      if (/^(?:Hi|Hello|Hey|Dear)\b[^.?!]{0,45}[,!:]*\s*$/i.test(t)) continue;
+      if (/^(?:Regards|Thanks|Thank you|Cheers|Best|Best regards)[,!.\s]*$/i.test(t)) continue;
+      if (/^--\s*$/.test(t)) break;
+      // Skip ASCII table dividers, psql result borders, and raw diff hunks
+      if (/^[-=+~|_\s]{4,}$/.test(t)) continue;
+      if (/^(?:diff --git|@@\s|---\s+a\/|\+\+\+\s+b\/|\(\d+\s+rows?\)$)/i.test(t)) continue;
+      // If we already have a full prose sentence, stop before an indented SQL/code block
+      if ((paragraphs.length > 0 || kept.join(" ").length >= 90) && (/^(?:SELECT|INSERT|UPDATE|DELETE|CREATE|ALTER|EXPLAIN|postgres[=#])\b/i.test(t) || /^\s{2,}\S/.test(ln))) {
+        break;
+      }
+      kept.push(t);
+    }
+    if (kept.length > 0) paragraphs.push(kept.join(" "));
+    if (paragraphs.join(" ").length >= maxLen) break;
+  }
+
+  let prose = paragraphs
     .join(" ")
+    .replace(/^(?:Hi|Hello|Hey|Dear)\b[^,.!?\n]{0,35}[,!]\s+/i, "")
     .replace(/\s+/g, " ")
     .trim();
   if (!prose) return "";
   if (prose.length <= maxLen) return prose;
   const cut = prose.slice(0, maxLen);
   const lastStop = Math.max(cut.lastIndexOf(". "), cut.lastIndexOf("? "), cut.lastIndexOf("! "));
-  return lastStop > 90 ? cut.slice(0, lastStop + 1) : `${cut.trimEnd()}…`;
+  if (lastStop > 80) return cut.slice(0, lastStop + 1);
+  const lastSpace = cut.lastIndexOf(" ");
+  return `${(lastSpace > 40 ? cut.slice(0, lastSpace) : cut).trimEnd()}…`;
 }
 
 function buildThreadTldr(messages: MrTimelineMessage[]): MrThreadTldr {
