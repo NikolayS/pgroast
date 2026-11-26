@@ -2425,3 +2425,46 @@ details.diff-file[open] > summary {
     background: var(--hover);
   }
 }
+
+/* ---- AI Agent QuickStart Prompt Box ---- */
+.agent-prompt-pre {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 9px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-x: auto;
+  user-select: all;
+}
+.agent-manual-fold {
+  margin-top: 10px;
+}
+.agent-manual-fold > summary {
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted);
+  list-style: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.agent-manual-fold > summary::-webkit-details-marker {
+  display: none;
+}
+.agent-manual-fold > summary::before {
+  content: "▸";
+  font-size: 11px;
+  transition: transform 120ms ease;
+}
+.agent-manual-fold[open] > summary::before {
+  transform: rotate(90deg);
+}
+.agent-manual-fold > summary:hover {
+  color: var(--text);
+}

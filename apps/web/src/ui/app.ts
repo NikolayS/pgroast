@@ -2496,9 +2496,35 @@ function renderCoordinationTab(): string {
 }
 
 /* ---- Backoffice & Space Guide Tab ---- */
+function buildBackofficeInstallPrompt(): string {
+  const origin = window.location.origin;
+  return [
+    "Install and configure the pgroast Personal Backoffice on this machine:",
+    "",
+    "1. Check prerequisites: git, bun (>= 1.3.5), PostgreSQL 18 or 19 (local or Docker), and at least one signed-in AI CLI (claude or codex).",
+    "2. Clone https://github.com/NikolayS/pgroast.git (or git pull if already cloned) and run `bun install`.",
+    "3. Configure PostgreSQL:",
+    "   - If I already have local PostgreSQL 18/19 running, reuse it and write `.env` with matching `PGROAST_DSN` and `PGROAST_DATABASE_URL`.",
+    "   - Otherwise start the bundled Postgres 19 container: `docker compose -f apps/local/docker-compose.yml up -d` and copy `.env.example` to `.env`.",
+    `4. Set \`PGROAST_PUBLIC_HUB_URL=${origin}\` in \`.env\`.`,
+    "5. Run `bun run src/cli.ts init-db` to load the 2,547-row precedent index, and `bun run src/cli.ts doctor` to verify my AI CLI login.",
+    "6. Start the local Backoffice with `bun run app:local`, verify http://127.0.0.1:3432 responds, and show me the link plus what optional settings (CommitFest login, publish token, local Postgres git clone) I can configure next.",
+  ].join("\n");
+}
+
 function renderConnectTab(): string {
   const oauth = state.health?.oauth;
   const backofficeHref = getLocalBackofficeUrl();
+  const agentPrompt = buildBackofficeInstallPrompt();
+  const manualShellCmd = [
+    "git clone https://github.com/NikolayS/pgroast.git && cd pgroast",
+    "bun install",
+    "docker compose -f apps/local/docker-compose.yml up -d",
+    "cp .env.example .env",
+    "bun run src/cli.ts init-db",
+    "bun run app:local",
+  ].join("\n");
+
   return `
     <div class="page-head">
       <div>
@@ -2536,12 +2562,30 @@ function renderConnectTab(): string {
           <li>Private Local Work Items, CommitFest cookies, and Gmail drafts</li>
           <li>Explicitly publish sanitized opinions &amp; briefs up to this Public App</li>
         </ul>
-        <div class="row" style="gap:8px;margin-top:4px;">
-          <a class="btn btn-primary" style="flex:1;height:38px;" href="${esc(backofficeHref)}" target="_blank" rel="noopener">Open Personal Backoffice ↗</a>
-          <button type="button" class="btn btn-secondary" style="height:38px;" id="connect-copy-cmd-btn">Copy start cmd</button>
+        <div class="row" style="gap:8px;margin-top:4px;flex-wrap:wrap;">
+          <button type="button" class="btn btn-primary" style="flex:1;height:38px;" id="connect-copy-prompt-btn">Copy AI Agent Install Prompt</button>
+          <a class="btn btn-secondary" style="height:38px;" href="${esc(backofficeHref)}" target="_blank" rel="noopener" title="Already running bun run app:local on your laptop?">Open local ↗</a>
         </div>
-        <div class="dim mono" style="font-size:11.5px;">Start locally: <code>bun run app:local</code></div>
+        <div class="dim" style="font-size:11.5px;">Paste the prompt into Claude Code, Codex, Cursor, or Antigravity — or open <code class="mono">${esc(backofficeHref.replace(/\/$/, ""))}</code> if already running.</div>
       </div>
+    </div>
+
+    <div class="card" style="margin-bottom:12px;">
+      <div class="card-head">
+        <div>
+          <h3>QuickStart: Ask your AI coding agent to install &amp; configure</h3>
+          <div class="dim" style="font-size:12px;">Works with Claude Code, Codex, Cursor, Windsurf, or Antigravity — detects your local Postgres or starts Docker PG 19 automatically.</div>
+        </div>
+        <div class="row" style="gap:6px;">
+          <button type="button" class="btn btn-primary btn-sm" id="connect-copy-prompt-card-btn">Copy prompt</button>
+          <button type="button" class="btn btn-secondary btn-sm" id="connect-copy-cmd-btn">Copy start cmd</button>
+        </div>
+      </div>
+      <pre class="agent-prompt-pre mono" id="connect-agent-prompt-text">${esc(agentPrompt)}</pre>
+      <details class="agent-manual-fold">
+        <summary>Prefer manual terminal commands?</summary>
+        <pre class="agent-prompt-pre mono" style="margin-top:8px;">${esc(manualShellCmd)}</pre>
+      </details>
     </div>
 
     <div class="grid2">
@@ -2977,6 +3021,13 @@ function render(): void {
   }
 
   // Connect / Backoffice tab events
+  const installPromptText = buildBackofficeInstallPrompt();
+  document.getElementById("connect-copy-prompt-btn")?.addEventListener("click", (ev) => {
+    copyTextWithFeedback(ev.currentTarget as HTMLElement, installPromptText, "Copy AI Agent Install Prompt");
+  });
+  document.getElementById("connect-copy-prompt-card-btn")?.addEventListener("click", (ev) => {
+    copyTextWithFeedback(ev.currentTarget as HTMLElement, installPromptText, "Copy prompt");
+  });
   document.getElementById("connect-copy-cmd-btn")?.addEventListener("click", (ev) => {
     copyTextWithFeedback(ev.currentTarget as HTMLElement, "bun run app:local", "Copy start cmd");
   });

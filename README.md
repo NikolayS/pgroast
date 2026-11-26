@@ -89,7 +89,24 @@ PG Roast splits into two web apps plus the CLI engine:
 
 ### Install and run your Personal Backoffice (2 minutes)
 
-Each reviewer runs their own Personal Backoffice locally:
+Each reviewer runs their own Personal Backoffice locally.
+
+**Fastest way — paste this prompt into your AI coding agent (Claude Code, Codex, Cursor, or Antigravity):**
+
+```text
+Install and configure the pgroast Personal Backoffice on this machine:
+
+1. Check prerequisites: git, bun (>= 1.3.5), PostgreSQL 18 or 19 (local or Docker), and at least one signed-in AI CLI (claude or codex).
+2. Clone https://github.com/NikolayS/pgroast.git (or git pull if already cloned) and run `bun install`.
+3. Configure PostgreSQL:
+   - If I already have local PostgreSQL 18/19 running, reuse it and write `.env` with matching `PGROAST_DSN` and `PGROAST_DATABASE_URL`.
+   - Otherwise start the bundled Postgres 19 container: `docker compose -f apps/local/docker-compose.yml up -d` and copy `.env.example` to `.env`.
+4. Set `PGROAST_PUBLIC_HUB_URL=https://pgroast.postgres.ai` in `.env`.
+5. Run `bun run src/cli.ts init-db` to load the 2,547-row precedent index, and `bun run src/cli.ts doctor` to verify my AI CLI login.
+6. Start the local Backoffice with `bun run app:local`, verify http://127.0.0.1:3432 responds, and show me the link plus what optional settings (CommitFest login, publish token, local Postgres git clone) I can configure next.
+```
+
+**Or run the commands manually:**
 
 ```bash
 git clone https://github.com/NikolayS/pgroast.git && cd pgroast
