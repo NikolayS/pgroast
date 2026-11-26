@@ -97,8 +97,10 @@ interface MrDiffData {
 }
 
 interface HealthInfo {
+  version?: string;
   database: { version: string; database: string };
   counts: { briefs: number; entries: number; opinions: number };
+  views?: { total: number; last24h: number; last7d: number };
   oauth: { githubConfigured: boolean; googleConfigured: boolean; devTokenMintEnabled: boolean };
   localWorkbenchUrl: string;
 }
@@ -529,7 +531,12 @@ async function loadAll(): Promise<void> {
 
     const f = document.getElementById("footer-db-info");
     if (f) {
-      f.textContent = `${health.database.version || "PostgreSQL"} · ${health.counts.entries} entries · ${health.counts.opinions} opinions`;
+      const ver = health.version ? `v${health.version}` : "";
+      const verLink = ver
+        ? `<a class="footer-ver mono" href="https://github.com/NikolayS/pgroast/releases/tag/${encodeURIComponent(ver)}" target="_blank" rel="noopener">${esc(ver)}</a> · `
+        : "";
+      const viewsPart = health.views && health.views.total > 0 ? ` · ${health.views.total} views` : "";
+      f.innerHTML = `${verLink}${esc(health.database.version || "PostgreSQL")} · ${health.counts.entries} entries · ${health.counts.opinions} opinions${viewsPart}`;
     }
     syncTopBackofficeLink();
 

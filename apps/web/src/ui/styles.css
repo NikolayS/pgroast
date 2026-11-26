@@ -1442,6 +1442,14 @@ table.matrix td:first-child {
   border-top: 1px solid var(--border);
   margin-top: 24px;
 }
+.footer-ver {
+  font-size: 10.5px;
+  color: var(--dim);
+  opacity: 0.82;
+}
+.footer-ver:hover {
+  color: var(--text);
+}
 .footer-inner {
   display: flex;
   justify-content: space-between;

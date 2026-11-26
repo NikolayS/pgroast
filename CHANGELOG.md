@@ -1,5 +1,32 @@
 # Changelog
 
+## v0.3.0-alpha.6 (2026-11-26)
+
+This release upgrades the Public App (`apps/web`) and Personal Backoffice (`apps/local`) with 8 UI themes, a first-visitor explainer, SEO/GEO endpoints, GitHub/GitLab-style diff-to-thread matching, a redesigned Roast Studio, Alexander Korotkov flavour with clear AI disclaimers, privacy-friendly page-view tracking, and version links in both footers.
+
+### Changes
+
+- **8 UI themes across both apps (`apps/web`, `apps/local`):**
+  - Added a palette theme picker to the Public App (`Midnight`, `Daylight`, `Warm Paper`, `Espresso`, `Nord`, `Tokyo Night`, `Postgres Classic`, `High Contrast`) with split color swatches and dynamic iOS `<meta name="theme-color">` updates.
+  - Added the new roasted-coffee **Espresso** theme to `apps/local` so both apps share the same 8 themes.
+- **First-visitor onboarding & "roasted" metrics (`apps/web`):**
+  - Added a collapsible **How pgroast works** guide on the landing page covering humans + AIs collaborating on CommitFest patches (and self-roasting your own drafts), roast levels, hacker flavours, and human ownership before anything goes to `pgsql-hackers`.
+  - Unified Brief and Stats KPIs around the main verb **roasted** (`Roasted / Total`, `Roast coverage`, `Roasted clean`, `Community roasts`, `Not roasted`).
+  - Added a tiny version link (`v0.3.0-alpha.6`) in both the Public App footer and the Backoffice sidebar footer pointing directly to the GitHub release notes.
+- **GitLab/GitHub MR upgrades on `/patch/<cf-id>` (`apps/web`):**
+  - Kept short inline quotes (≤ 6 lines) expanded as clean blockquotes so interleaved `-hackers` replies read naturally; collapsed only long quotes (> 6 lines) with a 1-line preview snippet.
+  - Added a **Thread TL;DR & Patch History** card (start/last-active dates, opening pitch, latest reply, `v1 → v2 → v3` revision strip, and clickable participant filter chips).
+  - Added best-effort **`-hackers` → diff inline comment matching** (shows quoted-line replies inline under the matched diff line, plus file-level mention drawers), a file jump strip, a `💬 Commented` filter, and per-file `Viewed` checkboxes with a review progress bar.
+- **SEO, GEO & privacy-friendly hit counter (`apps/web`):**
+  - Upgraded `/robots.txt` and added `/sitemap.xml` (all 736 `/patch/<cf-id>` pages + tabs), `/llms.txt`, `/llms-full.txt`, canonical links, and Schema.org JSON-LD.
+  - Added a cookie-free, PII-free PostgreSQL `page_views` counter (`GET /api/v1/views` + total count in `/api/v1/health`) skipping bot user agents.
+  - Added zero-downtime UI asset hot-reload on file modification and matched favicons + `apple-touch-icon.png` 1:1 to the header coffee-bean logo.
+- **Roast Studio, Alexander Korotkov flavour & explicit AI disclaimers (`src/`, `apps/local`, `apps/web`):**
+  - Replaced dropdowns in `apps/local` Workbench → Roast with visual Roast Level cards, Hacker Flavour tasting cards, a `🎲 Surprise me` button, a clean wrapping 2-line CTA button, and side-by-side **Brew Roast** vs. **Pushback Analysis** explanations.
+  - Added **Alexander Korotkov (`alexander-korotkov`)** flavour across CLI, Backoffice, Public App, and `/llms.txt`.
+  - Added explicit disclaimers everywhere (CLI reports, Backoffice, Public App, `/llms.txt`, `README.md`) making clear that hacker flavours are only AI guesses, not connected to or endorsed by the real people, and that AI makes mistakes.
+  - Made `Connect Login in Setup/Settings →` clickable in Backoffice and added inline error recovery + toast feedback on `Load CFBot Diff`.
+
 ## v0.3.0-alpha.5 (2026-11-26)
 
 This release finishes remote publishing auth for the Public App (`apps/web`), hardens the publish API, adds the roasted coffee-bean logo and iPhone Home Screen icons, and makes local PostgreSQL 19 setup work via `.env`.

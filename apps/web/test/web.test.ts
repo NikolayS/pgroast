@@ -161,6 +161,19 @@ describe("pgroast-web public companion API & security gates", () => {
     expect(patchHtml).toContain('rel="canonical"');
     expect(patchHtml).toContain("application/ld+json");
 
+    // Health reports package version and privacy-friendly page-view counter tracks hits
+    const healthRes = await req("/api/v1/health");
+    expect(healthRes.status).toBe(200);
+    const healthJson = (await healthRes.json()) as { version: string; views: { total: number } };
+    expect(healthJson.version).toMatch(/^0\.3\./);
+    expect(healthJson.views.total).toBeGreaterThanOrEqual(1);
+
+    const viewsRes = await req("/api/v1/views");
+    expect(viewsRes.status).toBe(200);
+    const viewsJson = (await viewsRes.json()) as { total: number; topPatches: Array<{ cf_id: number; hits: number }> };
+    expect(viewsJson.total).toBeGreaterThanOrEqual(1);
+    expect(viewsJson.topPatches.some((p) => p.cf_id === 5879)).toBe(true);
+
     // Roast level + flavour round-trip on published opinion
     const darkOp = await req("/api/v1/publish/opinion", {
       method: "POST",

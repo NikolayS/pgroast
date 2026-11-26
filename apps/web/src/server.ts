@@ -7,6 +7,32 @@ import { WebDatabase, type PublicEntryRecord } from "./db.ts";
 import { fetchMrDiffForCf, fetchMrDiscussionForCf, matchThreadToDiff } from "./mr.ts";
 import { checkPublicPayloadSafe, securityHeaders } from "./security.ts";
 
+const ROOT_PKG_VERSION: string = (() => {
+  try {
+    const pkg = JSON.parse(readFileSync(join(WEB_ROOT, "..", "..", "package.json"), "utf8")) as { version?: string };
+    return pkg.version || "0.3.0";
+  } catch {
+    return "0.3.0";
+  }
+})();
+
+const BOT_UA_RE = /\b(?:bot|crawl|spider|slurp|mediapartners|facebookexternalhit|twitterbot|telegrambot|slackbot|whatsapp|curl|wget|python-requests|go-http-client|headless|uptime|pingdom|datadog)\b/i;
+
+function extractReferrerHost(req: Request, selfOrigin: string): string {
+  const ref = req.headers.get("referer") || "";
+  if (!ref) return "";
+  try {
+    const refUrl = new URL(ref);
+    const selfHost = new URL(selfOrigin).hostname;
+    if (refUrl.hostname === selfHost || refUrl.hostname === "127.0.0.1" || refUrl.hostname === "localhost") {
+      return "";
+    }
+    return refUrl.hostname;
+  } catch {
+    return "";
+  }
+}
+
 class PayloadTooLargeError extends Error {
   constructor(maxBytes: number) {
     super(`Payload too large (limit ${Math.round(maxBytes / 1024)} KB).`);
@@ -638,6 +664,14 @@ export async function createWebHandler(opts?: {
           .replace("/apple-touch-icon.png", `/apple-touch-icon.png?v=${touchHash}`)
           .replace("/styles.css", `/styles.css?v=${cssHash}`)
           .replace("/app.js", `/app.js?v=${jsHash}`);
+        const ua = req.headers.get("user-agent") || "";
+        if (!BOT_UA_RE.test(ua)) {
+          void db.recordPageView({
+            path: cfId > 0 ? `/patch/${cfId}` : "/",
+            cfId: cfId > 0 ? cfId : null,
+            refHost: extractReferrerHost(req, origin),
+          });
+        }
         return new Response(html, {
           headers: {
             "Content-Type": "text/html; charset=utf-8",
@@ -668,21 +702,34 @@ export async function createWebHandler(opts?: {
         });
       }
 
-      // ---- Health ----
+      // ---- Health & Privacy-Friendly View Counts ----
+      if (method === "GET" && path === "/api/v1/views") {
+        return json(await db.getPageViewSummary(), 200, req);
+      }
+
       if (method === "GET" && path === "/api/v1/health") {
-        const pgInfo = await db.getServerInfo();
+        const [pgInfo, briefs, opinions, entries, views] = await Promise.all([
+          db.getServerInfo(),
+          db.listBriefs(),
+          db.listOpinions(undefined, 1000),
+          db.listEntries({ limit: 1000 }),
+          db.getPageViewSummary(),
+        ]);
         const pgMajor = pgInfo.version.match(/PostgreSQL\s+(\d+)/i)?.[0] || "PostgreSQL";
-        const briefs = await db.listBriefs();
-        const opinions = await db.listOpinions(undefined, 1000);
-        const entries = await db.listEntries({ limit: 1000 });
         return json({
           ok: true,
           app: "pgroast-web",
+          version: ROOT_PKG_VERSION,
           database: { version: pgMajor, database: pgInfo.database },
           counts: {
             briefs: briefs.length,
             entries: entries.length,
             opinions: opinions.length,
+          },
+          views: {
+            total: views.total,
+            last24h: views.last24h,
+            last7d: views.last7d,
           },
           oauth: {
             githubConfigured: Boolean(cfg.githubClientId && cfg.githubClientSecret),
@@ -1031,6 +1078,15 @@ export async function createWebHandler(opts?: {
           });
         }
         const html = renderInteractiveBriefHtml(brief, cfg.localWorkbenchUrl);
+        const ua = req.headers.get("user-agent") || "";
+        if (!BOT_UA_RE.test(ua)) {
+          const briefOrigin = resolveRequestOrigin(req, cfg.publicOrigin);
+          void db.recordPageView({
+            path: `/briefs/${brief.slug}/${kind}`,
+            cfId: null,
+            refHost: extractReferrerHost(req, briefOrigin),
+          });
+        }
         return new Response(html, {
           headers: {
             "Content-Type": "text/html; charset=utf-8",

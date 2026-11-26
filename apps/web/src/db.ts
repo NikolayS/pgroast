@@ -235,6 +235,15 @@ export class WebDatabase {
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
       )`,
+      `CREATE TABLE IF NOT EXISTS ${this.t("page_views")} (
+        id SERIAL PRIMARY KEY,
+        path TEXT NOT NULL,
+        cf_id INTEGER,
+        ref_host TEXT NOT NULL DEFAULT '',
+        created_at TEXT NOT NULL
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_${this.schema}_page_views_created ON ${this.t("page_views")}(created_at DESC)`,
+      `CREATE INDEX IF NOT EXISTS idx_${this.schema}_page_views_cf ON ${this.t("page_views")}(cf_id) WHERE cf_id IS NOT NULL`,
     ];
     for (const s of stmts) {
       await this.sql.unsafe(s);
@@ -533,5 +542,67 @@ export class WebDatabase {
       ],
     )) as SharedCoordinationRecord[];
     return rows[0]!;
+  }
+
+  async recordPageView(input: { path: string; cfId?: number | null; refHost?: string }): Promise<void> {
+    try {
+      await this.sql.unsafe(
+        `INSERT INTO ${this.t("page_views")} (path, cf_id, ref_host, created_at) VALUES ($1, $2, $3, $4)`,
+        [
+          input.path.slice(0, 160),
+          input.cfId && input.cfId > 0 ? input.cfId : null,
+          (input.refHost || "").slice(0, 120),
+          new Date().toISOString(),
+        ],
+      );
+    } catch {
+      // Never break page serving on analytics write issues
+    }
+  }
+
+  async getPageViewSummary(): Promise<{
+    total: number;
+    last24h: number;
+    last7d: number;
+    topPatches: Array<{ cf_id: number; hits: number }>;
+    topReferrers: Array<{ ref_host: string; hits: number }>;
+  }> {
+    const now = Date.now();
+    const cut24h = new Date(now - 86_400_000).toISOString();
+    const cut7d = new Date(now - 7 * 86_400_000).toISOString();
+    const [totalsRows, topPatchRows, topRefRows] = await Promise.all([
+      this.sql.unsafe(
+        `SELECT
+           COUNT(*)::int AS total,
+           COUNT(*) FILTER (WHERE created_at >= $1)::int AS last24h,
+           COUNT(*) FILTER (WHERE created_at >= $2)::int AS last7d
+         FROM ${this.t("page_views")}`,
+        [cut24h, cut7d],
+      ) as Promise<Array<{ total: number; last24h: number; last7d: number }>>,
+      this.sql.unsafe(
+        `SELECT cf_id, COUNT(*)::int AS hits
+         FROM ${this.t("page_views")}
+         WHERE cf_id IS NOT NULL
+         GROUP BY cf_id
+         ORDER BY hits DESC
+         LIMIT 20`,
+      ) as Promise<Array<{ cf_id: number; hits: number }>>,
+      this.sql.unsafe(
+        `SELECT ref_host, COUNT(*)::int AS hits
+         FROM ${this.t("page_views")}
+         WHERE ref_host != ''
+         GROUP BY ref_host
+         ORDER BY hits DESC
+         LIMIT 15`,
+      ) as Promise<Array<{ ref_host: string; hits: number }>>,
+    ]);
+    const t = totalsRows[0] ?? { total: 0, last24h: 0, last7d: 0 };
+    return {
+      total: Number(t.total || 0),
+      last24h: Number(t.last24h || 0),
+      last7d: Number(t.last7d || 0),
+      topPatches: topPatchRows.map((r) => ({ cf_id: Number(r.cf_id), hits: Number(r.hits) })),
+      topReferrers: topRefRows.map((r) => ({ ref_host: String(r.ref_host), hits: Number(r.hits) })),
+    };
   }
 }

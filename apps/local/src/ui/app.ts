@@ -829,6 +829,7 @@ function updateSidebarIdentity(): void {
 
 async function loadHealth(): Promise<void> {
   const data = await api<{
+    version?: string;
     entriesCount: number;
     verdictStats: Record<string, number>;
     cfAuth: CfAuthStatus;
@@ -838,6 +839,11 @@ async function loadHealth(): Promise<void> {
     aiSummary?: AppState["aiSummary"];
     skillsSummary?: AppState["skillsSummary"];
   }>("/api/health");
+  const verEl = document.getElementById("sidebar-version");
+  if (verEl && data.version) {
+    const tag = `v${data.version}`;
+    verEl.innerHTML = `<a href="https://github.com/NikolayS/pgroast/releases/tag/${encodeURIComponent(tag)}" target="_blank" rel="noopener" title="Release notes on GitHub">pgroast ${esc(tag)}</a>`;
+  }
   state.stats = data.verdictStats;
   state.cfAuth = data.cfAuth;
   state.settings = data.settings;
