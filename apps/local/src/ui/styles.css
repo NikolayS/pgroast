@@ -2283,6 +2283,18 @@ tbody tr.clickable:hover {
   }
 }
 
+.pill-clickable {
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  transition: filter 0.12s ease, transform 0.1s ease;
+}
+.pill-clickable:hover {
+  filter: brightness(1.08);
+  transform: translateY(-1px);
+}
+
 [hidden] {
   display: none !important;
 }

@@ -35,6 +35,15 @@ export interface MrParticipant {
   isAuthor: boolean;
 }
 
+export interface MrThreadTldr {
+  pitch: string;
+  latestSummary: string;
+  latestBy: string;
+  latestDate: string;
+  startedDate: string;
+  daysIdle: number;
+}
+
 export interface MrDiscussionResult {
   cfId: number;
   threadUrl: string;
@@ -43,8 +52,18 @@ export interface MrDiscussionResult {
   messageCount: number;
   participants: MrParticipant[];
   revisions: Array<{ tag: string; date: string; from: string; messageIndex: number; fileCount: number }>;
+  tldr: MrThreadTldr;
   messages: MrTimelineMessage[];
   cachedAt: string;
+}
+
+export interface MrDiffCommentRef {
+  messageIndex: number;
+  from: string;
+  date: string;
+  url: string;
+  excerpt: string;
+  matchKind: "line" | "file";
 }
 
 export interface MrDiffLine {
@@ -52,6 +71,7 @@ export interface MrDiffLine {
   oldLine: number | null;
   newLine: number | null;
   content: string;
+  comments?: MrDiffCommentRef[];
 }
 
 export interface MrDiffHunk {
@@ -65,6 +85,7 @@ export interface MrDiffFile {
   additions: number;
   deletions: number;
   hunks: MrDiffHunk[];
+  mentions?: MrDiffCommentRef[];
 }
 
 export interface MrDiffResult {
@@ -75,6 +96,8 @@ export interface MrDiffResult {
   totalAdditions: number;
   totalDeletions: number;
   truncated: boolean;
+  matchedLineComments?: number;
+  matchedFileMentions?: number;
   cachedAt: string;
 }
 
@@ -260,6 +283,7 @@ export async function fetchMrDiscussionForCf(cfId: number, knownThreadUrl?: stri
     messageCount: messages.length,
     participants,
     revisions,
+    tldr: buildThreadTldr(messages),
     messages,
     cachedAt: new Date().toISOString(),
   };
@@ -267,6 +291,169 @@ export async function fetchMrDiscussionForCf(cfId: number, knownThreadUrl?: stri
   pruneCache(threadCache);
   threadCache.set(cfId, { expiresAt: Date.now() + CACHE_TTL_MS, data });
   return data;
+}
+
+function extractCleanExcerpt(blocks: MrBodyBlock[], maxLen = 280): string {
+  const prose = blocks
+    .filter((b) => b.kind === "text")
+    .map((b) =>
+      b.content
+        .split("\n")
+        .filter((ln) => {
+          const t = ln.trim();
+          if (!t) return false;
+          if (/^On\s+.+wrote:\s*$/i.test(t)) return false;
+          if (/^(?:Hi|Hello|Dear|Regards|Thanks|Cheers|Best)[,!.\s]*$/i.test(t)) return false;
+          if (/^--\s*$/.test(t)) return false;
+          return true;
+        })
+        .join(" "),
+    )
+    .join(" ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!prose) return "";
+  if (prose.length <= maxLen) return prose;
+  const cut = prose.slice(0, maxLen);
+  const lastStop = Math.max(cut.lastIndexOf(". "), cut.lastIndexOf("? "), cut.lastIndexOf("! "));
+  return lastStop > 90 ? cut.slice(0, lastStop + 1) : `${cut.trimEnd()}…`;
+}
+
+function buildThreadTldr(messages: MrTimelineMessage[]): MrThreadTldr {
+  const first = messages[0];
+  const last = messages[messages.length - 1];
+  const startedDate = first?.date?.slice(0, 10) || "";
+  const latestDate = last?.date?.slice(0, 10) || "";
+  let daysIdle = 0;
+  if (last?.date) {
+    const ts = Date.parse(last.date);
+    if (Number.isFinite(ts)) {
+      daysIdle = Math.max(0, Math.floor((Date.now() - ts) / 86_400_000));
+    }
+  }
+  return {
+    pitch: first ? extractCleanExcerpt(first.blocks, 320) : "",
+    latestSummary: last ? extractCleanExcerpt(last.blocks, 240) : "",
+    latestBy: last?.from || "",
+    latestDate,
+    startedDate,
+    daysIdle,
+  };
+}
+
+function normalizeCodeSnippet(s: string): string {
+  return s
+    .replace(/^[>\s+|]+/, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function isMeaningfulDiffLine(content: string): boolean {
+  const norm = normalizeCodeSnippet(content);
+  if (norm.length < 22) return false;
+  if (/^(\/\*|\*\/|\*|\/\/|#include|\{|\}|return\b|break;|continue;|else\b)/.test(norm)) return false;
+  if (!/[a-zA-Z_][a-zA-Z0-9_]{2,}/.test(norm)) return false;
+  return true;
+}
+
+/**
+ * Best-effort cross-matching of pgsql-hackers discussion messages onto unified diff
+ * lines (via quoted code snippets) and files (via filename mentions).
+ */
+export function matchThreadToDiff(diff: MrDiffResult, discussion: MrDiscussionResult | null): MrDiffResult {
+  if (!discussion || discussion.messages.length === 0) return diff;
+
+  const preparedMsgs = discussion.messages.map((m) => {
+    const quotePairs: Array<{ normQuote: string; replyExcerpt: string }> = [];
+    for (let i = 0; i < m.blocks.length; i++) {
+      const b = m.blocks[i]!;
+      const normQuote = b.content
+        .split("\n")
+        .map((ln) => normalizeCodeSnippet(ln))
+        .join("\n");
+      if (b.kind === "quote") {
+        const nextText = m.blocks[i + 1]?.kind === "text" ? extractCleanExcerpt([m.blocks[i + 1]!], 240) : "";
+        quotePairs.push({ normQuote, replyExcerpt: nextText || extractCleanExcerpt(m.blocks, 200) });
+      } else if (/^\s*[+-]\s*\S/.test(b.content) || /;\s*$/.test(b.content)) {
+        quotePairs.push({ normQuote, replyExcerpt: extractCleanExcerpt(m.blocks, 200) });
+      }
+    }
+    const fullText = m.blocks.map((b) => b.content).join("\n");
+    return { m, quotePairs, fullText, excerpt: extractCleanExcerpt(m.blocks, 220) };
+  });
+
+  let matchedLineComments = 0;
+  let matchedFileMentions = 0;
+
+  const enrichedFiles: MrDiffFile[] = diff.files.map((file) => {
+    const filePath = file.newPath || file.oldPath;
+    const baseName = filePath.split("/").pop() || filePath;
+    const escapedBase = baseName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const fileMentionRe = baseName.length >= 5 ? new RegExp(`(?<![A-Za-z0-9_.-])${escapedBase}(?![A-Za-z0-9_.-])`, "i") : null;
+
+    const lineMatchedMsgs = new Set<number>();
+    const enrichedHunks: MrDiffHunk[] = file.hunks.map((hunk) => {
+      const hunkUsedMsgs = new Set<number>();
+      const enrichedLines: MrDiffLine[] = hunk.lines.map((ln) => {
+        if (!isMeaningfulDiffLine(ln.content)) return ln;
+        const normLine = normalizeCodeSnippet(ln.content);
+        const hits: MrDiffCommentRef[] = [];
+
+        for (const pm of preparedMsgs) {
+          if (hunkUsedMsgs.has(pm.m.index)) continue;
+          const matchPair = pm.quotePairs.find((qp) => qp.normQuote.includes(normLine));
+          if (matchPair) {
+            hunkUsedMsgs.add(pm.m.index);
+            lineMatchedMsgs.add(pm.m.index);
+            hits.push({
+              messageIndex: pm.m.index,
+              from: pm.m.from,
+              date: pm.m.date,
+              url: pm.m.url,
+              excerpt: matchPair.replyExcerpt || pm.excerpt,
+              matchKind: "line",
+            });
+            matchedLineComments++;
+            if (hits.length >= 3) break;
+          }
+        }
+        return hits.length > 0 ? { ...ln, comments: hits } : ln;
+      });
+      return { ...hunk, lines: enrichedLines };
+    });
+
+    const mentions: MrDiffCommentRef[] = [];
+    if (fileMentionRe) {
+      for (const pm of preparedMsgs) {
+        if (lineMatchedMsgs.has(pm.m.index)) continue;
+        if (fileMentionRe.test(pm.fullText)) {
+          mentions.push({
+            messageIndex: pm.m.index,
+            from: pm.m.from,
+            date: pm.m.date,
+            url: pm.m.url,
+            excerpt: pm.excerpt,
+            matchKind: "file",
+          });
+          matchedFileMentions++;
+          if (mentions.length >= 8) break;
+        }
+      }
+    }
+
+    return {
+      ...file,
+      hunks: enrichedHunks,
+      ...(mentions.length > 0 ? { mentions } : {}),
+    };
+  });
+
+  return {
+    ...diff,
+    files: enrichedFiles,
+    matchedLineComments,
+    matchedFileMentions,
+  };
 }
 
 export function parseMrUnifiedDiff(rawDiff: string, maxFiles = 50, maxLinesPerFile = 500): {

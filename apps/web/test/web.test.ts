@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { WebDatabase } from "../src/db.ts";
-import { parseMrUnifiedDiff, splitBodyIntoBlocks } from "../src/mr.ts";
+import { matchThreadToDiff, parseMrUnifiedDiff, splitBodyIntoBlocks } from "../src/mr.ts";
 import { createWebHandler } from "../src/server.ts";
 
 let db: WebDatabase;
@@ -325,5 +325,67 @@ describe("pgroast-web public companion API & security gates", () => {
     expect(diff.totalAdditions).toBe(2);
     expect(diff.totalDeletions).toBe(1);
     expect(diff.files[0]?.hunks[0]?.lines.length).toBe(4);
+
+    // Inline line + file mention matching from -hackers thread onto diff
+    const richDiff = parseMrUnifiedDiff(
+      "diff --git a/src/backend/replication/walsender.c b/src/backend/replication/walsender.c\n" +
+        "--- a/src/backend/replication/walsender.c\n" +
+        "+++ b/src/backend/replication/walsender.c\n" +
+        "@@ -100,2 +100,3 @@\n" +
+        " ctx\n" +
+        "+if (MyReplicationSlot != NULL && slot_is_logical)\n" +
+        "+    pgstat_report_stat_xact_commit(false);\n",
+    );
+    const matched = matchThreadToDiff(
+      { cfId: 6992, source: "cf/6992", compareUrl: "https://example.com", ...richDiff, cachedAt: "2026-11-26T00:00:00Z" },
+      {
+        cfId: 6992,
+        threadUrl: "https://example.com/t",
+        subject: "Fix walsender stats",
+        lists: ["pgsql-hackers"],
+        messageCount: 2,
+        participants: [],
+        revisions: [],
+        tldr: { pitch: "", latestSummary: "", latestBy: "", latestDate: "", startedDate: "", daysIdle: 0 },
+        cachedAt: "2026-11-26T00:00:00Z",
+        messages: [
+          {
+            index: 0,
+            messageId: "m1",
+            url: "https://example.com/m1",
+            from: "Reviewer One",
+            date: "2026-11-25T10:00:00Z",
+            subject: "Re: Fix",
+            isAuthor: false,
+            patchRevision: null,
+            patchCount: 0,
+            attachments: [],
+            blocks: [
+              { kind: "quote", content: "> +if (MyReplicationSlot != NULL && slot_is_logical)", lineCount: 1 },
+              { kind: "text", content: "Should we also guard against physical slots here?", lineCount: 1 },
+            ],
+          },
+          {
+            index: 1,
+            messageId: "m2",
+            url: "https://example.com/m2",
+            from: "Reviewer Two",
+            date: "2026-11-26T10:00:00Z",
+            subject: "Re: Fix",
+            isAuthor: false,
+            patchRevision: null,
+            patchCount: 0,
+            attachments: [],
+            blocks: [
+              { kind: "text", content: "I checked walsender.c and the TAP test passes locally.", lineCount: 1 },
+            ],
+          },
+        ],
+      },
+    );
+    expect(matched.matchedLineComments).toBe(1);
+    expect(matched.matchedFileMentions).toBe(1);
+    expect(matched.files[0]?.hunks[0]?.lines[1]?.comments?.[0]?.excerpt).toContain("physical slots");
+    expect(matched.files[0]?.mentions?.[0]?.from).toBe("Reviewer Two");
   });
 });

@@ -2629,9 +2629,11 @@ function renderWorkbenchView(): string {
       <div class="card">
         <div class="card-header">
           <h3>CommitFest Authenticated Actions (${esc(cfUserLabel)})</h3>
-          <span class="pill ${state.cfAuth?.hasSessionCookie ? "pill-ok" : "pill-warn"}">
-            ${state.cfAuth?.hasSessionCookie ? "Cookie Ready" : "Connect Login in Setup/Settings"}
-          </span>
+          ${
+            state.cfAuth?.hasSessionCookie
+              ? `<span class="pill pill-ok">Cookie Ready</span>`
+              : `<button type="button" class="pill pill-warn pill-clickable" id="wb-connect-cf-btn" title="Open Settings to connect your CommitFest login cookie">Connect Login in Setup/Settings →</button>`
+          }
         </div>
         <p class="muted" style="margin-top:0;">Every mutation requires explicit confirmation in a modal and fetches a fresh Django CSRF token.</p>
         <div class="inline-row" style="margin-bottom:10px;">
@@ -3995,6 +3997,17 @@ function bindViewEvents(): void {
     });
     state.detail.triage = res.triage;
     toast("Private notes saved locally", "ok");
+  });
+
+  document.getElementById("wb-connect-cf-btn")?.addEventListener("click", async () => {
+    await switchView("settings");
+    setTimeout(() => {
+      const target = document.getElementById("cf-cookie-header");
+      if (target) {
+        target.scrollIntoView({ behavior: "smooth", block: "center" });
+        (target as HTMLInputElement).focus();
+      }
+    }, 80);
   });
 
   document.getElementById("wb-refresh-cf-btn")?.addEventListener("click", async () => {

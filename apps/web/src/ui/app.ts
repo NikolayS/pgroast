@@ -30,6 +30,15 @@ interface MrTimelineMessage {
   attachments: MrAttachment[];
 }
 
+interface MrThreadTldr {
+  pitch: string;
+  latestSummary: string;
+  latestBy: string;
+  latestDate: string;
+  startedDate: string;
+  daysIdle: number;
+}
+
 interface MrDiscussionData {
   cfId: number;
   threadUrl: string;
@@ -38,8 +47,18 @@ interface MrDiscussionData {
   messageCount: number;
   participants: Array<{ name: string; count: number; isAuthor: boolean }>;
   revisions: Array<{ tag: string; date: string; from: string; messageIndex: number; fileCount: number }>;
+  tldr?: MrThreadTldr;
   messages: MrTimelineMessage[];
   cachedAt: string;
+}
+
+interface MrDiffCommentRef {
+  messageIndex: number;
+  from: string;
+  date: string;
+  url: string;
+  excerpt: string;
+  matchKind: "line" | "file";
 }
 
 interface MrDiffLine {
@@ -47,6 +66,7 @@ interface MrDiffLine {
   oldLine: number | null;
   newLine: number | null;
   content: string;
+  comments?: MrDiffCommentRef[];
 }
 
 interface MrDiffHunk {
@@ -60,6 +80,7 @@ interface MrDiffFile {
   additions: number;
   deletions: number;
   hunks: MrDiffHunk[];
+  mentions?: MrDiffCommentRef[];
 }
 
 interface MrDiffData {
@@ -70,6 +91,8 @@ interface MrDiffData {
   totalAdditions: number;
   totalDeletions: number;
   truncated: boolean;
+  matchedLineComments?: number;
+  matchedFileMentions?: number;
   cachedAt: string;
 }
 
@@ -221,6 +244,9 @@ const state = {
   mrDiffLoading: false,
   mrDiffError: "",
   mrDiff: null as MrDiffData | null,
+  mrAuthorFilter: "all",
+  mrDiffOnlyCommented: false,
+  mrViewedFiles: new Set<string>(),
   statsLbTab: "authors" as "authors" | "reviewers" | "committers",
   health: null as HealthInfo | null,
   briefs: [] as BriefSummary[],
@@ -413,6 +439,9 @@ async function openPatchPage(cfId: number, pushHistory = true): Promise<void> {
   state.mrDiff = null;
   state.mrDiffLoading = false;
   state.mrDiffError = "";
+  state.mrAuthorFilter = "all";
+  state.mrDiffOnlyCommented = false;
+  state.mrViewedFiles = new Set<string>();
   syncTopBackofficeLink();
 
   if (pushHistory) {
@@ -618,6 +647,23 @@ function formatModelsLabel(modelsJson: string): string {
   }
 }
 
+function cleanQuoteForDisplay(raw: string): string {
+  return raw
+    .split("\n")
+    .map((ln) => ln.replace(/^>\s?/, ""))
+    .join("\n")
+    .trim();
+}
+
+function quotePreviewLine(raw: string, maxLen = 84): string {
+  const clean = cleanQuoteForDisplay(raw)
+    .split("\n")
+    .map((l) => l.replace(/^>+\s*/, "").trim())
+    .find((l) => l.length > 0) || "";
+  if (!clean) return "";
+  return clean.length > maxLen ? `${clean.slice(0, maxLen).trimEnd()}…` : clean;
+}
+
 function renderMrDiscussionTab(cfId: number, backofficeHref: string): string {
   if (state.mrDiscussionLoading) {
     return `
@@ -648,31 +694,97 @@ function renderMrDiscussionTab(cfId: number, backofficeHref: string): string {
     return `<div class="card"><div class="empty-state">No messages found on this thread yet.</div></div>`;
   }
 
+  const tldr = disc.tldr;
+  const visibleMessages =
+    state.mrAuthorFilter && state.mrAuthorFilter !== "all"
+      ? disc.messages.filter((m) => m.from === state.mrAuthorFilter)
+      : disc.messages;
+  const hasLongQuotes = visibleMessages.some((m) => m.blocks.some((b) => b.kind === "quote" && b.lineCount > 6));
+
   return `
+    ${
+      tldr
+        ? `
+      <section class="mr-tldr-card" aria-label="Thread summary and history">
+        <div class="mr-tldr-head">
+          <strong style="font-size:13px;">Thread TL;DR &amp; Patch History</strong>
+          <span class="mono dim" style="font-size:11.5px;">
+            ${tldr.startedDate ? `Started ${esc(tldr.startedDate)}` : ""}
+            ${tldr.latestDate ? ` · Last active ${esc(tldr.latestDate)} (${tldr.daysIdle === 0 ? "today" : `${tldr.daysIdle}d ago`})` : ""}
+          </span>
+        </div>
+        <div class="mr-tldr-grid">
+          ${
+            tldr.pitch
+              ? `
+            <div class="mr-tldr-box">
+              <div class="mr-tldr-label">Opening pitch (#1 · ${esc(disc.messages[0]?.from || "Author")})</div>
+              <p>${esc(tldr.pitch)}</p>
+            </div>
+          `
+              : ""
+          }
+          ${
+            disc.messages.length > 1 && tldr.latestSummary
+              ? `
+            <div class="mr-tldr-box">
+              <div class="mr-tldr-label">Latest reply (#${disc.messages.length} · ${esc(tldr.latestBy)})</div>
+              <p>${esc(tldr.latestSummary)}</p>
+            </div>
+          `
+              : ""
+          }
+        </div>
+        ${
+          disc.revisions.length > 0
+            ? `
+          <div class="mr-rev-strip" aria-label="Patch revision history">
+            <span class="dim" style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;">Revisions:</span>
+            ${disc.revisions
+              .map(
+                (r, idx) => `
+              ${idx > 0 ? `<span class="dim">→</span>` : ""}
+              <button type="button" class="chip" data-jump-msg="${r.messageIndex}" title="Uploaded by ${esc(r.from)} (${r.fileCount} file${r.fileCount === 1 ? "" : "s"})">
+                <span class="dot" style="background:var(--ok)"></span>
+                <strong class="mono">${esc(r.tag)}</strong>
+                <span class="dim">${esc(r.date.slice(0, 10))}</span>
+              </button>
+            `,
+              )
+              .join("")}
+          </div>
+        `
+            : ""
+        }
+      </section>
+    `
+        : ""
+    }
+
     <div class="mr-toolbar">
       <div class="row" style="gap:6px;">
-        <span class="tag-micro"><strong>${disc.messageCount}</strong> messages</span>
+        <span class="tag-micro"><strong>${visibleMessages.length}${visibleMessages.length !== disc.messageCount ? `/${disc.messageCount}` : ""}</strong> messages</span>
         <span class="tag-micro"><strong>${disc.participants.length}</strong> participants</span>
         ${disc.revisions.length ? `<span class="tag-micro" style="color:var(--ok);"><strong>${disc.revisions.length}</strong> patch upload${disc.revisions.length === 1 ? "" : "s"}</span>` : ""}
       </div>
       <div class="row" style="gap:6px;">
-        <button type="button" class="btn btn-ghost btn-sm" id="mr-toggle-quotes-btn">Expand quotes</button>
+        ${hasLongQuotes ? `<button type="button" class="btn btn-ghost btn-sm" id="mr-toggle-quotes-btn">Expand long quotes</button>` : ""}
         <button type="button" class="btn btn-secondary btn-sm" id="mr-jump-latest-btn">Latest ↓</button>
         <a class="btn btn-backoffice btn-sm" href="${esc(backofficeHref)}" target="_blank" rel="noopener">Reply in Backoffice ↗</a>
       </div>
     </div>
 
     ${
-      disc.revisions.length > 0
+      disc.participants.length > 1
         ? `
-      <div class="chips" style="margin-bottom:12px;" aria-label="Patch revisions">
-        ${disc.revisions
+      <div class="chips" style="margin-bottom:12px;" aria-label="Filter by participant">
+        <button type="button" class="chip ${state.mrAuthorFilter === "all" ? "active" : ""}" data-mr-author="all">All (${disc.messageCount})</button>
+        ${disc.participants
+          .slice(0, 10)
           .map(
-            (r) => `
-          <button type="button" class="chip" data-jump-msg="${r.messageIndex}">
-            <span class="dot" style="background:var(--ok)"></span>
-            <strong class="mono">${esc(r.tag)}</strong>
-            <span class="dim">${esc(r.date.slice(0, 10))}</span>
+            (p) => `
+          <button type="button" class="chip ${state.mrAuthorFilter === p.name ? "active" : ""}" data-mr-author="${esc(p.name)}">
+            ${esc(p.name)}${p.isAuthor ? " · Author" : ""} <span class="dim">(${p.count})</span>
           </button>
         `,
           )
@@ -683,7 +795,7 @@ function renderMrDiscussionTab(cfId: number, backofficeHref: string): string {
     }
 
     <div class="mr-timeline" id="mr-timeline">
-      ${disc.messages
+      ${visibleMessages
         .map((m) => {
           const initials = (m.from || "?").slice(0, 2).toUpperCase();
           const sysEvent =
@@ -698,10 +810,19 @@ function renderMrDiscussionTab(cfId: number, backofficeHref: string): string {
           const bodyHtml = m.blocks
             .map((b) => {
               if (b.kind === "quote") {
+                const cleaned = cleanQuoteForDisplay(b.content);
+                // Short inline quotes (<= 6 lines) stay readable inline so interleaved replies make sense!
+                if (b.lineCount <= 6) {
+                  return `<blockquote class="mr-quote-inline">${esc(cleaned)}</blockquote>`;
+                }
+                const preview = quotePreviewLine(b.content);
                 return `
                   <details class="mr-quote-fold">
-                    <summary>▸ Show quoted text (${b.lineCount} line${b.lineCount === 1 ? "" : "s"})</summary>
-                    <pre class="mr-quote-pre">${esc(b.content)}</pre>
+                    <summary>
+                      <span>▸ Quoted (${b.lineCount} lines)</span>
+                      ${preview ? `<span class="mr-quote-preview">&ldquo;${esc(preview)}&rdquo;</span>` : ""}
+                    </summary>
+                    <pre class="mr-quote-pre">${esc(cleaned)}</pre>
                   </details>
                 `;
               }
@@ -768,7 +889,7 @@ function renderMrDiffTab(cfId: number, backofficeHref: string): string {
       <div class="card">
         <div class="loading-state" style="padding:36px 0;">
           <div class="spinner"></div>
-          <div class="muted">Fetching latest CFBot unified diff (master…cf/${cfId})…</div>
+          <div class="muted">Fetching latest CFBot unified diff (master…cf/${cfId}) and matching -hackers comments…</div>
         </div>
       </div>
     `;
@@ -792,33 +913,116 @@ function renderMrDiffTab(cfId: number, backofficeHref: string): string {
     return `<div class="card"><div class="empty-state">No diff hunks available for CF ${cfId}.</div></div>`;
   }
 
+  const lineCountForFile = (f: MrDiffFile) =>
+    f.hunks.reduce((acc, h) => acc + h.lines.reduce((a, l) => a + (l.comments?.length || 0), 0), 0);
+  const totalCommented = diff.files.filter((f) => lineCountForFile(f) > 0 || (f.mentions?.length || 0) > 0).length;
+  const visibleFiles = state.mrDiffOnlyCommented
+    ? diff.files.filter((f) => lineCountForFile(f) > 0 || (f.mentions?.length || 0) > 0)
+    : diff.files;
+  const viewedCount = diff.files.filter((f) => state.mrViewedFiles.has(f.newPath || f.oldPath)).length;
+  const viewedPct = diff.files.length > 0 ? Math.round((viewedCount / diff.files.length) * 100) : 0;
+
   return `
     <div class="mr-toolbar">
-      <div class="row" style="gap:8px;">
+      <div class="row" style="gap:8px;flex-wrap:wrap;">
         <span class="tag-micro"><strong>${diff.files.length}</strong> file${diff.files.length === 1 ? "" : "s"}</span>
         <span class="mono diff-stat-add">+${diff.totalAdditions}</span>
         <span class="mono diff-stat-del">-${diff.totalDeletions}</span>
+        ${
+          (diff.matchedLineComments || 0) + (diff.matchedFileMentions || 0) > 0
+            ? `<span class="tag-micro" style="color:var(--accent-t);">💬 ${diff.matchedLineComments || 0} inline · ${diff.matchedFileMentions || 0} file mention${(diff.matchedFileMentions || 0) === 1 ? "" : "s"}</span>`
+            : ""
+        }
         ${diff.truncated ? `<span class="tag-micro tag-wa">Truncated for fast browsing</span>` : ""}
       </div>
-      <div class="row" style="gap:6px;">
+      <div class="row" style="gap:6px;flex-wrap:wrap;">
+        ${
+          totalCommented > 0
+            ? `<button type="button" class="btn ${state.mrDiffOnlyCommented ? "btn-primary" : "btn-ghost"} btn-sm" id="mr-diff-commented-btn">💬 Commented (${totalCommented})</button>`
+            : ""
+        }
         <button type="button" class="btn btn-ghost btn-sm" id="mr-toggle-files-btn">Collapse all</button>
         <a class="btn btn-secondary btn-sm" href="${esc(diff.compareUrl)}" target="_blank" rel="noopener">GitHub Compare ↗</a>
         <a class="btn btn-backoffice btn-sm" href="${esc(backofficeHref)}" target="_blank" rel="noopener">Comment inline in Backoffice ↗</a>
       </div>
     </div>
 
-    <div class="diff-files" id="mr-diff-files">
+    <div class="diff-viewed-bar">
+      <div class="row" style="justify-content:space-between;width:100%;font-size:12px;">
+        <span class="muted">Review progress: <strong style="color:var(--text);">${viewedCount} / ${diff.files.length}</strong> files viewed</span>
+        <span class="mono dim">${viewedPct}%</span>
+      </div>
+      <div class="diff-viewed-track"><div class="diff-viewed-fill" style="width:${viewedPct}%;"></div></div>
+    </div>
+
+    <div class="diff-file-nav" aria-label="Changed files">
       ${diff.files
-        .map(
-          (f, idx) => `
-        <details class="diff-file" ${idx < 5 ? "open" : ""}>
+        .map((f, idx) => {
+          const fp = f.newPath || f.oldPath;
+          const shortName = fp.split("/").slice(-2).join("/");
+          const cCount = lineCountForFile(f) + (f.mentions?.length || 0);
+          const isViewed = state.mrViewedFiles.has(fp);
+          return `
+            <button type="button" class="diff-nav-pill ${isViewed ? "is-viewed" : ""}" data-jump-diff-file="${idx}" title="${esc(fp)}">
+              ${isViewed ? `<span style="color:var(--ok);">✓</span>` : ""}
+              <span class="mono">${esc(shortName)}</span>
+              ${cCount > 0 ? `<span class="diff-nav-comm">💬 ${cCount}</span>` : ""}
+              <span class="mono diff-stat-add">+${f.additions}</span>
+            </button>
+          `;
+        })
+        .join("")}
+    </div>
+
+    <div class="diff-files" id="mr-diff-files">
+      ${visibleFiles
+        .map((f, idx) => {
+          const origIdx = diff.files.indexOf(f);
+          const fp = f.newPath || f.oldPath;
+          const isViewed = state.mrViewedFiles.has(fp);
+          const lineCommentsInFile = lineCountForFile(f);
+          const mentionCount = f.mentions?.length || 0;
+          const openByDefault = !isViewed && (idx < 5 || lineCommentsInFile > 0 || mentionCount > 0);
+          return `
+        <details class="diff-file ${isViewed ? "is-viewed" : ""}" id="diff-file-${origIdx}" ${openByDefault ? "open" : ""}>
           <summary>
-            <span class="diff-path">${esc(f.newPath || f.oldPath)}</span>
+            <span class="diff-path">${esc(fp)}</span>
             <span class="row" style="gap:8px;flex-shrink:0;">
+              ${lineCommentsInFile > 0 ? `<span class="tag-micro" style="color:var(--accent-t);">💬 ${lineCommentsInFile} inline</span>` : ""}
+              ${mentionCount > 0 ? `<span class="tag-micro">💬 ${mentionCount} file</span>` : ""}
               <span class="mono diff-stat-add">+${f.additions}</span>
               <span class="mono diff-stat-del">-${f.deletions}</span>
+              <label class="diff-viewed-toggle" data-viewed-wrap="1">
+                <input type="checkbox" data-mark-viewed="${esc(fp)}" ${isViewed ? "checked" : ""} />
+                <span>Viewed</span>
+              </label>
             </span>
           </summary>
+          ${
+            f.mentions && f.mentions.length > 0
+              ? `
+            <details class="diff-file-mentions">
+              <summary>💬 ${f.mentions.length} pgsql-hackers message${f.mentions.length === 1 ? "" : "s"} mention <code class="mono">${esc(fp.split("/").pop() || fp)}</code></summary>
+              <div class="diff-mentions-list">
+                ${f.mentions
+                  .map(
+                    (m) => `
+                  <div class="diff-comment-card">
+                    <div class="diff-comment-head">
+                      <strong>${esc(m.from)}</strong>
+                      <span class="mono dim">#${m.messageIndex + 1} · ${esc(m.date.slice(0, 10))}</span>
+                      <button type="button" class="btn btn-ghost btn-sm" style="margin-left:auto;padding:2px 7px;font-size:11px;" data-open-disc-msg="${m.messageIndex}">View in Discussion →</button>
+                    </div>
+                    <div class="diff-comment-body">${esc(m.excerpt)}</div>
+                  </div>
+                `,
+                  )
+                  .join("")}
+              </div>
+            </details>
+          `
+              : ""
+          }
           <div class="diff-scroll">
             <table class="diff-table">
               <tbody>
@@ -829,11 +1033,38 @@ function renderMrDiffTab(cfId: number, backofficeHref: string): string {
                   ${h.lines
                     .map(
                       (ln) => `
-                    <tr class="diff-${ln.type}">
+                    <tr class="diff-${ln.type} ${ln.comments?.length ? "diff-has-comment" : ""}">
                       <td class="diff-ln">${ln.oldLine ?? ""}</td>
                       <td class="diff-ln">${ln.newLine ?? ""}</td>
                       <td class="diff-code">${ln.type === "add" ? "+" : ln.type === "del" ? "-" : " "}${esc(ln.content)}</td>
                     </tr>
+                    ${
+                      ln.comments && ln.comments.length > 0
+                        ? `
+                      <tr class="diff-inline-row">
+                        <td colspan="3">
+                          <div class="diff-inline-thread">
+                            ${ln.comments
+                              .map(
+                                (c) => `
+                              <div class="diff-comment-card">
+                                <div class="diff-comment-head">
+                                  <span class="diff-comment-badge">💬 Matched from -hackers</span>
+                                  <strong>${esc(c.from)}</strong>
+                                  <span class="mono dim">#${c.messageIndex + 1} · ${esc(c.date.slice(0, 10))}</span>
+                                  <button type="button" class="btn btn-ghost btn-sm" style="margin-left:auto;padding:2px 7px;font-size:11px;" data-open-disc-msg="${c.messageIndex}">Read thread #${c.messageIndex + 1} →</button>
+                                </div>
+                                <div class="diff-comment-body">${esc(c.excerpt)}</div>
+                              </div>
+                            `,
+                              )
+                              .join("")}
+                          </div>
+                        </td>
+                      </tr>
+                    `
+                        : ""
+                    }
                   `,
                     )
                     .join("")}
@@ -844,8 +1075,8 @@ function renderMrDiffTab(cfId: number, backofficeHref: string): string {
             </table>
           </div>
         </details>
-      `,
-        )
+      `;
+        })
         .join("")}
     </div>
   `;
@@ -2260,10 +2491,20 @@ function render(): void {
       folds.forEach((d) => {
         d.open = anyClosed;
       });
-      btn.textContent = anyClosed ? "Collapse quotes" : "Expand quotes";
+      btn.textContent = anyClosed ? "Collapse long quotes" : "Expand long quotes";
+    });
+    document.querySelectorAll<HTMLButtonElement>("[data-mr-author]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        state.mrAuthorFilter = btn.dataset.mrAuthor || "all";
+        render();
+      });
     });
     document.querySelectorAll<HTMLButtonElement>("[data-jump-msg]").forEach((btn) => {
       btn.addEventListener("click", () => {
+        if (state.mrAuthorFilter !== "all") {
+          state.mrAuthorFilter = "all";
+          render();
+        }
         document.getElementById(`mr-msg-${btn.dataset.jumpMsg}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
       });
     });
@@ -2274,6 +2515,10 @@ function render(): void {
       state.mrDiffError = "";
       void loadMrDiff(cfId);
     });
+    document.getElementById("mr-diff-commented-btn")?.addEventListener("click", () => {
+      state.mrDiffOnlyCommented = !state.mrDiffOnlyCommented;
+      render();
+    });
     document.getElementById("mr-toggle-files-btn")?.addEventListener("click", (ev) => {
       const btn = ev.currentTarget as HTMLButtonElement;
       const files = Array.from(document.querySelectorAll<HTMLDetailsElement>("#mr-diff-files details.diff-file"));
@@ -2282,6 +2527,44 @@ function render(): void {
         d.open = !anyOpen;
       });
       btn.textContent = anyOpen ? "Expand all" : "Collapse all";
+    });
+    document.querySelectorAll<HTMLButtonElement>("[data-jump-diff-file]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const idx = btn.dataset.jumpDiffFile;
+        const el = document.getElementById(`diff-file-${idx}`) as HTMLDetailsElement | null;
+        if (el) {
+          el.open = true;
+          el.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+      });
+    });
+    document.querySelectorAll<HTMLElement>("[data-viewed-wrap]").forEach((lbl) => {
+      lbl.addEventListener("click", (ev) => ev.stopPropagation());
+    });
+    document.querySelectorAll<HTMLInputElement>("[data-mark-viewed]").forEach((cb) => {
+      cb.addEventListener("change", (ev) => {
+        ev.stopPropagation();
+        const fp = cb.dataset.markViewed || "";
+        if (!fp) return;
+        if (cb.checked) state.mrViewedFiles.add(fp);
+        else state.mrViewedFiles.delete(fp);
+        render();
+      });
+    });
+    document.querySelectorAll<HTMLButtonElement>("[data-open-disc-msg]").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const msgIdx = btn.dataset.openDiscMsg;
+        state.mrTab = "discussion";
+        state.mrAuthorFilter = "all";
+        if (!state.mrDiscussion && !state.mrDiscussionLoading) {
+          await loadMrDiscussion(cfId);
+        } else {
+          render();
+        }
+        setTimeout(() => {
+          document.getElementById(`mr-msg-${msgIdx}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+        }, 60);
+      });
     });
     return;
   }
