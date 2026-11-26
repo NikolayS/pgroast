@@ -2377,21 +2377,77 @@ document.getElementById("web-quick-search-btn")?.addEventListener("click", () =>
   jumpToEntries({ focusSearch: true });
 });
 
-document.getElementById("web-theme-btn")?.addEventListener("click", () => {
-  const cur = document.documentElement.getAttribute("data-theme") || "dark";
-  const next = cur === "dark" ? "light" : "dark";
-  document.documentElement.setAttribute("data-theme", next);
-  try {
-    localStorage.setItem("pgroast-web-theme", next);
-  } catch {
-    // ignore private browsing storage errors
+const WEB_THEMES: Array<{ id: string; label: string; bg: string; accent: string }> = [
+  { id: "dark", label: "Midnight", bg: "#0b0c0e", accent: "#5e6ad2" },
+  { id: "light", label: "Daylight", bg: "#ffffff", accent: "#5e6ad2" },
+  { id: "paper", label: "Warm Paper", bg: "#f7f3ea", accent: "#9a4a1c" },
+  { id: "espresso", label: "Espresso", bg: "#14100d", accent: "#c97842" },
+  { id: "nord", label: "Nord", bg: "#2e3440", accent: "#88c0d0" },
+  { id: "tokyo", label: "Tokyo Night", bg: "#1a1b26", accent: "#7aa2f7" },
+  { id: "postgres", label: "Postgres Classic", bg: "#f6f9fc", accent: "#336791" },
+  { id: "contrast", label: "High Contrast", bg: "#000000", accent: "#6cb6ff" },
+];
+const validWebThemeIds = new Set(WEB_THEMES.map((t) => t.id));
+
+function applyWebTheme(themeId: string, persist = true): void {
+  const id = validWebThemeIds.has(themeId) ? themeId : "dark";
+  document.documentElement.setAttribute("data-theme", id);
+  const meta = document.getElementById("meta-theme-color");
+  const info = WEB_THEMES.find((t) => t.id === id);
+  if (meta && info) meta.setAttribute("content", info.bg);
+  if (persist) {
+    try {
+      localStorage.setItem("pgroast-web-theme", id);
+    } catch {
+      // ignore private browsing storage errors
+    }
   }
+  const menu = document.getElementById("web-theme-menu");
+  if (menu) {
+    menu.innerHTML =
+      `<div class="theme-menu-head">Theme</div>` +
+      WEB_THEMES.map(
+        (t) => `
+        <button type="button" class="theme-opt ${t.id === id ? "active" : ""}" role="menuitemradio" aria-checked="${t.id === id}" data-pick-theme="${t.id}">
+          <span class="theme-swatch" style="background:${t.bg};"><span class="theme-swatch-accent" style="background:${t.accent};"></span></span>
+          <span>${esc(t.label)}</span>
+          ${t.id === id ? `<span class="theme-check">✓</span>` : ""}
+        </button>
+      `,
+      ).join("");
+  }
+}
+
+function closeThemeMenu(): void {
+  const menu = document.getElementById("web-theme-menu");
+  const btn = document.getElementById("web-theme-btn");
+  if (menu && !menu.hidden) menu.hidden = true;
+  if (btn) btn.setAttribute("aria-expanded", "false");
+}
+
+document.getElementById("web-theme-btn")?.addEventListener("click", (ev) => {
+  ev.stopPropagation();
+  const menu = document.getElementById("web-theme-menu");
+  const btn = document.getElementById("web-theme-btn");
+  if (!menu) return;
+  const opening = menu.hidden;
+  menu.hidden = !opening;
+  btn?.setAttribute("aria-expanded", String(opening));
 });
 
-// Close export menu when clicking outside
+document.getElementById("web-theme-menu")?.addEventListener("click", (ev) => {
+  ev.stopPropagation();
+  const pick = (ev.target as HTMLElement).closest<HTMLButtonElement>("[data-pick-theme]");
+  if (!pick?.dataset.pickTheme) return;
+  applyWebTheme(pick.dataset.pickTheme, true);
+  closeThemeMenu();
+});
+
+// Close dropdown menus when clicking outside
 document.addEventListener("click", () => {
   const exportMenu = document.getElementById("export-menu");
   if (exportMenu && !exportMenu.hidden) exportMenu.hidden = true;
+  closeThemeMenu();
 });
 
 // Browser / iPhone Back-swipe navigation
@@ -2412,19 +2468,22 @@ window.addEventListener("popstate", () => {
 document.addEventListener("keydown", (ev) => {
   if (ev.key === "Escape") {
     closeSpaceSwitcher();
+    closeThemeMenu();
   }
 });
 
 // Restore saved or system theme on load
 try {
   const saved = localStorage.getItem("pgroast-web-theme");
-  if (saved === "light" || saved === "dark") {
-    document.documentElement.setAttribute("data-theme", saved);
+  if (saved && validWebThemeIds.has(saved)) {
+    applyWebTheme(saved, false);
   } else if (window.matchMedia?.("(prefers-color-scheme: light)").matches) {
-    document.documentElement.setAttribute("data-theme", "light");
+    applyWebTheme("light", false);
+  } else {
+    applyWebTheme("dark", false);
   }
 } catch {
-  // ignore
+  applyWebTheme("dark", false);
 }
 
 void loadAll();

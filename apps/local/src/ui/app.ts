@@ -5182,6 +5182,7 @@ function initGlobalControls(): void {
     { id: "dark", label: "Midnight", swatch: "#0c0d0f" },
     { id: "light", label: "Daylight", swatch: "#ffffff" },
     { id: "paper", label: "Warm Paper", swatch: "#f7f3ea" },
+    { id: "espresso", label: "Espresso", swatch: "#c97842" },
     { id: "nord", label: "Nord", swatch: "#2e3440" },
     { id: "tokyo", label: "Tokyo Night", swatch: "#1a1b26" },
     { id: "postgres", label: "Postgres Classic", swatch: "#336791" },
