@@ -563,7 +563,7 @@ echo "=== Build & test complete (PGPORT=${pgPort}) ==="
     const model =
       params.model ||
       (backend === "agy"
-        ? settings.defaultAgyModel || "gemini-4-neon-high"
+        ? settings.defaultAgyModel || ""
         : backend === "codex"
           ? "codex-default"
           : settings.defaultClaudeModel || "opus");
@@ -625,7 +625,7 @@ echo "=== Build & test complete (PGPORT=${pgPort}) ==="
 
     if (backend === "agy") {
       cmd = "agy";
-      args = ["--model", model, "--output-format", "json", "-p", brief];
+      args = [...(model ? ["--model", model] : []), "--output-format", "json", "-p", brief];
     } else if (backend === "codex") {
       cmd = "codex";
       args = ["exec", "--full-auto", brief];

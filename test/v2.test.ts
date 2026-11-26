@@ -607,21 +607,21 @@ describe("v2 pipeline: novelty, critic duplicate + upgrade, clean lead prose", (
     const full = renderMarkdown(r);
     expect(full).toContain("### Duplicates merged in the counter-check");
     expect(full).toContain("Duplicate of `prior-attempts-1`");
-    expect(full).toContain("Medium roast · Default (Neutral Committer)");
+    expect(full).toContain("Medium roast · House Blend");
   });
 
-  test("roast level (light/medium/dark) and hacker flavour flags parse, inject prompts, and appear in reports", async () => {
-    const cliParsed = parseArgs(["--roast-level", "dark", "--flavour", "tom-lane", "5879"]);
+  test("roast level (light/medium/dark) and reviewer archetype flags parse, inject prompts, and appear in reports", async () => {
+    const cliParsed = parseArgs(["--roast-level", "dark", "--flavour", "edge-case-hunter", "5879"]);
     expect(cliParsed !== "help" && cliParsed.roastLevel).toBe("dark");
-    expect(cliParsed !== "help" && cliParsed.roastFlavour).toBe("tom-lane");
+    expect(cliParsed !== "help" && cliParsed.roastFlavour).toBe("edge-case-hunter");
 
-    const aliasParsed = parseArgs(["--level", "light", "--flavor", "peter", "5879"]);
+    const aliasParsed = parseArgs(["--level", "light", "--flavor", "spec", "5879"]);
     expect(aliasParsed !== "help" && aliasParsed.roastLevel).toBe("light");
-    expect(aliasParsed !== "help" && aliasParsed.roastFlavour).toBe("peter-eisentraut");
+    expect(aliasParsed !== "help" && aliasParsed.roastFlavour).toBe("spec-lawyer");
 
-    const batchParsed = parseBatchArgs(["62", "--out", "/tmp/out", "--roast-level", "dark", "--flavour", "robert-haas"]);
+    const batchParsed = parseBatchArgs(["62", "--out", "/tmp/out", "--roast-level", "dark", "--flavour", "systems-architect"]);
     expect(batchParsed.roastLevel).toBe("dark");
-    expect(batchParsed.roastFlavour).toBe("robert-haas");
+    expect(batchParsed.roastFlavour).toBe("systems-architect");
 
     const seenSystems: string[] = [];
     const prop: ProposalInput = {
@@ -645,18 +645,18 @@ describe("v2 pipeline: novelty, critic duplicate + upgrade, clean lead prose", (
       backend: new DryRunBackend({ print: (s: string) => seenSystems.push(s) }),
       models: modelsFromEnv({}),
       roastLevel: "dark",
-      roastFlavour: "tom-lane",
+      roastFlavour: "edge-case-hunter",
       enrich: false,
       search: async () => [],
       log: () => undefined,
     });
     expect(r.roast_level).toBe("dark");
-    expect(r.roast_flavour).toBe("tom-lane");
-    expect(seenSystems.some((s) => s.includes("Roast level: DARK") && s.includes("TOM LANE STYLE"))).toBe(true);
-    expect(renderCompactMarkdown(r)).toContain("Dark roast · Tom Lane style (AI guess, not connected to Tom Lane)");
+    expect(r.roast_flavour).toBe("edge-case-hunter");
+    expect(seenSystems.some((s) => s.includes("Roast level: DARK") && s.includes("THE EDGE-CASE HUNTER"))).toBe(true);
+    expect(renderCompactMarkdown(r)).toContain("Dark roast · The Edge-Case Hunter (AI persona)");
     expect(renderCompactMarkdown(r)).toContain("AI makes mistakes all the time");
-    expect(renderMarkdown(r)).toContain("Roast profile: Dark roast · Tom Lane style (AI guess, not connected to Tom Lane)");
-    expect(renderMarkdown(r)).toContain("not connected to or endorsed by Tom Lane");
+    expect(renderMarkdown(r)).toContain("Roast profile: Dark roast · The Edge-Case Hunter (AI persona)");
+    expect(renderMarkdown(r)).toContain("fictional AI review archetype");
   });
 });
 

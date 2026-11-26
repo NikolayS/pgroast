@@ -1353,7 +1353,7 @@ function renderShortlistView(): string {
         ✕ Worth Closing / Rethinking (${state.top50Closing.length})
       </button>
       <input type="text" id="sl-search" placeholder="Filter shortlist by CF #, title, or author…" value="${esc(state.shortlistSearch)}" />
-      <button class="btn btn-secondary btn-sm" id="sl-publish-brief-btn" title="Publish sanitized interactive & downloadable brief to Public Companion (pgroast.dev)">Publish Brief…</button>
+      <button class="btn btn-secondary btn-sm" id="sl-publish-brief-btn" title="Publish sanitized interactive &amp; downloadable brief to Public App">Publish Brief…</button>
       <button class="btn btn-secondary btn-sm" id="sl-export-snapshot-btn" title="Generate a frozen static HTML snapshot for public feedback">Export Snapshot (.html)</button>
       <button class="btn btn-ghost btn-sm" id="sl-digest-md-btn">Digest (.md)</button>
     </div>
@@ -2165,15 +2165,30 @@ function renderWorkbenchView(): string {
     lens: string;
     color: string;
   }> = [
-    { id: "default", name: "Default", initials: "PG", lens: "Balanced committer", color: "#5e6ad2" },
-    { id: "tom-lane", name: "Tom Lane", initials: "TL", lens: "Planner, edge cases & spec", color: "#b85d28" },
-    { id: "peter-eisentraut", name: "Peter Eisentraut", initials: "PE", lens: "SQL standard, docs & APIs", color: "#2d7d62" },
-    { id: "robert-haas", name: "Robert Haas", initials: "RH", lens: "Architecture & concurrency", color: "#7b5cd6" },
-    { id: "andres-freund", name: "Andres Freund", initials: "AF", lens: "Perf, memory & low-level", color: "#c2444e" },
-    { id: "heikki-linnakangas", name: "Heikki Linnakangas", initials: "HL", lens: "WAL, storage & recovery", color: "#2f78a8" },
-    { id: "bruce-momjian", name: "Bruce Momjian", initials: "BM", lens: "Clarity, UX & release impact", color: "#a67721" },
-    { id: "alexander-korotkov", name: "Alexander Korotkov", initials: "AK", lens: "Indexing, AMs & planner", color: "#2b8a82" },
+    { id: "default", name: "House Blend", initials: "HB", lens: "Balanced committer review", color: "#5e6ad2" },
+    { id: "edge-case-hunter", name: "The Edge-Case Hunter", initials: "EC", lens: "Planner, NULLs & semantics", color: "#b85d28" },
+    { id: "spec-lawyer", name: "The Spec Lawyer", initials: "SL", lens: "SQL standard, docs & syntax", color: "#2d7d62" },
+    { id: "systems-architect", name: "The Systems Architect", initials: "SA", lens: "Concurrency & 10-yr maintenance", color: "#7b5cd6" },
+    { id: "perf-hawk", name: "The Perf Hawk", initials: "PH", lens: "Hot path, ABI & benchmarks", color: "#c2444e" },
+    { id: "storage-skeptic", name: "The Storage Skeptic", initials: "SS", lens: "WAL, crash recovery & format", color: "#2f78a8" },
+    { id: "index-specialist", name: "The Index Specialist", initials: "IS", lens: "GiST/GIN/B-tree & AM APIs", color: "#2b8a82" },
+    { id: "production-dba", name: "The Production DBA", initials: "DB", lens: "Upgrades, defaults & ops", color: "#a67721" },
   ];
+
+  const LEGACY_FLAVOUR_MAP: Record<string, string> = {
+    "tom-lane": "edge-case-hunter",
+    "peter-eisentraut": "spec-lawyer",
+    "robert-haas": "systems-architect",
+    "andres-freund": "perf-hawk",
+    "heikki-linnakangas": "storage-skeptic",
+    "bruce-momjian": "production-dba",
+    "alexander-korotkov": "index-specialist",
+  };
+  const normalizeUiFlavour = (raw?: string) => {
+    const k = (raw || "default").toLowerCase();
+    return LEGACY_FLAVOUR_MAP[k] || k;
+  };
+  const currentFlavourId = normalizeUiFlavour(state.roastFlavour);
 
   let rightTabHtml = "";
   if (state.workbenchTab === "roast") {
@@ -2181,17 +2196,17 @@ function renderWorkbenchView(): string {
     const aiAvail = state.aiSummary?.available || [];
     const dualReady = Boolean(state.aiSummary?.dualReady);
     const activeLevel = ROAST_LEVEL_CARDS.find((l) => l.id === state.roastLevel) || ROAST_LEVEL_CARDS[1]!;
-    const activeFlavour = ROAST_FLAVOUR_CARDS.find((f) => f.id === state.roastFlavour) || ROAST_FLAVOUR_CARDS[0]!;
+    const activeFlavour = ROAST_FLAVOUR_CARDS.find((f) => f.id === currentFlavourId) || ROAST_FLAVOUR_CARDS[0]!;
     const runBtnHtml =
       activeFlavour.id === "default"
         ? `<span class="roast-cta-main">🔥 Brew ${esc(activeLevel.label)}</span>`
-        : `<span class="roast-cta-main">🔥 Brew ${esc(activeLevel.label)}</span><span class="roast-cta-sub">${esc(activeFlavour.name)} style</span>`;
+        : `<span class="roast-cta-main">🔥 Brew ${esc(activeLevel.label)}</span><span class="roast-cta-sub">${esc(activeFlavour.name)}</span>`;
     rightTabHtml = `
       <div class="card">
         <div class="card-header">
           <div>
             <h3>Roast Studio</h3>
-            <div class="muted" style="font-size:12px;">Dial in roast intensity and hacker lens — every report &amp; published opinion remembers your choice.</div>
+            <div class="muted" style="font-size:12px;">Dial in roast intensity and reviewer archetype — every report &amp; published opinion remembers your choice.</div>
           </div>
           <span class="pill pill-purple">Local CLI · Zero API Key</span>
         </div>
@@ -2219,13 +2234,13 @@ function renderWorkbenchView(): string {
 
         <div class="roast-section">
           <div class="roast-section-head">
-            <span class="roast-section-label">2. Hacker Flavour / Voice Style</span>
-            <button type="button" class="btn btn-secondary btn-sm" id="roast-surprise-btn" title="Pick a random roast level and hacker flavour">🎲 Surprise me</button>
+            <span class="roast-section-label">2. Reviewer Archetype</span>
+            <button type="button" class="btn btn-secondary btn-sm" id="roast-surprise-btn" title="Pick a random roast level and reviewer archetype">🎲 Surprise me</button>
           </div>
-          <div class="roast-flavour-grid" role="radiogroup" aria-label="Hacker Flavour">
+          <div class="roast-flavour-grid" role="radiogroup" aria-label="Reviewer Archetype">
             ${ROAST_FLAVOUR_CARDS.map(
               (fl) => `
-              <button type="button" class="roast-flavour-chip ${state.roastFlavour === fl.id ? "active" : ""}" data-pick-roast-flavour="${fl.id}" aria-pressed="${state.roastFlavour === fl.id}">
+              <button type="button" class="roast-flavour-chip ${currentFlavourId === fl.id ? "active" : ""}" data-pick-roast-flavour="${fl.id}" aria-pressed="${currentFlavourId === fl.id}">
                 <span class="roast-flavour-avatar" style="background:${fl.color};">${esc(fl.initials)}</span>
                 <span class="roast-flavour-text">
                   <strong>${esc(fl.name)}</strong>
@@ -2236,7 +2251,7 @@ function renderWorkbenchView(): string {
             ).join("")}
           </div>
           <div class="roast-flavour-disclaimer">
-            <strong>Not connected to the real person:</strong> a flavour is only what AI thinks that famous hacker might say based on public reviews — with no guarantee they would actually say it in reality (AI makes mistakes all the time).
+            <strong>AI review archetypes:</strong> these are fictional engineering lenses to stress-test different PostgreSQL risk areas — never a human committer verdict, and AI makes mistakes all the time.
           </div>
         </div>
 
@@ -2270,11 +2285,7 @@ function renderWorkbenchView(): string {
             </div>
             <div class="form-field">
               <label>Antigravity (agy) Model</label>
-              <select id="roast-agy-model">
-                <option value="gemini-4-neon-high">gemini-4-neon-high</option>
-                <option value="gemini-4-neon-xhigh">gemini-4-neon-xhigh</option>
-                <option value="claude-opus-5-5-high">claude-opus-5-5-high</option>
-              </select>
+              <input type="text" id="roast-agy-model" value="${esc(state.settings?.defaultAgyModel || "")}" placeholder="CLI default (or custom model ID)" />
             </div>
           </div>
           <div class="inline-row" style="margin-top:8px;">
@@ -2752,7 +2763,7 @@ function renderWorkbenchView(): string {
             <h3>Model Opinions &amp; Agreement</h3>
             <div class="inline-row">
               ${opinionAgreement}
-              <button type="button" class="btn btn-secondary btn-sm" id="wb-hub-publish-op-btn" title="Publish sanitized opinion to Public Companion (pgroast.dev)">Publish…</button>
+              <button type="button" class="btn btn-secondary btn-sm" id="wb-hub-publish-op-btn" title="Publish sanitized opinion to Public App">Publish…</button>
               <button type="button" class="btn btn-ghost btn-sm" id="wb-hub-pull-op-btn" title="Pull teammates' attributed opinions from Public Companion">Pull Team</button>
               <button type="button" class="btn btn-secondary btn-sm" id="wb-record-opinion-btn" title="Record or import a teammate's model opinion (e.g. Kirk, Andrey)">+ Record / Import</button>
               <button type="button" class="btn btn-ghost btn-sm" id="wb-export-opinions-btn" title="Export opinions as JSON to share with teammates">Export JSON</button>
@@ -3320,11 +3331,11 @@ function renderSettingsView(): string {
             </span>
           </div>
           <p class="muted" style="margin-top:0;font-size:12px;">
-            Trust flows strictly <strong>local → public</strong>: push sanitized opinions or Kirk's interactive CommitFest brief to <code>pgroast-web</code> / <code>pgroast.dev</code>, and pull teammates' opinions. Your local Work Items, cookies, and skills never leave this machine.
+            Trust flows strictly <strong>local → public</strong>: push sanitized opinions or interactive CommitFest briefs to your Public App (e.g. <code>https://pgroast.postgres.ai</code>), and pull teammates' opinions. Your local Work Items, cookies, and skills never leave this machine.
           </p>
           <div class="form-field">
             <label>Public Companion URL</label>
-            <input type="text" id="hub-url-input" value="${esc(state.hubStatus?.url || state.settings?.publicHubUrl || "http://127.0.0.1:3433")}" placeholder="http://127.0.0.1:3433 or https://pgroast.dev" />
+            <input type="text" id="hub-url-input" value="${esc(state.hubStatus?.url || state.settings?.publicHubUrl || "https://pgroast.postgres.ai")}" placeholder="https://pgroast.postgres.ai" />
           </div>
           <div class="form-field">
             <label>Publish-Only Token (stored AES-256-GCM encrypted in local PostgreSQL)</label>
@@ -3544,7 +3555,7 @@ function bindViewEvents(): void {
     }
   });
   document.getElementById("sl-publish-brief-btn")?.addEventListener("click", () => {
-    const hubUrl = state.hubStatus?.url || state.settings?.publicHubUrl || "http://127.0.0.1:3433";
+    const hubUrl = state.hubStatus?.url || state.settings?.publicHubUrl || "https://pgroast.postgres.ai";
     const today = new Date().toISOString().slice(0, 10);
     showConfirmModal({
       title: `Publish Sanitized CommitFest Brief to ${hubUrl}`,
@@ -3626,7 +3637,17 @@ function bindViewEvents(): void {
     const latestRun = state.detail.runs?.[0];
     const defaultBackend = latestRun?.backend || roast?.backend || state.aiSummary?.available?.[0] || "claude";
     const defaultLevel = (latestRun?.roast_level || roast?.roast_level || state.roastLevel || "medium").toLowerCase();
-    const defaultFlavour = (latestRun?.roast_flavour || roast?.roast_flavour || state.roastFlavour || "default").toLowerCase();
+    const legacyMap: Record<string, string> = {
+      "tom-lane": "edge-case-hunter",
+      "peter-eisentraut": "spec-lawyer",
+      "robert-haas": "systems-architect",
+      "andres-freund": "perf-hawk",
+      "heikki-linnakangas": "storage-skeptic",
+      "bruce-momjian": "production-dba",
+      "alexander-korotkov": "index-specialist",
+    };
+    const rawFlavour = (latestRun?.roast_flavour || roast?.roast_flavour || state.roastFlavour || "default").toLowerCase();
+    const defaultFlavour = legacyMap[rawFlavour] || rawFlavour;
     const hubUrl = state.hubStatus?.url || state.settings?.publicHubUrl || "https://pgroast.postgres.ai";
     showConfirmModal({
       title: `Publish Sanitized Opinion for CF #${entry.cf_id} to ${hubUrl}`,
@@ -3652,16 +3673,16 @@ function bindViewEvents(): void {
             </select>
           </div>
           <div class="form-field">
-            <label>Hacker Flavour (AI guess — not the real person)</label>
+            <label>Reviewer Archetype (AI persona)</label>
             <select id="hub-op-flavour">
-              <option value="default" ${defaultFlavour === "default" ? "selected" : ""}>Default</option>
-              <option value="tom-lane" ${defaultFlavour === "tom-lane" ? "selected" : ""}>Tom Lane style (AI guess)</option>
-              <option value="peter-eisentraut" ${defaultFlavour === "peter-eisentraut" ? "selected" : ""}>Peter Eisentraut style (AI guess)</option>
-              <option value="robert-haas" ${defaultFlavour === "robert-haas" ? "selected" : ""}>Robert Haas style (AI guess)</option>
-              <option value="andres-freund" ${defaultFlavour === "andres-freund" ? "selected" : ""}>Andres Freund style (AI guess)</option>
-              <option value="heikki-linnakangas" ${defaultFlavour === "heikki-linnakangas" ? "selected" : ""}>Heikki Linnakangas style (AI guess)</option>
-              <option value="bruce-momjian" ${defaultFlavour === "bruce-momjian" ? "selected" : ""}>Bruce Momjian style (AI guess)</option>
-              <option value="alexander-korotkov" ${defaultFlavour === "alexander-korotkov" ? "selected" : ""}>Alexander Korotkov style (AI guess)</option>
+              <option value="default" ${defaultFlavour === "default" ? "selected" : ""}>House Blend (Balanced)</option>
+              <option value="edge-case-hunter" ${defaultFlavour === "edge-case-hunter" ? "selected" : ""}>The Edge-Case Hunter</option>
+              <option value="spec-lawyer" ${defaultFlavour === "spec-lawyer" ? "selected" : ""}>The Spec Lawyer</option>
+              <option value="systems-architect" ${defaultFlavour === "systems-architect" ? "selected" : ""}>The Systems Architect</option>
+              <option value="perf-hawk" ${defaultFlavour === "perf-hawk" ? "selected" : ""}>The Perf Hawk</option>
+              <option value="storage-skeptic" ${defaultFlavour === "storage-skeptic" ? "selected" : ""}>The Storage Skeptic</option>
+              <option value="index-specialist" ${defaultFlavour === "index-specialist" ? "selected" : ""}>The Index Specialist</option>
+              <option value="production-dba" ${defaultFlavour === "production-dba" ? "selected" : ""}>The Production DBA</option>
             </select>
           </div>
         </div>
@@ -4100,7 +4121,15 @@ function bindViewEvents(): void {
 
   document.getElementById("roast-surprise-btn")?.addEventListener("click", () => {
     const levels: Array<"light" | "medium" | "dark"> = ["light", "medium", "dark"];
-    const flavours = ["tom-lane", "peter-eisentraut", "robert-haas", "andres-freund", "heikki-linnakangas", "bruce-momjian", "alexander-korotkov"];
+    const flavours = [
+      "edge-case-hunter",
+      "spec-lawyer",
+      "systems-architect",
+      "perf-hawk",
+      "storage-skeptic",
+      "index-specialist",
+      "production-dba",
+    ];
     state.roastLevel = levels[Math.floor(Math.random() * levels.length)]!;
     state.roastFlavour = flavours[Math.floor(Math.random() * flavours.length)]!;
     try {
@@ -4117,7 +4146,7 @@ function bindViewEvents(): void {
     const roastFlavour = state.roastFlavour || "default";
     const rounds = Number((document.getElementById("roast-rounds") as HTMLSelectElement)?.value ?? 1);
     const claudeModel = (document.getElementById("roast-claude-model") as HTMLSelectElement)?.value || "opus";
-    const agyModel = (document.getElementById("roast-agy-model") as HTMLSelectElement)?.value || "gemini-4-neon-high";
+    const agyModel = (document.getElementById("roast-agy-model") as HTMLInputElement)?.value.trim() || undefined;
     const selfMode = Boolean((document.getElementById("roast-self") as HTMLInputElement)?.checked);
     const dryRun = Boolean((document.getElementById("roast-dryrun") as HTMLInputElement)?.checked);
     try {
@@ -4212,7 +4241,7 @@ function bindViewEvents(): void {
     const val = (ev.target as HTMLSelectElement).value;
     const modelInp = document.getElementById("ai-rev-model") as HTMLInputElement | null;
     if (modelInp) {
-      modelInp.value = val === "agy" ? "gemini-4-neon-high" : val === "codex" ? "codex-default" : "opus";
+      modelInp.value = val === "agy" ? state.settings?.defaultAgyModel || "" : val === "codex" ? "codex-default" : "opus";
     }
   });
 

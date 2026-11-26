@@ -54,6 +54,7 @@ export interface PublishedBriefRecord {
   slug: string;
   title: string;
   commitfest_label: string;
+  published_by_provider: string;
   published_by_handle: string;
   published_by_name: string;
   stats_json: string;
@@ -220,6 +221,7 @@ export class WebDatabase {
         slug TEXT UNIQUE NOT NULL,
         title TEXT NOT NULL,
         commitfest_label TEXT NOT NULL DEFAULT 'CommitFest',
+        published_by_provider TEXT NOT NULL DEFAULT 'github',
         published_by_handle TEXT NOT NULL DEFAULT '',
         published_by_name TEXT NOT NULL DEFAULT '',
         stats_json TEXT NOT NULL DEFAULT '{}',
@@ -228,6 +230,7 @@ export class WebDatabase {
         entries_json TEXT NOT NULL DEFAULT '[]',
         created_at TEXT NOT NULL
       )`,
+      `ALTER TABLE ${this.t("published_briefs")} ADD COLUMN IF NOT EXISTS published_by_provider TEXT NOT NULL DEFAULT 'github'`,
       `CREATE TABLE IF NOT EXISTS ${this.t("shared_coordination")} (
         id SERIAL PRIMARY KEY,
         cf_id INTEGER,
@@ -544,12 +547,13 @@ export class WebDatabase {
     }
     const rows = (await this.sql.unsafe(
       `INSERT INTO ${this.t("published_briefs")} (
-        slug, title, commitfest_label, published_by_handle, published_by_name,
+        slug, title, commitfest_label, published_by_provider, published_by_handle, published_by_name,
         stats_json, shortlist_json, closing_json, entries_json, created_at
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
       ON CONFLICT (slug) DO UPDATE SET
         title = EXCLUDED.title,
         commitfest_label = EXCLUDED.commitfest_label,
+        published_by_provider = EXCLUDED.published_by_provider,
         published_by_handle = EXCLUDED.published_by_handle,
         published_by_name = EXCLUDED.published_by_name,
         stats_json = EXCLUDED.stats_json,
@@ -562,6 +566,7 @@ export class WebDatabase {
         safeSlug,
         input.title,
         input.commitfestLabel || "CommitFest",
+        input.contributor.provider,
         input.contributor.handle,
         input.contributor.name,
         JSON.stringify(input.stats ?? {}),
@@ -689,14 +694,16 @@ export class WebDatabase {
 
   async getBriefOwners(): Promise<{ slugOwners: Map<string, string>; allPublishers: Set<string> }> {
     const rows = (await this.sql.unsafe(
-      `SELECT slug, published_by_handle FROM ${this.t("published_briefs")}`,
-    )) as Array<{ slug: string; published_by_handle: string }>;
+      `SELECT slug, published_by_provider, published_by_handle FROM ${this.t("published_briefs")}`,
+    )) as Array<{ slug: string; published_by_provider: string; published_by_handle: string }>;
     const slugOwners = new Map<string, string>();
     const allPublishers = new Set<string>();
     for (const r of rows) {
       const h = (r.published_by_handle || "").trim().toLowerCase();
-      slugOwners.set(r.slug, h);
-      if (h) allPublishers.add(h);
+      const p = (r.published_by_provider || "github").trim().toLowerCase();
+      const principal = h ? `${p}:${h}` : "";
+      slugOwners.set(r.slug, principal);
+      if (principal) allPublishers.add(principal);
     }
     return { slugOwners, allPublishers };
   }

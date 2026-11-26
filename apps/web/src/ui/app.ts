@@ -703,17 +703,25 @@ function formatOpinionProfile(o: OpinionItem): string {
   const fl = (o.roast_flavour || "default").toLowerCase();
   const lvLabel = lv === "dark" ? "Dark roast" : lv === "light" ? "Light roast" : "Medium roast";
   const flNames: Record<string, string> = {
-    default: "Default",
-    "tom-lane": "Tom Lane",
-    "peter-eisentraut": "Peter Eisentraut",
-    "robert-haas": "Robert Haas",
-    "andres-freund": "Andres Freund",
-    "heikki-linnakangas": "Heikki Linnakangas",
-    "bruce-momjian": "Bruce Momjian",
-    "alexander-korotkov": "Alexander Korotkov",
+    default: "House Blend",
+    "edge-case-hunter": "The Edge-Case Hunter",
+    "spec-lawyer": "The Spec Lawyer",
+    "systems-architect": "The Systems Architect",
+    "perf-hawk": "The Perf Hawk",
+    "storage-skeptic": "The Storage Skeptic",
+    "index-specialist": "The Index Specialist",
+    "production-dba": "The Production DBA",
+    // Silent fallback for legacy saved rows (never render living people's names)
+    "tom-lane": "The Edge-Case Hunter",
+    "peter-eisentraut": "The Spec Lawyer",
+    "robert-haas": "The Systems Architect",
+    "andres-freund": "The Perf Hawk",
+    "heikki-linnakangas": "The Storage Skeptic",
+    "bruce-momjian": "The Production DBA",
+    "alexander-korotkov": "The Index Specialist",
   };
   const flLabel = flNames[fl] || fl;
-  return fl === "default" ? `${lvLabel} · ${flLabel}` : `${lvLabel} · ${flLabel} style (AI guess, not the real person)`;
+  return fl === "default" ? `${lvLabel} · ${flLabel}` : `${lvLabel} · ${flLabel} (AI persona)`;
 }
 
 function formatModelsLabel(modelsJson: string): string {
@@ -2016,19 +2024,20 @@ function renderIntroCard(): string {
         <div class="intro-step">
           <div class="intro-step-head">
             <span class="intro-num">3</span>
-            <strong>Focus by subsystem lens</strong>
+            <strong>Pick a reviewer archetype</strong>
           </div>
           <div class="intro-flavour-list">
-            <span class="chip">Planner &amp; Semantics</span>
-            <span class="chip">SQL Standards</span>
-            <span class="chip">Architecture &amp; Concurrency</span>
-            <span class="chip">WAL &amp; Storage</span>
-            <span class="chip">Performance &amp; Internals</span>
-            <span class="chip">Indexing &amp; Access Methods</span>
-            <span class="chip">DBA &amp; Operability</span>
+            <span class="chip">House Blend</span>
+            <span class="chip">The Edge-Case Hunter</span>
+            <span class="chip">The Spec Lawyer</span>
+            <span class="chip">The Systems Architect</span>
+            <span class="chip">The Perf Hawk</span>
+            <span class="chip">The Storage Skeptic</span>
+            <span class="chip">The Index Specialist</span>
+            <span class="chip">The Production DBA</span>
           </div>
           <p>
-            Every roast checks multiple PostgreSQL engineering angles. The local Backoffice also offers optional reviewer-inspired flavours — clearly marked as <strong>AI guesses, not connected to real people</strong> (AI makes mistakes all the time).
+            Fictional PostgreSQL review personas that focus the AI on specific risk areas — never real human committers (AI makes mistakes all the time). Every report and opinion records its roast level and archetype.
           </p>
         </div>
 

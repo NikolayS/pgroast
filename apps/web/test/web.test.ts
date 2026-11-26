@@ -174,7 +174,7 @@ describe("pgroast-web public companion API & security gates", () => {
     expect(viewsJson.total).toBeGreaterThanOrEqual(1);
     expect(viewsJson.topPatches.some((p) => p.cf_id === 5879)).toBe(true);
 
-    // Roast level + flavour round-trip on published opinion
+    // Roast level + archetype round-trip on published opinion
     const darkOp = await req("/api/v1/publish/opinion", {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${pubToken}` },
@@ -182,16 +182,16 @@ describe("pgroast-web public companion API & security gates", () => {
         cf_id: 5879,
         backend: "claude",
         roast_level: "dark",
-        roast_flavour: "tom-lane",
+        roast_flavour: "edge-case-hunter",
         verdict: "NEEDS-DESIGN-DISCUSSION",
         confidence: "high",
-        summary: "Dark roast in Tom Lane voice checking locking invariants.",
+        summary: "Dark roast as The Edge-Case Hunter checking locking invariants.",
       }),
     });
     expect(darkOp.status).toBe(201);
     const darkJson = (await darkOp.json()) as { opinion: { roast_level: string; roast_flavour: string } };
     expect(darkJson.opinion.roast_level).toBe("dark");
-    expect(darkJson.opinion.roast_flavour).toBe("tom-lane");
+    expect(darkJson.opinion.roast_flavour).toBe("edge-case-hunter");
   });
 
   test("GitHub & Google OAuth callbacks, admin invite tokens, size cap, and rate limiting", async () => {
@@ -441,6 +441,21 @@ describe("pgroast-web public companion API & security gates", () => {
       body: JSON.stringify({ slug: "attacker-latest", title: "Hijacked Latest" }),
     });
     expect(hijackNewSlug.status).toBe(403);
+
+    // Cross-provider impersonation check: google:NikolayS CANNOT overwrite brief owned by github:NikolayS (403)
+    const googleSameHandleMint = await req("/api/v1/tokens/dev", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ provider: "google", handle: "NikolayS", name: "Spoofed Google User" }),
+    });
+    expect(googleSameHandleMint.status).toBe(201);
+    const googleSameHandleToken = ((await googleSameHandleMint.json()) as { token: string }).token;
+    const crossProviderHijack = await req("/api/v1/publish/brief", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${googleSameHandleToken}` },
+      body: JSON.stringify({ slug: "pg20-3-brief", title: "Cross-Provider Hijack" }),
+    });
+    expect(crossProviderHijack.status).toBe(403);
 
     // 3. Stored XSS & javascript: URL defense in briefs (hash-based CSP, no unsafe-inline script, coerced ints)
     const xssBriefRes = await req("/api/v1/publish/brief", {

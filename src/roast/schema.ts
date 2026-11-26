@@ -444,7 +444,7 @@ export interface Roast {
   mode: "review" | "self";
   /** Roast intensity: "light" | "medium" | "dark". */
   roast_level?: RoastLevel;
-  /** Review persona/emphasis flavour: "default" | "tom-lane" | "peter-eisentraut" | ... */
+  /** Review archetype flavour: "default" | "edge-case-hunter" | "spec-lawyer" | ... */
   roast_flavour?: RoastFlavour;
   /** "claude" | "codex" | "agy" | "dual" | "dry-run" | "test". */
   backend: string;

@@ -58,7 +58,7 @@ export interface RunOptions {
   mode?: "review" | "self";
   /** Roast intensity: light, medium (default), or dark. */
   roastLevel?: RoastLevel;
-  /** Review flavour / hacker voice style (default, tom-lane, peter-eisentraut, ...). */
+  /** Review archetype flavour (default, edge-case-hunter, spec-lawyer, ...). */
   roastFlavour?: RoastFlavour;
   /** Extra rounds after the first pass (default 0). 1 = "What did you forget?", 2 = + "Are you happy with the results?", 3+ = supervisor follow-ups. */
   rounds?: number;

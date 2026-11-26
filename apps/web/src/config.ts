@@ -62,7 +62,9 @@ export function loadWebConfig(): WebConfig {
     maxPublishBytes: Math.max(65536, Number(process.env.PGROAST_WEB_MAX_PUBLISH_BYTES || 4 * 1024 * 1024)),
     rateLimitPerMinute: Math.max(5, Number(process.env.PGROAST_WEB_RATE_LIMIT_PER_MIN || 60)),
     allowDevTokenMint: process.env.PGROAST_WEB_DEV_AUTH === "1" && isLoopbackOrigin,
-    briefMaintainers: parseCsvList(process.env.PGROAST_WEB_BRIEF_MAINTAINERS),
+    briefMaintainers: parseCsvList(process.env.PGROAST_WEB_BRIEF_MAINTAINERS).map((entry) =>
+      entry.includes(":") ? entry : `github:${entry}`,
+    ),
     allowedHosts: Array.from(allowedSet),
   };
 }

@@ -1,5 +1,20 @@
 # Changelog
 
+## v0.3.0-alpha.8 (2026-11-26)
+
+This release replaces living PostgreSQL committer names in the flavour picker with fictional reviewer archetypes, closes the cross-provider brief authorization edge case for Google OAuth, and scrubs the remaining internal model codename strings from CLI help and Backoffice defaults.
+
+### Changes
+
+- **Fictional reviewer archetypes (`src/roast/flavours.ts`, `apps/local`, `apps/web`, `README.md`):**
+  - Replaced real-person flavour names with 8 fictional engineering personas: `default` (**House Blend**), `edge-case-hunter` (**The Edge-Case Hunter**), `spec-lawyer` (**The Spec Lawyer**), `systems-architect` (**The Systems Architect**), `perf-hawk` (**The Perf Hawk**), `storage-skeptic` (**The Storage Skeptic**), `index-specialist` (**The Index Specialist**), and `production-dba` (**The Production DBA**).
+  - Kept silent normalization for previously stored JSON or database rows so legacy opinions render under their archetype name and never display living people's names.
+- **Cross-provider brief authorization & hardening (`apps/web`):**
+  - Keyed `PGROAST_WEB_BRIEF_MAINTAINERS` and `published_briefs` ownership by `provider:handle` (`published_by_provider` column) so a Google account with the same local-part cannot match a GitHub maintainer handle.
+  - Added 10-second `AbortSignal.timeout` to GitHub and Google OAuth token/profile fetches and enforced `https://` for non-loopback allowed hosts in `resolveRequestOrigin`.
+- **Clean defaults & CLI help (`src/cli.ts`, `apps/local`):**
+  - Removed internal model codenames from `src/cli.ts` `--help` output and Backoffice `agy` model defaults, and replaced stale `pgroast.dev` / `127.0.0.1:3433` tooltip and placeholder strings with `https://pgroast.postgres.ai`.
+
 ## v0.3.0-alpha.7 (2026-11-26)
 
 This release hardens security and authorization across `apps/web` and `apps/local`, fixes the 2-minute local install and default Claude model setup for external accounts, and improves first-time `-hackers` visitor UX on the Public App.

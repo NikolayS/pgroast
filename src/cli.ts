@@ -63,8 +63,8 @@ const USAGE = `Usage: bun run src/cli.ts <cf-id|cf-url|message-id|thread-url> [o
   --out DIR        output directory (default: out/<slug>)
   --backend NAME   claude, codex, agy, or dual (default: PGROAST_BACKEND, else claude > codex > agy)
   --roast-level L  light, medium (default), or dark (alias: --level)
-  --flavour NAME   default, tom-lane, peter-eisentraut, robert-haas, andres-freund,
-                   heikki-linnakangas, bruce-momjian, or alexander-korotkov (alias: --flavor)
+  --flavour NAME   default (House Blend), edge-case-hunter, spec-lawyer, systems-architect,
+                   perf-hawk, storage-skeptic, index-specialist, or production-dba (alias: --flavor)
   --no-enrich      do not read precedent threads and do not filter precedents for relevance
   --dry-run        print the prompts, call no model
   --offline        use only cached pages
@@ -98,11 +98,9 @@ The model runs through an installed Claude Code, Codex, or Antigravity (agy) CLI
 subscription login. No API key is used: API key variables are removed from the CLI's environment.
 
 Environment: PGROAST_BACKEND; for claude: PGROAST_ROASTER_MODEL (default opus), PGROAST_CRITIC_MODEL
-(default claude-mythos-5-2; also used for synthesis), Opus, Mythos and Fable only; for agy:
-PGROAST_AGY_MODEL (default gemini-4-neon-high), PGROAST_AGY_CRITIC_MODEL (default gemini-4-neon-xhigh
-in dual mode); for dual: PGROAST_DUAL_CRITIC_BACKEND (agy or claude, default agy); for codex:
-PGROAST_CODEX_MODEL (default: the CLI's configured model); PGROAST_CONCURRENCY (3),
-PGROAST_LLM_TIMEOUT_MS (900000).
+(default opus; also used for synthesis); for agy: PGROAST_AGY_MODEL, PGROAST_AGY_CRITIC_MODEL;
+for dual: PGROAST_DUAL_CRITIC_BACKEND (agy or claude, default agy); for codex: PGROAST_CODEX_MODEL
+(default: the CLI's configured model); PGROAST_CONCURRENCY (3), PGROAST_LLM_TIMEOUT_MS (900000).
 
 Output: roast.md, roast.json, roast-summary.txt (a draft of at most 10 lines, to rewrite in your
 own words) and llm/ (every prompt and reply). Local files only.`;

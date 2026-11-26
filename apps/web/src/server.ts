@@ -188,8 +188,7 @@ function resolveRequestOrigin(req: Request, cfg: WebConfig): string {
   if (!cfg.allowedHosts.includes(rawHost)) {
     return cfg.publicOrigin;
   }
-  const proto = (req.headers.get("x-forwarded-proto") || "https").split(",")[0]!.trim().toLowerCase();
-  return `${proto === "http" ? "http" : "https"}://${rawHost}`;
+  return `https://${rawHost}`;
 }
 
 function escAttr(s: unknown): string {
@@ -596,7 +595,7 @@ export async function createWebHandler(opts?: {
           "",
           "- **Humans + AIs together:** Reviewers run a private local Backoffice (`apps/local`) with their own AI CLIs (Claude, Codex, Gemini/agy, or cross-family dual mode) to pre-review CommitFest entries or their own draft patches (`pgroast --self`), then explicitly publish sanitized opinions to this public hub.",
           "- **Roast levels:** `light` (constructive author pre-flight checklist), `medium` (balanced committer design review), `dark` (harsh adversarial stress-test on maintenance burden, demand, WAL/locking edge cases, and core vs. extension fit).",
-          "- **Hacker flavours:** `default`, `tom-lane`, `peter-eisentraut`, `robert-haas`, `andres-freund`, `heikki-linnakangas`, `bruce-momjian`, `alexander-korotkov`. Flavours are not connected to the real people — they are only what AI thinks that hacker might focus on, with no guarantee they would say it in reality (AI makes mistakes all the time). Every report and opinion records its level and flavour.",
+          "- **Reviewer archetypes:** `default` (House Blend), `edge-case-hunter` (The Edge-Case Hunter), `spec-lawyer` (The Spec Lawyer), `systems-architect` (The Systems Architect), `perf-hawk` (The Perf Hawk), `storage-skeptic` (The Storage Skeptic), `index-specialist` (The Index Specialist), `production-dba` (The Production DBA). Fictional engineering focus personas — never human committers (AI makes mistakes all the time). Every report and opinion records its roast level and archetype.",
           "- **Human ownership:** AI roasts are never final committer verdicts and nothing is auto-posted. A human reviewer takes ownership of a patch, verifies the code and thread, and sends their own review to `pgsql-hackers`.",
           "",
           "## Live CommitFest Snapshot",
@@ -863,6 +862,7 @@ export async function createWebHandler(opts?: {
             code,
             redirect_uri: redirectUri,
           }),
+          signal: AbortSignal.timeout(10_000),
         });
         const tokenJson = (await tokenRes.json().catch(() => ({}))) as { access_token?: string; error_description?: string; error?: string };
         if (!tokenRes.ok || !tokenJson.access_token) {
@@ -882,6 +882,7 @@ export async function createWebHandler(opts?: {
             Authorization: `Bearer ${tokenJson.access_token}`,
             "User-Agent": "pgroast-web",
           },
+          signal: AbortSignal.timeout(10_000),
         });
         const userJson = (await userRes.json().catch(() => ({}))) as { id?: number | string; login?: string; name?: string; avatar_url?: string };
         if (!userRes.ok || !userJson.login) {
@@ -984,6 +985,7 @@ export async function createWebHandler(opts?: {
           method: "POST",
           headers: { "Content-Type": "application/x-www-form-urlencoded", Accept: "application/json" },
           body: form.toString(),
+          signal: AbortSignal.timeout(10_000),
         });
         const tokenJson = (await tokenRes.json().catch(() => ({}))) as { access_token?: string; error_description?: string; error?: string };
         if (!tokenRes.ok || !tokenJson.access_token) {
@@ -999,6 +1001,7 @@ export async function createWebHandler(opts?: {
         }
         const userRes = await oauthFetch("https://openidconnect.googleapis.com/v1/userinfo", {
           headers: { Authorization: `Bearer ${tokenJson.access_token}`, Accept: "application/json" },
+          signal: AbortSignal.timeout(10_000),
         });
         const userJson = (await userRes.json().catch(() => ({}))) as { sub?: string; email?: string; email_verified?: boolean; name?: string; picture?: string };
         const googleSub = (userJson.sub || "").trim();
@@ -1319,21 +1322,21 @@ export async function createWebHandler(opts?: {
 
         const rawSlug = body.slug || `cf-${new Date().toISOString().slice(0, 10)}`;
         const safeSlug = rawSlug.toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/^-|-$/g, "") || `brief-${Date.now()}`;
-        const handleLower = contributor.handle.trim().toLowerCase();
+        const principal = `${contributor.provider.toLowerCase()}:${contributor.handle.trim().toLowerCase()}`;
 
         if (cfg.briefMaintainers.length > 0) {
-          if (!cfg.briefMaintainers.includes(handleLower)) {
+          if (!cfg.briefMaintainers.includes(principal)) {
             return errJson("Only authorized hub brief maintainers may publish CommitFest briefs.", 403);
           }
         } else {
           const { slugOwners, allPublishers } = await db.getBriefOwners();
           const existingOwner = slugOwners.get(safeSlug);
-          if (existingOwner && existingOwner !== handleLower) {
+          if (existingOwner && existingOwner !== principal) {
             return errJson("Only the brief owner or configured brief maintainers can overwrite this brief slug.", 403);
           }
-          if (allPublishers.size > 0 && !allPublishers.has(handleLower)) {
+          if (allPublishers.size > 0 && !allPublishers.has(principal)) {
             return errJson(
-              "Brief publishing is restricted to existing hub brief maintainers. Set PGROAST_WEB_BRIEF_MAINTAINERS to authorize additional handles.",
+              "Brief publishing is restricted to existing hub brief maintainers. Set PGROAST_WEB_BRIEF_MAINTAINERS (e.g. github:handle) to authorize additional handles.",
               403,
             );
           }

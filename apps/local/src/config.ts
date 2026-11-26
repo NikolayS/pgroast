@@ -69,7 +69,7 @@ export function getDefaultSettings(): AppSettings {
     claudeConfigDir: detectClaudeConfigDir(),
     defaultBackend: "auto",
     defaultClaudeModel: "opus",
-    defaultAgyModel: "gemini-4-neon-high",
+    defaultAgyModel: "",
     interestedTopics: "",
     publicHubUrl: process.env.PGROAST_PUBLIC_HUB_URL || "https://pgroast.postgres.ai",
     authProvider: "",

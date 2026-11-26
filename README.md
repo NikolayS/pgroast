@@ -175,7 +175,7 @@ pgroast batch 62 --out ../pgroast-2026-nov --status "Needs review" --concurrency
 | `--out DIR` | output directory; default `./pgroast-out/<slug>` (npm) or `out/<slug>` (clone) |
 | `--backend claude\|codex\|agy\|dual` | which installed CLI runs the model |
 | `--roast-level light\|medium\|dark` | intensity: constructive (`light`), balanced (`medium`), or harsh (`dark`) |
-| `--flavour NAME` | AI-guessed review lens (`default`, `tom-lane`, `peter-eisentraut`, `robert-haas`, `andres-freund`, `heikki-linnakangas`, `bruce-momjian`, `alexander-korotkov`); not affiliated with the real people — AI makes mistakes |
+| `--flavour NAME` | Fictional AI reviewer archetype (`default` House Blend, `edge-case-hunter`, `spec-lawyer`, `systems-architect`, `perf-hawk`, `storage-skeptic`, `index-specialist`, `production-dba`) |
 | `--self` | your own proposal before you send it; with `--proposal FILE` for a draft that has no thread yet |
 | `--rounds N` | extra reflection rounds after the first pass, default 0 |
 | `--no-enrich` | skip the reading of precedent threads and the relevance pass |
