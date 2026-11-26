@@ -181,7 +181,7 @@ pgroast batch 62 --out ../pgroast-2026-nov --status "Needs review" --concurrency
 | `--out DIR` | output directory; default `./pgroast-out/<slug>` (npm) or `out/<slug>` (clone) |
 | `--backend claude\|codex\|agy\|dual` | which installed CLI runs the model |
 | `--roast-level light\|medium\|dark` | intensity: constructive (`light`), balanced (`medium`), or harsh (`dark`) |
-| `--flavour NAME` | review style: `default`, `tom-lane`, `peter-eisentraut`, `robert-haas`, `andres-freund`, `heikki-linnakangas`, `bruce-momjian` |
+| `--flavour NAME` | review style: `default`, `tom-lane`, `peter-eisentraut`, `robert-haas`, `andres-freund`, `heikki-linnakangas`, `bruce-momjian`, `alexander-korotkov` |
 | `--self` | your own proposal before you send it; with `--proposal FILE` for a draft that has no thread yet |
 | `--rounds N` | extra reflection rounds after the first pass, default 0 |
 | `--no-enrich` | skip the reading of precedent threads and the relevance pass |

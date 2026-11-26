@@ -2149,6 +2149,7 @@ function renderWorkbenchView(): string {
     { id: "andres-freund", name: "Andres Freund", initials: "AF", lens: "Perf, memory & low-level", color: "#c2444e" },
     { id: "heikki-linnakangas", name: "Heikki Linnakangas", initials: "HL", lens: "WAL, storage & recovery", color: "#2f78a8" },
     { id: "bruce-momjian", name: "Bruce Momjian", initials: "BM", lens: "Clarity, UX & release impact", color: "#a67721" },
+    { id: "alexander-korotkov", name: "Alexander Korotkov", initials: "AK", lens: "Indexing, AMs & planner", color: "#2b8a82" },
   ];
 
   let rightTabHtml = "";
@@ -2158,10 +2159,10 @@ function renderWorkbenchView(): string {
     const dualReady = Boolean(state.aiSummary?.dualReady);
     const activeLevel = ROAST_LEVEL_CARDS.find((l) => l.id === state.roastLevel) || ROAST_LEVEL_CARDS[1]!;
     const activeFlavour = ROAST_FLAVOUR_CARDS.find((f) => f.id === state.roastFlavour) || ROAST_FLAVOUR_CARDS[0]!;
-    const runBtnLabel =
+    const runBtnHtml =
       activeFlavour.id === "default"
-        ? `🔥 Brew ${activeLevel.label}`
-        : `🔥 Brew ${activeLevel.label} · ${activeFlavour.name} style`;
+        ? `<span class="roast-cta-main">🔥 Brew ${esc(activeLevel.label)}</span>`
+        : `<span class="roast-cta-main">🔥 Brew ${esc(activeLevel.label)}</span><span class="roast-cta-sub">${esc(activeFlavour.name)} style</span>`;
     rightTabHtml = `
       <div class="card">
         <div class="card-header">
@@ -2264,7 +2265,7 @@ function renderWorkbenchView(): string {
 
         <div class="roast-actions-grid">
           <div class="roast-action-box roast-action-primary">
-            <button type="button" class="btn btn-primary" id="run-roast-btn" style="width:100%;justify-content:center;">${esc(runBtnLabel)}</button>
+            <button type="button" class="btn btn-primary roast-cta-btn" id="run-roast-btn">${runBtnHtml}</button>
             <div class="roast-action-explain">
               <strong>Adversarial pre-review:</strong> runs 7 parallel review angles + critic against 2,500+ prior Postgres rejections &amp; reverts to surface new design objections.
             </div>
@@ -4043,7 +4044,7 @@ function bindViewEvents(): void {
 
   document.getElementById("roast-surprise-btn")?.addEventListener("click", () => {
     const levels: Array<"light" | "medium" | "dark"> = ["light", "medium", "dark"];
-    const flavours = ["tom-lane", "peter-eisentraut", "robert-haas", "andres-freund", "heikki-linnakangas", "bruce-momjian"];
+    const flavours = ["tom-lane", "peter-eisentraut", "robert-haas", "andres-freund", "heikki-linnakangas", "bruce-momjian", "alexander-korotkov"];
     state.roastLevel = levels[Math.floor(Math.random() * levels.length)]!;
     state.roastFlavour = flavours[Math.floor(Math.random() * flavours.length)]!;
     try {

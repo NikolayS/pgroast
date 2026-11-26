@@ -629,6 +629,7 @@ function formatOpinionProfile(o: OpinionItem): string {
     "andres-freund": "Andres Freund",
     "heikki-linnakangas": "Heikki Linnakangas",
     "bruce-momjian": "Bruce Momjian",
+    "alexander-korotkov": "Alexander Korotkov",
   };
   const flLabel = flNames[fl] || fl;
   return `${lvLabel} · ${flLabel}`;
@@ -1857,6 +1858,7 @@ function renderIntroCard(): string {
             <span class="chip">Andres Freund</span>
             <span class="chip">Heikki Linnakangas</span>
             <span class="chip">Bruce Momjian</span>
+            <span class="chip">Alexander Korotkov</span>
           </div>
           <p>
             Focus the review through AI-simulated technical lenses and styles. Every report and public opinion remembers its roast level and flavour.

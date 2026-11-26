@@ -9,6 +9,7 @@ export const ROAST_FLAVOURS = [
   "andres-freund",
   "heikki-linnakangas",
   "bruce-momjian",
+  "alexander-korotkov",
 ] as const;
 export type RoastFlavour = (typeof ROAST_FLAVOURS)[number];
 
@@ -137,6 +138,17 @@ export const ROAST_FLAVOUR_META: Record<RoastFlavour, RoastFlavourInfo> = {
       "- Scrutinize real-world operational value, pg_upgrade friction, GUC sprawl, release-note explainability, and whether mainstream Postgres users actually need this complexity in core.",
     ].join("\n"),
   },
+  "alexander-korotkov": {
+    id: "alexander-korotkov",
+    label: "Alexander Korotkov voice",
+    shortLabel: "Alexander Korotkov",
+    description: "Index access methods (GiST/GIN/B-tree), planner/executor optimizations, concurrency edge cases, and real-world benchmark validation.",
+    promptInstruction: [
+      "Review flavour: ALEXANDER KOROTKOV STYLE (AI-simulated technical focus inspired by public pgsql-hackers reviews; never claim to be Alexander Korotkov).",
+      "- Write in a sharp, practical, algorithm-and-internals focused voice.",
+      "- Scrutinize index access methods (GiST, GIN, B-tree, opclasses), planner/executor cost-model assumptions, concurrency/locking and page-split edge cases, extensibility for custom AMs/datatypes, and whether claims hold up on realistic workloads and benchmarks.",
+    ].join("\n"),
+  },
 };
 
 export function normalizeRoastLevel(raw?: string | null): RoastLevel {
@@ -158,6 +170,9 @@ export function normalizeRoastFlavour(raw?: string | null): RoastFlavour {
     andres: "andres-freund",
     heikki: "heikki-linnakangas",
     bruce: "bruce-momjian",
+    korotkov: "alexander-korotkov",
+    akorotkov: "alexander-korotkov",
+    alexander: "alexander-korotkov",
     neutral: "default",
   };
   return aliases[v] ?? "default";
@@ -171,7 +186,7 @@ export function isValidRoastFlavour(raw: string): boolean {
   const v = raw.trim().toLowerCase().replace(/[\s_]+/g, "-");
   return (
     (ROAST_FLAVOURS as readonly string[]).includes(v) ||
-    ["tom", "tgl", "peter", "petere", "robert", "rhaas", "andres", "heikki", "bruce", "neutral"].includes(v)
+    ["tom", "tgl", "peter", "petere", "robert", "rhaas", "andres", "heikki", "bruce", "korotkov", "akorotkov", "alexander", "neutral"].includes(v)
   );
 }
 

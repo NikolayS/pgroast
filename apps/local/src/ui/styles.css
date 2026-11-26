@@ -2267,6 +2267,29 @@ tbody tr.clickable:hover {
   border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
   background: color-mix(in srgb, var(--accent) 5%, var(--bg-card));
 }
+.roast-action-box .btn {
+  width: 100%;
+  height: auto;
+  min-height: 38px;
+  padding: 8px 12px;
+  white-space: normal;
+  text-align: center;
+  justify-content: center;
+  line-height: 1.25;
+}
+.roast-cta-btn {
+  flex-direction: column;
+  gap: 2px;
+}
+.roast-cta-main {
+  font-weight: 600;
+  font-size: 13px;
+}
+.roast-cta-sub {
+  font-size: 11px;
+  font-weight: 500;
+  opacity: 0.88;
+}
 .roast-action-explain {
   font-size: 11.5px;
   line-height: 1.45;

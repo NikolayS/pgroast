@@ -64,7 +64,7 @@ const USAGE = `Usage: bun run src/cli.ts <cf-id|cf-url|message-id|thread-url> [o
   --backend NAME   claude, codex, agy, or dual (default: PGROAST_BACKEND, else claude > codex > agy)
   --roast-level L  light, medium (default), or dark (alias: --level)
   --flavour NAME   default, tom-lane, peter-eisentraut, robert-haas, andres-freund,
-                   heikki-linnakangas, or bruce-momjian (alias: --flavor)
+                   heikki-linnakangas, bruce-momjian, or alexander-korotkov (alias: --flavor)
   --no-enrich      do not read precedent threads and do not filter precedents for relevance
   --dry-run        print the prompts, call no model
   --offline        use only cached pages
