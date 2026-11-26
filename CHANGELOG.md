@@ -1,5 +1,27 @@
 # Changelog
 
+## v0.3.0-alpha.5 (2026-11-26)
+
+This release finishes remote publishing auth for the Public App (`apps/web`), hardens the publish API, adds the roasted coffee-bean logo and iPhone Home Screen icons, and makes local PostgreSQL 19 setup work via `.env`.
+
+### Changes
+
+- **GitHub and Google OAuth callbacks plus team token minting (`apps/web`):**
+  - Added `/auth/github/callback` and `/auth/google/callback` with CSRF `state` cookies, OAuth token exchange, contributor upsert, and a strict-CSP handoff page that shows the publish-only token once.
+  - Added `POST /api/v1/admin/tokens` (gated by `PGROAST_WEB_ADMIN_SECRET`) and the CLI helper `bun run web:mint-token --handle <handle> --name "<Name>"` so a hub admin can issue team publish tokens before setting up OAuth apps.
+- **Publish API hardening (`apps/web`):**
+  - Added a sliding-window rate limiter (`429 Too Many Requests` with `Retry-After`) and payload size limits (`413 Payload Too Large`: 256 KB for opinions, 64 KB for coordination claims, 4 MB default for briefs).
+- **Roasted coffee-bean branding and iOS Home Screen support (`apps/web`, `apps/local`):**
+  - Replaced the placeholder monogram icon with a roasted coffee-bean SVG logo and distinct favicons (emerald dot for Public App, amber dot for Personal Backoffice).
+  - Added `/apple-touch-icon.png` (180×180 PNG) and `/manifest.webmanifest` for iPhone Home Screen installs.
+- **Local PostgreSQL 19 config and hub sync fixes (`apps/local`, root):**
+  - Added `.env.example` so `bun run app:local`, `bun run app:web`, and `bun run test:all` read `PGROAST_DATABASE_URL`, `PGROAST_WEB_DATABASE_URL`, and `PGROAST_PUBLIC_HUB_URL` from `.env` automatically.
+  - Fixed `publishOpinionToHub` so standard public backend tags (`claude`, `codex`, `gemini`, `grok`, `dual`, `agy`) can be published to the Public App while internal codenames, secrets, and local paths remain hard-blocked.
+  - Fixed `pullOpinionsFromHub` and `addExternalOpinion` to preserve `roast_level` and `roast_flavour` when syncing opinions back to `apps/local`.
+  - Read `/api/health` version dynamically from root `package.json`.
+- **Tests:**
+  - Added tests for GitHub and Google OAuth callbacks, CSRF state rejection, admin invite tokens, roast level/flavour publish round-trips, payload size caps, rate limiting, and PWA icon routes (`200` passing tests across the monorepo).
+
 ## v0.3.0-alpha.4 (2026-11-26)
 
 This release adds selectable **Roast Levels (`light` / `medium` / `dark`)** and **Hacker Flavour styles (`default`, `tom-lane`, `peter-eisentraut`, `robert-haas`, `andres-freund`, `heikki-linnakangas`, `bruce-momjian`)** across the CLI, reports, Local Backoffice, and Public App opinions.

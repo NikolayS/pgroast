@@ -17,7 +17,7 @@ beforeAll(async () => {
     databaseUrl: process.env.PGROAST_WEB_DATABASE_URL || "postgres://localhost:5432/pgroast_web",
     schema,
   });
-  const app = await createWebHandler({ db });
+  const app = await createWebHandler({ db, config: { allowDevTokenMint: true } });
   appFetch = app.fetch;
 });
 
@@ -112,12 +112,173 @@ describe("pgroast-web public companion API & security gates", () => {
     expect(patchJson.consensus.totalOpinions).toBe(1);
     expect(patchJson.opinions.length).toBe(1);
 
-    // Patch HTML page renders dynamic title & OG tags
+    // Patch HTML page renders dynamic title & OG tags + PWA icons
     const patchHtmlRes = await req("/patch/5879");
     expect(patchHtmlRes.status).toBe(200);
     const patchHtml = await patchHtmlRes.text();
     expect(patchHtml).toContain("CF 5879: amcheck: support for GiST");
     expect(patchHtml).toContain("og:title");
+    expect(patchHtml).toContain("/apple-touch-icon.png");
+    expect(patchHtml).toContain("/manifest.webmanifest");
+
+    const touchRes = await req("/apple-touch-icon.png");
+    expect(touchRes.status).toBe(200);
+    expect(touchRes.headers.get("content-type")).toBe("image/png");
+    const touchBytes = new Uint8Array(await touchRes.arrayBuffer());
+    expect(touchBytes[0]).toBe(137);
+    expect(touchBytes[1]).toBe(80);
+
+    const manifestRes = await req("/manifest.webmanifest");
+    expect(manifestRes.status).toBe(200);
+    const manifestJson = (await manifestRes.json()) as { short_name: string };
+    expect(manifestJson.short_name).toBe("pgroast");
+
+    // Roast level + flavour round-trip on published opinion
+    const darkOp = await req("/api/v1/publish/opinion", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${pubToken}` },
+      body: JSON.stringify({
+        cf_id: 5879,
+        backend: "claude",
+        roast_level: "dark",
+        roast_flavour: "tom-lane",
+        verdict: "NEEDS-DESIGN-DISCUSSION",
+        confidence: "high",
+        summary: "Dark roast in Tom Lane voice checking locking invariants.",
+      }),
+    });
+    expect(darkOp.status).toBe(201);
+    const darkJson = (await darkOp.json()) as { opinion: { roast_level: string; roast_flavour: string } };
+    expect(darkJson.opinion.roast_level).toBe("dark");
+    expect(darkJson.opinion.roast_flavour).toBe("tom-lane");
+  });
+
+  test("GitHub & Google OAuth callbacks, admin invite tokens, size cap, and rate limiting", async () => {
+    const mockFetch = (async (input: string | URL | Request) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+      if (url === "https://github.com/login/oauth/access_token") {
+        return new Response(JSON.stringify({ access_token: "gho_test_token" }), { status: 200 });
+      }
+      if (url === "https://api.github.com/user") {
+        return new Response(JSON.stringify({ login: "kirk-pg", name: "Kirk Wolak", avatar_url: "https://avatars.githubusercontent.com/u/1" }), { status: 200 });
+      }
+      if (url === "https://oauth2.googleapis.com/token") {
+        return new Response(JSON.stringify({ access_token: "ya29_test_token" }), { status: 200 });
+      }
+      if (url === "https://openidconnect.googleapis.com/v1/userinfo") {
+        return new Response(JSON.stringify({ sub: "123", email: "andrey@example.com", name: "Andrey Borodin", picture: "" }), { status: 200 });
+      }
+      return new Response("not mocked", { status: 404 });
+    }) as typeof fetch;
+
+    const oauthApp = await createWebHandler({
+      db,
+      config: {
+        publicOrigin: "https://pgroast.postgres.ai",
+        githubClientId: "gh_id",
+        githubClientSecret: "gh_sec",
+        googleClientId: "g_id",
+        googleClientSecret: "g_sec",
+        adminSecret: "super-secret-admin",
+        rateLimitPerMinute: 5,
+        allowDevTokenMint: false,
+      },
+      oauthFetch: mockFetch,
+    });
+
+    // 1. GitHub OAuth flow
+    const ghStart = await oauthApp.fetch(new Request("http://127.0.0.1:3433/auth/github"));
+    expect(ghStart.status).toBe(302);
+    const ghLoc = new URL(ghStart.headers.get("location")!);
+    const ghState = ghLoc.searchParams.get("state")!;
+    const ghCookie = ghStart.headers.get("set-cookie")!.split(";")[0]!;
+
+    // Bad state must fail 400
+    const badCb = await oauthApp.fetch(
+      new Request(`http://127.0.0.1:3433/auth/github/callback?code=abc&state=wrong`, {
+        headers: { Cookie: ghCookie },
+      }),
+    );
+    expect(badCb.status).toBe(400);
+
+    // Valid state succeeds and issues working token
+    const ghStart2 = await oauthApp.fetch(new Request("http://127.0.0.1:3433/auth/github"));
+    const ghState2 = new URL(ghStart2.headers.get("location")!).searchParams.get("state")!;
+    const ghCookie2 = ghStart2.headers.get("set-cookie")!.split(";")[0]!;
+    const ghCb = await oauthApp.fetch(
+      new Request(`http://127.0.0.1:3433/auth/github/callback?code=valid_code&state=${ghState2}`, {
+        headers: { Cookie: ghCookie2 },
+      }),
+    );
+    expect(ghCb.status).toBe(200);
+    const ghHtml = await ghCb.text();
+    expect(ghHtml).toContain("@kirk-pg");
+    const tokenMatch = ghHtml.match(/pgroast_pub_[A-Za-z0-9_-]+/);
+    expect(tokenMatch).not.toBeNull();
+
+    // 2. Google OAuth flow
+    const gStart = await oauthApp.fetch(new Request("http://127.0.0.1:3433/auth/google"));
+    expect(gStart.status).toBe(302);
+    const gState = new URL(gStart.headers.get("location")!).searchParams.get("state")!;
+    const gCookie = gStart.headers.get("set-cookie")!.split(";")[0]!;
+    const gCb = await oauthApp.fetch(
+      new Request(`http://127.0.0.1:3433/auth/google/callback?code=g_code&state=${gState}`, {
+        headers: { Cookie: gCookie },
+      }),
+    );
+    expect(gCb.status).toBe(200);
+    const gHtml = await gCb.text();
+    expect(gHtml).toContain("@andrey");
+    expect(gHtml).toContain("pgroast_pub_");
+
+    // 3. Admin invite token endpoint
+    const badAdmin = await oauthApp.fetch(
+      new Request("http://127.0.0.1:3433/api/v1/admin/tokens", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: "Bearer wrong" },
+        body: JSON.stringify({ handle: "andrey" }),
+      }),
+    );
+    expect(badAdmin.status).toBe(401);
+
+    const okAdmin = await oauthApp.fetch(
+      new Request("http://127.0.0.1:3433/api/v1/admin/tokens", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: "Bearer super-secret-admin" },
+        body: JSON.stringify({ handle: "x4m", name: "Andrey Borodin" }),
+      }),
+    );
+    expect(okAdmin.status).toBe(201);
+    const adminToken = ((await okAdmin.json()) as { token: string }).token;
+    expect(adminToken.startsWith("pgroast_pub_")).toBe(true);
+
+    // 4. Payload size limit (>256 KB opinion) returns 413
+    const hugeRes = await oauthApp.fetch(
+      new Request("http://127.0.0.1:3433/api/v1/publish/opinion", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${adminToken}` },
+        body: JSON.stringify({ cf_id: 5879, verdict: "NEEDS-COMMITTER-EYES", summary: "x".repeat(300_000) }),
+      }),
+    );
+    expect(hugeRes.status).toBe(413);
+
+    // 5. Rate limiter triggers 429 after 5 publishes/min
+    let hit429 = false;
+    for (let i = 0; i < 6; i++) {
+      const r = await oauthApp.fetch(
+        new Request("http://127.0.0.1:3433/api/v1/publish/opinion", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${adminToken}` },
+          body: JSON.stringify({ cf_id: 5879, verdict: "NEEDS-COMMITTER-EYES", summary: `run ${i}` }),
+        }),
+      );
+      if (r.status === 429) {
+        hit429 = true;
+        expect(Number(r.headers.get("retry-after"))).toBeGreaterThanOrEqual(1);
+        break;
+      }
+    }
+    expect(hit429).toBe(true);
   });
 
   test("MR helpers split quoted -hackers blocks and parse unified diffs cleanly", () => {

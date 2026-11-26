@@ -302,14 +302,11 @@ code {
   width: 22px;
   height: 22px;
   border-radius: 6px;
-  background: var(--text);
-  color: var(--bg);
-  font-weight: 600;
-  font-size: 11px;
+  background: transparent;
+  overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: center;
-  letter-spacing: -0.02em;
   flex-shrink: 0;
 }
 

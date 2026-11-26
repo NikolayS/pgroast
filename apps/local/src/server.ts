@@ -37,6 +37,15 @@ import {
 } from "./services/shortlist.ts";
 import type { DraftAttachment, RoastJson } from "./types.ts";
 
+const ROOT_PKG_VERSION: string = (() => {
+  try {
+    const pkg = JSON.parse(readFileSync(join(APP_ROOT, "..", "..", "package.json"), "utf8")) as { version?: string };
+    return pkg.version || "0.3.0";
+  } catch {
+    return "0.3.0";
+  }
+})();
+
 function json(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), {
     status,
@@ -199,7 +208,7 @@ export async function createAppHandler(opts?: {
         return json({
           ok: true,
           app: "pgroast-app",
-          version: "0.1.0",
+          version: ROOT_PKG_VERSION,
           host: "127.0.0.1",
           port: activePort,
           database: pgInfo,
@@ -336,6 +345,8 @@ export async function createAppHandler(opts?: {
           const cfId = Number(opinionsMatch[1]);
           const body = await readBody<{
             backend?: string;
+            roastLevel?: string;
+            roastFlavour?: string;
             models?: Record<string, string> | string;
             verdict?: string;
             confidence?: string;
@@ -349,6 +360,8 @@ export async function createAppHandler(opts?: {
           const saved = await db.addExternalOpinion({
             cfId,
             backend: body.backend || "manual",
+            roastLevel: body.roastLevel || "medium",
+            roastFlavour: body.roastFlavour || "default",
             models: body.models,
             verdict: body.verdict.trim(),
             confidence: body.confidence || "medium",

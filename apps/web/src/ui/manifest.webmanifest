@@ -1,0 +1,21 @@
+{
+  "name": "pgroast — PostgreSQL CommitFest Collaboration",
+  "short_name": "pgroast",
+  "description": "Public CommitFest triage briefs, GitLab-style pgsql-hackers discussions, live diffs, and multi-reviewer AI opinions.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0b0c0e",
+  "theme_color": "#0b0c0e",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    },
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    }
+  ]
+}

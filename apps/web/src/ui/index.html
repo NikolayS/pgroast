@@ -9,6 +9,8 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <title>pgroast — Public CommitFest App</title>
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+  <link rel="manifest" href="/manifest.webmanifest" />
   <link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
@@ -16,7 +18,15 @@
     <div class="topbar-inner">
       <div class="brand-cluster">
         <button type="button" class="brand" id="web-home-btn" aria-label="pgroast Public home">
-          <span class="brand-logo">pg</span>
+          <span class="brand-logo" aria-hidden="true">
+            <svg width="24" height="24" viewBox="0 0 64 64">
+              <rect width="64" height="64" rx="15" fill="#14161e"/>
+              <g transform="translate(32 32) rotate(-32)">
+                <ellipse cx="0" cy="0" rx="16.5" ry="22" fill="#a85c2c"/>
+                <path d="M 0 -20 C -4.5 -8, 4.5 8, 0 20" fill="none" stroke="#14161e" stroke-width="4" stroke-linecap="round"/>
+              </g>
+            </svg>
+          </span>
           <span class="brand-title">pgroast</span>
         </button>
         <div class="space-wrap">

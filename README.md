@@ -98,6 +98,9 @@ bun install
 # Start Postgres 19 via Docker if you do not already run local Postgres 19/18
 docker compose -f apps/local/docker-compose.yml up -d
 
+# Optional: copy .env.example to .env if Postgres runs on a custom port (for example 5439 for PG 19)
+cp .env.example .env
+
 # Optional: load the precedent index for CLI roasts
 bun run src/cli.ts init-db
 
@@ -111,7 +114,7 @@ To update an existing checkout to the latest prerelease:
 git pull --tags && bun install && bun run app:local
 ```
 
-Inside `http://127.0.0.1:3432`, open **Settings** to point **Public Companion URL** at your shared Public App (for example `https://pgroast.postgres.ai`) and paste your publish-only token. Use the **Backoffice · Private ▾** switcher in the sidebar or **Public App ↗** on any patch to jump between your local workbench and the shared `/patch/<cf-id>` page.
+Inside `http://127.0.0.1:3432`, open **Settings** to point **Public Companion URL** at your shared Public App (for example `https://pgroast.postgres.ai`) and paste your publish-only token. To get a token, sign in with GitHub or Google on the Public App's **Backoffice** tab, or ask the hub admin to issue one with `bun run web:mint-token --handle <your-handle> --name "Your Name"`. Use the **Backoffice · Private ▾** switcher in the sidebar or **Public App ↗** on any patch to jump between your local workbench and the shared `/patch/<cf-id>` page.
 
 ## Get started
 

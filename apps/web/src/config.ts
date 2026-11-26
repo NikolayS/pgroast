@@ -13,6 +13,9 @@ export interface WebConfig {
   githubClientSecret: string;
   googleClientId: string;
   googleClientSecret: string;
+  adminSecret: string;
+  maxPublishBytes: number;
+  rateLimitPerMinute: number;
   allowDevTokenMint: boolean;
 }
 
@@ -34,6 +37,9 @@ export function loadWebConfig(): WebConfig {
     githubClientSecret: process.env.GITHUB_CLIENT_SECRET || "",
     googleClientId: process.env.GOOGLE_CLIENT_ID || "",
     googleClientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
+    adminSecret: process.env.PGROAST_WEB_ADMIN_SECRET || "",
+    maxPublishBytes: Math.max(65536, Number(process.env.PGROAST_WEB_MAX_PUBLISH_BYTES || 4 * 1024 * 1024)),
+    rateLimitPerMinute: Math.max(5, Number(process.env.PGROAST_WEB_RATE_LIMIT_PER_MIN || 60)),
     allowDevTokenMint:
       process.env.PGROAST_WEB_DEV_AUTH === "0"
         ? false

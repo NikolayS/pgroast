@@ -65,7 +65,23 @@ export async function publishOpinionToHub(
     summary: (input.summary || "").trim(),
   };
 
-  const gate = publicConfidentialityCheck(JSON.stringify(payload));
+  // Check prose/entry with full confidentiality gate; validate backend tag separately so
+  // public backend names (claude, codex, gemini, grok, dual) work while internal codenames remain blocked.
+  const INTERNAL_BACKEND_RE = /\b(?:mythos|fable|neon|astra|antigravity|sol|daybreak)\b|\/(?:Users|home)\//i;
+  if (INTERNAL_BACKEND_RE.test(payload.backend)) {
+    const msg = `Internal model codename or local path detected in backend ("${payload.backend}")`;
+    await db.logAudit("hub_publish_opinion", `cf:${input.cfId}`, { blocked: true, msgs: msg }, "blocked");
+    throw new Error(`Public-Confidentiality HARD BLOCK: ${msg}`);
+  }
+  const gate = publicConfidentialityCheck(
+    JSON.stringify({
+      entry: payload.entry,
+      roast_level: payload.roast_level,
+      roast_flavour: payload.roast_flavour,
+      verdict: payload.verdict,
+      summary: payload.summary,
+    }),
+  );
   if (gate.blocking) {
     const msgs = gate.issues.map((i) => i.message).join(" | ");
     await db.logAudit("hub_publish_opinion", `cf:${input.cfId}`, { blocked: true, msgs }, "blocked");
@@ -106,6 +122,8 @@ export async function pullOpinionsFromHub(
       contributor_provider: "github" | "google" | "local";
       contributor_avatar?: string;
       backend: string;
+      roast_level?: string;
+      roast_flavour?: string;
       models_json?: string;
       verdict: string;
       confidence?: string;
@@ -120,17 +138,26 @@ export async function pullOpinionsFromHub(
 
   const remote = data.opinions ?? [];
   const existing = await db.listRoastRuns(cfId);
-  const sig = (r: Pick<RoastRunRecord, "contributor_handle" | "verdict" | "backend" | "created_at">) =>
-    `${r.contributor_handle}|${r.verdict}|${r.backend}|${(r.created_at || "").slice(0, 16)}`;
+  const sig = (
+    r: Pick<
+      RoastRunRecord,
+      "contributor_handle" | "verdict" | "backend" | "roast_level" | "roast_flavour" | "created_at"
+    >,
+  ) =>
+    `${r.contributor_handle}|${r.verdict}|${r.backend}|${r.roast_level || "medium"}|${r.roast_flavour || "default"}|${(r.created_at || "").slice(0, 16)}`;
   const existingSet = new Set(existing.map(sig));
 
   let imported = 0;
   for (const r of remote) {
-    const key = `${r.contributor_handle}|${r.verdict}|${r.backend}|${(r.created_at || "").slice(0, 16)}`;
+    const level = r.roast_level || "medium";
+    const flavour = r.roast_flavour || "default";
+    const key = `${r.contributor_handle}|${r.verdict}|${r.backend}|${level}|${flavour}|${(r.created_at || "").slice(0, 16)}`;
     if (existingSet.has(key)) continue;
     await db.addExternalOpinion({
       cfId,
       backend: r.backend || "external",
+      roastLevel: level,
+      roastFlavour: flavour,
       models: r.models_json || "{}",
       verdict: r.verdict,
       confidence: r.confidence || "medium",

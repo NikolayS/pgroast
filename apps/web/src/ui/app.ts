@@ -2069,7 +2069,7 @@ function renderConnectTab(): string {
             }
           </div>
         `
-            : `<div class="muted" style="font-size:12px;border-top:1px solid var(--border);padding-top:10px;">Read-only public test mode: dev token minting is disabled on this public URL. Configure GitHub/Google OAuth env vars to sign in remotely.</div>`
+            : `<div class="muted" style="font-size:12px;border-top:1px solid var(--border);padding-top:10px;">Sign in with GitHub or Google above (when OAuth is configured), or ask the hub admin to issue a team publish token via <code class="mono">bun run web:mint-token --handle &lt;you&gt;</code> and paste it in Backoffice → Settings.</div>`
         }
       </div>
     </div>

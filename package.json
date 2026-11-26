@@ -1,6 +1,6 @@
 {
   "name": "pgroast",
-  "version": "0.3.0-alpha.4",
+  "version": "0.3.0-alpha.5",
   "description": "Adversarial idea and design pre-review for Postgres proposals: prior attempts, the strongest objections, touch points. Local output only.",
   "license": "Apache-2.0",
   "repository": {
@@ -47,8 +47,9 @@
     "roast": "bun run src/cli.ts",
     "app:local": "bun run apps/local/src/server.ts",
     "app:web": "bun run apps/web/src/server.ts",
+    "web:mint-token": "bun run apps/web/src/mint-token.ts",
     "test": "bun test ./test/",
-    "test:all": "bun test ./test/ && bun test --cwd apps/local && bun test --cwd apps/web",
+    "test:all": "bun test ./test/ && bun test ./apps/local/test/ && bun test ./apps/web/test/",
     "typecheck": "tsc --noEmit",
     "typecheck:all": "tsc --noEmit && tsc --noEmit -p apps/local/tsconfig.json && tsc --noEmit -p apps/web/tsconfig.json"
   },

@@ -956,6 +956,8 @@ export class AppDatabase {
   async addExternalOpinion(input: {
     cfId: number;
     backend: string;
+    roastLevel?: string;
+    roastFlavour?: string;
     models?: Record<string, string> | string;
     verdict: string;
     confidence?: string;
@@ -971,15 +973,17 @@ export class AppDatabase {
     const modelsJson = typeof input.models === "string" ? input.models : JSON.stringify(input.models ?? {});
     const rows = (await this.sql.unsafe(
       `INSERT INTO ${this.t("roast_runs")} (
-        cf_id, mode, backend, models_json, rounds, verdict, confidence,
+        cf_id, mode, backend, roast_level, roast_flavour, models_json, rounds, verdict, confidence,
         roast_json, roast_md, summary_txt,
         contributor_name, contributor_handle, contributor_provider, contributor_avatar,
         created_at
-      ) VALUES ($1, 'opinion', $2, $3, 0, $4, $5, $6, '', $7, $8, $9, $10, $11, $12)
+      ) VALUES ($1, 'opinion', $2, $3, $4, $5, 0, $6, $7, $8, '', $9, $10, $11, $12, $13, $14)
       RETURNING *`,
       [
         input.cfId,
         input.backend || "external",
+        (input.roastLevel || "medium").slice(0, 20),
+        (input.roastFlavour || "default").slice(0, 40),
         modelsJson,
         input.verdict,
         input.confidence || "",
