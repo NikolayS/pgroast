@@ -201,7 +201,12 @@ function safeHttpUrl(raw: unknown): string {
   if (!s) return "";
   try {
     const u = new URL(s);
-    if (u.protocol === "http:" || u.protocol === "https:") return u.toString();
+    if (u.protocol === "http:" || u.protocol === "https:") {
+      if ((u.hostname === "www.postgresql.org" || u.hostname === "postgresql.org") && u.pathname.startsWith("/message-id/flat/")) {
+        u.pathname = "/message-id/" + u.pathname.slice("/message-id/flat/".length);
+      }
+      return u.toString();
+    }
   } catch {
     // ignore
   }

@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.3.0-alpha.29 (2026-11-27)
+
+This release rewrites all remaining outbound `postgresql.org/message-id/flat/...` links across patch pages, hacker profiles, and downloadable briefs to canonical `/message-id/...` permalinks so no user-facing link hits `postgresql.org`'s broken `/flat/` endpoint.
+
+### Changes
+
+- **Site-Wide Non-Flat `postgresql.org` Archive Links (`apps/web/src/security.ts`, `mr.ts`, `ui/app.ts`, `ui/hackers-view.ts`):**
+  - Normalized every outbound `postgresql.org/message-id/flat/<id>` URL to `https://www.postgresql.org/message-id/<id>` across Patch `Thread ↗` links, Discussion headers, Hacker Profile commit/review discussions, and Brief HTML/Markdown downloads (covering all 736 stored entries and 1,421 commit discussion links automatically).
+
 ## v0.3.0-alpha.28 (2026-11-27)
 
 This release switches outbound Postgres mailing list links from `/message-id/flat/<id>` to canonical `/message-id/<id>` permalinks so links keep working while `postgresql.org`'s `/flat/` view returns HTTP 500.

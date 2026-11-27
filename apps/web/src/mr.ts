@@ -400,7 +400,7 @@ export async function fetchMrDiscussionForCf(
       const participants = Array.from(participantMap.values()).sort((a, b) => b.count - a.count);
       const data: MrDiscussionResult = {
         cfId,
-        threadUrl: flatUrl,
+        threadUrl: flatUrl.replace(/\/message-id\/flat\//i, "/message-id/"),
         subject: parsed.subject,
         lists: parsed.lists,
         messageCount: messages.length,
@@ -758,7 +758,6 @@ export async function fetchMrDiffForCf(cfId: number): Promise<MrDiffResult> {
 }
 
 import { CF_BASE, finalStatus, parsePatch } from "../../../src/corpus/cf.ts";
-import { flatUrl } from "../../../src/corpus/util.ts";
 
 export interface LiveCommitfestPatchMeta {
   cf_id: number;
@@ -803,7 +802,7 @@ export async function fetchLiveCommitfestPatch(cfId: number): Promise<LiveCommit
       }
       const status = finalStatus(parsed) || "Needs review";
       const firstThread = parsed.threads[0];
-      const threadUrl = firstThread?.msgid ? flatUrl(firstThread.msgid) : "";
+      const threadUrl = firstThread?.msgid ? `https://www.postgresql.org/message-id/${encodeURIComponent(firstThread.msgid)}` : "";
       const isBug =
         parsed.tags.some((t) => /bug/i.test(t)) ||
         /\b(bug\s*#\d+|fix\b|crash|segfault|panic|leak|deadlock|race)\b/i.test(parsed.title);

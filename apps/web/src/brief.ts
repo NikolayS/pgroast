@@ -557,7 +557,7 @@ export function renderBriefMarkdown(brief: PublishedBriefRecord, publicOrigin = 
     lines.push(`${i + 1}. **CF ${x.cf_id}: ${x.title}** (${humanVerdict(x.verdict)}${x.status ? `, ${x.status}` : ""})`);
     if (base) lines.push(`   - pgroast details: ${base}/patch/${x.cf_id}`);
     lines.push(`   - CommitFest: https://commitfest.postgresql.org/patch/${x.cf_id}/`);
-    if (x.thread_url) lines.push(`   - Thread: ${x.thread_url}`);
+    if (x.thread_url) lines.push(`   - Thread: ${safeHttpUrl(x.thread_url) || x.thread_url}`);
     if (x.reasons?.length) lines.push(`   - Why: ${x.reasons.join("; ")}`);
   });
   lines.push("", `## Worth Closing or Rethinking (${closing.length})`, "");
