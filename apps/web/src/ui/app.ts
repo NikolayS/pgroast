@@ -19,7 +19,14 @@ import {
   type HackerWindow,
 } from "./hackers-view.ts";
 
-type TabId = "brief" | "hackers" | "stats" | "entries" | "opinions" | "coordination" | "connect" | "docs";
+import {
+  renderListMessagesRows,
+  renderListsTab,
+  type MailingListMessageItem,
+  type MailingListsOverviewData,
+} from "./lists-view.ts";
+
+type TabId = "brief" | "hackers" | "lists" | "stats" | "entries" | "opinions" | "coordination" | "connect" | "docs";
 type MrTabId = "overview" | "discussion" | "changes";
 
 interface MrBodyBlock {
@@ -291,6 +298,13 @@ const state = {
   quotaPreviewLoading: false,
   quotaPreviewError: "",
   quotaPreviewResult: null as QuotaPreviewResult | null,
+  listsOverview: null as MailingListsOverviewData | null,
+  listsLoading: false,
+  listsError: "",
+  listsSelected: "all",
+  listsSearch: "",
+  listsAttachmentsOnly: false,
+  listsMessages: [] as MailingListMessageItem[],
   mrTab: "overview" as MrTabId,
   patchLoading: false,
   patchData: null as PatchPageData | null,
@@ -474,8 +488,11 @@ function parseRouteFromLocation(): { patchId: number | null; hackerSlug: string 
       hash: u.pathname.toLowerCase().startsWith("/contribute") ? "#quota-setup" : u.hash,
     };
   }
+  if (/^\/lists\/?$/i.test(u.pathname)) {
+    return { patchId: null, hackerSlug: null, tab: "lists", mrTab: "overview", hash: u.hash };
+  }
   const tabParam = u.searchParams.get("tab") as TabId | null;
-  const validTabs: TabId[] = ["brief", "hackers", "stats", "entries", "opinions", "coordination", "connect", "docs"];
+  const validTabs: TabId[] = ["brief", "hackers", "lists", "stats", "entries", "opinions", "coordination", "connect", "docs"];
   return {
     patchId: null,
     hackerSlug: null,
@@ -735,6 +752,45 @@ async function runQuotaPreview(): Promise<void> {
   }
 }
 
+let listsSearchTimer: ReturnType<typeof setTimeout> | null = null;
+
+async function loadListsOverview(): Promise<void> {
+  if (state.listsLoading) return;
+  state.listsLoading = true;
+  state.listsError = "";
+  if (state.tab === "lists") render();
+  try {
+    state.listsOverview = await api<MailingListsOverviewData>("/api/v1/lists/overview");
+  } catch (err) {
+    state.listsError = err instanceof Error ? err.message : String(err);
+  } finally {
+    state.listsLoading = false;
+    if (state.tab === "lists" && !state.activePatchId && !state.activeHackerSlug) render();
+  }
+}
+
+async function loadListsMessages(updateDomOnly = false): Promise<void> {
+  const qs = new URLSearchParams({ limit: "60" });
+  if (state.listsSelected && state.listsSelected !== "all") qs.set("list", state.listsSelected);
+  if (state.listsSearch.trim()) qs.set("search", state.listsSearch.trim());
+  if (state.listsAttachmentsOnly) qs.set("attachments", "1");
+  try {
+    const res = await api<{ messages: MailingListMessageItem[] }>(`/api/v1/lists/messages?${qs.toString()}`);
+    state.listsMessages = res.messages;
+    if (updateDomOnly) {
+      const mount = document.getElementById("lists-messages-mount");
+      if (mount) {
+        mount.innerHTML = renderListMessagesRows(state.listsMessages);
+        bindHackerClicks(mount);
+        return;
+      }
+    }
+    if (state.tab === "lists" && !state.activePatchId && !state.activeHackerSlug) render();
+  } catch {
+    // keep previous list on transient error
+  }
+}
+
 function navigateToTab(tab: TabId, pushHistory = true, hash = ""): void {
   state.activePatchId = null;
   state.patchData = null;
@@ -747,12 +803,15 @@ function navigateToTab(tab: TabId, pushHistory = true, hash = ""): void {
   document.title =
     tab === "hackers"
       ? "PostgreSQL Hacking Observatory — pgroast"
-      : tab === "docs"
-        ? "Docs, All Features & Weekly Quota Auto-Contribute — pgroast"
-        : "pgroast — Public CommitFest App";
+      : tab === "lists"
+        ? "PostgreSQL Mailing Lists Archive — pgroast"
+        : tab === "docs"
+          ? "Docs, All Features & Weekly Quota Auto-Contribute — pgroast"
+          : "pgroast — Public CommitFest App";
   if (pushHistory) {
     try {
-      const targetUrl = (tab === "brief" ? "/" : tab === "docs" ? "/docs" : `/?tab=${encodeURIComponent(tab)}`) + hash;
+      const targetUrl =
+        (tab === "brief" ? "/" : tab === "docs" ? "/docs" : tab === "lists" ? "/lists" : `/?tab=${encodeURIComponent(tab)}`) + hash;
       window.history.pushState({ patchId: null, hackerSlug: null, tab }, "", targetUrl);
     } catch {
       // ignore
@@ -762,6 +821,9 @@ function navigateToTab(tab: TabId, pushHistory = true, hash = ""): void {
   if (tab === "hackers") {
     if (!state.hackersOverview && !state.hackersLoading) void loadHackersOverview();
     if (state.hackersDirectory.length === 0) void loadHackersDirectory();
+  } else if (tab === "lists") {
+    if (!state.listsOverview && !state.listsLoading) void loadListsOverview();
+    if (state.listsMessages.length === 0) void loadListsMessages();
   } else if (tab === "docs") {
     void loadDocsCoverage();
   }
@@ -792,6 +854,9 @@ async function loadAll(): Promise<void> {
     if (!route.patchId && !route.hackerSlug && route.tab === "hackers") {
       void loadHackersOverview();
       void loadHackersDirectory();
+    } else if (!route.patchId && !route.hackerSlug && route.tab === "lists") {
+      void loadListsOverview();
+      void loadListsMessages();
     } else if (!route.patchId && !route.hackerSlug && route.tab === "docs") {
       void loadDocsCoverage();
     }
@@ -3164,6 +3229,16 @@ function render(): void {
       dirRole: state.hackersDirRole,
       dirSort: state.hackersDirSort,
     });
+  } else if (state.tab === "lists") {
+    root.innerHTML = renderListsTab({
+      overview: state.listsOverview,
+      loading: state.listsLoading,
+      error: state.listsError,
+      selectedList: state.listsSelected,
+      search: state.listsSearch,
+      attachmentsOnly: state.listsAttachmentsOnly,
+      messages: state.listsMessages,
+    });
   } else if (state.tab === "stats") root.innerHTML = renderStatsTab();
   else if (state.tab === "entries") root.innerHTML = renderEntriesTab();
   else if (state.tab === "opinions") root.innerHTML = renderOpinionsTab();
@@ -3288,6 +3363,35 @@ function render(): void {
     document.getElementById("hacker-dir-sort")?.addEventListener("change", (ev) => {
       state.hackersDirSort = (ev.target as HTMLSelectElement).value || "activity";
       void loadHackersDirectory(true);
+    });
+  }
+
+  // Mailing Lists Archive tab events
+  if (state.tab === "lists") {
+    bindHackerClicks(root);
+    document.querySelectorAll<HTMLButtonElement>("[data-list-filter]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        state.listsSelected = btn.dataset.listFilter || "all";
+        render();
+        void loadListsMessages(true);
+      });
+    });
+    document.getElementById("lists-all-select")?.addEventListener("change", (ev) => {
+      state.listsSelected = (ev.target as HTMLSelectElement).value || "all";
+      render();
+      void loadListsMessages(true);
+    });
+    document.getElementById("lists-att-only")?.addEventListener("change", (ev) => {
+      state.listsAttachmentsOnly = (ev.target as HTMLInputElement).checked;
+      void loadListsMessages(true);
+    });
+    const listInput = document.getElementById("lists-search-input") as HTMLInputElement | null;
+    listInput?.addEventListener("input", () => {
+      state.listsSearch = listInput.value;
+      if (listsSearchTimer) clearTimeout(listsSearchTimer);
+      listsSearchTimer = setTimeout(() => {
+        void loadListsMessages(true);
+      }, 200);
     });
   }
 
@@ -3616,6 +3720,9 @@ window.addEventListener("popstate", () => {
     if (route.tab === "hackers") {
       if (!state.hackersOverview && !state.hackersLoading) void loadHackersOverview();
       if (state.hackersDirectory.length === 0) void loadHackersDirectory();
+    } else if (route.tab === "lists") {
+      if (!state.listsOverview && !state.listsLoading) void loadListsOverview();
+      if (state.listsMessages.length === 0) void loadListsMessages();
     } else if (route.tab === "docs") {
       void loadDocsCoverage();
     }

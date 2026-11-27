@@ -1,4 +1,5 @@
 import type { WebDatabase } from "./db.ts";
+import { getHackerMailingListStats } from "./lists-queries.ts";
 
 export type HackerWindow = "30d" | "90d" | "1y" | "5y" | "PG20" | "PG19" | "PG18" | "PG17" | "all";
 
@@ -802,6 +803,7 @@ export async function getHackerProfileBySlug(db: WebDatabase, slug: string, requ
     })),
     commitfestEntries: cfRows,
     opinions: opinionRows,
+    mailingLists: await getHackerMailingListStats(db, pid),
   };
 }
 

@@ -11,6 +11,7 @@ import {
   resolvePersonSlugByName,
   searchHackers,
 } from "./hackers-queries.ts";
+import { getMailingListsOverview, searchMailingListMessages } from "./lists-queries.ts";
 import { fetchMrDiffForCf, fetchMrDiscussionForCf, matchThreadToDiff } from "./mr.ts";
 import { checkPublicPayloadSafe, safeHttpUrl, securityHeaders } from "./security.ts";
 
@@ -386,6 +387,7 @@ export async function createWebHandler(opts?: {
   const appTsPath = join(WEB_ROOT, "src", "ui", "app.ts");
   const hackersViewPath = join(WEB_ROOT, "src", "ui", "hackers-view.ts");
   const docsViewPath = join(WEB_ROOT, "src", "ui", "docs-view.ts");
+  const listsViewPath = join(WEB_ROOT, "src", "ui", "lists-view.ts");
   const faviconPath = join(WEB_ROOT, "src", "ui", "favicon.svg");
   const touchIconPath = join(WEB_ROOT, "src", "ui", "apple-touch-icon.png");
   const manifestPath = join(WEB_ROOT, "src", "ui", "manifest.webmanifest");
@@ -393,7 +395,8 @@ export async function createWebHandler(opts?: {
   let appMtime =
     (existsSync(appTsPath) ? statSync(appTsPath).mtimeMs : 0) +
     (existsSync(hackersViewPath) ? statSync(hackersViewPath).mtimeMs : 0) +
-    (existsSync(docsViewPath) ? statSync(docsViewPath).mtimeMs : 0);
+    (existsSync(docsViewPath) ? statSync(docsViewPath).mtimeMs : 0) +
+    (existsSync(listsViewPath) ? statSync(listsViewPath).mtimeMs : 0);
   let cssMtime = existsSync(cssPath) ? statSync(cssPath).mtimeMs : 0;
   let favMtime = existsSync(faviconPath) ? statSync(faviconPath).mtimeMs : 0;
   let cssHash = createHash("sha256").update(readFileSync(cssPath, "utf8")).digest("hex").slice(0, 8);
@@ -409,7 +412,8 @@ export async function createWebHandler(opts?: {
       const curAppMtime =
         (existsSync(appTsPath) ? statSync(appTsPath).mtimeMs : 0) +
         (existsSync(hackersViewPath) ? statSync(hackersViewPath).mtimeMs : 0) +
-        (existsSync(docsViewPath) ? statSync(docsViewPath).mtimeMs : 0);
+        (existsSync(docsViewPath) ? statSync(docsViewPath).mtimeMs : 0) +
+        (existsSync(listsViewPath) ? statSync(listsViewPath).mtimeMs : 0);
       if (curAppMtime !== appMtime) {
         bundleJs = await buildUiJs();
         jsHash = createHash("sha256").update(bundleJs).digest("hex").slice(0, 8);
@@ -559,6 +563,7 @@ export async function createWebHandler(opts?: {
         const staticUrls: Array<{ loc: string; lastmod: string; changefreq: string; priority: string }> = [
           { loc: `${origin}/`, lastmod: latestDate, changefreq: "daily", priority: "1.0" },
           { loc: `${origin}/?tab=hackers`, lastmod: latestDate, changefreq: "daily", priority: "0.9" },
+          { loc: `${origin}/lists`, lastmod: latestDate, changefreq: "hourly", priority: "0.9" },
           { loc: `${origin}/?tab=stats`, lastmod: latestDate, changefreq: "daily", priority: "0.8" },
           { loc: `${origin}/?tab=entries`, lastmod: latestDate, changefreq: "daily", priority: "0.8" },
           { loc: `${origin}/?tab=opinions`, lastmod: latestDate, changefreq: "hourly", priority: "0.8" },
@@ -705,7 +710,8 @@ export async function createWebHandler(opts?: {
       const patchPageMatch = path.match(/^\/patch\/(\d+)\/?$/);
       const hackerPageMatch = path.match(/^\/hacker\/([a-z0-9-]+)\/?$/i);
       const isDocsPage = path === "/docs" || path === "/docs/" || path === "/contribute" || path === "/contribute/";
-      if (method === "GET" && (path === "/" || path === "/index.html" || patchPageMatch || hackerPageMatch || isDocsPage)) {
+      const isListsPage = path === "/lists" || path === "/lists/";
+      if (method === "GET" && (path === "/" || path === "/index.html" || patchPageMatch || hackerPageMatch || isDocsPage || isListsPage)) {
         await refreshUiAssetsIfChanged();
         const origin = resolveRequestOrigin(req, cfg);
         const cfId = parsePositivePgInt(patchPageMatch?.[1] || url.searchParams.get("cf")) ?? 0;
@@ -724,6 +730,10 @@ export async function createWebHandler(opts?: {
           canonical = `${origin}/docs`;
           title = "Docs, All Features & Weekly Quota Auto-Contribute — pgroast";
           desc = "Complete feature directory, CLI reference, live CommitFest multi-model coverage tracker, and weekly OAuth quota auto-roasting setup for Claude, Codex, and Antigravity.";
+        } else if (isListsPage) {
+          canonical = `${origin}/lists`;
+          title = "PostgreSQL Mailing Lists Archive (Continuous Sync) — pgroast";
+          desc = "Continuously synced archive across 51 PostgreSQL public mailing lists with full-text search, active threads, and unified /hacker/<slug> contributor profiles.";
         } else if (hackerSlug) {
           canonical = `${origin}/hacker/${encodeURIComponent(hackerSlug)}`;
           const profile = await getHackerProfileBySlug(db, hackerSlug).catch(() => null);
@@ -917,6 +927,23 @@ export async function createWebHandler(opts?: {
         });
         const coverage = await db.getCommunityCoverage();
         return json({ ...next, coverage }, 200, req);
+      }
+
+      // ---- Full PostgreSQL Mailing Lists Archive ----
+      if (method === "GET" && path === "/api/v1/lists/overview") {
+        const overview = await getMailingListsOverview(db);
+        return json(overview, 200, req);
+      }
+
+      if (method === "GET" && path === "/api/v1/lists/messages") {
+        const messages = await searchMailingListMessages(db, {
+          list: url.searchParams.get("list") || undefined,
+          search: url.searchParams.get("search") || undefined,
+          hasAttachment: url.searchParams.get("attachments") === "1",
+          personSlug: url.searchParams.get("hacker") || undefined,
+          limit: Number(url.searchParams.get("limit") || 60),
+        });
+        return json({ messages }, 200, req);
       }
 
       if (method === "GET" && path === "/api/v1/health") {

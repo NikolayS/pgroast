@@ -169,8 +169,10 @@ const ALL_FEATURES: FeatureDocItem[] = [
     category: "front-office",
     categoryLabel: "Front Office",
     title: "Full PostgreSQL Mailing Lists Archive (Continuous Sync)",
-    summary: "Continuous sync of PostgreSQL public mailing lists linked to unified contributor profiles, thread search, and mailing-list activity charts.",
-    status: "next",
+    summary: "All 51 PostgreSQL public mailing lists cataloged and continuously synced with incremental /since/ watermarks + optional authenticated .mbox historical backfill, full-text search, active thread tracking, and direct links to /hacker/<slug> profiles.",
+    status: "live",
+    actionLabel: "Open Lists →",
+    actionTab: "lists",
   },
 
   // Weekly Quota Auto-Contribute

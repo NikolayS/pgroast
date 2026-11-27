@@ -12,6 +12,12 @@ import {
   parsePersonRef,
   syncHackersToDb,
 } from "../src/hackers.ts";
+import {
+  parseMailingListsCatalog,
+  parseMboxText,
+  parseSincePageHtml,
+  upsertMailingListMessages,
+} from "../src/lists.ts";
 import { matchThreadToDiff, parseMrUnifiedDiff, splitBodyIntoBlocks } from "../src/mr.ts";
 import { createWebHandler } from "../src/server.ts";
 
@@ -837,5 +843,62 @@ describe("pgroast-web public companion API & security gates", () => {
     // 5. SSR /docs route renders dynamic title and OG metadata
     const docsHtml = await (await req("/docs")).text();
     expect(docsHtml).toContain("Docs, All Features &amp; Weekly Quota Auto-Contribute — pgroast");
+  });
+
+  test("Mailing Lists Archive: catalog/since/mbox parsers, unified hacker linking, APIs, and /lists SSR", async () => {
+    const lists = parseMailingListsCatalog(
+      `<a href="/list/pgsql-hackers/">hackers</a><a href="/list/pgsql-bugs/">bugs</a><a href="/list/pgsql-general/">general</a>`,
+    );
+    expect(lists).toEqual(["pgsql-bugs", "pgsql-general", "pgsql-hackers"]);
+
+    const sinceParsed = parseSincePageHtml(
+      `<h1>pgsql-hackers 2026-11-26</h1><tbody><tr><th scope="row"><a href="/message-id/abc123%40example.org">Re: [PATCH] Optimize seqscan &#x1f4ce;</a></th><td>David Rowley</td><td>14:22</td></tr></tbody><a href="/list/pgsql-hackers/since/202611270000">Next</a>`,
+      "pgsql-hackers",
+      "2026-11-26",
+    );
+    expect(sinceParsed.messages.length).toBe(1);
+    expect(sinceParsed.messages[0]?.messageId).toBe("abc123@example.org");
+    expect(sinceParsed.messages[0]?.hasAttachment).toBe(true);
+    expect(sinceParsed.messages[0]?.sentAt).toBe("2026-11-26T14:22:00Z");
+    expect(sinceParsed.nextPath).toBe("/list/pgsql-hackers/since/202611270000");
+
+    const mboxParsed = parseMboxText(
+      `From dgrowleyml@gmail.com Thu Nov 26 15:00:00 2026\nMessage-ID: <mbox-999@gmail.com>\nDate: Thu, 26 Nov 2026 15:00:00 +0000\nFrom: David Rowley <dgrowleyml@gmail.com>\nSubject: Re: Optimize seqscan\n\n> quoted line ignored\nAttached is v2 with benchmark numbers.\n`,
+      "pgsql-hackers",
+    );
+    expect(mboxParsed.length).toBe(1);
+    expect(mboxParsed[0]?.messageId).toBe("mbox-999@gmail.com");
+    expect(mboxParsed[0]?.bodyExcerpt).toContain("Attached is v2");
+    expect(mboxParsed[0]?.bodyExcerpt).not.toContain("quoted line ignored");
+
+    const up = await upsertMailingListMessages(db, "pgsql-hackers", [...sinceParsed.messages, ...mboxParsed]);
+    expect(up.inserted).toBe(2);
+    expect(up.linkedPeople).toBe(2); // both linked to David Rowley from earlier test!
+
+    // Overview API
+    const ov = (await (await req("/api/v1/lists/overview")).json()) as {
+      totals: { totalMessages: number; linkedMessages: number };
+      lists: Array<{ name: string; messageCount: number }>;
+    };
+    expect(ov.totals.totalMessages).toBeGreaterThanOrEqual(2);
+    expect(ov.totals.linkedMessages).toBeGreaterThanOrEqual(2);
+    expect(ov.lists.some((l) => l.name === "pgsql-hackers" && l.messageCount >= 2)).toBe(true);
+
+    // Search API (with attachment filter)
+    const msgRes = (await (await req("/api/v1/lists/messages?list=pgsql-hackers&attachments=1")).json()) as {
+      messages: Array<{ messageId: string; personSlug: string }>;
+    };
+    expect(msgRes.messages.some((m) => m.messageId === "abc123@example.org" && m.personSlug === "david-rowley")).toBe(true);
+
+    // Hacker profile now includes linked mailing list activity!
+    const prof = (await (await req("/api/v1/hackers/david-rowley")).json()) as {
+      mailingLists: { totalMessages: number; byList: Array<{ list: string; count: number }> };
+    };
+    expect(prof.mailingLists.totalMessages).toBeGreaterThanOrEqual(2);
+    expect(prof.mailingLists.byList[0]?.list).toBe("pgsql-hackers");
+
+    // SSR /lists route
+    const listsHtml = await (await req("/lists")).text();
+    expect(listsHtml).toContain("PostgreSQL Mailing Lists Archive (Continuous Sync) — pgroast");
   });
 });

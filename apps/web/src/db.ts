@@ -342,6 +342,36 @@ export class WebDatabase {
         PRIMARY KEY (cf_id, backend)
       )`,
       `CREATE INDEX IF NOT EXISTS idx_${this.schema}_contribute_leases_exp ON ${this.t("contribute_leases")}(expires_at)`,
+      // ---- Full PostgreSQL Mailing Lists Archive & Continuous Sync ----
+      `CREATE TABLE IF NOT EXISTS ${this.t("mailing_lists")} (
+        name TEXT PRIMARY KEY,
+        category TEXT NOT NULL DEFAULT 'general',
+        message_count INTEGER NOT NULL DEFAULT 0,
+        first_sent_at TEXT NOT NULL DEFAULT '',
+        last_sent_at TEXT NOT NULL DEFAULT '',
+        watermark TEXT NOT NULL DEFAULT '',
+        backfill_month TEXT NOT NULL DEFAULT '',
+        last_synced_at TEXT NOT NULL DEFAULT '',
+        status TEXT NOT NULL DEFAULT 'idle'
+      )`,
+      `CREATE TABLE IF NOT EXISTS ${this.t("mailing_list_messages")} (
+        id BIGSERIAL PRIMARY KEY,
+        list_name TEXT NOT NULL,
+        message_id TEXT NOT NULL,
+        thread_key TEXT NOT NULL DEFAULT '',
+        subject TEXT NOT NULL DEFAULT '',
+        sender_name TEXT NOT NULL DEFAULT '',
+        person_id INTEGER REFERENCES ${this.t("people")}(id) ON DELETE SET NULL,
+        sent_at TEXT NOT NULL,
+        has_attachment BOOLEAN NOT NULL DEFAULT FALSE,
+        body_excerpt TEXT NOT NULL DEFAULT '',
+        UNIQUE (list_name, message_id)
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_${this.schema}_mlm_list_date ON ${this.t("mailing_list_messages")}(list_name, sent_at DESC)`,
+      `CREATE INDEX IF NOT EXISTS idx_${this.schema}_mlm_date ON ${this.t("mailing_list_messages")}(sent_at DESC)`,
+      `CREATE INDEX IF NOT EXISTS idx_${this.schema}_mlm_person ON ${this.t("mailing_list_messages")}(person_id, sent_at DESC) WHERE person_id IS NOT NULL`,
+      `CREATE INDEX IF NOT EXISTS idx_${this.schema}_mlm_thread ON ${this.t("mailing_list_messages")}(thread_key, sent_at DESC)`,
+      `CREATE INDEX IF NOT EXISTS idx_${this.schema}_mlm_fts ON ${this.t("mailing_list_messages")} USING GIN (to_tsvector('english', subject || ' ' || sender_name || ' ' || body_excerpt))`,
     ];
     for (const s of stmts) {
       await this.sql.unsafe(s);

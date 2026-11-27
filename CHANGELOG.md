@@ -1,5 +1,19 @@
 # Changelog
 
+## v0.3.0-alpha.11 (2026-11-26)
+
+This release adds the continuously synced PostgreSQL Mailing Lists Archive (`Lists` tab & `/lists`), linking archived mailing list threads directly to unified `/hacker/<slug>` contributor profiles.
+
+### Changes
+
+- **Mailing Lists Archive Schema & Continuous Sync (`apps/web/src/lists.ts`, `sync-lists.ts`, `db.ts`):**
+  - Added `mailing_lists` and `mailing_list_messages` tables in PostgreSQL with full-text search (GIN), list/date/thread indexes, and `person_id` foreign keys linking senders to unified `people`.
+  - Built `bun run web:sync-lists` supporting automatic discovery of all 51 public PostgreSQL mailing lists, resumable incremental `/since/<YYYYMMDDHHMM>/` sync, continuous `--daemon --interval 15` polling, optional authenticated `.mbox` historical backfill (`PGROAST_PG_COOKIE` + `--mbox YYYYMM`), and a 5 GB free-disk safety guard.
+- **Front Office Mailing Lists Tab & Hacker Profile Integration (`apps/web`):**
+  - Added `/api/v1/lists/overview`, `/api/v1/lists/messages`, and `/lists` SSR route plus a new **`Lists`** tab showing 51 cataloged lists, 24h/7d/30d volume chart, top active threads, top posters (clickable to `/hacker/<slug>`), and searchable message browser with attachment filter.
+  - Added a **Mailing Lists** activity tab to every `/hacker/<slug>` profile page showing per-list counts and recent threads.
+  - Updated the Front Office `/docs` catalog to list the Mailing Lists Archive as live.
+
 ## v0.3.0-alpha.10 (2026-11-26)
 
 This release brings the `pgroast` CLI up to date with `publish` and `contribute` (weekly OAuth quota auto-roasting for Claude, Codex, and Antigravity), adds a searchable Front Office **Docs & All Features** hub (`/docs`) with live CommitFest multi-model coverage tracking and interactive queue preview, and adds a **Weekly Quota Auto-Contribute** configuration card to the Personal Backoffice.

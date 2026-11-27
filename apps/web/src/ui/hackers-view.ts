@@ -1,6 +1,6 @@
 export type HackerWindow = "30d" | "90d" | "1y" | "5y" | "PG20" | "PG19" | "PG18" | "PG17" | "all";
 export type HackerLbKind = "committers" | "authors" | "reviewers" | "reporters" | "rising";
-export type HackerProfileTab = "commits" | "reviews" | "commitfest" | "opinions";
+export type HackerProfileTab = "commits" | "reviews" | "commitfest" | "lists" | "opinions";
 
 export interface HackersOverviewData {
   synced: boolean;
@@ -158,6 +158,18 @@ export interface HackerProfileData {
     summary: string;
     created_at: string;
   }>;
+  mailingLists?: {
+    totalMessages: number;
+    byList: Array<{ list: string; count: number }>;
+    recentMessages: Array<{
+      listName: string;
+      messageId: string;
+      subject: string;
+      sentAt: string;
+      hasAttachment: boolean;
+      archiveUrl: string;
+    }>;
+  };
 }
 
 function esc(s: unknown): string {
@@ -903,6 +915,42 @@ export function renderHackerProfilePage(params: {
         </div>
       `;
     }
+    if (activeTab === "lists") {
+      const ml = profile.mailingLists;
+      if (!ml || ml.recentMessages.length === 0) {
+        return `<div class="empty-state">No archived PostgreSQL mailing list messages linked to ${esc(p.name)} yet.</div>`;
+      }
+      return `
+        ${
+          ml.byList.length > 0
+            ? `<div class="chips" style="margin-bottom:10px;">
+                ${ml.byList.map((b) => `<span class="chip" style="cursor:default;"><strong class="mono">${esc(b.list)}</strong> <span class="dim">(${b.count})</span></span>`).join("")}
+              </div>`
+            : ""
+        }
+        <div class="issue-list">
+          ${ml.recentMessages
+            .map(
+              (m) => `
+            <div class="obs-commit-row">
+              <div class="row" style="justify-content:space-between;gap:8px;flex-wrap:wrap;">
+                <div class="row" style="gap:6px;">
+                  <span class="tag-micro mono">${esc(m.listName)}</span>
+                  ${m.hasAttachment ? `<span class="pill p-ok">📎 attachment</span>` : ""}
+                </div>
+                <div class="row" style="gap:8px;font-size:11.5px;">
+                  <span class="mono dim">${esc(m.sentAt.slice(0, 16).replace("T", " "))} UTC</span>
+                  <a href="${esc(m.archiveUrl)}" target="_blank" rel="noopener">Thread ↗</a>
+                </div>
+              </div>
+              <div class="obs-commit-subj">${esc(m.subject)}</div>
+            </div>
+          `,
+            )
+            .join("")}
+        </div>
+      `;
+    }
     if (profile.opinions.length === 0) {
       return `<div class="empty-state">No published pgroast AI opinions attributed to ${esc(p.name)} yet.</div>`;
     }
@@ -1120,6 +1168,10 @@ export function renderHackerProfilePage(params: {
       <button type="button" class="mr-tab ${activeTab === "commitfest" ? "active" : ""}" data-hacker-tab="commitfest">
         <span>CommitFest</span>
         <span class="mr-tab-count">${profile.commitfestEntries.length}</span>
+      </button>
+      <button type="button" class="mr-tab ${activeTab === "lists" ? "active" : ""}" data-hacker-tab="lists">
+        <span>Mailing Lists</span>
+        <span class="mr-tab-count">${profile.mailingLists?.totalMessages ?? 0}</span>
       </button>
       <button type="button" class="mr-tab ${activeTab === "opinions" ? "active" : ""}" data-hacker-tab="opinions">
         <span>pgroast Opinions</span>
