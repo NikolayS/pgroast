@@ -3020,7 +3020,6 @@ details.diff-file[open] > summary {
 html, body {
   overflow-x: clip;
 }
-.container,
 .grid2 > *,
 .card,
 .obs-lb-list,
@@ -3750,6 +3749,11 @@ html, body {
     width: 100%;
     font-size: 15px;
     height: 40px;
+  }
+  .export-menu {
+    right: auto;
+    left: 0;
+    max-width: calc(100vw - 24px);
   }
 }
 

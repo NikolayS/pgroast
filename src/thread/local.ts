@@ -3,12 +3,22 @@
 
 import { readFileSync, statSync } from "node:fs";
 import { basename } from "node:path";
-import { extractPatchProse } from "./patchprose.ts";
+import { extractPatchCodeHunks, extractPatchProse } from "./patchprose.ts";
 import type { PatchProse, ProposalInput } from "./types.ts";
 
 export const MAX_LOCAL_PATCH_BYTES = 8 * 1024 * 1024;
 
-export function loadLocalProposal(proposalFile: string, patchFiles: string[] = [], now: Date = new Date()): ProposalInput {
+export interface LocalProposalOptions {
+  includeCode?: boolean;
+  maxCodeChars?: number;
+}
+
+export function loadLocalProposal(
+  proposalFile: string,
+  patchFiles: string[] = [],
+  now: Date = new Date(),
+  opts: LocalProposalOptions = {},
+): ProposalInput {
   const text = readFileSync(proposalFile, "utf8").replace(/\r\n/g, "\n");
   if (!text.trim()) throw new Error(`${proposalFile} is empty`);
   const warnings: string[] = [];
@@ -39,7 +49,21 @@ export function loadLocalProposal(proposalFile: string, patchFiles: string[] = [
       warnings.push(`${att.name} is not a patch (no diff found); not read`);
       continue;
     }
-    patchProse.push({ attachment: att, fromMessageIndex: 1, ...prose });
+    let codeHunks: { path: string; text: string }[] | undefined;
+    let rawText: string | undefined;
+    if (opts.includeCode) {
+      const extracted = extractPatchCodeHunks(raw, opts.maxCodeChars ?? 65_000);
+      codeHunks = extracted.codeHunks;
+      rawText = raw;
+    }
+    patchProse.push({
+      attachment: att,
+      fromMessageIndex: 1,
+      isLatest: true,
+      ...prose,
+      ...(codeHunks ? { codeHunks } : {}),
+      ...(rawText ? { rawText } : {}),
+    });
   }
 
   return {

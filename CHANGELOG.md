@@ -1,5 +1,25 @@
 # Changelog
 
+## v0.4.4 (2026-11-27)
+
+Fixes 11 real bugs, UI layout glitches, and Backoffice edge cases uncovered by a full Codex (`gpt-6.2-astra`) audit of `src/`, `apps/web/`, and `apps/local/`.
+
+### Changes
+
+- **Web UI Desktop & Mobile Layout (`apps/web/src/ui/styles.css`):**
+  - Removed `.container` from the unconditional `max-width: 100%` mobile overflow rule so desktop content and footer stay properly centered at `1120px` matching the header.
+  - Left-aligned `.export-menu` at `<= 720px` so the Brief export dropdown no longer clips off the left edge on mobile.
+- **CLI & Newcomer Quick Start (`src/thread/local.ts`, `src/cli.ts`, `src/batch.ts`, `src/roast/pipeline.ts`, `src/contribute.ts`, `apps/web/src/ui/docs-view.ts`, `apps/web/src/ui/app.ts`):**
+  - Updated `npx pgroast` copyable `page` and `publish` examples to `./pgroast-out/cf-<id>/roast.json` (matching the actual output path of installed `npx pgroast`).
+  - Enabled `codeHunks` and `rawText` extraction in `loadLocalProposal()` for Medium/Dark `--self --proposal --patch` runs so local self-roasts run real build/test verification.
+  - Rejected invalid `--only` IDs in `pgroast batch` (prevents mistyped `--only abc` from launching the entire CommitFest) and wrote `roast-dry-run.json` on `--dry-run` so previews never mark entries completed.
+  - Propagated `--offline` into `runRoast` → `enrichPrecedents` for both single and batch runs.
+  - Origin-bound `~/.pgroast/auth.json` tokens to their saved hub origin, omitted `Authorization` on anonymous `--dry-run` queue previews, and returned distinct exit codes (`3` on quota limit, `4` on empty queue) from `pgroast contribute`.
+- **Personal Backoffice Jobs (`apps/local/src/services/jobs.ts`):**
+  - Prevented dry-run previews from overwriting real roast verdicts/scores in `ingestRoastResult()`.
+  - Fixed published-roast log detection (`published sanitized (?:roast|opinion)`) so published roasts keep their public link and status instead of showing "local only".
+  - Fixed delayed `SIGKILL` during `cancelJob()` so processes ignoring `SIGTERM` are actually terminated.
+
 ## v0.4.3 (2026-11-27)
 
 Fixes the zero-config `npx pgroast` experience when no local `pgroast` Postgres database exists (or local Postgres auth fails): `pgroast` now automatically falls back to searching the 2,547 historical precedents bundled directly inside `data/precedents.sql.gz` in memory, eliminating the "precedent corpus unavailable" warnings.

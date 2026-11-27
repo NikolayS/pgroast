@@ -67,6 +67,8 @@ export interface RunOptions {
   pgRepo?: string;
   /** Skip build/test verification harness (used by unit tests). */
   skipVerify?: boolean;
+  /** Never touch the network during precedent thread enrichment. */
+  offline?: boolean;
   /** Injected for tests; default = the files under invariants/. */
   invariants?: InvariantFile[];
   /** Recorded in roast.json: "claude" | "codex". */
@@ -557,6 +559,7 @@ export async function runRoast(proposal: ProposalInput, opts: RunOptions): Promi
       system: `${prompts.enrich}\n\n${prompts.writing}\n\n${outputContract(ENRICH_SCHEMA, false)}`,
       store,
       max: opts.enrichMax ?? 8,
+      offline: opts.offline,
       evalMode,
       selfMessageIds: [proposal.thread.rootMessageId, ...(proposal.cf?.threads.map((t) => t.messageId) ?? [])].filter(Boolean),
       loadThreadFn: opts.enrichLoadThread,

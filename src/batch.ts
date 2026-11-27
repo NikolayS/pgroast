@@ -181,6 +181,7 @@ export async function runBatch(o: BatchOptions): Promise<{ done: number; skipped
         mode: "review",
         roastLevel: o.roastLevel,
         roastFlavour: o.roastFlavour,
+        offline: o.offline,
         rounds: 0,
         log: (m) => log(`[${e.id}] ${m}`),
       });
@@ -203,7 +204,8 @@ export async function runBatch(o: BatchOptions): Promise<{ done: number; skipped
       writeFileSync(join(dir, "roast.md"), renderCompactMarkdown(r));
       writeFileSync(join(dir, "roast-full.md"), renderMarkdown(r));
       writeFileSync(join(dir, "roast-summary.txt"), renderSummary(r));
-      writeFileSync(join(dir, "roast.json"), JSON.stringify(r, null, 2) + "\n"); // last: marks the entry done
+      // Do not write roast.json on --dry-run, because roast.json is the completion/resume marker.
+      writeFileSync(join(dir, o.dryRun ? "roast-dry-run.json" : "roast.json"), JSON.stringify(r, null, 2) + "\n");
       res.done++;
       log(`[${e.id}] ${r.verdict} (${r.confidence}); ${r.objections.length} objection(s); ${r.stats.llm_calls} calls; ${Math.round(r.stats.wall_ms / 1000)} s  [${res.done + res.skipped}/${entries.length}]`);
     } catch (err) {
@@ -248,7 +250,21 @@ export function parseBatchArgs(argv: string[]): BatchOptions {
     else if (tok === "--blind") o.blind = int(tok, 1);
     else if (tok === "--limit") o.limit = int(tok, 1);
     else if (tok === "--concurrency") o.concurrency = int(tok, 1);
-    else if (tok === "--only") o.only = value(tok).split(",").map(Number).filter((n) => Number.isInteger(n) && n > 0);
+    else if (tok === "--only") {
+      const rawParts = value(tok)
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+      if (rawParts.length === 0) throw new Error("--only needs at least one positive integer CommitFest patch id");
+      const ids: number[] = [];
+      for (const p of rawParts) {
+        if (!/^\d+$/.test(p) || Number(p) <= 0) {
+          throw new Error(`--only expects positive integer CommitFest patch ids, got "${p}"`);
+        }
+        ids.push(Number(p));
+      }
+      o.only = ids;
+    }
     else if (tok === "--backend") {
       const b = value(tok).toLowerCase();
       if (!(BACKENDS as readonly string[]).includes(b)) throw new Error("--backend must be claude, codex, agy, or dual");

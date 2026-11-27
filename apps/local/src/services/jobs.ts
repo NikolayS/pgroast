@@ -137,12 +137,18 @@ export class JobRunner {
           // Process may have already exited
         }
       }
+      const targetPgid = active.pgid;
+      const targetPid = active.pid;
       setTimeout(() => {
-        if (this.activeProcs.has(jobId)) {
+        try {
+          process.kill(-targetPgid, 0);
+          process.kill(-targetPgid, "SIGKILL");
+        } catch {
           try {
-            process.kill(-active.pgid, "SIGKILL");
+            process.kill(targetPid, 0);
+            process.kill(targetPid, "SIGKILL");
           } catch {
-            // Already gone
+            // Already exited
           }
         }
       }, 2500);
@@ -359,7 +365,8 @@ export class JobRunner {
             ? readFileSync(join(outDir, "roast-summary.txt"), "utf8")
             : "";
           const resolvedCfId = params.cfId || parsed.input?.cf?.id;
-          if (resolvedCfId) {
+          // Never overwrite real roast results with dry-run placeholder verdicts.
+          if (resolvedCfId && !params.dryRun && parsed.backend !== "dry-run") {
             await this.db.ingestRoastResult(resolvedCfId, parsed, md, summary, { recordRun: true, rounds });
           }
           return { outDir, verdict: parsed.verdict, cfId: resolvedCfId ?? null };
@@ -772,7 +779,7 @@ echo "=== Build & test complete (PGPORT=${pgPort}) ==="
     if (!existsSync(logPath)) return out;
     const text = readFileSync(logPath, "utf8");
     const cfMatches = Array.from(text.matchAll(/claimed CF (\d+)\s+"([^"]+)"/g));
-    const pubMatches = Array.from(text.matchAll(/\[(\d+)\] published sanitized opinion -> (https?:\/\/\S+)/g));
+    const pubMatches = Array.from(text.matchAll(/\[(\d+)\] published sanitized (?:roast|opinion) -> (https?:\/\/\S+)/g));
     const pubMap = new Map<number, string>(pubMatches.map((m) => [Number(m[1]), m[2]!]));
 
     const cfIds: number[] = [];

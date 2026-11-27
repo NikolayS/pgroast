@@ -492,14 +492,16 @@ async function main(): Promise<number> {
   }
 
   log(`reading ${args.proposal ?? args.input} ...`);
+  const includeCode = (args.roastLevel ?? "medium") !== "light";
+  const maxCodeChars = (args.roastLevel ?? "medium") === "dark" ? 85_000 : 55_000;
   const proposal = args.proposal
-    ? loadLocalProposal(args.proposal, args.patches ?? [])
+    ? loadLocalProposal(args.proposal, args.patches ?? [], new Date(), { includeCode, maxCodeChars })
     : await loadProposal(args.input, {
         blind: args.blind,
         before: args.before,
         offline: args.offline,
-        includeCode: (args.roastLevel ?? "medium") !== "light",
-        maxCodeChars: (args.roastLevel ?? "medium") === "dark" ? 85_000 : 55_000,
+        includeCode,
+        maxCodeChars,
       });
   log(
     args.proposal
@@ -524,6 +526,7 @@ async function main(): Promise<number> {
     roastFlavour: args.roastFlavour,
     pgRepo: args.pgRepo,
     skipVerify: args.skipVerify,
+    offline: args.offline,
     rounds: args.rounds,
     log,
   });

@@ -1374,4 +1374,48 @@ describe("v2 CLI publish & weekly quota auto-contribute", () => {
       if (p.date) expect(p.date.slice(0, 10) < "2026-09-14").toBe(true);
     }
   });
+
+  test("Codex audit regressions: --only validation, self-mode includeCode, and dryRun auth omission", async () => {
+    expect(() => parseBatchArgs(["62", "--out", "/tmp/o", "--only", "abc"])).toThrow(/positive integer/);
+    expect(() => parseBatchArgs(["62", "--out", "/tmp/o", "--only", "7388,foo"])).toThrow(/positive integer/);
+    expect(parseBatchArgs(["62", "--out", "/tmp/o", "--only", "7388,7389"]).only).toEqual([7388, 7389]);
+
+    const { loadLocalProposal } = await import("../src/thread/local.ts");
+    const tmpDir = mkdtempSync(join(tmpdir(), "pgroast-self-code-"));
+    const propPath = join(tmpDir, "proposal.txt");
+    const patchPath = join(tmpDir, "fix.patch");
+    writeFileSync(propPath, "Subject: Test local draft\n\nFixes a boundary check.\n");
+    writeFileSync(
+      patchPath,
+      [
+        "diff --git a/src/backend/access/nbtree/nbtsearch.c b/src/backend/access/nbtree/nbtsearch.c",
+        "--- a/src/backend/access/nbtree/nbtsearch.c",
+        "+++ b/src/backend/access/nbtree/nbtsearch.c",
+        "@@ -1,3 +1,4 @@",
+        " int x = 1;",
+        "+int y = 2;",
+      ].join("\n"),
+    );
+    const localMed = loadLocalProposal(propPath, [patchPath], new Date(), { includeCode: true });
+    expect(localMed.patchProse.length).toBe(1);
+    expect(localMed.patchProse[0]!.rawText).toContain("+int y = 2;");
+    expect(localMed.patchProse[0]!.codeHunks?.length).toBeGreaterThan(0);
+
+    const { fetchNextPatchFromHub } = await import("../src/contribute.ts");
+    let seenAuth: string | null = null;
+    await fetchNextPatchFromHub({
+      hubUrl: "https://pgroast.postgres.ai",
+      backend: "codex",
+      strategy: "unroasted-first",
+      flavour: "auto-by-subsystem",
+      level: "dark",
+      dryRun: true,
+      token: "pgroast_pub_secret_should_not_send",
+      fetchFn: (async (_u: string, init?: RequestInit) => {
+        seenAuth = new Headers(init?.headers).get("authorization");
+        return new Response(JSON.stringify({ patch: null, suggestedFlavour: "default", suggestedLevel: "dark", reason: "ok", leaseExpiresAt: null }), { status: 200 });
+      }) as unknown as typeof fetch,
+    });
+    expect(seenAuth).toBeNull();
+  });
 });

@@ -268,7 +268,8 @@ export async function fetchNextPatchFromHub(opts: {
   if (opts.dryRun) qs.set("dry_run", "1");
 
   const headers: Record<string, string> = { Accept: "application/json" };
-  if (opts.token?.trim()) headers.Authorization = `Bearer ${opts.token.trim()}`;
+  // Never send publish credentials on anonymous dry-run queue previews.
+  if (!opts.dryRun && opts.token?.trim()) headers.Authorization = `Bearer ${opts.token.trim()}`;
 
   const fn = opts.fetchFn ?? fetch;
   const res = await fn(`${opts.hubUrl.replace(/\/$/, "")}/api/v1/contribute/next?${qs.toString()}`, {
@@ -724,15 +725,26 @@ export async function contributeMain(argv: string[]): Promise<number> {
     process.env.PGROAST_CODEX_EFFORT = effortOverride;
   }
 
-  // Run dry-run, once, or auto
-  const token = resolvePublishToken(tokenOverride || (cfg.publishTokenEnv ? process.env[cfg.publishTokenEnv] : undefined)).token;
+  // Run dry-run, once, or auto. Bind saved auth.json tokens strictly to their saved hub origin.
+  const explicitTok = tokenOverride || (cfg.publishTokenEnv ? process.env[cfg.publishTokenEnv] : undefined);
+  const resolvedAuth = resolvePublishToken(explicitTok);
+  let token = resolvedAuth.token;
+  if (token && resolvedAuth.source === "auth-file") {
+    try {
+      const savedOrigin = new URL(resolvedAuth.hubUrl || DEFAULT_HUB_URL).origin;
+      const targetOrigin = new URL(cfg.hubUrl).origin;
+      if (savedOrigin !== targetOrigin) token = "";
+    } catch {
+      token = "";
+    }
+  }
   const sanity = checkPublishConfidentiality(cfg.hubUrl);
   if (!sanity.ok) {
     console.error(`pgroast contribute: invalid hubUrl (${sanity.reasons.join(", ")})`);
     return 1;
   }
 
-  await runContributeCycle({
+  const cycle = await runContributeCycle({
     config: cfg,
     state: st,
     mode,
@@ -745,5 +757,7 @@ export async function contributeMain(argv: string[]): Promise<number> {
   if (mode !== "dry-run") {
     saveContributeState(st);
   }
+  if (cycle.stoppedByLimit.length > 0) return 3;
+  if (mode === "once" && cycle.processed === 0) return 4;
   return 0;
 }

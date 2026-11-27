@@ -312,12 +312,12 @@ export function renderDocsTab(params: {
   const cliCommands: Array<{ cmd: string; desc: string }> = [
     { cmd: "npx pgroast doctor", desc: "Check installed AI CLIs (claude, codex, agy) and your local login status" },
     { cmd: "npx pgroast 7388 --level light", desc: "Roast one patch locally (idea, thread & 2,547 precedents — no account or Postgres needed)" },
-    { cmd: "npx pgroast page ./out/cf-7388/roast.json", desc: "Render a self-contained HTML report locally (zero LLM calls)" },
+    { cmd: "npx pgroast page ./pgroast-out/cf-7388/roast.json", desc: "Render a self-contained HTML report locally (zero LLM calls)" },
     { cmd: "npx pgroast 7388 --level medium --flavour edge-case-hunter", desc: "Code-aware roast: idea scrutiny + C/H/SQL diffs + git apply + meson compile + targeted tests" },
     { cmd: "npx pgroast --self --proposal draft.txt --patch 0001.patch", desc: "Pre-check your own draft proposal privately before posting to pgsql-hackers" },
     { cmd: "npx pgroast login --token <pgroast_pub_...>", desc: "Save your publish-only token once in ~/.pgroast/auth.json (mode 0600) so npx pgroast recognizes you" },
     { cmd: "npx pgroast whoami", desc: "Show your saved publish token status and target hub" },
-    { cmd: "npx pgroast publish ./out/cf-7388/roast.json", desc: "Run the confidentiality gate and publish a sanitized roast under your handle" },
+    { cmd: "npx pgroast publish ./pgroast-out/cf-7388/roast.json", desc: "Run the confidentiality gate and publish a sanitized roast under your handle" },
     { cmd: "npx pgroast pushback 7388", desc: "Read an entire long-stuck thread and extract blocking objections with quotes" },
     { cmd: "npx pgroast batch 62 --out ./out/cf62 --status open --limit 10 --concurrency 3", desc: "Resumably roast open entries of CommitFest #62 in parallel; stops cleanly on quota limit" },
     { cmd: "npx pgroast shortlist ./out/cf62 --pg-repo ~/postgres", desc: "Rank shortlisted and closing candidates with git-log subsystem expert routing" },
@@ -381,7 +381,7 @@ export function renderDocsTab(params: {
             <strong>Roast one patch (Light, idea first)</strong>
           </div>
           <p class="muted" style="font-size:12.5px;margin:0;line-height:1.5;">
-            Every roast checks the <strong>idea and design</strong> against 2,547 past Postgres precedents first. Light needs no Postgres checkout and writes to <code class="mono">./out/cf-7388/</code>.
+            Every roast checks the <strong>idea and design</strong> against 2,547 past Postgres precedents first. Light needs no Postgres checkout and writes to <code class="mono">./pgroast-out/cf-7388/</code>.
           </p>
           <div class="qs-cmd">
             <code class="mono">npx pgroast 7388 --level light</code>
@@ -395,11 +395,11 @@ export function renderDocsTab(params: {
             <strong>Read locally (or test real code)</strong>
           </div>
           <p class="muted" style="font-size:12.5px;margin:0;line-height:1.5;">
-            Open <code class="mono">./out/cf-7388/roast.md</code> or build an HTML report. With a local <code class="mono">postgres</code> repo, run <code class="mono">--level medium</code> (compile + tests) or <code class="mono">--level dark</code> (+ live Postgres SQL).
+            Open <code class="mono">./pgroast-out/cf-7388/roast.md</code> or build an HTML report. With a local <code class="mono">postgres</code> repo, run <code class="mono">--level medium</code> (compile + tests) or <code class="mono">--level dark</code> (+ live Postgres SQL).
           </p>
           <div class="qs-cmd">
-            <code class="mono">npx pgroast page ./out/cf-7388/roast.json</code>
-            <button type="button" class="btn btn-ghost btn-sm" data-copy-snippet="npx pgroast page ./out/cf-7388/roast.json">Copy</button>
+            <code class="mono">npx pgroast page ./pgroast-out/cf-7388/roast.json</code>
+            <button type="button" class="btn btn-ghost btn-sm" data-copy-snippet="npx pgroast page ./pgroast-out/cf-7388/roast.json">Copy</button>
           </div>
         </div>
 

@@ -2170,8 +2170,8 @@ function renderPatchPage(): string {
           </div>
           <div class="cli-bar">
             <span class="cli-bar-label">Publish</span>
-            <code class="mono cli-bar-cmd">npx pgroast publish ./out/cf-${cfId}/roast.json</code>
-            <button type="button" class="btn btn-ghost btn-sm" data-copy-cli="npx pgroast publish ./out/cf-${cfId}/roast.json">Copy</button>
+            <code class="mono cli-bar-cmd">npx pgroast publish ./pgroast-out/cf-${cfId}/roast.json</code>
+            <button type="button" class="btn btn-ghost btn-sm" data-copy-cli="npx pgroast publish ./pgroast-out/cf-${cfId}/roast.json">Copy</button>
           </div>
           <div class="dim" style="font-size:11px;margin-top:6px;">
             Local runs need no account. Save your publish identity once with <code class="mono">npx pgroast login</code>.
@@ -3659,7 +3659,7 @@ function render(): void {
       } else if (cmd === "bugs") {
         built = `${envPrefix}npx pgroast bugs --days 14 --limit 30 --backend ${backend}`;
       } else {
-        built = `PGROAST_PUBLISH_TOKEN=pgroast_pub_YOUR_TOKEN npx pgroast publish ./out/cf-${target}/roast.json`;
+        built = `PGROAST_PUBLISH_TOKEN=pgroast_pub_YOUR_TOKEN npx pgroast publish ./pgroast-out/cf-${target}/roast.json`;
       }
       const outEl = document.getElementById("pg-cli-output");
       if (outEl) outEl.textContent = built;
