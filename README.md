@@ -1,12 +1,44 @@
 # pgroast 🔥❤️‍🔥🍿
 
-PG Roast is an adversarial reviewer for Postgres proposals. It judges the idea and the design, not the code.
+**Let's roast Postgres patches!** Humans and their AIs reviewing Postgres CommitFest patches together.
 
-Given a pgsql-hackers thread or a CommitFest entry, it argues why the proposal might not be accepted, the way experienced committers do: earlier attempts that were not accepted, the strongest objections with concrete failure scenarios, and the touch points that raise the risk. A critic then tries to refute every objection, and only the survivors are reported.
+Every roast starts by scrutinizing the **idea and design** (Review Pyramid + 2,547 historical `pgsql-hackers` precedents + Critic refutation pass), then optionally inspects C/SQL diffs, builds and tests Postgres (`--level medium`), and runs live patched Postgres SQL stress tests (`--level dark`).
 
-> Prepared by an AI harness; treat as a devil's advocate, not a verdict.
+> Prepared by an AI harness; treat as a devil's advocate, not a verdict. Nothing is ever auto-posted to `pgsql-hackers` or CommitFest.
 
-Status: prototype. The CLI writes local files only and never posts anywhere. The optional Personal Backoffice (`apps/local`) adds explicit-confirmation CommitFest actions, local Gmail drafts, and opt-in publishing of sanitized opinions to the Public App (`apps/web`). Nothing is ever auto-posted to `pgsql-hackers` or CommitFest.
+## Quick Start: Install Personal Backoffice (Recommended)
+
+The fastest way to install and run your local **Personal Backoffice** (`http://127.0.0.1:3432`) is to paste this prompt into your AI coding agent (**Claude Code**, **Codex**, **Cursor**, **Windsurf**, or **Antigravity**):
+
+```text
+Install and configure the pgroast Personal Backoffice on this machine:
+
+1. Check prerequisites: git, bun (>= 1.3.5), Postgres 18 or 19 (local or Docker), and at least one signed-in AI CLI (claude, codex, or agy).
+2. Clone https://github.com/NikolayS/pgroast.git (or git pull if already cloned) and run `bun install`.
+3. Configure Postgres:
+   - If local Postgres 18/19 is already running, reuse it and write `.env` with matching `PGROAST_DSN` and `PGROAST_DATABASE_URL`.
+   - Otherwise start the bundled Postgres 19 container (`docker compose -f apps/local/docker-compose.yml up -d`) and copy `.env.example` to `.env`.
+4. Set `PGROAST_PUBLIC_HUB_URL=https://pgroast.postgres.ai` in `.env`.
+5. Run `bun run src/cli.ts init-db` to load the 2,547-row precedent index, and `bun run src/cli.ts doctor` to verify my AI CLI login.
+6. Start the local Backoffice with `bun run app:local`, verify http://127.0.0.1:3432 responds, and show me the link plus optional settings (CommitFest login, publish token, local Postgres git clone) I can configure next.
+```
+
+**Or try roasting one patch from the CLI right now (no install, no Backoffice, no account):**
+
+```bash
+npx pgroast@next doctor
+npx pgroast@next 7388 --level light
+```
+
+Live public hub: **[https://pgroast.postgres.ai](https://pgroast.postgres.ai)** · [About roasting](https://pgroast.postgres.ai/about) · [5-Min Tutorial & API Docs](https://pgroast.postgres.ai/docs)
+
+---
+
+## How a roast works
+
+Given a `pgsql-hackers` thread or CommitFest entry, `pgroast` checks earlier rejected attempts and reverts, raises the strongest objections with concrete failure scenarios, and checks 15 Postgres touch points. A Critic pass then tries to refute every objection so only solid findings survive.
+
+Status: alpha (`v0.3.0-alpha.*`). The CLI writes local files only unless you explicitly run `pgroast publish` or opt-in `pgroast contribute --publish`. The Personal Backoffice (`apps/local`) adds explicit-confirmation CommitFest actions, local Gmail drafts, and opt-in publishing of sanitized opinions to the Public App (`apps/web`).
 
 ## What you get
 

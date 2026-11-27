@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.3.0-alpha.30 (2026-11-27)
+
+This release makes the copy-ready **AI Agent Backoffice Install Prompt** the #1 default path at every Backoffice entry point and right at the top of `README.md`.
+
+### Changes
+
+- **Single Canonical AI Agent Install Prompt (`apps/web/src/ui/backoffice-prompt.ts`, `app.ts`, `docs-view.ts`, `README.md`):**
+  - Moved the **AI Agent Install Prompt** card to the very top of `/?tab=connect` (Setup Backoffice) above the space overview cards.
+  - Added a dedicated **"Ask Your AI Coding Agent to Install Backoffice"** section (`#backoffice-install`) to `/docs` with a header jump button.
+  - Made **`Copy AI Agent Install Prompt`** the primary button inside both the topbar **Space Switcher** sheet and the **Patch Detail** right-sidebar Backoffice card.
+  - Promoted the exact same copy-ready AI Agent Install Prompt to the top of `README.md` right below the opening intro.
+
 ## v0.3.0-alpha.29 (2026-11-27)
 
 This release rewrites all remaining outbound `postgresql.org/message-id/flat/...` links across patch pages, hacker profiles, and downloadable briefs to canonical `/message-id/...` permalinks so no user-facing link hits `postgresql.org`'s broken `/flat/` endpoint.

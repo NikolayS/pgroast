@@ -1,4 +1,5 @@
 import { renderAboutTab } from "./about-view.ts";
+import { BACKOFFICE_MANUAL_COMMANDS, buildBackofficeInstallPrompt as buildBoInstallPrompt } from "./backoffice-prompt.ts";
 import {
   renderBriefSkeleton,
   renderConnectSkeleton,
@@ -1080,20 +1081,21 @@ function openSpaceSwitcher(): void {
         <span class="space-badge-local">Private · Local</span>
       </div>
       <p class="space-card-desc">
-        Your private workspace on <code class="mono">${esc(getLocalBackofficeUrl().replace(/\/$/, ""))}</code> — compile Postgres, run your AI models, inspect diffs, keep private Work Items &amp; Gmail drafts, and push sanitized opinions up here.
+        Your private workspace on <code class="mono">${esc(getLocalBackofficeUrl().replace(/\/$/, ""))}</code>: compile Postgres, run your AI models, inspect diffs, keep private Work Items, and push sanitized opinions up here.
       </p>
-      <div class="row" style="gap:8px;margin-top:2px;">
-        <button type="button" class="btn btn-primary" style="flex:1;" id="space-goto-setup-btn">Set up Backoffice →</button>
-        <a class="btn btn-secondary" href="${esc(backofficeHref)}" target="_blank" rel="noopener" title="Already running bun run app:local on your machine?">
-          ${cfId ? `Open CF ${cfId} locally ↗` : "Open local ↗"}
-        </a>
-        <button type="button" class="btn btn-ghost" id="space-copy-local-btn">Copy</button>
+      <div class="row" style="gap:8px;margin-top:2px;flex-wrap:wrap;">
+        <button type="button" class="btn btn-primary" style="flex:1;" data-copy-bo-prompt="1">Copy AI Agent Install Prompt</button>
+        <button type="button" class="btn btn-secondary" id="space-goto-setup-btn">View prompt &amp; token →</button>
       </div>
-      ${
-        isMobile
-          ? `<div class="dim" style="font-size:11.5px;line-height:1.4;">On mobile? Tap <strong>Copy</strong> to open <code class="mono">${esc(backofficeHref)}</code> on your laptop where <code class="mono">bun run app:local</code> is running.</div>`
-          : `<div class="dim" style="font-size:11.5px;line-height:1.4;">Already running <code class="mono">bun run app:local</code>? Use <strong>Open local ↗</strong>. First time? Click <strong>Set up Backoffice →</strong>.</div>`
-      }
+      <div class="row" style="gap:8px;margin-top:6px;">
+        <a class="btn btn-ghost btn-sm" style="flex:1;" href="${esc(backofficeHref)}" target="_blank" rel="noopener" title="Already running bun run app:local on your machine?">
+          ${cfId ? `Open CF ${cfId} locally ↗` : "Already running? Open local ↗"}
+        </a>
+        <button type="button" class="btn btn-ghost btn-sm" id="space-copy-local-btn">Copy local URL</button>
+      </div>
+      <div class="dim" style="font-size:11.5px;line-height:1.4;margin-top:4px;">
+        Default path: paste the prompt into Claude Code, Codex, Cursor, or Antigravity to install &amp; start your Backoffice automatically.
+      </div>
     </div>
 
     <div class="row" style="gap:8px;">
@@ -2174,12 +2176,12 @@ function renderPatchPage(): string {
             <span class="space-badge-local">Private · Local</span>
           </div>
           <div class="muted" style="font-size:12px;line-height:1.45;">
-            Compile Postgres, run your AI models, review the patch diff, keep private Work Items, and draft <code>-hackers</code> emails locally.
+            Compile Postgres, run your AI models, review diffs, keep private Work Items, and draft <code class="mono">-hackers</code> emails locally. Default install: paste the prompt into your AI coding agent.
           </div>
-          <button type="button" class="btn btn-primary" style="width:100%;height:38px;" data-goto-connect="1">Set up Personal Backoffice →</button>
+          <button type="button" class="btn btn-primary" style="width:100%;height:38px;" data-copy-bo-prompt="1">Copy AI Agent Install Prompt</button>
           <div class="row" style="gap:6px;">
-            <a class="btn btn-secondary" style="flex:1;" href="${esc(backofficeHref)}" target="_blank" rel="noopener" title="Already running bun run app:local on your laptop?">Open locally ↗</a>
-            <button type="button" class="btn btn-ghost" id="patch-copy-local-side">Copy</button>
+            <button type="button" class="btn btn-secondary" style="flex:1;" data-goto-connect="1">View prompt &amp; token →</button>
+            <a class="btn btn-ghost" href="${esc(backofficeHref)}" target="_blank" rel="noopener" title="Already running bun run app:local on your laptop?">Open local ↗</a>
           </div>
         </div>
       </aside>
@@ -2974,19 +2976,7 @@ function renderCoordinationTab(): string {
 
 /* ---- Backoffice & Space Guide Tab ---- */
 function buildBackofficeInstallPrompt(): string {
-  const origin = window.location.origin;
-  return [
-    "Install and configure the pgroast Personal Backoffice on this machine:",
-    "",
-    "1. Check prerequisites: git, bun (>= 1.3.5), PostgreSQL 18 or 19 (local or Docker), and at least one signed-in AI CLI (claude or codex).",
-    "2. Clone https://github.com/NikolayS/pgroast.git (or git pull if already cloned) and run `bun install`.",
-    "3. Configure PostgreSQL:",
-    "   - If I already have local PostgreSQL 18/19 running, reuse it and write `.env` with matching `PGROAST_DSN` and `PGROAST_DATABASE_URL`.",
-    "   - Otherwise start the bundled Postgres 19 container: `docker compose -f apps/local/docker-compose.yml up -d` and copy `.env.example` to `.env`.",
-    `4. Set \`PGROAST_PUBLIC_HUB_URL=${origin}\` in \`.env\`.`,
-    "5. Run `bun run src/cli.ts init-db` to load the 2,547-row precedent index, and `bun run src/cli.ts doctor` to verify my AI CLI login.",
-    "6. Start the local Backoffice with `bun run app:local`, verify http://127.0.0.1:3432 responds, and show me the link plus what optional settings (CommitFest login, publish token, local Postgres git clone) I can configure next.",
-  ].join("\n");
+  return buildBoInstallPrompt(window.location.origin);
 }
 
 function renderConnectTab(): string {
@@ -2996,65 +2986,27 @@ function renderConnectTab(): string {
   const oauth = state.health?.oauth;
   const backofficeHref = getLocalBackofficeUrl();
   const agentPrompt = buildBackofficeInstallPrompt();
-  const manualShellCmd = [
-    "git clone https://github.com/NikolayS/pgroast.git && cd pgroast",
-    "bun install",
-    "docker compose -f apps/local/docker-compose.yml up -d",
-    "cp .env.example .env",
-    "bun run src/cli.ts init-db",
-    "bun run app:local",
-  ].join("\n");
+  const manualShellCmd = BACKOFFICE_MANUAL_COMMANDS;
 
   return `
     <div class="page-head">
-      <div>
-        <h1 class="page-title">Public App ↔ Personal Backoffice</h1>
-        <div class="page-sub">Everyone runs their own private backoffice locally and shares sanitized opinions here to build common ground</div>
+      <div class="page-head-main">
+        <div class="viz-kicker">Personal Backoffice Setup</div>
+        <h1 class="page-title">Install Your Personal Backoffice (2 Minutes)</h1>
+        <div class="page-sub">Default path: paste the prompt below into Claude Code, Codex, Cursor, or Antigravity. Everything runs locally on your machine.</div>
+      </div>
+      <div class="row" style="gap:6px;flex-wrap:wrap;">
+        <button type="button" class="btn btn-primary btn-sm" id="connect-copy-prompt-btn">Copy AI Agent Prompt</button>
+        <a class="btn btn-secondary btn-sm" href="${esc(backofficeHref)}" target="_blank" rel="noopener" title="Already running bun run app:local on your laptop?">Open local ↗</a>
       </div>
     </div>
 
-    <div class="grid2" style="margin-bottom:12px;">
-      <div class="space-card is-current">
-        <div class="space-card-head">
-          <span class="space-card-title"><span class="space-dot" style="background:var(--ok)"></span>Public App</span>
-          <span class="space-badge-here">You are here</span>
-        </div>
-        <p class="space-card-desc">
-          Hosted at <code class="mono">${esc(window.location.host)}</code>. Safe to share patch collaboration links (<code class="mono">/patch/5879</code>) with committers, authors, and teammates.
-        </p>
-        <ul class="muted" style="padding-left:18px;margin:0;font-size:12.5px;display:flex;flex-direction:column;gap:5px;">
-          <li>Per-patch collaboration pages showing all reviewers' AI opinions &amp; consensus</li>
-          <li>Interactive CommitFest briefs &amp; offline HTML/MD/JSON downloads</li>
-          <li>Shared team claims so reviewers avoid duplicating effort</li>
-        </ul>
-      </div>
-
-      <div class="space-card is-backoffice">
-        <div class="space-card-head">
-          <span class="space-card-title"><span class="space-dot" style="background:var(--warn)"></span>Personal Backoffice</span>
-          <span class="space-badge-local">Private · Local</span>
-        </div>
-        <p class="space-card-desc">
-          Installed on your own laptop from <a href="https://github.com/NikolayS/pgroast" target="_blank" rel="noopener">github.com/NikolayS/pgroast</a> and running at <code class="mono">${esc(backofficeHref.replace(/\/$/, ""))}</code>. Never exposed online.
-        </p>
-        <ul class="muted" style="padding-left:18px;margin:0;font-size:12.5px;display:flex;flex-direction:column;gap:5px;">
-          <li>Compile Postgres, apply patches, inspect diffs, and run your preferred AI models</li>
-          <li>Private Local Work Items, CommitFest cookies, and Gmail drafts</li>
-          <li>Explicitly publish sanitized opinions &amp; briefs up to this Public App</li>
-        </ul>
-        <div class="row" style="gap:8px;margin-top:4px;flex-wrap:wrap;">
-          <button type="button" class="btn btn-primary" style="flex:1;height:38px;" id="connect-copy-prompt-btn">Copy AI Agent Install Prompt</button>
-          <a class="btn btn-secondary" style="height:38px;" href="${esc(backofficeHref)}" target="_blank" rel="noopener" title="Already running bun run app:local on your laptop?">Open local ↗</a>
-        </div>
-        <div class="dim" style="font-size:11.5px;">Paste the prompt into Claude Code, Codex, Cursor, or Antigravity — or open <code class="mono">${esc(backofficeHref.replace(/\/$/, ""))}</code> if already running.</div>
-      </div>
-    </div>
-
-    <div class="card" style="margin-bottom:12px;">
+    <!-- 1. DEFAULT PATH: COPY-READY AI AGENT INSTALL PROMPT (FIRST THING ON PAGE) -->
+    <div class="card" id="agent-install-prompt" style="margin-bottom:14px;">
       <div class="card-head">
         <div>
-          <h3>QuickStart: Ask your AI coding agent to install &amp; configure</h3>
-          <div class="dim" style="font-size:12px;">Works with Claude Code, Codex, Cursor, Windsurf, or Antigravity — detects your local Postgres or starts Docker PG 19 automatically.</div>
+          <h2 style="margin:0;">Paste this prompt to your AI coding agent</h2>
+          <div class="dim" style="font-size:12px;margin-top:2px;">Works with Claude Code, Codex, Cursor, Windsurf, or Antigravity. Detects your local Postgres or starts Docker Postgres 19 automatically.</div>
         </div>
         <div class="row" style="gap:6px;">
           <button type="button" class="btn btn-primary btn-sm" id="connect-copy-prompt-card-btn">Copy prompt</button>
@@ -3066,6 +3018,38 @@ function renderConnectTab(): string {
         <summary>Prefer manual terminal commands?</summary>
         <pre class="agent-prompt-pre mono" style="margin-top:8px;">${esc(manualShellCmd)}</pre>
       </details>
+    </div>
+
+    <div class="grid2" style="margin-bottom:12px;">
+      <div class="space-card is-current">
+        <div class="space-card-head">
+          <span class="space-card-title"><span class="space-dot" style="background:var(--ok)"></span>Public App</span>
+          <span class="space-badge-here">You are here</span>
+        </div>
+        <p class="space-card-desc">
+          Hosted at <code class="mono">${esc(window.location.host)}</code>. Safe to share patch links (<code class="mono">/patch/5879</code>) with committers, authors, and teammates.
+        </p>
+        <ul class="muted" style="padding-left:18px;margin:0;font-size:12.5px;display:flex;flex-direction:column;gap:5px;">
+          <li>Per-patch pages showing all reviewers' AI opinions &amp; build logs</li>
+          <li>CommitFest briefs &amp; offline HTML/MD/JSON downloads</li>
+          <li>Shared team claims so reviewers avoid duplicate effort</li>
+        </ul>
+      </div>
+
+      <div class="space-card is-backoffice">
+        <div class="space-card-head">
+          <span class="space-card-title"><span class="space-dot" style="background:var(--warn)"></span>Personal Backoffice</span>
+          <span class="space-badge-local">Private · Local</span>
+        </div>
+        <p class="space-card-desc">
+          Runs on your laptop at <code class="mono">${esc(backofficeHref.replace(/\/$/, ""))}</code> from <a href="https://github.com/NikolayS/pgroast" target="_blank" rel="noopener">github.com/NikolayS/pgroast</a>. Never exposed online.
+        </p>
+        <ul class="muted" style="padding-left:18px;margin:0;font-size:12.5px;display:flex;flex-direction:column;gap:5px;">
+          <li>Compile Postgres, apply patches, inspect diffs, and run your AI models</li>
+          <li>Private Work Items, CommitFest cookies, and Gmail drafts</li>
+          <li>Explicitly publish sanitized opinions &amp; briefs up to this Public App</li>
+        </ul>
+      </div>
     </div>
 
     <div class="grid2">
@@ -4101,6 +4085,16 @@ document.getElementById("web-home-btn")?.addEventListener("click", () => {
 document.getElementById("footer-about-link")?.addEventListener("click", (ev) => {
   ev.preventDefault();
   navigateToTab("about");
+});
+
+document.addEventListener("click", (ev) => {
+  const boCopy = (ev.target as Element | null)?.closest<HTMLElement>("[data-copy-bo-prompt]");
+  if (boCopy) {
+    ev.preventDefault();
+    ev.stopPropagation();
+    copyTextWithFeedback(boCopy, buildBackofficeInstallPrompt(), boCopy.textContent || "Copy AI Agent Install Prompt");
+    return;
+  }
 });
 
 document.getElementById("web-main")?.addEventListener("click", (ev) => {

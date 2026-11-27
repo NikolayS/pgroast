@@ -394,6 +394,7 @@ export async function createWebHandler(opts?: {
   const listsViewPath = join(WEB_ROOT, "src", "ui", "lists-view.ts");
   const statsViewPath = join(WEB_ROOT, "src", "ui", "stats-view.ts");
   const aboutViewPath = join(WEB_ROOT, "src", "ui", "about-view.ts");
+  const backofficePromptPath = join(WEB_ROOT, "src", "ui", "backoffice-prompt.ts");
   const skeletonsPath = join(WEB_ROOT, "src", "ui", "skeletons.ts");
   const vizChartsPath = join(WEB_ROOT, "src", "ui", "viz-charts.ts");
   const vizEnginePath = join(WEB_ROOT, "src", "ui", "viz-engine.ts");
@@ -413,6 +414,7 @@ export async function createWebHandler(opts?: {
     (existsSync(listsViewPath) ? statSync(listsViewPath).mtimeMs : 0) +
     (existsSync(statsViewPath) ? statSync(statsViewPath).mtimeMs : 0) +
     (existsSync(aboutViewPath) ? statSync(aboutViewPath).mtimeMs : 0) +
+    (existsSync(backofficePromptPath) ? statSync(backofficePromptPath).mtimeMs : 0) +
     (existsSync(skeletonsPath) ? statSync(skeletonsPath).mtimeMs : 0) +
     (existsSync(vizChartsPath) ? statSync(vizChartsPath).mtimeMs : 0) +
     (existsSync(vizEnginePath) ? statSync(vizEnginePath).mtimeMs : 0);
@@ -437,6 +439,7 @@ export async function createWebHandler(opts?: {
         (existsSync(listsViewPath) ? statSync(listsViewPath).mtimeMs : 0) +
         (existsSync(statsViewPath) ? statSync(statsViewPath).mtimeMs : 0) +
         (existsSync(aboutViewPath) ? statSync(aboutViewPath).mtimeMs : 0) +
+        (existsSync(backofficePromptPath) ? statSync(backofficePromptPath).mtimeMs : 0) +
         (existsSync(skeletonsPath) ? statSync(skeletonsPath).mtimeMs : 0) +
         (existsSync(vizChartsPath) ? statSync(vizChartsPath).mtimeMs : 0) +
         (existsSync(vizEnginePath) ? statSync(vizEnginePath).mtimeMs : 0);

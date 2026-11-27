@@ -1,4 +1,5 @@
 import { renderStripeApiExplorer, type ApiLang } from "./api-docs-view.ts";
+import { BACKOFFICE_MANUAL_COMMANDS, buildBackofficeInstallPrompt } from "./backoffice-prompt.ts";
 
 export type DocsCategory = "all" | "front-office" | "quota" | "backoffice" | "cli" | "safety";
 
@@ -338,7 +339,8 @@ export function renderDocsTab(params: {
         </div>
       </div>
       <div class="row" style="gap:6px;flex-wrap:wrap;">
-        <a class="btn btn-primary btn-sm" href="#quickstart">5-Min Tutorial ↓</a>
+        <a class="btn btn-primary btn-sm" href="#quickstart">5-Min CLI Tutorial ↓</a>
+        <a class="btn btn-secondary btn-sm" href="#backoffice-install">Backoffice Agent Prompt ↓</a>
         <a class="btn btn-secondary btn-sm" href="#cli-playground">CLI Playground ↓</a>
         <a class="btn btn-secondary btn-sm" href="#api-reference">API Reference ↓</a>
         <button type="button" class="btn btn-ghost btn-sm" data-open-about="">What is a roast?</button>
@@ -420,7 +422,29 @@ export function renderDocsTab(params: {
       </div>
     </section>
 
-    <!-- 2. INTERACTIVE CLI PLAYGROUND -->
+    <!-- 2. DEFAULT PERSONAL BACKOFFICE INSTALL (AI AGENT PROMPT) -->
+    <section class="card" id="backoffice-install">
+      <div class="card-head">
+        <div>
+          <div class="viz-kicker">Personal Backoffice · Recommended Install</div>
+          <h2>Ask Your AI Coding Agent to Install Backoffice</h2>
+          <div class="dim" style="font-size:12.5px;margin-top:3px;">
+            Want the full local web workbench (Postgres builds, inline diff reviews, Work Items, Roast Studio, Gmail drafts)? Paste this prompt into Claude Code, Codex, Cursor, or Antigravity.
+          </div>
+        </div>
+        <div class="row" style="gap:6px;flex-wrap:wrap;">
+          <button type="button" class="btn btn-primary btn-sm" data-copy-bo-prompt="1">Copy AI Agent Prompt</button>
+          <button type="button" class="btn btn-secondary btn-sm" data-docs-nav="connect">Open Setup &amp; Token →</button>
+        </div>
+      </div>
+      <pre class="agent-prompt-pre mono">${esc(buildBackofficeInstallPrompt(origin))}</pre>
+      <details class="agent-manual-fold">
+        <summary>Prefer manual terminal commands?</summary>
+        <pre class="agent-prompt-pre mono" style="margin-top:8px;">${esc(BACKOFFICE_MANUAL_COMMANDS)}</pre>
+      </details>
+    </section>
+
+    <!-- 3. INTERACTIVE CLI PLAYGROUND -->
     <section class="card" id="cli-playground">
       <div class="card-head">
         <div>
