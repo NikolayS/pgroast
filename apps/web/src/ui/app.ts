@@ -2157,16 +2157,24 @@ function renderPatchPage(): string {
         }
 
         <div class="card" style="margin-bottom:0;">
-          <div class="sheet-section-label" style="margin-bottom:8px;">Try via CLI (no install needed)</div>
+          <div class="sheet-section-label" style="margin-bottom:4px;">Try via CLI (no install needed)</div>
+          <div class="dim" style="font-size:11.5px;line-height:1.45;margin-bottom:8px;">
+            All levels check the idea &amp; 2,547 precedents first: <strong>Light</strong> (idea), <strong>Medium</strong> (+ code, build &amp; tests), <strong>Dark</strong> (+ live Postgres SQL stress).
+          </div>
           <div class="cli-bar" style="margin-bottom:6px;">
             <span class="cli-bar-label">Light</span>
             <code class="mono cli-bar-cmd">npx pgroast ${cfId} --level light</code>
             <button type="button" class="btn btn-ghost btn-sm" data-copy-cli="npx pgroast ${cfId} --level light">Copy</button>
           </div>
           <div class="cli-bar" style="margin-bottom:6px;">
-            <span class="cli-bar-label">Code</span>
+            <span class="cli-bar-label">Medium</span>
             <code class="mono cli-bar-cmd">npx pgroast ${cfId} --level medium</code>
             <button type="button" class="btn btn-ghost btn-sm" data-copy-cli="npx pgroast ${cfId} --level medium">Copy</button>
+          </div>
+          <div class="cli-bar" style="margin-bottom:6px;">
+            <span class="cli-bar-label">Dark</span>
+            <code class="mono cli-bar-cmd">npx pgroast ${cfId} --level dark</code>
+            <button type="button" class="btn btn-ghost btn-sm" data-copy-cli="npx pgroast ${cfId} --level dark">Copy</button>
           </div>
           <div class="cli-bar">
             <span class="cli-bar-label">Publish</span>
@@ -2174,7 +2182,7 @@ function renderPatchPage(): string {
             <button type="button" class="btn btn-ghost btn-sm" data-copy-cli="npx pgroast publish ./pgroast-out/cf-${cfId}/roast.json">Copy</button>
           </div>
           <div class="dim" style="font-size:11px;margin-top:6px;">
-            Local runs need no account. Save your publish identity once with <code class="mono">npx pgroast login</code>.
+            Local runs need no account. Add <code class="mono">--publish</code> or run <code class="mono">npx pgroast login</code> once to share here.
           </div>
         </div>
 

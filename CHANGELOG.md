@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.4.5 (2026-11-27)
+
+Clarifies the Patch Detail CLI sidebar card so all three roast levels (**Light**, **Medium**, **Dark**) are shown clearly with their cumulative scope instead of labeling Medium as "Code" and omitting Dark.
+
+### Changes
+
+- **Patch Detail CLI Card (`apps/web/src/ui/app.ts`):**
+  - Renamed the `Code` badge to `Medium`, added the `Dark` (`--level dark`) row, and added a 1-line summary noting that every level starts with idea & precedent scrutiny (`Light` = idea, `Medium` = + code, build & tests, `Dark` = + live Postgres SQL stress).
+
 ## v0.4.4 (2026-11-27)
 
 Fixes 11 real bugs, UI layout glitches, and Backoffice edge cases uncovered by a full Codex (`gpt-6.2-astra`) audit of `src/`, `apps/web/`, and `apps/local/`.
