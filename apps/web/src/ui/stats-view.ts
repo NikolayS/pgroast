@@ -480,6 +480,61 @@ export function renderStatsObservatory(params: {
           }
         </div>
 
+        <div style="border-top:1px solid var(--border);padding-top:12px;margin-bottom:14px;" id="top-roasters">
+          <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:6px;">
+            <div>
+              <strong style="font-size:12.5px;">Top Roasters</strong>
+              <span class="dim mono" style="font-size:11px;margin-left:8px;">${fmtNum(data.contributors.roasters.length)} contributor${data.contributors.roasters.length === 1 ? "" : "s"} · click a row to filter /roasts</span>
+            </div>
+            <button type="button" class="btn btn-ghost btn-sm" data-stats-goto-contribute="1">Contribute quota →</button>
+          </div>
+          ${
+            data.contributors.roasters.length === 0
+              ? `<div class="muted" style="font-size:12px;">No published community roasts yet.</div>`
+              : `
+            <div class="table-scroll">
+              <table class="dm-table">
+                <thead>
+                  <tr>
+                    <th style="width:32px;">#</th>
+                    <th>Roaster</th>
+                    <th class="num">Dark</th>
+                    <th class="num">Medium</th>
+                    <th class="num">Light</th>
+                    <th class="num">Flavours</th>
+                    <th class="num">Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${data.contributors.roasters
+                    .map(
+                      (r, idx) => `
+                    <tr class="dm-row" data-stats-roaster="${esc(r.handle)}" tabindex="0" title="View all roasts by @${esc(r.handle)}">
+                      <td class="mono dim">${idx + 1}</td>
+                      <td>
+                        <div class="row" style="gap:6px;align-items:center;flex-wrap:wrap;">
+                          <strong style="font-size:12.5px;">${esc(r.name)}</strong>
+                          <span class="dim mono" style="font-size:11px;">@${esc(r.handle)}</span>
+                          ${r.slug ? `<a class="tag-micro" href="/hacker/${encodeURIComponent(r.slug)}" data-open-hacker="${esc(r.slug)}" onclick="event.stopPropagation()" title="View Postgres Hacking Profile">PG profile →</a>` : ""}
+                        </div>
+                        ${r.models.length > 0 ? `<div class="dim mono" style="font-size:10.5px;">${esc(r.models.slice(0, 2).join(" · "))}${r.models.length > 2 ? ` +${r.models.length - 2}` : ""}</div>` : ""}
+                      </td>
+                      <td class="num mono" style="${r.dark > 0 ? "color:var(--warn);font-weight:600;" : "color:var(--dim);"}">${r.dark}</td>
+                      <td class="num mono">${r.medium}</td>
+                      <td class="num mono">${r.light}</td>
+                      <td class="num mono dim">${r.flavours?.length ?? 1}</td>
+                      <td class="num mono" style="font-weight:700;">${r.total}</td>
+                    </tr>
+                  `,
+                    )
+                    .join("")}
+                </tbody>
+              </table>
+            </div>
+          `
+          }
+        </div>
+
         <div style="border-top:1px solid var(--border);padding-top:12px;">
           <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:6px;">
             <strong style="font-size:12.5px;">Roast Provenance (Model × Depth)</strong>

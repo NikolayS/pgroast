@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.4.6 (2026-11-27)
+
+Adds a **Top Roasters** leaderboard directly to **Stats** (`/?tab=stats#top-roasters`) with Dark / Medium / Light counts, flavour diversity, model specs, clickable `/roasts` filtering, and `/hacker/<slug>` profile links.
+
+### Changes
+
+- **Top Roasters in Stats (`apps/web/src/stats-queries.ts`, `apps/web/src/ui/stats-view.ts`, `apps/web/src/ui/app.ts`):**
+  - Extended `contributors.roasters` in `/api/v1/stats/overview` with unified `/hacker/<slug>` links and `flavours[]`.
+  - Rendered the **Top Roasters** table in **Stats → 6B. Calibration, Attention & Provenance** (`#top-roasters`) where clicking any row filters `/roasts` to that roaster.
+
 ## v0.4.5 (2026-11-27)
 
 Clarifies the Patch Detail CLI sidebar card so all three roast levels (**Light**, **Medium**, **Dark**) are shown clearly with their cumulative scope instead of labeling Medium as "Code" and omitting Dark.

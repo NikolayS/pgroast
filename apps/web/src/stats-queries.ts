@@ -239,11 +239,13 @@ export interface StatsOverviewData {
     roasters: Array<{
       handle: string;
       name: string;
+      slug: string | null;
       total: number;
       dark: number;
       medium: number;
       light: number;
       models: string[];
+      flavours: string[];
     }>;
     roleDistribution: Array<{
       role: string;
@@ -570,6 +572,7 @@ export async function getStatsOverview(db: WebDatabase): Promise<StatsOverviewDa
     medium: number;
     light: number;
     models: Set<string>;
+    flavours: Set<string>;
   }>();
   const opVelMap = new Map<string, { dark: number; medium: number; light: number }>();
   const bestVerifiedByCf = new Map<number, {
@@ -614,7 +617,16 @@ export async function getStatsOverview(db: WebDatabase): Promise<StatsOverviewDa
     const handle = (op.contributor_handle || "anonymous").trim();
     let rm = roasterMap.get(handle);
     if (!rm) {
-      rm = { handle, name: op.contributor_name || handle, total: 0, dark: 0, medium: 0, light: 0, models: new Set() };
+      rm = {
+        handle,
+        name: op.contributor_name || handle,
+        total: 0,
+        dark: 0,
+        medium: 0,
+        light: 0,
+        models: new Set(),
+        flavours: new Set(),
+      };
       roasterMap.set(handle, rm);
     }
     rm.total++;
@@ -622,6 +634,7 @@ export async function getStatsOverview(db: WebDatabase): Promise<StatsOverviewDa
     else if (lv === "medium") rm.medium++;
     else rm.light++;
     rm.models.add(spec);
+    rm.flavours.add((op.roast_flavour || "default").trim() || "default");
 
     const hrBucket = (op.created_at || "").slice(0, 13);
     if (hrBucket) {
@@ -1308,17 +1321,22 @@ export async function getStatsOverview(db: WebDatabase): Promise<StatsOverviewDa
         .sort((a, b) => b.total - a.total || b.committed - a.committed)
         .slice(0, 18),
       roasters: Array.from(roasterMap.values())
-        .map((r) => ({
-          handle: r.handle,
-          name: r.name,
-          total: r.total,
-          dark: r.dark,
-          medium: r.medium,
-          light: r.light,
-          models: Array.from(r.models),
-        }))
-        .sort((a, b) => b.total - a.total)
-        .slice(0, 12),
+        .map((r) => {
+          const matched = personByName.get(normNameKey(r.name)) ?? personByName.get(normNameKey(r.handle));
+          return {
+            handle: r.handle,
+            name: r.name,
+            slug: matched?.slug ?? null,
+            total: r.total,
+            dark: r.dark,
+            medium: r.medium,
+            light: r.light,
+            models: Array.from(r.models),
+            flavours: Array.from(r.flavours),
+          };
+        })
+        .sort((a, b) => b.total - a.total || b.dark - a.dark)
+        .slice(0, 20),
       roleDistribution,
     },
     traffic: {

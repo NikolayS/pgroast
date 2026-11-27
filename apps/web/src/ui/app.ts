@@ -3856,6 +3856,31 @@ function render(): void {
         });
       }
     });
+    document.querySelectorAll<Element>("[data-stats-roaster]").forEach((el) => {
+      const activate = () => {
+        const handle = (el.getAttribute("data-stats-roaster") || "").trim();
+        state.opSearch = handle;
+        state.opLevel = "all";
+        state.opVerdict = "all";
+        state.opModel = "all";
+        state.opPage = 1;
+        navigateToTab("opinions");
+      };
+      el.addEventListener("click", (ev) => {
+        if ((ev.target as HTMLElement | null)?.closest("[data-open-hacker]")) return;
+        activate();
+      });
+      el.addEventListener("keydown", (ev) => {
+        const ke = ev as KeyboardEvent;
+        if (ke.key === "Enter" || ke.key === " ") {
+          ke.preventDefault();
+          activate();
+        }
+      });
+    });
+    document.querySelectorAll<HTMLButtonElement>("[data-stats-goto-contribute]").forEach((btn) => {
+      btn.addEventListener("click", () => navigateToTab("contribute"));
+    });
   }
 
   // Opinions tab events (search, depth/verdict/model filters, sort, pagination)
