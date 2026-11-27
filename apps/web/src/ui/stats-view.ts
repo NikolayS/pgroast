@@ -235,6 +235,7 @@ export function renderStatsObservatory(params: {
         </div>
       </div>
       <div class="row" style="gap:6px;flex-wrap:wrap;">
+        <button type="button" class="btn btn-ghost btn-sm" data-open-about="#roast-levels">What is a roast?</button>
         <button type="button" class="btn btn-secondary btn-sm" id="stats-refresh-btn">Refresh live</button>
         <a class="btn btn-ghost btn-sm" href="/api/v1/stats/overview" target="_blank" rel="noopener">API JSON ↗</a>
         ${data.latestBriefSlug ? `<a class="btn btn-ghost btn-sm" href="/briefs/${encodeURIComponent(data.latestBriefSlug)}/download.html">HTML</a>` : ""}

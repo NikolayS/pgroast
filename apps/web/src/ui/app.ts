@@ -1,3 +1,4 @@
+import { renderAboutTab } from "./about-view.ts";
 import {
   API_ENDPOINTS,
   buildApiCodeSnippet,
@@ -42,7 +43,7 @@ import {
 } from "./stats-view.ts";
 import { initVizInteractions } from "./viz-engine.ts";
 
-type TabId = "brief" | "hackers" | "lists" | "stats" | "entries" | "opinions" | "coordination" | "connect" | "contribute" | "docs";
+type TabId = "brief" | "hackers" | "lists" | "stats" | "entries" | "opinions" | "coordination" | "connect" | "contribute" | "docs" | "about";
 type MrTabId = "overview" | "discussion" | "changes";
 
 interface MrBodyBlock {
@@ -528,8 +529,11 @@ function parseRouteFromLocation(): { patchId: number | null; hackerSlug: string 
   if (/^\/lists\/?$/i.test(u.pathname)) {
     return { patchId: null, hackerSlug: null, tab: "lists", mrTab: "overview", hash: u.hash };
   }
+  if (/^\/about\/?$/i.test(u.pathname)) {
+    return { patchId: null, hackerSlug: null, tab: "about", mrTab: "overview", hash: u.hash };
+  }
   const tabParam = u.searchParams.get("tab") as TabId | null;
-  const validTabs: TabId[] = ["brief", "hackers", "lists", "stats", "entries", "opinions", "coordination", "connect", "contribute", "docs"];
+  const validTabs: TabId[] = ["brief", "hackers", "lists", "stats", "entries", "opinions", "coordination", "connect", "contribute", "docs", "about"];
   return {
     patchId: null,
     hackerSlug: null,
@@ -862,7 +866,9 @@ function navigateToTab(tab: TabId, pushHistory = true, hash = ""): void {
           ? "Weekly Quota Auto-Contribute — pgroast"
           : tab === "docs"
             ? "Docs & Complete Feature Catalog — pgroast"
-            : "pgroast — Public CommitFest App";
+            : tab === "about"
+              ? "About pgroast — What Roasting PostgreSQL Patches Means"
+              : "pgroast — Public CommitFest App";
   if (pushHistory) {
     try {
       const targetUrl =
@@ -874,7 +880,9 @@ function navigateToTab(tab: TabId, pushHistory = true, hash = ""): void {
               ? "/contribute"
               : tab === "lists"
                 ? "/lists"
-                : `/?tab=${encodeURIComponent(tab)}`) + hash;
+                : tab === "about"
+                  ? "/about"
+                  : `/?tab=${encodeURIComponent(tab)}`) + hash;
       window.history.pushState({ patchId: null, hackerSlug: null, tab }, "", targetUrl);
     } catch {
       // ignore
@@ -1932,7 +1940,10 @@ function renderPatchPage(): string {
         <section>
           <div class="card-head" style="margin-bottom:10px;">
             <h2>Reviewer &amp; AI Opinions (${totalShownOpinions})</h2>
-            <span class="dim" style="font-size:12px;">${esc(opinionsSubLabel)}</span>
+            <div class="row" style="gap:10px;align-items:center;flex-wrap:wrap;">
+              <span class="dim" style="font-size:12px;">${esc(opinionsSubLabel)}</span>
+              <button type="button" class="about-link-inline" data-open-about="#roast-levels">What is a roast?</button>
+            </div>
           </div>
 
           <div class="opinion-feed">
@@ -2253,7 +2264,7 @@ function renderIntroCard(): string {
       <div class="intro-collapsed">
         <div class="intro-collapsed-text">
           <span class="intro-bean" aria-hidden="true">☕</span>
-          <span><strong>How pgroast works:</strong> reviewers and AIs roast CommitFest patches (and their own drafts) by level and flavour; humans verify findings and deliver reviews to <code class="mono">pgsql-hackers</code>.</span>
+          <span><strong>How pgroast works:</strong> reviewers and AIs roast CommitFest patches (and their own drafts) by level and flavour; humans verify findings and deliver reviews to <code class="mono">pgsql-hackers</code>. <button type="button" class="about-link-inline" data-open-about="">What is a roast?</button></span>
         </div>
         <button type="button" class="btn btn-secondary btn-sm" id="intro-toggle-btn">Show guide ▾</button>
       </div>
@@ -2267,7 +2278,7 @@ function renderIntroCard(): string {
           <div class="intro-kicker">Open-source PostgreSQL CommitFest collaboration</div>
           <h2 class="intro-title">Review CommitFest patches together — humans + AIs</h2>
           <p class="intro-lead">
-            CommitFest has hundreds of open patches waiting for review. Each contributor runs a private local <strong>Backoffice</strong> with their own AI models to adversarial-review (&ldquo;roast&rdquo;) patches — or pre-check their own patch before posting — then publishes sanitized opinions here so we can compare notes and find common ground.
+            CommitFest has hundreds of open patches waiting for review. Each contributor runs a private local <strong>Backoffice</strong> with their own AI models to review and scrutinize (&ldquo;roast&rdquo;) patches — starting with the idea itself, then testing the code — and publishes sanitized opinions here so we can compare notes. <button type="button" class="about-link-inline" data-open-about="">Read why we roast patches →</button>
           </p>
         </div>
         <button type="button" class="btn btn-secondary btn-sm intro-hide-btn" id="intro-toggle-btn" title="Collapse intro guide">Hide guide ▴</button>
@@ -2872,9 +2883,9 @@ function renderOpinionsTab(): string {
 
   return `
     <div class="page-head">
-      <div>
+      <div class="page-head-main">
         <h1 class="page-title">Community Model Opinions <span class="dim mono" id="opinions-count-badge" style="font-size:15px;font-weight:500;">${filtered.length} of ${state.opinions.length}</span></h1>
-        <div class="page-sub">Search, filter by verification depth, verdict, or model, and sort — tap any row to open full verification logs</div>
+        <div class="page-sub">Search, filter by roast depth, verdict, or model, and sort — tap any row to open full verification logs · <button type="button" class="about-link-inline" data-open-about="#roast-levels">What do Light / Medium / Dark mean?</button></div>
       </div>
       <button type="button" class="btn btn-secondary btn-sm" id="opinions-goto-team-btn">Team claims (${state.coordination.length}) →</button>
     </div>
@@ -3197,7 +3208,7 @@ function bindBriefListEvents(): void {
   if (mount) bindPatchRowClicks(mount);
 }
 
-const MOBILE_MORE_TABS = new Set<TabId>(["lists", "contribute", "docs", "coordination", "connect"]);
+const MOBILE_MORE_TABS = new Set<TabId>(["about", "lists", "contribute", "docs", "coordination", "connect"]);
 
 function openMoreSheet(): void {
   const backdrop = document.getElementById("more-backdrop");
@@ -3206,6 +3217,7 @@ function openMoreSheet(): void {
   if (!backdrop || !body) return;
 
   const items: Array<{ tab: TabId; title: string; sub: string; badge?: string }> = [
+    { tab: "about", title: "About pgroast", sub: "What roasting means, idea scrutiny first, and the story" },
     { tab: "lists", title: "Mailing Lists Archive", sub: "All 49 PostgreSQL lists · live sync & search" },
     { tab: "contribute", title: "Auto-Contribute Quota", sub: "Donate leftover weekly AI quota to roast patches" },
     { tab: "docs", title: "Docs, CLI & API Explorer", sub: "Stripe-style OpenAPI docs + CLI playground" },
@@ -3527,9 +3539,20 @@ function render(): void {
       apiLiveBody: state.apiLiveBody,
       apiLiveLoading: state.apiLiveLoading,
     });
+  } else if (state.tab === "about") {
+    root.innerHTML = renderAboutTab();
   } else root.innerHTML = renderConnectTab();
 
   bindCliCopyButtons(root);
+
+  if (state.tab === "about") {
+    root.querySelectorAll<HTMLElement>("[data-about-nav]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const target = (btn.getAttribute("data-about-nav") as TabId) || "brief";
+        navigateToTab(target);
+      });
+    });
+  }
 
   // Contribute tab events
   if (state.tab === "contribute") {
@@ -4079,6 +4102,20 @@ document.getElementById("web-home-btn")?.addEventListener("click", () => {
   navigateToTab("brief");
 });
 
+document.getElementById("footer-about-link")?.addEventListener("click", (ev) => {
+  ev.preventDefault();
+  navigateToTab("about");
+});
+
+document.getElementById("web-main")?.addEventListener("click", (ev) => {
+  const trigger = (ev.target as Element | null)?.closest<HTMLElement>("[data-open-about]");
+  if (!trigger) return;
+  ev.preventDefault();
+  ev.stopPropagation();
+  const hash = trigger.getAttribute("data-open-about") || "";
+  navigateToTab("about", true, hash);
+});
+
 document.getElementById("footer-contribute-link")?.addEventListener("click", (ev) => {
   ev.preventDefault();
   navigateToTab("contribute");
@@ -4258,7 +4295,9 @@ window.addEventListener("popstate", () => {
             ? "Weekly Quota Auto-Contribute — pgroast"
             : route.tab === "docs"
               ? "Docs & Complete Feature Catalog — pgroast"
-              : "pgroast — Public CommitFest App";
+              : route.tab === "about"
+                ? "About pgroast — What Roasting PostgreSQL Patches Means"
+                : "pgroast — Public CommitFest App";
     render();
     if (route.tab === "hackers") {
       if (!state.hackersOverview && !state.hackersLoading) void loadHackersOverview();

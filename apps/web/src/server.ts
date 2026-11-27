@@ -392,6 +392,7 @@ export async function createWebHandler(opts?: {
   const contributeViewPath = join(WEB_ROOT, "src", "ui", "contribute-view.ts");
   const listsViewPath = join(WEB_ROOT, "src", "ui", "lists-view.ts");
   const statsViewPath = join(WEB_ROOT, "src", "ui", "stats-view.ts");
+  const aboutViewPath = join(WEB_ROOT, "src", "ui", "about-view.ts");
   const vizChartsPath = join(WEB_ROOT, "src", "ui", "viz-charts.ts");
   const vizEnginePath = join(WEB_ROOT, "src", "ui", "viz-engine.ts");
   const faviconPath = join(WEB_ROOT, "src", "ui", "favicon.svg");
@@ -406,6 +407,7 @@ export async function createWebHandler(opts?: {
     (existsSync(contributeViewPath) ? statSync(contributeViewPath).mtimeMs : 0) +
     (existsSync(listsViewPath) ? statSync(listsViewPath).mtimeMs : 0) +
     (existsSync(statsViewPath) ? statSync(statsViewPath).mtimeMs : 0) +
+    (existsSync(aboutViewPath) ? statSync(aboutViewPath).mtimeMs : 0) +
     (existsSync(vizChartsPath) ? statSync(vizChartsPath).mtimeMs : 0) +
     (existsSync(vizEnginePath) ? statSync(vizEnginePath).mtimeMs : 0);
   let cssMtime = existsSync(cssPath) ? statSync(cssPath).mtimeMs : 0;
@@ -428,6 +430,7 @@ export async function createWebHandler(opts?: {
         (existsSync(contributeViewPath) ? statSync(contributeViewPath).mtimeMs : 0) +
         (existsSync(listsViewPath) ? statSync(listsViewPath).mtimeMs : 0) +
         (existsSync(statsViewPath) ? statSync(statsViewPath).mtimeMs : 0) +
+        (existsSync(aboutViewPath) ? statSync(aboutViewPath).mtimeMs : 0) +
         (existsSync(vizChartsPath) ? statSync(vizChartsPath).mtimeMs : 0) +
         (existsSync(vizEnginePath) ? statSync(vizEnginePath).mtimeMs : 0);
       if (curAppMtime !== appMtime) {
@@ -618,6 +621,7 @@ export async function createWebHandler(opts?: {
           { loc: `${origin}/?tab=connect`, lastmod: latestDate, changefreq: "weekly", priority: "0.6" },
           { loc: `${origin}/contribute`, lastmod: latestDate, changefreq: "daily", priority: "0.9" },
           { loc: `${origin}/docs`, lastmod: latestDate, changefreq: "weekly", priority: "0.8" },
+          { loc: `${origin}/about`, lastmod: latestDate, changefreq: "weekly", priority: "0.8" },
           { loc: `${origin}/llms.txt`, lastmod: latestDate, changefreq: "daily", priority: "0.6" },
         ];
         const entryUrls = entries.map((e) => ({
@@ -694,6 +698,7 @@ export async function createWebHandler(opts?: {
           `- [All CommitFest Entries](${origin}/?tab=entries): Searchable directory of ${entries.length} patches with status and verdict filters.`,
           `- [Community AI Opinions](${origin}/?tab=opinions): Attributed multi-model, multi-flavour review opinions.`,
           `- [Personal Backoffice Setup](${origin}/?tab=connect): How to run your own local workbench and publish opinions.`,
+          `- [About pgroast — What Roasting Means](${origin}/about): Why we roast PostgreSQL patches, why idea and design scrutiny is the foundation of all roast levels (Light, Medium, Dark), and how the 7-angle + Critic pipeline works.`,
           `- [Docs, All Features & Weekly Quota Auto-Contribute](${origin}/docs): Complete feature directory, CLI reference, live CommitFest coverage progress, and weekly OAuth quota donation setup.`,
           `- [XML Sitemap](${origin}/sitemap.xml): Complete index of all patch collaboration pages.`,
           `- [Full LLM Digest](${origin}/llms-full.txt): Expanded Markdown with live opinions and full shortlist.`,
@@ -760,7 +765,8 @@ export async function createWebHandler(opts?: {
       const isDocsPage = path === "/docs" || path === "/docs/";
       const isContributePage = path === "/contribute" || path === "/contribute/";
       const isListsPage = path === "/lists" || path === "/lists/";
-      if (method === "GET" && (path === "/" || path === "/index.html" || patchPageMatch || hackerPageMatch || isDocsPage || isContributePage || isListsPage)) {
+      const isAboutPage = path === "/about" || path === "/about/";
+      if (method === "GET" && (path === "/" || path === "/index.html" || patchPageMatch || hackerPageMatch || isDocsPage || isContributePage || isListsPage || isAboutPage)) {
         await refreshUiAssetsIfChanged();
         const origin = resolveRequestOrigin(req, cfg);
         const cfId = parsePositivePgInt(patchPageMatch?.[1] || url.searchParams.get("cf")) ?? 0;
@@ -787,6 +793,10 @@ export async function createWebHandler(opts?: {
           canonical = `${origin}/lists`;
           title = "PostgreSQL Mailing Lists Archive (Continuous Sync) — pgroast";
           desc = "Continuously synced archive across 51 PostgreSQL public mailing lists with full-text search, active threads, and unified /hacker/<slug> contributor profiles.";
+        } else if (isAboutPage) {
+          canonical = `${origin}/about`;
+          title = "About pgroast — What Roasting PostgreSQL Patches Means";
+          desc = "How pgroast uses AI to review and scrutinize PostgreSQL CommitFest patches — starting with the idea itself across Light, Medium, and Dark roast levels.";
         } else if (hackerSlug) {
           canonical = `${origin}/hacker/${encodeURIComponent(hackerSlug)}`;
           const profile = await getHackerProfileBySlug(db, hackerSlug).catch(() => null);

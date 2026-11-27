@@ -885,11 +885,13 @@ describe("pgroast-web public companion API & security gates", () => {
     expect(statusJson.totalOpen).toBeGreaterThanOrEqual(2);
     expect(statusJson.activeLeases.length).toBeGreaterThanOrEqual(2);
 
-    // 5. SSR /docs and /contribute routes render separate titles and OG metadata
+    // 5. SSR /docs, /contribute, and /about routes render separate titles and OG metadata
     const docsHtml = await (await req("/docs")).text();
     expect(docsHtml).toContain("Docs &amp; Complete Feature Catalog — pgroast");
     const contributeHtml = await (await req("/contribute")).text();
     expect(contributeHtml).toContain("Weekly Quota Auto-Contribute &amp; Live CommitFest Coverage — pgroast");
+    const aboutHtml = await (await req("/about")).text();
+    expect(aboutHtml).toContain("About pgroast — What Roasting PostgreSQL Patches Means");
   });
 
   test("Mailing Lists Archive: catalog/since/mbox parsers, unified hacker linking, APIs, and /lists SSR", async () => {

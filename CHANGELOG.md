@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.3.0-alpha.23 (2026-11-27)
+
+This release adds a dedicated **About** page (`/about`) that explains what "roasting" means on pgroast, tells the coffee story behind the name, and shows with custom theme-aware SVG diagrams why scrutinizing the patch idea comes first across all roast levels (`Light`, `Medium`, `Dark`).
+
+### Changes
+
+- **About Page & Custom Light SVG Diagrams (`apps/web/src/ui/about-view.ts`, `styles.css`, `server.ts`):**
+  - Added `/about` (`?tab=about`) with dedicated SSR metadata, sitemap entry, and `llms.txt` listing.
+  - Added three theme-aware SVG graphics: the coffee bean progression (`Raw patch → Light → Medium → Dark`), the **Roast Levels** stack showing **Core Idea, Desirability & Design Scrutiny** as the shared foundation across all three levels, and the 4-stage pipeline (`Thread & Patch → 7 Parallel Angles → Critic Filter → Verdict & Proof`).
+- **Contextual Links & Prompt Alignment (`apps/web/src/ui/app.ts`, `stats-view.ts`, `index.html`, `src/roast/flavours.ts`):**
+  - Linked `/about` ("About", "What is a roast?", "What do Light / Medium / Dark mean?") from the top nav, mobile `More` sheet, footer, Brief intro guide, Stats header, Opinions header, and Patch Detail opinions header.
+  - Updated `ROAST_LEVEL_META` in `src/roast/flavours.ts` so Medium and Dark prompts explicitly state that they build on the full Light idea, desirability, and architecture scrutiny foundation.
+
 ## v0.3.0-alpha.22 (2026-11-27)
 
 This release redesigns the Public App **Stats** page from the ground up into six non-repetitive, decision-focused CommitFest visualizations with reconciled counts, zero misleading small-n percentages, and every mark linking straight to its patch.
