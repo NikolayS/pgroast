@@ -49,10 +49,10 @@ export const API_ENDPOINTS: ApiEndpointDef[] = [
     auth: "public",
     summary: "Returns the live pgroast version, Postgres server version, indexed entry/roast/brief counts, and privacy-friendly view totals.",
     params: [],
-    cliExample: "npx pgroast@next doctor",
+    cliExample: "npx pgroast doctor",
     responseFields: [
       { name: "ok", type: "boolean", description: "Always true when Postgres is reachable." },
-      { name: "version", type: "string", description: "Running package version (e.g. 0.3.0-alpha.15)." },
+      { name: "version", type: "string", description: "Running package version (e.g. 0.4.0)." },
       { name: "database.version", type: "string", description: "Postgres server version string." },
       { name: "counts", type: "object", description: "Total entries, published roasts, briefs, and active claims." },
     ],
@@ -86,7 +86,7 @@ export const API_ENDPOINTS: ApiEndpointDef[] = [
       { name: "verdict", in: "query", type: "string", defaultValue: "", options: ["", "NO-FUNDAMENTAL-OBJECTION", "NEEDS-COMMITTER-EYES", "NEEDS-DESIGN-DISCUSSION", "LIKELY-REJECT", "UNROASTED"], description: "Optional verdict filter." },
       { name: "search", in: "query", type: "string", defaultValue: "", description: "Optional substring filter on title, authors, or CF ID." },
     ],
-    cliExample: "npx pgroast@next batch 62 --out ./out/cf62 --status open --dry-run",
+    cliExample: "npx pgroast batch 62 --out ./out/cf62 --status open --dry-run",
     responseFields: [
       { name: "entries", type: "Entry[]", description: "Array of CommitFest entry objects." },
       { name: "entries[].cf_id", type: "integer", description: "Official CommitFest patch ID." },
@@ -104,7 +104,7 @@ export const API_ENDPOINTS: ApiEndpointDef[] = [
     params: [
       { name: "cf_id", in: "path", type: "integer", required: true, defaultValue: "7508", description: "CommitFest patch ID." },
     ],
-    cliExample: "npx pgroast@next 7508 --roast-level medium --flavour default",
+    cliExample: "npx pgroast 7508 --roast-level medium --flavour default",
     responseFields: [
       { name: "entry", type: "Entry", description: "Patch title, status, topic, authors, and thread URL." },
       { name: "consensus", type: "object", description: "Agreement status (unanimous, majority, split, single_opinion)." },
@@ -122,7 +122,7 @@ export const API_ENDPOINTS: ApiEndpointDef[] = [
     params: [
       { name: "cf_id", in: "path", type: "integer", required: true, defaultValue: "5879", description: "CommitFest patch ID." },
     ],
-    cliExample: "npx pgroast@next pushback 5879",
+    cliExample: "npx pgroast pushback 5879",
     responseFields: [
       { name: "messageCount", type: "integer", description: "Total messages parsed from the mailing list thread." },
       { name: "tldr", type: "object", description: "Initial pitch, latest summary, and idle days." },
@@ -173,7 +173,7 @@ export const API_ENDPOINTS: ApiEndpointDef[] = [
     auth: "bearer",
     summary: "Publishes a sanitized roast from your local CLI or Personal Backoffice. Protected by a Bearer publish-only token and the server-side Public-Confidentiality Hard Gate (blocks secrets, cookies, and local paths with HTTP 422).",
     params: [],
-    cliExample: "PGROAST_PUBLISH_TOKEN=pgroast_pub_YOUR_TOKEN npx pgroast@next publish ./out/cf-7508/roast.json",
+    cliExample: "PGROAST_PUBLISH_TOKEN=pgroast_pub_YOUR_TOKEN npx pgroast publish ./out/cf-7508/roast.json",
     samplePostBody: {
       cf_id: 7508,
       backend: "codex",
@@ -287,7 +287,7 @@ export const API_ENDPOINTS: ApiEndpointDef[] = [
     auth: "public",
     summary: "Returns real-time community coverage progress (unroasted, baseline, 1+ roast, 2+ cross-model consensus), active 45-minute soft leases, backend breakdown, and top contributors.",
     params: [],
-    cliExample: "npx pgroast@next contribute --status",
+    cliExample: "npx pgroast contribute --status",
     responseFields: [
       { name: "totalOpen", type: "integer", description: "Total open CommitFest patches." },
       { name: "unroastedOpen", type: "integer", description: "Open patches still waiting for a first roast." },
@@ -309,7 +309,7 @@ export const API_ENDPOINTS: ApiEndpointDef[] = [
       { name: "level", in: "query", type: "string", defaultValue: "medium", options: ["light", "medium", "dark"], description: "Roast intensity." },
       { name: "dry_run", in: "query", type: "string", defaultValue: "1", options: ["1", "0"], description: "1 = read-only preview (default in Playground); 0 = acquire 45m lease." },
     ],
-    cliExample: "npx pgroast@next contribute --dry-run --backend codex",
+    cliExample: "npx pgroast contribute --dry-run --backend codex",
     responseFields: [
       { name: "patch", type: "Entry | null", description: "Selected CommitFest patch (or null if queue is exhausted)." },
       { name: "suggestedFlavour", type: "string", description: "Resolved reviewer archetype slug." },

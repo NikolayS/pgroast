@@ -183,7 +183,7 @@ describe("pgroast-web public companion API & security gates", () => {
     const healthRes = await req("/api/v1/health");
     expect(healthRes.status).toBe(200);
     const healthJson = (await healthRes.json()) as { version: string; views: { total: number } };
-    expect(healthJson.version).toMatch(/^0\.3\./);
+    expect(healthJson.version).toMatch(/^\d+\.\d+\.\d+/);
     expect(healthJson.views.total).toBeGreaterThanOrEqual(1);
 
     const viewsRes = await req("/api/v1/views");

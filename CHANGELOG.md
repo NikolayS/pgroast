@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.4.0 (2026-11-27)
+
+First stable `0.4.0` release promoting the full `0.3.x` feature set out of alpha to npm `@latest` (`npx pgroast`, no `@next` needed).
+
+### Highlights since v0.2.0
+
+- **Idea-First 3-Level Roasting (`light`, `medium`, `dark`) & 8 Reviewer Archetypes:** Every level starts by scrutinizing the patch idea and design against 2,547 historical precedents and a Critic pass. `medium` adds code diff review, `git apply`, incremental `meson compile`, and targeted tests; `dark` boots an isolated patched Postgres cluster for live SQL stress tests.
+- **Zero-Install CLI (`npx pgroast`) & Polished Output:** Instant `-V` / `--version`, clean `stdout` vs. `stderr` separation, concise 2-line error messages, TTY-aware `--help`, `pgroast login` / `whoami` (`~/.pgroast/auth.json`, mode `0600`), `pgroast publish`, and `pgroast contribute` for donating unused weekly OAuth quota.
+- **Resilient `postgresql.org` Thread Loader:** Tries `/message-id/flat/<id>` first, fails fast on HTTP 500, and automatically falls back to individual `/message-id/<id>` pages using `<select id="thread_select">` with a 2-failure / 10-minute circuit breaker across both CLI and web Discussion viewer.
+- **Public App (`apps/web` — `pgroast.postgres.ai`):** CommitFest Brief & Entries, **Roasts** (`/roasts`), **Hacking Observatory** (`/hackers` and multi-email `/hacker/<slug>` profiles), **Mailing Lists Archive** (`/lists`, 49+ lists with continuous sync), **Stats Observatory**, **Auto-Contribute** (`/contribute`), **Docs & Interactive API Explorer** (`/docs`), **About** (`/about`), animated skeleton preloaders, and iOS/Android Home Screen PWA mode.
+- **Personal Backoffice (`apps/local`):** Local Postgres 19 workbench (`127.0.0.1:3432`) with AI-agent copy-ready install prompt, local builds/diffs, Work Items, 4-gate Gmail drafts, and strict local-to-public publishing through the Public-Confidentiality Hard Gate.
+
 ## v0.3.0-alpha.33 (2026-11-27)
 
 This release adds `-V` / `-v` / `--version` / `version` flags and polishes CLI help, errors, and stdout/stderr output so normal runs and help screens no longer dump walls of red stderr text.

@@ -310,23 +310,23 @@ export function renderDocsTab(params: {
   ];
 
   const cliCommands: Array<{ cmd: string; desc: string }> = [
-    { cmd: "npx pgroast@next doctor", desc: "Check installed AI CLIs (claude, codex, agy) and your local login status" },
-    { cmd: "npx pgroast@next 7388 --level light", desc: "Roast one patch locally (idea, thread & 2,547 precedents — no account or Postgres needed)" },
-    { cmd: "npx pgroast@next page ./out/cf-7388/roast.json", desc: "Render a self-contained HTML report locally (zero LLM calls)" },
-    { cmd: "npx pgroast@next 7388 --level medium --flavour edge-case-hunter", desc: "Code-aware roast: idea scrutiny + C/H/SQL diffs + git apply + meson compile + targeted tests" },
-    { cmd: "npx pgroast@next --self --proposal draft.txt --patch 0001.patch", desc: "Pre-check your own draft proposal privately before posting to pgsql-hackers" },
-    { cmd: "npx pgroast@next login --token <pgroast_pub_...>", desc: "Save your publish-only token once in ~/.pgroast/auth.json (mode 0600) so npx pgroast recognizes you" },
-    { cmd: "npx pgroast@next whoami", desc: "Show your saved publish token status and target hub" },
-    { cmd: "npx pgroast@next publish ./out/cf-7388/roast.json", desc: "Run the confidentiality gate and publish a sanitized roast under your handle" },
-    { cmd: "npx pgroast@next pushback 7388", desc: "Read an entire long-stuck thread and extract blocking objections with quotes" },
-    { cmd: "npx pgroast@next batch 62 --out ./out/cf62 --status open --limit 10 --concurrency 3", desc: "Resumably roast open entries of CommitFest #62 in parallel; stops cleanly on quota limit" },
-    { cmd: "npx pgroast@next shortlist ./out/cf62 --pg-repo ~/postgres", desc: "Rank shortlisted and closing candidates with git-log subsystem expert routing" },
-    { cmd: "npx pgroast@next bugs --days 14 --limit 30", desc: "Triage recent pgsql-bugs threads (production hits vs synthetic hunts)" },
-    { cmd: "npx pgroast@next contribute --init", desc: "Create ~/.pgroast/contribute.json with weekly reset schedules for installed CLIs" },
-    { cmd: "npx pgroast@next contribute --status", desc: "Show live CommitFest coverage progress and your weekly reset countdowns" },
-    { cmd: "npx pgroast@next contribute --dry-run", desc: "Preview the next queued patch and auto-selected flavour (zero LLM calls)" },
-    { cmd: "npx pgroast@next contribute --once --backend claude --level medium --publish", desc: "Claim, roast, and publish 1 CommitFest patch right now" },
-    { cmd: "npx pgroast@next init-db", desc: "Optional: load the 2,547-row historical precedent index into your local Postgres DB" },
+    { cmd: "npx pgroast doctor", desc: "Check installed AI CLIs (claude, codex, agy) and your local login status" },
+    { cmd: "npx pgroast 7388 --level light", desc: "Roast one patch locally (idea, thread & 2,547 precedents — no account or Postgres needed)" },
+    { cmd: "npx pgroast page ./out/cf-7388/roast.json", desc: "Render a self-contained HTML report locally (zero LLM calls)" },
+    { cmd: "npx pgroast 7388 --level medium --flavour edge-case-hunter", desc: "Code-aware roast: idea scrutiny + C/H/SQL diffs + git apply + meson compile + targeted tests" },
+    { cmd: "npx pgroast --self --proposal draft.txt --patch 0001.patch", desc: "Pre-check your own draft proposal privately before posting to pgsql-hackers" },
+    { cmd: "npx pgroast login --token <pgroast_pub_...>", desc: "Save your publish-only token once in ~/.pgroast/auth.json (mode 0600) so npx pgroast recognizes you" },
+    { cmd: "npx pgroast whoami", desc: "Show your saved publish token status and target hub" },
+    { cmd: "npx pgroast publish ./out/cf-7388/roast.json", desc: "Run the confidentiality gate and publish a sanitized roast under your handle" },
+    { cmd: "npx pgroast pushback 7388", desc: "Read an entire long-stuck thread and extract blocking objections with quotes" },
+    { cmd: "npx pgroast batch 62 --out ./out/cf62 --status open --limit 10 --concurrency 3", desc: "Resumably roast open entries of CommitFest #62 in parallel; stops cleanly on quota limit" },
+    { cmd: "npx pgroast shortlist ./out/cf62 --pg-repo ~/postgres", desc: "Rank shortlisted and closing candidates with git-log subsystem expert routing" },
+    { cmd: "npx pgroast bugs --days 14 --limit 30", desc: "Triage recent pgsql-bugs threads (production hits vs synthetic hunts)" },
+    { cmd: "npx pgroast contribute --init", desc: "Create ~/.pgroast/contribute.json with weekly reset schedules for installed CLIs" },
+    { cmd: "npx pgroast contribute --status", desc: "Show live CommitFest coverage progress and your weekly reset countdowns" },
+    { cmd: "npx pgroast contribute --dry-run", desc: "Preview the next queued patch and auto-selected flavour (zero LLM calls)" },
+    { cmd: "npx pgroast contribute --once --backend claude --level medium --publish", desc: "Claim, roast, and publish 1 CommitFest patch right now" },
+    { cmd: "npx pgroast init-db", desc: "Optional: load the 2,547-row historical precedent index into your local Postgres DB" },
   ];
 
   return `
@@ -335,7 +335,7 @@ export function renderDocsTab(params: {
         <div class="viz-kicker">Documentation &amp; Quickstart</div>
         <h1 class="page-title">Start in 5 Minutes &amp; Full Reference</h1>
         <div class="page-sub">
-          Run your first patch roast with <code class="mono">npx pgroast@next</code> — no global install, no account, and no Backoffice required.
+          Run your first patch roast with <code class="mono">npx pgroast</code> — no global install, no account, and no Backoffice required.
         </div>
       </div>
       <div class="row" style="gap:6px;flex-wrap:wrap;">
@@ -354,7 +354,7 @@ export function renderDocsTab(params: {
           <div class="viz-kicker">Step-by-Step Tutorial</div>
           <h2>Roast One Postgres Patch in 5 Minutes</h2>
           <div class="dim" style="font-size:12.5px;margin-top:3px;">
-            <strong>No Backoffice, no account, and nothing leaves your machine.</strong> You need <strong>Bun &ge; 1.3.5</strong> on <code class="mono">PATH</code> and one logged-in AI CLI (<code class="mono">claude</code>, <code class="mono">codex</code>, or <code class="mono">agy</code>). Run directly with <code class="mono">npx pgroast@next</code> or <code class="mono">bunx pgroast@next</code>.
+            <strong>No Backoffice, no account, and nothing leaves your machine.</strong> You need <strong>Bun &ge; 1.3.5</strong> on <code class="mono">PATH</code> and one logged-in AI CLI (<code class="mono">claude</code>, <code class="mono">codex</code>, or <code class="mono">agy</code>). Run directly with <code class="mono">npx pgroast</code> or <code class="mono">bunx pgroast</code>.
           </div>
         </div>
         <span class="pill p-ok">Uses your Claude / Codex login · Zero API keys</span>
@@ -370,8 +370,8 @@ export function renderDocsTab(params: {
             Confirm Bun and at least one AI CLI are logged in. <code class="mono">pgroast</code> removes API key env vars and uses your regular CLI login.
           </p>
           <div class="qs-cmd">
-            <code class="mono">npx pgroast@next doctor</code>
-            <button type="button" class="btn btn-ghost btn-sm" data-copy-snippet="npx pgroast@next doctor">Copy</button>
+            <code class="mono">npx pgroast doctor</code>
+            <button type="button" class="btn btn-ghost btn-sm" data-copy-snippet="npx pgroast doctor">Copy</button>
           </div>
         </div>
 
@@ -384,8 +384,8 @@ export function renderDocsTab(params: {
             Every roast checks the <strong>idea and design</strong> against 2,547 past Postgres precedents first. Light needs no Postgres checkout and writes to <code class="mono">./out/cf-7388/</code>.
           </p>
           <div class="qs-cmd">
-            <code class="mono">npx pgroast@next 7388 --level light</code>
-            <button type="button" class="btn btn-ghost btn-sm" data-copy-snippet="npx pgroast@next 7388 --level light">Copy</button>
+            <code class="mono">npx pgroast 7388 --level light</code>
+            <button type="button" class="btn btn-ghost btn-sm" data-copy-snippet="npx pgroast 7388 --level light">Copy</button>
           </div>
         </div>
 
@@ -398,8 +398,8 @@ export function renderDocsTab(params: {
             Open <code class="mono">./out/cf-7388/roast.md</code> or build an HTML report. With a local <code class="mono">postgres</code> repo, run <code class="mono">--level medium</code> (compile + tests) or <code class="mono">--level dark</code> (+ live Postgres SQL).
           </p>
           <div class="qs-cmd">
-            <code class="mono">npx pgroast@next page ./out/cf-7388/roast.json</code>
-            <button type="button" class="btn btn-ghost btn-sm" data-copy-snippet="npx pgroast@next page ./out/cf-7388/roast.json">Copy</button>
+            <code class="mono">npx pgroast page ./out/cf-7388/roast.json</code>
+            <button type="button" class="btn btn-ghost btn-sm" data-copy-snippet="npx pgroast page ./out/cf-7388/roast.json">Copy</button>
           </div>
         </div>
 
@@ -412,11 +412,11 @@ export function renderDocsTab(params: {
             Your AI login stays local. To publish here, mint a publish-only token on <button type="button" class="about-link-inline" data-docs-nav="connect">Sign in / Setup</button> and save it once in <code class="mono">~/.pgroast/auth.json</code> (mode <code class="mono">0600</code>):
           </p>
           <div class="qs-cmd">
-            <code class="mono">npx pgroast@next login --token pgroast_pub_…</code>
-            <button type="button" class="btn btn-ghost btn-sm" data-copy-snippet="npx pgroast@next login --token pgroast_pub_YOUR_TOKEN">Copy</button>
+            <code class="mono">npx pgroast login --token pgroast_pub_…</code>
+            <button type="button" class="btn btn-ghost btn-sm" data-copy-snippet="npx pgroast login --token pgroast_pub_YOUR_TOKEN">Copy</button>
           </div>
           <div class="dim" style="font-size:11.5px;">
-            Future <code class="mono">npx pgroast@next publish</code> runs recognize you automatically. Check with <code class="mono">npx pgroast@next whoami</code>.
+            Future <code class="mono">npx pgroast publish</code> runs recognize you automatically. Check with <code class="mono">npx pgroast whoami</code>.
           </div>
         </div>
       </div>
@@ -449,7 +449,7 @@ export function renderDocsTab(params: {
       <div class="card-head">
         <div>
           <div class="viz-kicker">Interactive CLI Builder</div>
-          <h2>CLI Playground (<code class="mono">npx pgroast@next</code>)</h2>
+          <h2>CLI Playground (<code class="mono">npx pgroast</code>)</h2>
           <div class="dim" style="font-size:12px;">Pick a task, AI CLI, roast level (every level starts with idea &amp; design scrutiny), and flavour — copy the exact runnable command.</div>
         </div>
         <span class="pill p-ok">Uses your Claude / Codex / agy login</span>
@@ -509,11 +509,11 @@ export function renderDocsTab(params: {
       </div>
       <div class="cli-bar">
         <span class="cli-bar-label">CMD</span>
-        <code class="mono cli-bar-cmd" id="pg-cli-output">npx pgroast@next 7388 --backend claude --level light --flavour default</code>
+        <code class="mono cli-bar-cmd" id="pg-cli-output">npx pgroast 7388 --backend claude --level light --flavour default</code>
         <button type="button" class="btn btn-primary btn-sm" id="pg-cli-copy-btn">Copy</button>
       </div>
       <div class="dim" style="font-size:11.5px;margin-top:6px;">
-        Tip: <code class="mono">npx pgroast@next</code> and <code class="mono">bunx pgroast@next</code> work identically without installing globally. Run <code class="mono">npx pgroast@next login --token …</code> once to save your publishing identity in <code class="mono">~/.pgroast/auth.json</code>.
+        Tip: <code class="mono">npx pgroast</code> and <code class="mono">bunx pgroast</code> work identically without installing globally. Run <code class="mono">npx pgroast login --token …</code> once to save your publishing identity in <code class="mono">~/.pgroast/auth.json</code>.
       </div>
     </section>
 
@@ -525,7 +525,7 @@ export function renderDocsTab(params: {
       </div>
       <div class="intro-grid" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr));">
         <div class="intro-step">
-          <div class="intro-step-head"><span class="intro-num">1</span><strong>CLI (<code class="mono">npx pgroast@next</code>)</strong></div>
+          <div class="intro-step-head"><span class="intro-num">1</span><strong>CLI (<code class="mono">npx pgroast</code>)</strong></div>
           <p>Fastest way to start. Runs locally on your AI CLI login against 2,547 Postgres precedents. Writes local files only unless you run <code class="mono">publish</code> or opt-in <code class="mono">contribute</code>.</p>
         </div>
         <div class="intro-step">
@@ -543,8 +543,8 @@ export function renderDocsTab(params: {
     <section class="card" id="cli-reference">
       <div class="card-head">
         <div>
-          <h2>CLI Command Reference (<code class="mono">npx pgroast@next</code>)</h2>
-          <div class="dim" style="font-size:12px;">Every command works via <code class="mono">npx pgroast@next …</code> or <code class="mono">bunx pgroast@next …</code> without global installation</div>
+          <h2>CLI Command Reference (<code class="mono">npx pgroast</code>)</h2>
+          <div class="dim" style="font-size:12px;">Every command works via <code class="mono">npx pgroast …</code> or <code class="mono">bunx pgroast …</code> without global installation</div>
         </div>
       </div>
       <div class="docs-cli-list">

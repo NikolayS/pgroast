@@ -26,8 +26,8 @@ Install and configure the pgroast Personal Backoffice on this machine:
 **Or try roasting one patch from the CLI right now (no install, no Backoffice, no account):**
 
 ```bash
-npx pgroast@next doctor
-npx pgroast@next 7388 --level light
+npx pgroast doctor
+npx pgroast 7388 --level light
 ```
 
 Live public hub: **[https://pgroast.postgres.ai](https://pgroast.postgres.ai)** · [About roasting](https://pgroast.postgres.ai/about) · [5-Min Tutorial & API Docs](https://pgroast.postgres.ai/docs)
@@ -38,7 +38,7 @@ Live public hub: **[https://pgroast.postgres.ai](https://pgroast.postgres.ai)** 
 
 Given a `pgsql-hackers` thread or CommitFest entry, `pgroast` checks earlier rejected attempts and reverts, raises the strongest objections with concrete failure scenarios, and checks 15 Postgres touch points. A Critic pass then tries to refute every objection so only solid findings survive.
 
-Status: alpha (`v0.3.0-alpha.*`). The CLI writes local files only unless you explicitly run `pgroast publish` or opt-in `pgroast contribute --publish`. The Personal Backoffice (`apps/local`) adds explicit-confirmation CommitFest actions, local Gmail drafts, and opt-in publishing of sanitized roasts to the Public App (`apps/web`).
+Version: `v0.4.0`. The CLI writes local files only unless you explicitly run `pgroast publish` or opt-in `pgroast contribute --publish`. The Personal Backoffice (`apps/local`) adds explicit-confirmation CommitFest actions, local Gmail drafts, and opt-in publishing of sanitized roasts to the Public App (`apps/web`).
 
 ## What you get
 

@@ -308,7 +308,7 @@ export async function publishRoastOpinion(opts: {
   }
   if (!opts.token.trim()) {
     throw new Error(
-      `Missing publish token. Mint a publish-only token at ${hubBase}/?tab=connect and save it once with:\n  npx pgroast@next login --token <pgroast_pub_...>`,
+      `Missing publish token. Mint a publish-only token at ${hubBase}/?tab=connect and save it once with:\n  npx pgroast login --token <pgroast_pub_...>`,
     );
   }
 
@@ -436,7 +436,7 @@ export async function loginMain(argv: string[], mode: "login" | "whoami" = "logi
     if (!r.token) {
       console.log("Not logged in to a pgroast Public App hub.");
       console.log(`Local roasting needs no login. To publish roasts, mint a token at ${DEFAULT_HUB_URL}/?tab=connect and run:`);
-      console.log("  npx pgroast@next login --token <pgroast_pub_...>");
+      console.log("  npx pgroast login --token <pgroast_pub_...>");
       return 0;
     }
     const prefix = r.token.slice(0, 18);
@@ -484,8 +484,8 @@ export async function loginMain(argv: string[], mode: "login" | "whoami" = "logi
     console.log(`How pgroast recognizes you when publishing:`);
     console.log(`  1. Open ${hubUrl.replace(/\/$/, "")}/?tab=connect and mint a publish-only token via GitHub or Google.`);
     console.log(`  2. Save it once locally (mode 0600 in ~/.pgroast/auth.json):`);
-    console.log(`     npx pgroast@next login --token <pgroast_pub_...>`);
-    console.log(`\nNote: Local roasting (\`npx pgroast@next 7388 --level light\`) needs NO pgroast login.`);
+    console.log(`     npx pgroast login --token <pgroast_pub_...>`);
+    console.log(`\nNote: Local roasting (\`npx pgroast 7388 --level light\`) needs NO pgroast login.`);
     return 0;
   }
 
@@ -497,6 +497,6 @@ export async function loginMain(argv: string[], mode: "login" | "whoami" = "logi
   saveAuth({ hubUrl, token });
   console.log(`Saved publish token (${token.trim().slice(0, 18)}…) to ${AUTH_FILE_PATH} (mode 0600).`);
   console.log(`Hub: ${hubUrl.replace(/\/$/, "")}`);
-  console.log(`Future \`npx pgroast@next publish\` and \`contribute --publish\` runs will recognize you automatically.`);
+  console.log(`Future \`npx pgroast publish\` and \`contribute --publish\` runs will recognize you automatically.`);
   return 0;
 }

@@ -399,8 +399,8 @@ export function renderContributeTab(params: {
 
         <div class="cli-bar" style="margin-top:10px;">
           <span class="cli-bar-label">CLI</span>
-          <code class="mono cli-bar-cmd">PGROAST_PUBLISH_TOKEN=pgroast_pub_… npx pgroast@next contribute --once --backend ${esc(previewBackend)} --strategy ${esc(previewStrategy)} --flavour ${esc(previewFlavour)} --level ${esc(previewLevel)} --publish</code>
-          <button type="button" class="btn btn-ghost btn-sm" data-copy-cli="PGROAST_PUBLISH_TOKEN=pgroast_pub_YOUR_TOKEN npx pgroast@next contribute --once --backend ${esc(previewBackend)} --strategy ${esc(previewStrategy)} --flavour ${esc(previewFlavour)} --level ${esc(previewLevel)} --publish">Copy</button>
+          <code class="mono cli-bar-cmd">PGROAST_PUBLISH_TOKEN=pgroast_pub_… npx pgroast contribute --once --backend ${esc(previewBackend)} --strategy ${esc(previewStrategy)} --flavour ${esc(previewFlavour)} --level ${esc(previewLevel)} --publish</code>
+          <button type="button" class="btn btn-ghost btn-sm" data-copy-cli="PGROAST_PUBLISH_TOKEN=pgroast_pub_YOUR_TOKEN npx pgroast contribute --once --backend ${esc(previewBackend)} --strategy ${esc(previewStrategy)} --flavour ${esc(previewFlavour)} --level ${esc(previewLevel)} --publish">Copy</button>
         </div>
         <div class="dim" style="font-size:11.5px;margin-top:4px;">
           How identity works: <code class="mono">PGROAST_PUBLISH_TOKEN</code> (minted via GitHub/Google on <strong>Setup Backoffice</strong>) links published roasts to your handle. Without <code class="mono">--publish</code>, roasts stay 100% local.

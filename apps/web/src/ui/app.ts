@@ -2085,7 +2085,7 @@ function renderPatchPage(): string {
             <div class="collab-cta">
               <div style="font-weight:600;font-size:13.5px;">Roast CF ${cfId} with your own AI</div>
               <div class="muted" style="font-size:12.5px;line-height:1.5;">
-                No account or Backoffice needed to try locally: run <code class="mono">npx pgroast@next ${cfId} --level light</code> (uses your local Claude, Codex, or agy login). Save a publish token once via <code class="mono">npx pgroast@next login</code> to share findings here.
+                No account or Backoffice needed to try locally: run <code class="mono">npx pgroast ${cfId} --level light</code> (uses your local Claude, Codex, or agy login). Save a publish token once via <code class="mono">npx pgroast login</code> to share findings here.
               </div>
               <div class="row" style="gap:8px;margin-top:2px;flex-wrap:wrap;">
                 <button type="button" class="btn btn-primary btn-sm" id="patch-goto-quickstart-btn">5-Min CLI Tutorial →</button>
@@ -2160,21 +2160,21 @@ function renderPatchPage(): string {
           <div class="sheet-section-label" style="margin-bottom:8px;">Try via CLI (no install needed)</div>
           <div class="cli-bar" style="margin-bottom:6px;">
             <span class="cli-bar-label">Light</span>
-            <code class="mono cli-bar-cmd">npx pgroast@next ${cfId} --level light</code>
-            <button type="button" class="btn btn-ghost btn-sm" data-copy-cli="npx pgroast@next ${cfId} --level light">Copy</button>
+            <code class="mono cli-bar-cmd">npx pgroast ${cfId} --level light</code>
+            <button type="button" class="btn btn-ghost btn-sm" data-copy-cli="npx pgroast ${cfId} --level light">Copy</button>
           </div>
           <div class="cli-bar" style="margin-bottom:6px;">
             <span class="cli-bar-label">Code</span>
-            <code class="mono cli-bar-cmd">npx pgroast@next ${cfId} --level medium</code>
-            <button type="button" class="btn btn-ghost btn-sm" data-copy-cli="npx pgroast@next ${cfId} --level medium">Copy</button>
+            <code class="mono cli-bar-cmd">npx pgroast ${cfId} --level medium</code>
+            <button type="button" class="btn btn-ghost btn-sm" data-copy-cli="npx pgroast ${cfId} --level medium">Copy</button>
           </div>
           <div class="cli-bar">
             <span class="cli-bar-label">Publish</span>
-            <code class="mono cli-bar-cmd">npx pgroast@next publish ./out/cf-${cfId}/roast.json</code>
-            <button type="button" class="btn btn-ghost btn-sm" data-copy-cli="npx pgroast@next publish ./out/cf-${cfId}/roast.json">Copy</button>
+            <code class="mono cli-bar-cmd">npx pgroast publish ./out/cf-${cfId}/roast.json</code>
+            <button type="button" class="btn btn-ghost btn-sm" data-copy-cli="npx pgroast publish ./out/cf-${cfId}/roast.json">Copy</button>
           </div>
           <div class="dim" style="font-size:11px;margin-top:6px;">
-            Local runs need no account. Save your publish identity once with <code class="mono">npx pgroast@next login</code>.
+            Local runs need no account. Save your publish identity once with <code class="mono">npx pgroast login</code>.
           </div>
         </div>
 
@@ -3644,22 +3644,22 @@ function render(): void {
       let built = "";
       if (cmd === "roast") {
         const fl = flavour === "auto-by-subsystem" ? "default" : flavour;
-        built = `${envPrefix}npx pgroast@next ${target} --backend ${backend} --level ${level} --flavour ${fl}`;
+        built = `${envPrefix}npx pgroast ${target} --backend ${backend} --level ${level} --flavour ${fl}`;
       } else if (cmd === "contribute") {
         const qb = backend === "dual" ? "claude" : backend;
-        built = `npx pgroast@next contribute --once --backend ${qb}${baseModel ? ` --model ${baseModel}` : ""}${effort ? ` --effort ${effort}` : ""} --flavour ${flavour} --level ${level} --publish`;
+        built = `npx pgroast contribute --once --backend ${qb}${baseModel ? ` --model ${baseModel}` : ""}${effort ? ` --effort ${effort}` : ""} --flavour ${flavour} --level ${level} --publish`;
       } else if (cmd === "batch") {
         const fl = flavour === "auto-by-subsystem" ? "default" : flavour;
         const cfNum = /^\d{1,3}$/.test(target) ? target : "62";
-        built = `${envPrefix}npx pgroast@next batch ${cfNum} --out ./out/cf${cfNum} --status open --concurrency 3 --backend ${backend} --roast-level ${level} --flavour ${fl}`;
+        built = `${envPrefix}npx pgroast batch ${cfNum} --out ./out/cf${cfNum} --status open --concurrency 3 --backend ${backend} --roast-level ${level} --flavour ${fl}`;
       } else if (cmd === "pushback") {
-        built = `${envPrefix}npx pgroast@next pushback ${target} --backend ${backend}`;
+        built = `${envPrefix}npx pgroast pushback ${target} --backend ${backend}`;
       } else if (cmd === "shortlist") {
-        built = `npx pgroast@next shortlist ./out/cf62 --top 20 --reject 50 --pg-repo ~/postgres`;
+        built = `npx pgroast shortlist ./out/cf62 --top 20 --reject 50 --pg-repo ~/postgres`;
       } else if (cmd === "bugs") {
-        built = `${envPrefix}npx pgroast@next bugs --days 14 --limit 30 --backend ${backend}`;
+        built = `${envPrefix}npx pgroast bugs --days 14 --limit 30 --backend ${backend}`;
       } else {
-        built = `PGROAST_PUBLISH_TOKEN=pgroast_pub_YOUR_TOKEN npx pgroast@next publish ./out/cf-${target}/roast.json`;
+        built = `PGROAST_PUBLISH_TOKEN=pgroast_pub_YOUR_TOKEN npx pgroast publish ./out/cf-${target}/roast.json`;
       }
       const outEl = document.getElementById("pg-cli-output");
       if (outEl) outEl.textContent = built;
