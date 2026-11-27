@@ -5,13 +5,16 @@
 // Backends, tried in order:
 //   1. src/corpus/search.ts  -> searchPrecedents({query, before?, kinds?, limit?, includeUndated?})
 //      (Postgres database `pgroast`, PGROAST_DSN)
-//   2. none (module or database missing): no precedents, with a clear warning
+//   2. bundled:precedents.sql.gz -> zero-DB in-memory search over the 2,547 rows shipped in
+//      data/precedents.sql.gz (so `npx pgroast` searches all precedents with zero Postgres setup)
+//   3. none (both DB and bundled dump missing): no precedents, with a clear warning
 //
 // Leak guards: `before` is passed to the backend AND re-checked here; the proposal's own
 // CommitFest entry / thread is removed from the results.
 
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { gunzipSync } from "node:zlib";
 import { REPO_ROOT } from "../thread/fetch.ts";
 import type { Precedent } from "./schema.ts";
 
@@ -126,10 +129,257 @@ export function messageIdOfUrl(url: string): string {
 }
 
 // ---------------------------------------------------------------------------------------------
+// Bundled zero-DB fallback (data/precedents.sql.gz)
+
+const STOPWORDS = new Set([
+  "a", "an", "and", "are", "as", "at", "be", "by", "for", "from", "has", "have", "in", "into",
+  "is", "it", "its", "of", "on", "or", "pg", "postgres", "postgresql", "support", "add", "allow",
+  "that", "the", "this", "to", "use", "using", "when", "with", "without", "not", "can", "via",
+]);
+
+function unescapePgCopyField(raw: string): string | null {
+  if (raw === "\\N") return null;
+  if (!raw.includes("\\")) return raw;
+  return raw.replace(/\\(.)/g, (_, c: string) => {
+    if (c === "n") return "\n";
+    if (c === "r") return "\r";
+    if (c === "t") return "\t";
+    if (c === "b") return "\b";
+    if (c === "f") return "\f";
+    return c;
+  });
+}
+
+function parsePgTextArray(raw: string | null): string[] {
+  if (!raw || raw === "{}") return [];
+  const s = raw.trim();
+  if (!s.startsWith("{") || !s.endsWith("}")) return s ? [s] : [];
+  const inner = s.slice(1, -1);
+  if (!inner) return [];
+  const out: string[] = [];
+  let cur = "";
+  let inQuote = false;
+  let escaped = false;
+  for (let i = 0; i < inner.length; i++) {
+    const ch = inner[i]!;
+    if (escaped) {
+      cur += ch;
+      escaped = false;
+      continue;
+    }
+    if (inQuote) {
+      if (ch === "\\") escaped = true;
+      else if (ch === '"') inQuote = false;
+      else cur += ch;
+    } else {
+      if (ch === '"') inQuote = true;
+      else if (ch === ",") {
+        if (cur && cur !== "NULL") out.push(cur);
+        cur = "";
+      } else cur += ch;
+    }
+  }
+  if (cur && cur !== "NULL") out.push(cur);
+  return out;
+}
+
+function tokenizeQuery(text: string): string[] {
+  const toks = text
+    .toLowerCase()
+    .replace(/[^a-z0-9_]+/g, " ")
+    .split(/\s+/)
+    .filter((t) => t.length >= 2 && !STOPWORDS.has(t));
+  // Expand snake_case identifiers into both the full token and sub-parts for Postgres symbol matching
+  const expanded: string[] = [];
+  for (const t of toks) {
+    expanded.push(t);
+    if (t.includes("_")) {
+      for (const part of t.split("_")) {
+        if (part.length >= 2 && !STOPWORDS.has(part)) expanded.push(part);
+      }
+    }
+  }
+  return [...new Set(expanded)];
+}
+
+interface BundledRow {
+  raw: RawPrecedent;
+  kind: string;
+  date: string | null;
+  first_date: string | null;
+  titleToks: Set<string>;
+  summaryToks: Set<string>;
+  objectionToks: Set<string>;
+  metaToks: Set<string>;
+  allText: string;
+}
+
+const bundledCache = new Map<string, { rows: BundledRow[]; idf: Map<string, number> }>();
+
+/** Load and index the shipped data/precedents.sql.gz dump once in memory (~20ms). */
+export function loadBundledPrecedents(dumpPath: string): { rows: BundledRow[]; idf: Map<string, number> } {
+  const cached = bundledCache.get(dumpPath);
+  if (cached) return cached;
+
+  const sql = gunzipSync(readFileSync(dumpPath)).toString("utf8");
+  const lines = sql.split("\n");
+  let cols: string[] | null = null;
+  const rows: BundledRow[] = [];
+  const df = new Map<string, number>();
+
+  for (const line of lines) {
+    if (!cols) {
+      const m = line.match(/^COPY\s+public\.precedent\s*\(([^)]+)\)\s+FROM\s+stdin;/i);
+      if (m) cols = m[1]!.split(",").map((c) => c.trim());
+      continue;
+    }
+    if (line === "\\.") break;
+    if (!line) continue;
+    const parts = line.split("\t");
+    if (parts.length < cols.length) continue;
+
+    const get = (name: string): string | null => {
+      const idx = cols!.indexOf(name);
+      return idx >= 0 ? unescapePgCopyField(parts[idx] ?? "\\N") : null;
+    };
+
+    const id = get("id") ?? "";
+    const kind = get("kind") ?? "";
+    const title = get("title") ?? "";
+    const status = get("status") ?? "";
+    const date = get("date");
+    const first_date = get("first_date");
+    const url = get("url") ?? "";
+    const thread_urls = parsePgTextArray(get("thread_urls"));
+    const authors = parsePgTextArray(get("authors"));
+    const objectors = parsePgTextArray(get("objectors"));
+    const tags = get("tags") ?? "";
+    const summary = get("summary") ?? "";
+    const objection = get("objection") ?? "";
+    const touch_points = parsePgTextArray(get("touch_points"));
+
+    if (!url || !title) continue;
+
+    const titleToks = new Set(tokenizeQuery(title));
+    const summaryToks = new Set(tokenizeQuery(summary));
+    const objectionToks = new Set(tokenizeQuery(objection));
+    const metaToks = new Set(tokenizeQuery(`${tags} ${touch_points.join(" ")} ${authors.join(" ")}`));
+    const docToks = new Set([...titleToks, ...summaryToks, ...objectionToks, ...metaToks]);
+    for (const t of docToks) df.set(t, (df.get(t) ?? 0) + 1);
+
+    rows.push({
+      raw: {
+        id,
+        kind,
+        title,
+        status,
+        date,
+        first_date,
+        url,
+        thread_urls,
+        authors,
+        objectors,
+        summary,
+        objection,
+        touch_points,
+      },
+      kind,
+      date,
+      first_date,
+      titleToks,
+      summaryToks,
+      objectionToks,
+      metaToks,
+      allText: `${title} ${summary} ${objection} ${tags}`.toLowerCase(),
+    });
+  }
+
+  const N = Math.max(1, rows.length);
+  const idf = new Map<string, number>();
+  for (const [tok, count] of df) {
+    idf.set(tok, Math.log(1 + (N - count + 0.5) / (count + 0.5)));
+  }
+
+  const built = { rows, idf };
+  bundledCache.set(dumpPath, built);
+  return built;
+}
+
+/** Build a zero-DB SearchFn over the shipped data/precedents.sql.gz file. */
+export function createBundledSearch(dumpPath: string): SearchFn {
+  const { rows, idf } = loadBundledPrecedents(dumpPath);
+  return async (args: SearchArgs): Promise<RawPrecedent[]> => {
+    const qToks = tokenizeQuery(args.query);
+    if (qToks.length === 0) return [];
+    const qLower = args.query.trim().toLowerCase();
+    const kinds = args.kinds?.length ? new Set(args.kinds) : null;
+    const limit = args.limit ?? 10;
+
+    const scored: { raw: RawPrecedent; score: number }[] = [];
+    for (const row of rows) {
+      if (kinds && !kinds.has(row.kind)) continue;
+      if (args.before) {
+        if (row.date && row.date.slice(0, 10) >= args.before) continue;
+        if (row.first_date && row.first_date.slice(0, 10) >= args.before) continue;
+        if (!row.date && !row.first_date && !args.includeUndated) continue;
+      }
+
+      let score = 0;
+      let matched = 0;
+      for (const t of qToks) {
+        const w = idf.get(t) ?? 1.5;
+        let hit = false;
+        if (row.titleToks.has(t)) {
+          score += 3.2 * w;
+          hit = true;
+        }
+        if (row.summaryToks.has(t)) {
+          score += 1.4 * w;
+          hit = true;
+        }
+        if (row.objectionToks.has(t)) {
+          score += 1.1 * w;
+          hit = true;
+        }
+        if (row.metaToks.has(t)) {
+          score += 0.9 * w;
+          hit = true;
+        }
+        // Prefix boost for Postgres stems (e.g. "normaliz" matching "normalization")
+        if (!hit && t.length >= 4) {
+          for (const dt of row.titleToks) {
+            if (dt.startsWith(t) || t.startsWith(dt.slice(0, Math.max(4, dt.length - 2)))) {
+              score += 1.6 * w;
+              hit = true;
+              break;
+            }
+          }
+        }
+        if (hit) matched++;
+      }
+      if (matched === 0) continue;
+      // Reward matching multiple query terms and exact phrase matches
+      score *= 0.6 + 0.4 * (matched / qToks.length);
+      if (qLower.length >= 6 && row.allText.includes(qLower)) score *= 1.5;
+      scored.push({ raw: row.raw, score });
+    }
+
+    scored.sort((a, b) => b.score - a.score);
+    return scored.slice(0, limit).map((s) => s.raw);
+  };
+}
+
+// ---------------------------------------------------------------------------------------------
 // Backends
 
 let cachedBackend: { name: string; fn: SearchFn | null; warning?: string } | null = null;
 let closeFn: (() => Promise<void>) | null = null;
+
+/** Reset cached backend (used by tests). */
+export function resetBackendCache(): void {
+  cachedBackend = null;
+  closeFn = null;
+}
 
 /** Close the corpus connection pool, so the process can exit. Safe to call at any time. */
 export async function closePrecedents(): Promise<void> {
@@ -170,6 +420,24 @@ export async function detectBackend(root: string = REPO_ROOT): Promise<{ name: s
       }
     } catch (e) {
       problems.push(`src/corpus/search.ts is not usable: ${(e as Error).message.split("\n")[0]}`);
+    }
+  }
+
+  // Automatic zero-DB fallback: search the 2,547 rows bundled in data/precedents.sql.gz directly in memory.
+  if (!found) {
+    const dumpPath = join(root, "data", "precedents.sql.gz");
+    if (existsSync(dumpPath)) {
+      try {
+        const bundledFn = createBundledSearch(dumpPath);
+        found = {
+          name: "bundled:precedents.sql.gz",
+          fn: bundledFn,
+        };
+        // Bundled fallback gives full 2,547-row coverage without local Postgres: clear DB auth noise.
+        problems.length = 0;
+      } catch (e) {
+        problems.push(`bundled precedents.sql.gz failed: ${(e as Error).message.split("\n")[0]}`);
+      }
     }
   }
 

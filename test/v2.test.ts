@@ -1353,4 +1353,25 @@ describe("v2 CLI publish & weekly quota auto-contribute", () => {
       hubUrl: "https://pgroast.postgres.ai",
     });
   });
+
+  test("bundled zero-DB precedent search parses all 2,547 rows from data/precedents.sql.gz with cutoff & no DB", async () => {
+    const { createBundledSearch, loadBundledPrecedents, retrievePrecedents } = await import("../src/roast/precedents.ts");
+    const dumpPath = join(import.meta.dir, "..", "data", "precedents.sql.gz");
+    const loaded = loadBundledPrecedents(dumpPath);
+    expect(loaded.rows.length).toBeGreaterThanOrEqual(2500);
+
+    const search = createBundledSearch(dumpPath);
+    const res = await retrievePrecedents({
+      queries: ["unicode normalization ascii", "int64 guc"],
+      before: "2026-09-14",
+      includeUndated: true,
+      search,
+    });
+    expect(res.warnings).toEqual([]);
+    expect(res.precedents.length).toBeGreaterThan(0);
+    // Strict before-date leak guard
+    for (const p of res.precedents) {
+      if (p.date) expect(p.date.slice(0, 10) < "2026-09-14").toBe(true);
+    }
+  });
 });

@@ -725,7 +725,7 @@ export async function contributeMain(argv: string[]): Promise<number> {
   }
 
   // Run dry-run, once, or auto
-  const token = tokenOverride ?? (cfg.publishTokenEnv ? process.env[cfg.publishTokenEnv] || "" : "");
+  const token = resolvePublishToken(tokenOverride || (cfg.publishTokenEnv ? process.env[cfg.publishTokenEnv] : undefined)).token;
   const sanity = checkPublishConfidentiality(cfg.hubUrl);
   if (!sanity.ok) {
     console.error(`pgroast contribute: invalid hubUrl (${sanity.reasons.join(", ")})`);

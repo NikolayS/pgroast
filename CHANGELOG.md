@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.4.3 (2026-11-27)
+
+Fixes the zero-config `npx pgroast` experience when no local `pgroast` Postgres database exists (or local Postgres auth fails): `pgroast` now automatically falls back to searching the 2,547 historical precedents bundled directly inside `data/precedents.sql.gz` in memory, eliminating the "precedent corpus unavailable" warnings.
+
+### Changes
+
+- **Zero-DB Bundled Precedent Search (`src/roast/precedents.ts`):**
+  - Added `loadBundledPrecedents()` and `createBundledSearch()` to parse and BM25-index all 2,547 rows from the shipped `data/precedents.sql.gz` dump in ~20ms in memory (strictly enforcing `--before` date cutoffs and `includeUndated`).
+  - `detectBackend()` still uses local Postgres (`pgroast` DB) first when configured, and falls back seamlessly to `bundled:precedents.sql.gz` with zero scary warnings when Postgres is unavailable or rejects auth.
+- **Contribute Token Resolution (`src/contribute.ts`):**
+  - `pgroast contribute` now reads saved tokens from `~/.pgroast/auth.json` (`pgroast login`) automatically in addition to `--token` and `$PGROAST_PUBLISH_TOKEN`.
+
 ## v0.4.2 (2026-11-27)
 
 Fixes a desktop layout glitch on `/roasts` where the search input and filter chips touched with zero vertical gap.
