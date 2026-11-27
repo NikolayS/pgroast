@@ -64,6 +64,7 @@ interface MrTimelineMessage {
   date: string;
   subject: string;
   isAuthor: boolean;
+  isThreadStarter?: boolean;
   patchRevision: string | null;
   patchCount: number;
   blocks: MrBodyBlock[];
@@ -85,7 +86,7 @@ interface MrDiscussionData {
   subject: string;
   lists: string[];
   messageCount: number;
-  participants: Array<{ name: string; count: number; isAuthor: boolean }>;
+  participants: Array<{ name: string; count: number; isAuthor: boolean; isThreadStarter?: boolean }>;
   revisions: Array<{ tag: string; date: string; from: string; messageIndex: number; fileCount: number }>;
   tldr?: MrThreadTldr;
   messages: MrTimelineMessage[];
@@ -232,6 +233,9 @@ interface OpinionItem {
   confidence: string;
   summary: string;
   created_at: string;
+  entry_title?: string;
+  entry_status?: string;
+  entry_authors?: string;
 }
 
 interface EntryItem {
@@ -353,6 +357,13 @@ const state = {
   briefSegment: "shortlist" as "shortlist" | "closing",
   shortlistFilter: "all" as "all" | "bugfix" | "feature" | "prod",
   opinions: [] as OpinionItem[],
+  opSearch: "",
+  opLevel: "all" as "all" | "dark" | "medium" | "light",
+  opVerdict: "all",
+  opModel: "all",
+  opSort: "newest" as "newest" | "depth" | "critical" | "cf_desc",
+  opPage: 1,
+  opPageSize: 25,
   entries: [] as EntryItem[],
   entrySearch: "",
   entryVerdict: "all",
@@ -917,7 +928,7 @@ async function loadAll(): Promise<void> {
       api<HealthInfo>("/api/v1/health"),
       api<PageViewsInfo>("/api/v1/views").catch(() => null),
       api<{ briefs: BriefSummary[] }>("/api/v1/briefs"),
-      api<{ opinions: OpinionItem[] }>("/api/v1/opinions"),
+      api<{ opinions: OpinionItem[] }>("/api/v1/opinions?limit=1000"),
       api<{ items: CoordItem[] }>("/api/v1/coordination"),
     ]);
     state.health = health;
@@ -939,6 +950,24 @@ async function loadAll(): Promise<void> {
     } else {
       const eRes = await api<{ entries: EntryItem[] }>("/api/v1/entries?limit=1000");
       state.entries = eRes.entries;
+    }
+
+    // Overlay live community opinion verdicts (Dark > Medium > Light) onto entries so Entries stays in sync with live opinions!
+    if (state.opinions.length > 0 && state.entries.length > 0) {
+      const lvRank: Record<string, number> = { dark: 3, medium: 2, light: 1 };
+      const bestByCf = new Map<number, OpinionItem>();
+      for (const op of state.opinions) {
+        const prev = bestByCf.get(op.cf_id);
+        const rCur = lvRank[(op.roast_level || "light").toLowerCase()] || 0;
+        const rPrev = prev ? lvRank[(prev.roast_level || "light").toLowerCase()] || 0 : -1;
+        if (!prev || rCur > rPrev || (rCur === rPrev && op.created_at > prev.created_at)) {
+          bestByCf.set(op.cf_id, op);
+        }
+      }
+      state.entries = state.entries.map((e) => {
+        const best = bestByCf.get(e.cf_id);
+        return best && best.verdict ? { ...e, verdict: best.verdict } : e;
+      });
     }
 
     const f = document.getElementById("footer-db-info");
@@ -1339,7 +1368,7 @@ function renderMrDiscussionTab(cfId: number, backofficeHref: string): string {
             tldr.pitch
               ? `
             <div class="mr-tldr-box">
-              <div class="mr-tldr-label">Opening pitch (#1 · ${esc(disc.messages[0]?.from || "Author")})</div>
+              <div class="mr-tldr-label">${disc.messages[0]?.isAuthor ? "Opening pitch" : "Opening post"} (#1 · ${esc(disc.messages[0]?.from || "Starter")}${disc.messages[0]?.isThreadStarter && !disc.messages[0]?.isAuthor ? " · Thread starter" : ""})</div>
               <p>${esc(tldr.pitch)}</p>
             </div>
           `
@@ -1405,7 +1434,7 @@ function renderMrDiscussionTab(cfId: number, backofficeHref: string): string {
           .map(
             (p) => `
           <button type="button" class="chip ${state.mrAuthorFilter === p.name ? "active" : ""}" data-mr-author="${esc(p.name)}">
-            ${esc(p.name)}${p.isAuthor ? " · Author" : ""} <span class="dim">(${p.count})</span>
+            ${esc(p.name)}${p.isAuthor ? " · Patch Author" : p.isThreadStarter ? " · Starter" : ""} <span class="dim">(${p.count})</span>
           </button>
         `,
           )
@@ -1479,7 +1508,7 @@ function renderMrDiscussionTab(cfId: number, backofficeHref: string): string {
                 <div class="mr-msg-author">
                   <span class="mr-avatar">${esc(initials)}</span>
                   <strong style="font-size:13px;">${esc(m.from)}</strong>
-                  ${m.isAuthor ? `<span class="mr-author-badge">Author</span>` : ""}
+                  ${m.isAuthor ? `<span class="mr-author-badge">Patch Author</span>` : m.isThreadStarter ? `<span class="mr-starter-badge">Thread Starter</span>` : ""}
                   ${m.patchRevision ? `<span class="mr-rev-badge mono">${esc(m.patchRevision)}</span>` : ""}
                 </div>
                 <div class="row" style="gap:8px;font-size:11.5px;">
@@ -1769,10 +1798,24 @@ function renderPatchPage(): string {
           ? `<span class="pill p-info">Majority consensus</span>`
           : `<span class="pill p-warn">Split opinions</span>`;
 
-  // Unique contributor + model pairs
+  const hasBaselineCard =
+    verdict !== "UNROASTED" || reasons.length > 0 || Boolean(workaround) || Boolean(failingSummary) || Boolean(nextStep);
+  const totalShownOpinions = opinions.length + (hasBaselineCard ? 1 : 0);
+  const opinionsSubLabel =
+    opinions.length > 0 && hasBaselineCard
+      ? `${opinions.length} community run${opinions.length === 1 ? "" : "s"} · 1 baseline brief pass`
+      : opinions.length > 0
+        ? `${opinions.length} published from local workbenches`
+        : hasBaselineCard
+          ? "1 baseline CommitFest brief pass · 0 individual reviewer runs yet"
+          : "Published from each reviewer's local workbench";
+
+  // Unique contributor + exact model spec pairs
   const contributorChips = opinions.map((o) => {
     const handle = o.contributor_handle ? `@${o.contributor_handle}` : o.contributor_name;
-    return `<span class="opinion-model-badge">${verdictDot(o.verdict)} <strong>${esc(handle)}</strong> <span class="dim">·</span> <span class="mono">${esc(o.backend)}</span></span>`;
+    const spec = formatOpinionModelSpec(o.backend, o.models_json);
+    const lv = (o.roast_level || "light").toLowerCase();
+    return `<span class="opinion-model-badge">${verdictDot(o.verdict)} <strong>${esc(handle)}</strong> <span class="dim">·</span> <span class="mono">${esc(spec)}</span> <span class="dim">·</span> <span>${esc(lv)}</span></span>`;
   });
 
   const kvRows: Array<[string, string]> = [];
@@ -1815,7 +1858,7 @@ function renderPatchPage(): string {
     <div class="mr-tabs" role="tablist" aria-label="Patch MR views">
       <button type="button" class="mr-tab ${state.mrTab === "overview" ? "active" : ""}" data-mr-tab="overview">
         <span>Overview &amp; Consensus</span>
-        <span class="mr-tab-count">${opinions.length}</span>
+        <span class="mr-tab-count">${totalShownOpinions}</span>
       </button>
       <button type="button" class="mr-tab ${state.mrTab === "discussion" ? "active" : ""}" data-mr-tab="discussion">
         <span>Discussion</span>
@@ -1884,8 +1927,8 @@ function renderPatchPage(): string {
         <!-- 2. Reviewer & AI Opinions Feed -->
         <section>
           <div class="card-head" style="margin-bottom:10px;">
-            <h2>Reviewer &amp; AI Opinions (${opinions.length})</h2>
-            <span class="dim" style="font-size:12px;">Published from each reviewer's local workbench</span>
+            <h2>Reviewer &amp; AI Opinions (${totalShownOpinions})</h2>
+            <span class="dim" style="font-size:12px;">${esc(opinionsSubLabel)}</span>
           </div>
 
           <div class="opinion-feed">
@@ -2648,13 +2691,187 @@ function renderEntriesTab(): string {
   `;
 }
 
-/* ---- Opinions Tab ---- */
+/* ---- Opinions Tab (Search, Depth/Verdict/Model Filter, Sort & Pagination) ---- */
+const OPINION_LEVEL_RANK: Record<string, number> = { dark: 3, medium: 2, light: 1 };
+const OPINION_CRITICAL_RANK: Record<string, number> = {
+  "LIKELY-REJECT": 4,
+  "NEEDS-DESIGN-DISCUSSION": 3,
+  "NEEDS-COMMITTER-EYES": 2,
+  "NO-FUNDAMENTAL-OBJECTION": 1,
+};
+
+function resolveOpinionTitle(o: OpinionItem): string {
+  if (o.entry_title && o.entry_title.trim()) return o.entry_title.trim();
+  const match = state.entries.find((e) => e.cf_id === o.cf_id);
+  return match?.title || "";
+}
+
+function getFilteredOpinions(): OpinionItem[] {
+  const q = state.opSearch.trim().toLowerCase();
+  const lv = state.opLevel;
+  const v = state.opVerdict;
+  const m = state.opModel;
+
+  const filtered = state.opinions.filter((o) => {
+    const oLv = (o.roast_level || "light").toLowerCase();
+    if (lv !== "all" && oLv !== lv) return false;
+    if (v !== "all" && (o.verdict || "UNROASTED") !== v) return false;
+    const spec = formatOpinionModelSpec(o.backend, o.models_json);
+    if (m !== "all" && spec !== m) return false;
+    if (q) {
+      const title = resolveOpinionTitle(o);
+      const hay = `${o.cf_id} ${title} ${o.entry_authors || ""} ${o.contributor_name} ${o.contributor_handle} ${spec} ${o.roast_flavour || ""} ${o.summary || ""}`.toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+
+  const sorted = [...filtered];
+  if (state.opSort === "depth") {
+    sorted.sort(
+      (a, b) =>
+        (OPINION_LEVEL_RANK[(b.roast_level || "light").toLowerCase()] || 0) -
+          (OPINION_LEVEL_RANK[(a.roast_level || "light").toLowerCase()] || 0) ||
+        b.created_at.localeCompare(a.created_at),
+    );
+  } else if (state.opSort === "critical") {
+    sorted.sort(
+      (a, b) =>
+        (OPINION_CRITICAL_RANK[b.verdict] || 0) - (OPINION_CRITICAL_RANK[a.verdict] || 0) ||
+        (OPINION_LEVEL_RANK[(b.roast_level || "light").toLowerCase()] || 0) -
+          (OPINION_LEVEL_RANK[(a.roast_level || "light").toLowerCase()] || 0) ||
+        b.created_at.localeCompare(a.created_at),
+    );
+  } else if (state.opSort === "cf_desc") {
+    sorted.sort((a, b) => b.cf_id - a.cf_id || b.created_at.localeCompare(a.created_at));
+  } else {
+    sorted.sort((a, b) => b.created_at.localeCompare(a.created_at));
+  }
+  return sorted;
+}
+
+function renderOpinionsRowsHtml(filtered: OpinionItem[]): string {
+  if (filtered.length === 0) {
+    return `<div class="empty-state">No opinions match your current search or filter.</div>`;
+  }
+  const pageSize = Math.max(10, state.opPageSize);
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const page = Math.min(Math.max(1, state.opPage), totalPages);
+  state.opPage = page;
+  const start = (page - 1) * pageSize;
+  const slice = filtered.slice(start, start + pageSize);
+
+  const rowsHtml = slice
+    .map((o) => {
+      const title = resolveOpinionTitle(o);
+      const preview = summarizeOpinionPreview(o.summary || "");
+      const lv = (o.roast_level || "light").toLowerCase();
+      const lvPillCls = lv === "dark" ? "p-warn" : lv === "medium" ? "p-info" : "";
+      return `
+      <button type="button" class="issue-row" data-open-patch="${o.cf_id}">
+        <div class="issue-top">
+          <div class="issue-id-group">
+            ${verdictDot(o.verdict)}
+            <span class="mono issue-id">CF ${o.cf_id}</span>
+            ${o.entry_status ? `<span class="issue-status">${esc(o.entry_status)}</span>` : ""}
+            <span class="dim mono" style="font-size:11px;">${esc(o.created_at.slice(0, 10))}</span>
+          </div>
+          ${CHEVRON_SVG}
+        </div>
+        <div class="issue-title" style="font-size:14px;">${esc(title || preview)}</div>
+        ${title && preview ? `<div class="opinion-row-preview">${esc(preview)}</div>` : ""}
+        <div class="issue-meta">
+          ${verdictPill(o.verdict)}
+          <span class="pill ${lvPillCls}" style="font-size:10.5px;padding:1px 7px;">${esc(formatOpinionProfile(o))}</span>
+          <span class="tag-micro mono">${esc(formatOpinionModelSpec(o.backend, o.models_json))}</span>
+          <span class="tag-micro">${esc(o.contributor_name)} (@${esc(o.contributor_handle)})</span>
+          ${extractOpinionEvidence(o)
+            .slice(0, 3)
+            .map((b) => `<span class="tag-micro">${esc(b)}</span>`)
+            .join("")}
+        </div>
+      </button>
+    `;
+    })
+    .join("");
+
+  const pagerHtml =
+    totalPages > 1 || filtered.length > 25
+      ? `
+    <div class="op-pagination" aria-label="Opinions pagination">
+      <div class="dim mono" style="font-size:12px;">
+        Showing ${start + 1}–${Math.min(start + slice.length, filtered.length)} of ${filtered.length}
+      </div>
+      <div class="row" style="gap:6px;align-items:center;flex-wrap:wrap;">
+        <button type="button" class="btn btn-secondary btn-sm" id="op-prev-page" ${page <= 1 ? "disabled" : ""}>← Prev</button>
+        <span class="mono" style="font-size:12px;padding:0 6px;">Page ${page} / ${totalPages}</span>
+        <button type="button" class="btn btn-secondary btn-sm" id="op-next-page" ${page >= totalPages ? "disabled" : ""}>Next →</button>
+        <select id="op-page-size" aria-label="Items per page" style="height:30px;padding:0 8px;border-radius:7px;border:1px solid var(--border-s);background:var(--surface);color:var(--text);font-size:12px;">
+          ${[25, 50, 100].map((n) => `<option value="${n}" ${pageSize === n ? "selected" : ""}>${n} / page</option>`).join("")}
+        </select>
+      </div>
+    </div>
+  `
+      : "";
+
+  return `${rowsHtml}${pagerHtml}`;
+}
+
+function bindOpinionsListOnlyEvents(): void {
+  const mount = document.getElementById("opinions-list-mount");
+  if (!mount) return;
+  bindPatchRowClicks(mount);
+  mount.querySelector("#op-prev-page")?.addEventListener("click", () => {
+    if (state.opPage > 1) {
+      state.opPage--;
+      updateOpinionsListOnly();
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  });
+  mount.querySelector("#op-next-page")?.addEventListener("click", () => {
+    state.opPage++;
+    updateOpinionsListOnly();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  });
+  mount.querySelector<HTMLSelectElement>("#op-page-size")?.addEventListener("change", (ev) => {
+    state.opPageSize = Number((ev.target as HTMLSelectElement).value) || 25;
+    state.opPage = 1;
+    updateOpinionsListOnly();
+  });
+}
+
+function updateOpinionsListOnly(): void {
+  const filtered = getFilteredOpinions();
+  const countEl = document.getElementById("opinions-count-badge");
+  if (countEl) countEl.textContent = `${filtered.length} of ${state.opinions.length}`;
+  const clearBtn = document.getElementById("op-search-clear-btn");
+  if (clearBtn) clearBtn.hidden = !state.opSearch;
+  const mount = document.getElementById("opinions-list-mount");
+  if (!mount) return;
+  mount.innerHTML = renderOpinionsRowsHtml(filtered);
+  bindOpinionsListOnlyEvents();
+}
+
 function renderOpinionsTab(): string {
+  const filtered = getFilteredOpinions();
+  const darkCnt = state.opinions.filter((o) => (o.roast_level || "light").toLowerCase() === "dark").length;
+  const medCnt = state.opinions.filter((o) => (o.roast_level || "light").toLowerCase() === "medium").length;
+  const lightCnt = state.opinions.length - darkCnt - medCnt;
+  const modelSpecs = Array.from(new Set(state.opinions.map((o) => formatOpinionModelSpec(o.backend, o.models_json)))).sort();
+
+  const verdictChips: Array<[string, string, string]> = [
+    ["all", "All verdicts", ""],
+    ["NO-FUNDAMENTAL-OBJECTION", "Clean", "#4cb782"],
+    ["NEEDS-COMMITTER-EYES", "Committer eyes", "#5e6ad2"],
+    ["NEEDS-DESIGN-DISCUSSION", "Design disc.", "#e0a83c"],
+    ["LIKELY-REJECT", "Likely reject", "#eb5757"],
+  ];
+
   return `
     <div class="page-head">
       <div>
-        <h1 class="page-title">Community Model Opinions (${state.opinions.length})</h1>
-        <div class="page-sub">Every opinion shows who ran it and which AI produced it — tap any row to open the patch consensus page</div>
+        <h1 class="page-title">Community Model Opinions <span class="dim mono" id="opinions-count-badge" style="font-size:15px;font-weight:500;">${filtered.length} of ${state.opinions.length}</span></h1>
+        <div class="page-sub">Search, filter by verification depth, verdict, or model, and sort — tap any row to open full verification logs</div>
       </div>
       <button type="button" class="btn btn-secondary btn-sm" id="opinions-goto-team-btn">Team claims (${state.coordination.length}) →</button>
     </div>
@@ -2672,34 +2889,45 @@ function renderOpinionsTab(): string {
       </div>
     `
         : `
-      <div class="issue-list">
-        ${state.opinions
-          .map(
-            (o) => `
-          <button type="button" class="issue-row" data-open-patch="${o.cf_id}">
-            <div class="issue-top">
-              <div class="issue-id-group">
-                ${verdictDot(o.verdict)}
-                <span class="mono issue-id">CF ${o.cf_id}</span>
-                <span class="issue-status">${esc(o.created_at.slice(0, 10))}</span>
-              </div>
-              ${CHEVRON_SVG}
-            </div>
-            <div class="issue-title" style="font-size:13.5px;">${esc(summarizeOpinionPreview(o.summary || ""))}</div>
-            <div class="issue-meta">
-              ${verdictPill(o.verdict)}
-              <span class="tag-micro">${esc(o.contributor_name)} (@${esc(o.contributor_handle)})</span>
-              <span class="tag-micro mono">${esc(formatOpinionModelSpec(o.backend, o.models_json))}</span>
-              <span class="tag-micro">${esc(formatOpinionProfile(o))}</span>
-              ${extractOpinionEvidence(o)
-                .slice(0, 3)
-                .map((b) => `<span class="tag-micro">${esc(b)}</span>`)
-                .join("")}
-            </div>
-          </button>
-        `,
-          )
-          .join("")}
+      <div class="filter-bar">
+        <div class="op-controls">
+          <div class="search-box" style="flex:1;margin-bottom:0;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+            <input id="op-search-input" type="search" autocomplete="off" value="${esc(state.opSearch)}" placeholder="Search CF #, patch title, author, model, or review text…" />
+            <button type="button" class="search-clear" id="op-search-clear-btn" aria-label="Clear search" ${state.opSearch ? "" : "hidden"}>×</button>
+          </div>
+          <select id="op-model-select" aria-label="Filter by AI model">
+            <option value="all" ${state.opModel === "all" ? "selected" : ""}>All models (${modelSpecs.length})</option>
+            ${modelSpecs.map((sp) => `<option value="${esc(sp)}" ${state.opModel === sp ? "selected" : ""}>${esc(sp)}</option>`).join("")}
+          </select>
+          <select id="op-sort-select" aria-label="Sort opinions">
+            <option value="newest" ${state.opSort === "newest" ? "selected" : ""}>Sort: Newest first</option>
+            <option value="depth" ${state.opSort === "depth" ? "selected" : ""}>Sort: Deepest (Dark → Light)</option>
+            <option value="critical" ${state.opSort === "critical" ? "selected" : ""}>Sort: Most critical first</option>
+            <option value="cf_desc" ${state.opSort === "cf_desc" ? "selected" : ""}>Sort: CF # descending</option>
+          </select>
+        </div>
+        <div class="chips" role="tablist" aria-label="Verification depth filter">
+          <button type="button" class="chip ${state.opLevel === "all" ? "active" : ""}" data-op-level="all">All depths <span class="dim">(${state.opinions.length})</span></button>
+          <button type="button" class="chip ${state.opLevel === "dark" ? "active" : ""}" data-op-level="dark"><span class="dot" style="background:var(--warn)"></span>Dark (build + SQL) <span class="dim">(${darkCnt})</span></button>
+          ${medCnt > 0 ? `<button type="button" class="chip ${state.opLevel === "medium" ? "active" : ""}" data-op-level="medium"><span class="dot" style="background:var(--accent)"></span>Medium (build + test) <span class="dim">(${medCnt})</span></button>` : ""}
+          <button type="button" class="chip ${state.opLevel === "light" ? "active" : ""}" data-op-level="light"><span class="dot" style="background:var(--muted)"></span>Light (idea + precedents) <span class="dim">(${lightCnt})</span></button>
+        </div>
+        <div class="chips" role="tablist" aria-label="Verdict filter" style="margin-bottom:2px;">
+          ${verdictChips
+            .map(
+              ([val, label, dot]) => `
+            <button type="button" class="chip ${state.opVerdict === val ? "active" : ""}" data-op-verdict="${val}">
+              ${dot ? `<span class="dot" style="background:${dot}"></span>` : ""}${label}
+            </button>
+          `,
+            )
+            .join("")}
+        </div>
+      </div>
+
+      <div class="issue-list" id="opinions-list-mount">
+        ${renderOpinionsRowsHtml(filtered)}
       </div>
     `
     }
@@ -2956,10 +3184,71 @@ function bindBriefListEvents(): void {
   if (mount) bindPatchRowClicks(mount);
 }
 
+const MOBILE_MORE_TABS = new Set<TabId>(["lists", "contribute", "docs", "coordination", "connect"]);
+
+function openMoreSheet(): void {
+  const backdrop = document.getElementById("more-backdrop");
+  const body = document.getElementById("more-sheet-body");
+  const trigger = document.getElementById("web-mobile-more-btn");
+  if (!backdrop || !body) return;
+
+  const items: Array<{ tab: TabId; title: string; sub: string; badge?: string }> = [
+    { tab: "lists", title: "Mailing Lists Archive", sub: "All 49 PostgreSQL lists · live sync & search" },
+    { tab: "contribute", title: "Auto-Contribute Quota", sub: "Donate leftover weekly AI quota to roast patches" },
+    { tab: "docs", title: "Docs, CLI & API Explorer", sub: "Stripe-style OpenAPI docs + CLI playground" },
+    { tab: "coordination", title: "Team Coordination", sub: "Opt-in reviewer claims", badge: String(state.coordination.length) },
+    { tab: "connect", title: "Setup Personal Backoffice", sub: "Run local builds, diffs & publish opinions" },
+  ];
+
+  body.innerHTML = `
+    <div class="more-nav-grid">
+      ${items
+        .map(
+          (it) => `
+        <button type="button" class="more-nav-item ${!state.activePatchId && !state.activeHackerSlug && state.tab === it.tab ? "is-active" : ""}" data-more-tab="${it.tab}">
+          <div style="min-width:0;flex:1;">
+            <div class="more-nav-title">${esc(it.title)}</div>
+            <div class="more-nav-sub">${esc(it.sub)}</div>
+          </div>
+          ${it.badge ? `<span class="pill mono">${esc(it.badge)}</span>` : ""}
+          ${CHEVRON_SVG}
+        </button>
+      `,
+        )
+        .join("")}
+    </div>
+  `;
+
+  body.querySelectorAll<HTMLButtonElement>("[data-more-tab]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const t = btn.dataset.moreTab as TabId;
+      closeMoreSheet();
+      if (t) navigateToTab(t);
+    });
+  });
+
+  backdrop.hidden = false;
+  trigger?.setAttribute("aria-expanded", "true");
+  document.body.classList.add("sheet-open");
+}
+
+function closeMoreSheet(): void {
+  const backdrop = document.getElementById("more-backdrop");
+  const trigger = document.getElementById("web-mobile-more-btn");
+  if (!backdrop) return;
+  backdrop.hidden = true;
+  trigger?.setAttribute("aria-expanded", "false");
+  document.body.classList.remove("sheet-open");
+}
+
 function render(): void {
-  document.querySelectorAll<HTMLButtonElement>("#web-nav .nav-link, #web-bottom-nav .btab").forEach((btn) => {
+  document.querySelectorAll<HTMLButtonElement>("#web-nav .nav-link, #web-bottom-nav .btab[data-tab]").forEach((btn) => {
     btn.classList.toggle("active", !state.activePatchId && !state.activeHackerSlug && btn.dataset.tab === state.tab);
   });
+  const moreBtn = document.getElementById("web-mobile-more-btn");
+  if (moreBtn) {
+    moreBtn.classList.toggle("active", !state.activePatchId && !state.activeHackerSlug && MOBILE_MORE_TABS.has(state.tab));
+  }
 
   const root = document.getElementById("web-main")!;
   if (state.activeHackerSlug) {
@@ -3551,10 +3840,54 @@ function render(): void {
     });
   }
 
-  // Shared row links (Opinions / Coordination)
-  if (state.tab === "opinions" || state.tab === "coordination") {
-    bindPatchRowClicks(root);
+  // Opinions tab events (search, depth/verdict/model filters, sort, pagination)
+  if (state.tab === "opinions") {
+    bindOpinionsListOnlyEvents();
     document.getElementById("opinions-goto-team-btn")?.addEventListener("click", () => navigateToTab("coordination"));
+    const opSearch = document.getElementById("op-search-input") as HTMLInputElement | null;
+    opSearch?.addEventListener("input", () => {
+      state.opSearch = opSearch.value;
+      state.opPage = 1;
+      updateOpinionsListOnly();
+    });
+    document.getElementById("op-search-clear-btn")?.addEventListener("click", () => {
+      state.opSearch = "";
+      state.opPage = 1;
+      if (opSearch) {
+        opSearch.value = "";
+        opSearch.focus();
+      }
+      updateOpinionsListOnly();
+    });
+    document.getElementById("op-model-select")?.addEventListener("change", (ev) => {
+      state.opModel = (ev.target as HTMLSelectElement).value || "all";
+      state.opPage = 1;
+      updateOpinionsListOnly();
+    });
+    document.getElementById("op-sort-select")?.addEventListener("change", (ev) => {
+      state.opSort = ((ev.target as HTMLSelectElement).value as typeof state.opSort) || "newest";
+      state.opPage = 1;
+      updateOpinionsListOnly();
+    });
+    document.querySelectorAll<HTMLButtonElement>("[data-op-level]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        state.opLevel = ((btn.dataset.opLevel as typeof state.opLevel) || "all");
+        state.opPage = 1;
+        render();
+      });
+    });
+    document.querySelectorAll<HTMLButtonElement>("[data-op-verdict]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        state.opVerdict = btn.dataset.opVerdict || "all";
+        state.opPage = 1;
+        render();
+      });
+    });
+  }
+
+  // Coordination tab row links
+  if (state.tab === "coordination") {
+    bindPatchRowClicks(root);
   }
 
   // Brief tab events
@@ -3875,13 +4208,22 @@ window.addEventListener("popstate", () => {
       if (state.listsMessages.length === 0) void loadListsMessages();
     } else if (route.tab === "contribute") {
       void loadDocsCoverage();
+    } else if (route.tab === "stats") {
+      void loadStatsOverview();
     }
   }
+});
+
+document.getElementById("web-mobile-more-btn")?.addEventListener("click", () => openMoreSheet());
+document.getElementById("more-close-btn")?.addEventListener("click", () => closeMoreSheet());
+document.getElementById("more-backdrop")?.addEventListener("click", (ev) => {
+  if (ev.target === ev.currentTarget) closeMoreSheet();
 });
 
 document.addEventListener("keydown", (ev) => {
   if (ev.key === "Escape") {
     closeSpaceSwitcher();
+    closeMoreSheet();
     closeThemeMenu();
   }
 });

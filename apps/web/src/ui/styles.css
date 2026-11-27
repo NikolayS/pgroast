@@ -3594,3 +3594,99 @@ html, body {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* ---- Patch Discussion Thread Starter badge, Opinions Controls & Pagination, Mobile More Sheet ---- */
+.mr-starter-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  border-radius: 5px;
+  font-size: 10.5px;
+  font-weight: 600;
+  background: var(--hover);
+  color: var(--muted);
+  border: 1px solid var(--border-s);
+}
+.op-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.op-controls select {
+  height: 36px;
+  padding: 0 10px;
+  border-radius: 9px;
+  border: 1px solid var(--border-s);
+  background: var(--surface);
+  color: var(--text);
+  font: 12.5px inherit;
+  max-width: 100%;
+}
+.opinion-row-preview {
+  font-size: 12.5px;
+  color: var(--muted);
+  line-height: 1.45;
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.op-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 12px 4px 4px;
+  border-top: 1px solid var(--border);
+  margin-top: 8px;
+}
+.more-nav-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.more-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 11px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+.more-nav-item:hover {
+  background: var(--hover);
+  border-color: var(--border-s);
+}
+.more-nav-item.is-active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.more-nav-title {
+  font-size: 13.5px;
+  font-weight: 600;
+}
+.more-nav-sub {
+  font-size: 11.5px;
+  color: var(--muted);
+  margin-top: 1px;
+}
+@media (max-width: 720px) {
+  .op-controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .op-controls select {
+    width: 100%;
+    font-size: 15px;
+    height: 40px;
+  }
+}

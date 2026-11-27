@@ -1356,8 +1356,9 @@ export async function createWebHandler(opts?: {
         const brief = await db.getBrief(slug);
         if (!brief) return errJson("Brief not found", 404);
 
+        const briefOrigin = resolveRequestOrigin(req, cfg);
         if (kind === "download.md") {
-          return new Response(renderBriefMarkdown(brief), {
+          return new Response(renderBriefMarkdown(brief, briefOrigin), {
             headers: {
               "Content-Type": "text/markdown; charset=utf-8",
               "Content-Disposition": `attachment; filename="${brief.slug}.md"`,
@@ -1385,10 +1386,9 @@ export async function createWebHandler(opts?: {
             },
           });
         }
-        const html = renderInteractiveBriefHtml(brief, cfg.localWorkbenchUrl);
+        const html = renderInteractiveBriefHtml(brief, cfg.localWorkbenchUrl, briefOrigin);
         const ua = req.headers.get("user-agent") || "";
         if (!BOT_UA_RE.test(ua)) {
-          const briefOrigin = resolveRequestOrigin(req, cfg);
           void db.recordPageView({
             path: `/briefs/${brief.slug}/${kind}`,
             cfId: null,
@@ -1441,7 +1441,11 @@ export async function createWebHandler(opts?: {
         if (!cfId) return errJson("Invalid cf_id", 400);
         const entry = await db.getEntry(cfId);
         try {
-          const discussion = await fetchMrDiscussionForCf(cfId, entry?.thread_url || undefined);
+          const discussion = await fetchMrDiscussionForCf(
+            cfId,
+            entry?.thread_url || undefined,
+            entry?.authors || undefined,
+          );
           return json(discussion, 200, req);
         } catch (err) {
           return errJson(err instanceof Error ? err.message : String(err), 404);
@@ -1458,7 +1462,7 @@ export async function createWebHandler(opts?: {
           const entry = await db.getEntry(cfId);
           const [diff, discussion] = await Promise.all([
             fetchMrDiffForCf(cfId),
-            fetchMrDiscussionForCf(cfId, entry?.thread_url || undefined).catch(() => null),
+            fetchMrDiscussionForCf(cfId, entry?.thread_url || undefined, entry?.authors || undefined).catch(() => null),
           ]);
           return json(matchThreadToDiff(diff, discussion), 200, req);
         } catch (err) {
@@ -1470,8 +1474,9 @@ export async function createWebHandler(opts?: {
         const cfIdParam = url.searchParams.get("cfId");
         const parsedCfId = cfIdParam ? parsePositivePgInt(cfIdParam) : undefined;
         if (cfIdParam && !parsedCfId) return errJson("Invalid cfId", 400);
-        const opinions = await db.listOpinions(parsedCfId ?? undefined, 150);
-        return json({ opinions }, 200, req);
+        const limitParam = Math.min(Math.max(Number(url.searchParams.get("limit") || 500), 1), 1000);
+        const opinions = await db.listOpinions(parsedCfId ?? undefined, limitParam);
+        return json({ opinions, total: opinions.length }, 200, req);
       }
 
       const entryOpMatch = path.match(/^\/api\/v1\/entries\/(\d+)\/opinions$/);

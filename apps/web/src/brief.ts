@@ -190,12 +190,17 @@ function renderSvgDonut(segments: Array<{ label: string; value: number; color: s
  * Generates Kirk's standalone, interactive, offline-safe HTML brief.
  * Carries a strict meta CSP (`default-src 'none'`) so opening it from `file://` can never make network calls.
  */
-export function renderInteractiveBriefHtml(brief: PublishedBriefRecord, localWorkbenchUrl = "http://127.0.0.1:3432"): string {
+export function renderInteractiveBriefHtml(
+  brief: PublishedBriefRecord,
+  localWorkbenchUrl = "http://127.0.0.1:3432",
+  publicOrigin = "https://pgroast.postgres.ai",
+): string {
   const stats = JSON.parse(brief.stats_json || "{}") as BriefStats;
   const shortlist = JSON.parse(brief.shortlist_json || "[]") as BriefShortlistItem[];
   const closing = JSON.parse(brief.closing_json || "[]") as BriefClosingItem[];
   const entries = JSON.parse(brief.entries_json || "[]") as BriefEntryItem[];
   const safeWorkbenchBase = safeHttpUrl(localWorkbenchUrl).replace(/\/$/, "");
+  const safePublicBase = safeHttpUrl(publicOrigin).replace(/\/$/, "");
 
   const verdicts = stats.verdicts ?? [];
   const vCount = (k: string) => safeNonNegInt(verdicts.find((x) => x.verdict === k)?.all);
@@ -234,19 +239,21 @@ export function renderInteractiveBriefHtml(brief: PublishedBriefRecord, localWor
       (x, idx) => {
         const cfId = safeNonNegInt(x.cf_id);
         const safeThread = safeHttpUrl(x.thread_url);
+        const patchUrl = safePublicBase ? `${safePublicBase}/patch/${cfId}` : "";
         return `
       <tr data-kind="${esc(x.kind || "feature")}" data-prod="${x.seen_in_production ? "1" : "0"}" data-wa="${x.workaround ? "1" : "0"}">
         <td class="num muted">${idx + 1}</td>
         <td class="mono">
-          <strong>CF ${cfId}</strong>
+          <strong>${patchUrl ? `<a href="${esc(patchUrl)}" target="_blank" rel="noopener">CF ${cfId}</a>` : `CF ${cfId}`}</strong>
           <div class="links">
+            ${patchUrl ? `<a href="${esc(patchUrl)}" target="_blank" rel="noopener">Details ↗</a>` : ""}
             <a href="https://commitfest.postgresql.org/patch/${cfId}/" target="_blank" rel="noopener">CF ↗</a>
             ${safeThread ? `<a href="${esc(safeThread)}" target="_blank" rel="noopener">Thread ↗</a>` : ""}
             ${safeWorkbenchBase ? `<a href="${esc(`${safeWorkbenchBase}/?cf=${cfId}`)}" target="_blank" rel="noopener">Local ↗</a>` : ""}
           </div>
         </td>
         <td>
-          <div><strong>${esc(x.title)}</strong></div>
+          <div><strong>${patchUrl ? `<a href="${esc(patchUrl)}" target="_blank" rel="noopener">${esc(x.title)}</a>` : esc(x.title)}</strong></div>
           <div class="sub">
             <span class="pill"><i style="background:${x.kind === "bugfix" ? "#5e6ad2" : "#9b82f3"}"></i>${x.kind === "bugfix" ? "Bug fix" : "Feature"}</span>
             ${x.seen_in_production ? `<span class="pill"><i style="background:#eb5757"></i>Seen in production</span>` : ""}
@@ -271,18 +278,20 @@ export function renderInteractiveBriefHtml(brief: PublishedBriefRecord, localWor
       (x, idx) => {
         const cfId = safeNonNegInt(x.cf_id);
         const safeThread = safeHttpUrl(x.thread_url);
+        const patchUrl = safePublicBase ? `${safePublicBase}/patch/${cfId}` : "";
         return `
       <tr>
         <td class="num muted">${idx + 1}</td>
         <td class="mono">
-          <strong>CF ${cfId}</strong>
+          <strong>${patchUrl ? `<a href="${esc(patchUrl)}" target="_blank" rel="noopener">CF ${cfId}</a>` : `CF ${cfId}`}</strong>
           <div class="links">
+            ${patchUrl ? `<a href="${esc(patchUrl)}" target="_blank" rel="noopener">Details ↗</a>` : ""}
             <a href="https://commitfest.postgresql.org/patch/${cfId}/" target="_blank" rel="noopener">CF ↗</a>
             ${safeThread ? `<a href="${esc(safeThread)}" target="_blank" rel="noopener">Thread ↗</a>` : ""}
           </div>
         </td>
         <td>
-          <div><strong>${esc(x.title)}</strong></div>
+          <div><strong>${patchUrl ? `<a href="${esc(patchUrl)}" target="_blank" rel="noopener">${esc(x.title)}</a>` : esc(x.title)}</strong></div>
           <div class="muted" style="font-size:11.5px;">${esc(x.authors || "—")} · ${esc(x.status)}</div>
         </td>
         <td>
@@ -305,17 +314,19 @@ export function renderInteractiveBriefHtml(brief: PublishedBriefRecord, localWor
       (e) => {
         const cfId = safeNonNegInt(e.cf_id);
         const safeThread = safeHttpUrl(e.thread_url);
+        const patchUrl = safePublicBase ? `${safePublicBase}/patch/${cfId}` : "";
         return `
       <tr data-search="${esc(`${cfId} ${e.title} ${e.authors} ${e.reviewers || ""} ${e.committer || ""} ${e.topic || ""}`).toLowerCase()}" data-verdict="${esc(e.verdict || "UNROASTED")}" data-status="${esc(e.status || "")}">
         <td class="mono">
-          <strong>${cfId}</strong>
+          <strong>${patchUrl ? `<a href="${esc(patchUrl)}" target="_blank" rel="noopener">${cfId}</a>` : cfId}</strong>
           <div class="links">
+            ${patchUrl ? `<a href="${esc(patchUrl)}" target="_blank" rel="noopener">Details ↗</a>` : ""}
             <a href="https://commitfest.postgresql.org/patch/${cfId}/" target="_blank" rel="noopener">CF ↗</a>
             ${safeThread ? `<a href="${esc(safeThread)}" target="_blank" rel="noopener">Thread ↗</a>` : ""}
           </div>
         </td>
         <td>
-          <div><strong>${esc(e.title)}</strong></div>
+          <div><strong>${patchUrl ? `<a href="${esc(patchUrl)}" target="_blank" rel="noopener">${esc(e.title)}</a>` : esc(e.title)}</strong></div>
           <div class="muted" style="font-size:11.5px;">${esc(e.authors || "—")}${e.reviewers ? ` · Rev: ${esc(e.reviewers)}` : ""}</div>
         </td>
         <td><span class="pill"><i style="background:${verdictDotColor(e.verdict)}"></i>${esc(humanVerdict(e.verdict))}</span></td>
@@ -530,9 +541,10 @@ tr:last-child td{border-bottom:none}
 </html>`;
 }
 
-export function renderBriefMarkdown(brief: PublishedBriefRecord): string {
+export function renderBriefMarkdown(brief: PublishedBriefRecord, publicOrigin = "https://pgroast.postgres.ai"): string {
   const shortlist = JSON.parse(brief.shortlist_json || "[]") as BriefShortlistItem[];
   const closing = JSON.parse(brief.closing_json || "[]") as BriefClosingItem[];
+  const base = safeHttpUrl(publicOrigin).replace(/\/$/, "");
   const lines: string[] = [
     `# ${brief.title}`,
     "",
@@ -543,6 +555,7 @@ export function renderBriefMarkdown(brief: PublishedBriefRecord): string {
   ];
   shortlist.forEach((x, i) => {
     lines.push(`${i + 1}. **CF ${x.cf_id}: ${x.title}** (${humanVerdict(x.verdict)}${x.status ? `, ${x.status}` : ""})`);
+    if (base) lines.push(`   - pgroast details: ${base}/patch/${x.cf_id}`);
     lines.push(`   - CommitFest: https://commitfest.postgresql.org/patch/${x.cf_id}/`);
     if (x.thread_url) lines.push(`   - Thread: ${x.thread_url}`);
     if (x.reasons?.length) lines.push(`   - Why: ${x.reasons.join("; ")}`);
@@ -550,6 +563,7 @@ export function renderBriefMarkdown(brief: PublishedBriefRecord): string {
   lines.push("", `## Worth Closing or Rethinking (${closing.length})`, "");
   closing.forEach((x, i) => {
     lines.push(`${i + 1}. **CF ${x.cf_id}: ${x.title}** (${humanVerdict(x.verdict)})`);
+    if (base) lines.push(`   - pgroast details: ${base}/patch/${x.cf_id}`);
     lines.push(`   - CommitFest: https://commitfest.postgresql.org/patch/${x.cf_id}/`);
     if (x.failing_summary) lines.push(`   - Failing: ${x.failing_summary}`);
     if (x.next_step_for_author) lines.push(`   - Next step: ${x.next_step_for_author}`);

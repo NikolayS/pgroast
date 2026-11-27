@@ -23,6 +23,7 @@ export interface MrTimelineMessage {
   date: string;
   subject: string;
   isAuthor: boolean;
+  isThreadStarter?: boolean;
   patchRevision: string | null;
   patchCount: number;
   blocks: MrBodyBlock[];
@@ -33,6 +34,7 @@ export interface MrParticipant {
   name: string;
   count: number;
   isAuthor: boolean;
+  isThreadStarter?: boolean;
 }
 
 export interface MrThreadTldr {
@@ -262,7 +264,49 @@ async function resolveThreadUrlFromCommitfest(cfId: number): Promise<string | nu
   return cf.threads[0]?.url ? normalizeToFlatUrl(cf.threads[0].url) : null;
 }
 
-export async function fetchMrDiscussionForCf(cfId: number, knownThreadUrl?: string): Promise<MrDiscussionResult> {
+function normAuthorToken(s: string): string {
+  return (s || "")
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function parseCfAuthorTokens(cfAuthors?: string): string[] {
+  if (!cfAuthors || !cfAuthors.trim()) return [];
+  const tokens: string[] = [];
+  for (const part of cfAuthors.split(/,\s*/)) {
+    const clean = part.replace(/\s*\([^)]*\)\s*/g, "").trim();
+    const norm = normAuthorToken(clean);
+    if (norm) tokens.push(norm);
+    const paren = part.match(/\(([^)]+)\)/);
+    if (paren?.[1]) {
+      const pNorm = normAuthorToken(paren[1]);
+      if (pNorm) tokens.push(pNorm);
+    }
+  }
+  return tokens;
+}
+
+function matchesCfAuthor(rawFrom: string, cleanFrom: string, cfAuthorTokens: string[]): boolean {
+  if (cfAuthorTokens.length === 0) return false;
+  const hayClean = normAuthorToken(cleanFrom);
+  const hayRaw = normAuthorToken(rawFrom);
+  return cfAuthorTokens.some((tok) => {
+    if (!tok) return false;
+    if (hayClean === tok || hayRaw.includes(tok)) return true;
+    // Match first+last name tokens even if middle initial or order differs
+    const words = tok.split(" ").filter((w) => w.length >= 2);
+    return words.length >= 2 && words.every((w) => hayClean.includes(w));
+  });
+}
+
+export async function fetchMrDiscussionForCf(
+  cfId: number,
+  knownThreadUrl?: string,
+  cfAuthors?: string,
+): Promise<MrDiscussionResult> {
   const now = Date.now();
   const hit = threadCache.get(cfId);
   if (hit && hit.expiresAt > now) {
@@ -292,18 +336,24 @@ export async function fetchMrDiscussionForCf(cfId: number, knownThreadUrl?: stri
       const parsed = parseFlatThread(res.text);
 
       const starterName = (parsed.messages[0]?.from || "").trim().toLowerCase();
+      const cfAuthorTokens = parseCfAuthorTokens(cfAuthors);
       const participantMap = new Map<string, MrParticipant>();
       const revisions: MrDiscussionResult["revisions"] = [];
       let autoRevCounter = 0;
 
       const messages: MrTimelineMessage[] = parsed.messages.map((m, idx) => {
         const cleanFrom = m.from.replace(/\s*<[^>]+>\s*/g, "").trim() || m.from || "Unknown";
-        const isAuthor = Boolean(starterName && m.from.trim().toLowerCase() === starterName);
+        const isThreadStarter = Boolean(starterName && m.from.trim().toLowerCase() === starterName);
+        // Only tag as Patch Author when matching CommitFest `Authors` (fallback to thread starter only if CF authors unknown)
+        const isAuthor =
+          cfAuthorTokens.length > 0 ? matchesCfAuthor(m.from, cleanFrom, cfAuthorTokens) : isThreadStarter;
         const existingP = participantMap.get(cleanFrom);
         if (existingP) {
           existingP.count++;
+          if (isAuthor) existingP.isAuthor = true;
+          if (isThreadStarter) existingP.isThreadStarter = true;
         } else {
-          participantMap.set(cleanFrom, { name: cleanFrom, count: 1, isAuthor });
+          participantMap.set(cleanFrom, { name: cleanFrom, count: 1, isAuthor, isThreadStarter });
         }
 
         const attachments: MrAttachment[] = m.attachments.map((a) => ({
@@ -339,6 +389,7 @@ export async function fetchMrDiscussionForCf(cfId: number, knownThreadUrl?: stri
           date: m.date,
           subject: m.subject,
           isAuthor,
+          isThreadStarter,
           patchRevision: revTag,
           patchCount: rev.patchCount,
           blocks: splitBodyIntoBlocks(m.body),

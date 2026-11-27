@@ -1,5 +1,23 @@
 # Changelog
 
+## v0.3.0-alpha.19 (2026-11-27)
+
+This release fixes five UI/UX bugs across the Public App: adds full mobile navigation via a `More` sheet, adds search/filters/sorting/pagination to Opinions, links every entry in standalone/embed briefs to its public `/patch/<id>` page, distinguishes `Patch Author` from `Thread Starter` in discussions, and fixes baseline opinion counts on patch pages.
+
+### Changes
+
+- **Complete Mobile Navigation (`apps/web/src/ui/index.html`, `app.ts`, `styles.css`):**
+  - Replaced the fixed mobile bottom-nav `Backoffice` slot with a **`More`** button opening a bottom sheet containing every remaining section (`Mailing Lists`, `Auto-Contribute`, `Docs & API Explorer`, `Team Coordination`, `Setup Personal Backoffice`), highlighting `More` whenever one of those tabs is active.
+- **Bounded, Searchable & Paginated Opinions Feed (`apps/web/src/db.ts`, `server.ts`, `app.ts`):**
+  - Joined `public_entries` onto `listOpinions()` (raising the API default cap from 150 to 500, up to 1,000) so every opinion row shows its actual **Patch Title** and CF status and no opinions are silently truncated.
+  - Added live search, verification depth chips (`Dark`, `Medium`, `Light`), verdict chips, `provider/model:effort` model filter, sorting (`Newest`, `Deepest`, `Most critical`, `CF #`), and pagination (`25 / 50 / 100` per page) to `/?tab=opinions`.
+  - Synced live community verdicts (`Dark > Medium > Light`) onto `Entries` on load so `Entries` never disagrees with live published opinions.
+- **Public Patch Links in Standalone & Embedded Briefs (`apps/web/src/brief.ts`, `server.ts`):**
+  - Passed the public site origin into `renderInteractiveBriefHtml()` and `renderBriefMarkdown()` so every CF ID and patch title in `/briefs/<slug>/embed`, `download.html`, and `download.md` links directly to `/patch/<cf_id>` (`Details ↗`) alongside `CF ↗` and `Thread ↗`.
+- **Accurate Discussion Author vs. Thread Starter & Opinion Counts (`apps/web/src/mr.ts`, `server.ts`, `app.ts`):**
+  - Matched mailing-list message senders against CommitFest `Authors` in `fetchMrDiscussionForCf()`: actual CommitFest patch authors get the **`Patch Author`** badge, while a bug reporter who opened the thread (e.g. CF 7206) gets **`Thread Starter`** instead of being mislabeled as the patch author.
+  - Counted the displayed Baseline CommitFest Brief card accurately in both the `Overview & Consensus` tab badge and the `Reviewer & AI Opinions (N)` heading (with explicit `"1 baseline brief pass · 0 individual reviewer runs yet"` breakdown) and upgraded consensus chips to show full `provider/model:effort` specs.
+
 ## v0.3.0-alpha.18 (2026-11-27)
 
 This release upgrades the Public App **Stats** tab into a live **CommitFest Intelligence & Verification Observatory** matching the Hacking Observatory, backed by a new live `GET /api/v1/stats/overview` PostgreSQL endpoint.

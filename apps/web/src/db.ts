@@ -47,6 +47,9 @@ export interface PublicOpinionRecord {
   confidence: string;
   summary: string;
   created_at: string;
+  entry_title?: string;
+  entry_status?: string;
+  entry_authors?: string;
 }
 
 export interface PublishedBriefRecord {
@@ -608,16 +611,26 @@ export class WebDatabase {
     return rows[0]!;
   }
 
-  async listOpinions(cfId?: number, limit = 100): Promise<PublicOpinionRecord[]> {
+  async listOpinions(cfId?: number, limit = 500): Promise<PublicOpinionRecord[]> {
+    const cap = Math.min(Math.max(Number(limit) || 500, 1), 1000);
     if (cfId != null) {
       return (await this.sql.unsafe(
-        `SELECT * FROM ${this.t("public_opinions")} WHERE cf_id = $1 ORDER BY created_at DESC LIMIT $2`,
-        [cfId, limit],
+        `SELECT o.*, COALESCE(e.title, '') AS entry_title, COALESCE(e.status, '') AS entry_status, COALESCE(e.authors, '') AS entry_authors
+         FROM ${this.t("public_opinions")} o
+         LEFT JOIN ${this.t("public_entries")} e ON e.cf_id = o.cf_id
+         WHERE o.cf_id = $1
+         ORDER BY o.created_at DESC
+         LIMIT $2`,
+        [cfId, cap],
       )) as PublicOpinionRecord[];
     }
     return (await this.sql.unsafe(
-      `SELECT * FROM ${this.t("public_opinions")} ORDER BY created_at DESC LIMIT $1`,
-      [limit],
+      `SELECT o.*, COALESCE(e.title, '') AS entry_title, COALESCE(e.status, '') AS entry_status, COALESCE(e.authors, '') AS entry_authors
+       FROM ${this.t("public_opinions")} o
+       LEFT JOIN ${this.t("public_entries")} e ON e.cf_id = o.cf_id
+       ORDER BY o.created_at DESC
+       LIMIT $1`,
+      [cap],
     )) as PublicOpinionRecord[];
   }
 
