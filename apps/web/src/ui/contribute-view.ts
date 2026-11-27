@@ -218,11 +218,11 @@ export function renderContributeTab(params: {
             <div class="kpi-v mono">${basePct}%</div>
             <div class="kpi-sub">${fmtNum(cov.baselineRoastedOpen)} of ${fmtNum(cov.totalOpen)} open</div>
           </div>
-          <div class="kpi" style="cursor:default;">
+          <button type="button" class="kpi kpi-clickable" data-open-roasts-q="" title="Browse all community roasts">
             <div class="kpi-l"><span class="dot" style="background:var(--viz-2, #10b981)"></span>Community roasts</div>
             <div class="kpi-v mono" style="color:var(--ok)">${fmtNum(cov.opinionsTotal)}</div>
             <div class="kpi-sub">${fmtNum(cov.openWith1PlusOpinion)} open 1+ · ${fmtNum(cov.openWith2PlusOpinions)} cross-model 2+</div>
-          </div>
+          </button>
           <div class="kpi" style="cursor:default;">
             <div class="kpi-l"><span class="dot" style="background:var(--warn)"></span>Unroasted queue</div>
             <div class="kpi-v mono" style="color:var(--warn)">${fmtNum(cov.unroastedOpen)}</div>
@@ -249,7 +249,12 @@ export function renderContributeTab(params: {
               ${
                 cov.byBackend.length === 0
                   ? `<span class="dim" style="font-size:12px;">No community roasts published yet.</span>`
-                  : cov.byBackend.map((b) => `<span class="pill p-info mono">${esc(b.backend)}: ${b.count}</span>`).join("")
+                  : cov.byBackend
+                      .map(
+                        (b) =>
+                          `<button type="button" class="pill p-info mono pill-clickable" data-open-roasts-q="${esc(b.backend)}" title="View ${b.count} ${esc(b.backend)} roasts">${esc(b.backend)}: ${b.count}</button>`,
+                      )
+                      .join("")
               }
             </div>
             ${
@@ -259,11 +264,11 @@ export function renderContributeTab(params: {
                       .slice(0, 6)
                       .map(
                         (c, i) => `
-                      <div class="lb-row" style="cursor:default;">
+                      <button type="button" class="lb-row" data-open-roasts-q="${esc(c.handle || c.name)}" title="View ${c.count} roasts by @${esc(c.handle)}">
                         <span class="lb-rank mono">${i + 1}</span>
                         <span class="lb-name"><strong>${esc(c.name)}</strong> <span class="dim mono">@${esc(c.handle)}</span></span>
                         <span class="lb-count mono">${c.count}</span>
-                      </div>
+                      </button>
                     `,
                       )
                       .join("")}
@@ -280,10 +285,10 @@ export function renderContributeTab(params: {
                       .slice(0, 4)
                       .map(
                         (l) => `
-                      <div class="tag-micro" style="justify-content:space-between;width:100%;">
+                      <button type="button" class="tag-micro lease-row-btn" data-open-patch="${l.cf_id}" title="Open CF ${l.cf_id}">
                         <span>⏳ Roasting <strong class="mono">CF ${l.cf_id}</strong> (${esc(l.backend)} · ${esc(l.roast_flavour)})</span>
                         <span class="dim mono">${l.contributor_handle ? `@${esc(l.contributor_handle)}` : "active"}</span>
-                      </div>
+                      </button>
                     `,
                       )
                       .join("")}

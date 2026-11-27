@@ -2449,6 +2449,26 @@ details.diff-file[open] > summary {
   color: var(--accent-t);
   text-decoration: underline;
 }
+.pill-clickable {
+  cursor: pointer;
+  font-family: inherit;
+  transition: border-color 0.14s ease, background-color 0.14s ease;
+}
+.pill-clickable:hover {
+  border-color: var(--accent);
+  background: var(--hover);
+}
+.lease-row-btn {
+  justify-content: space-between;
+  width: 100%;
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+}
+.lease-row-btn:hover {
+  border-color: var(--accent);
+  background: var(--hover);
+}
 .mr-rev-strip {
   display: flex;
   align-items: center;

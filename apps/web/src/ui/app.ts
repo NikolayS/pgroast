@@ -2804,7 +2804,7 @@ function getFilteredOpinions(): OpinionItem[] {
     if (m !== "all" && spec !== m) return false;
     if (q) {
       const title = resolveOpinionTitle(o);
-      const hay = `${o.cf_id} ${title} ${o.entry_authors || ""} ${o.contributor_name} ${o.contributor_handle} ${spec} ${o.roast_flavour || ""} ${o.summary || ""}`.toLowerCase();
+      const hay = `${o.cf_id} ${title} ${o.entry_authors || ""} ${o.contributor_name} ${o.contributor_handle} ${o.backend} ${spec} ${o.roast_flavour || ""} ${o.summary || ""}`.toLowerCase();
       if (!hay.includes(q)) return false;
     }
     return true;
@@ -4153,6 +4153,19 @@ function render(): void {
   });
 
   if (state.tab === "brief") bindBriefListEvents();
+
+  // Clickable Roasts filter shortcuts (e.g. backend pills & top contributors on /contribute)
+  root.querySelectorAll<HTMLElement>("[data-open-roasts-q]").forEach((el) => {
+    el.addEventListener("click", () => {
+      const q = (el.dataset.openRoastsQ || "").trim();
+      state.opSearch = q;
+      state.opLevel = "all";
+      state.opVerdict = "all";
+      state.opModel = "all";
+      state.opPage = 1;
+      navigateToTab("opinions");
+    });
+  });
 
   // Entries tab events (DOM-only updates so iOS keyboard stays open & steady!)
   if (state.tab === "entries") {
