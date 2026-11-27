@@ -1761,7 +1761,6 @@ table.matrix td:first-child {
   margin-top: 6px;
   padding-left: 16px;
   list-style: none;
-  border-left: 2px solid var(--border);
   gap: 7px;
 }
 .opinion-body code {
@@ -1805,7 +1804,6 @@ table.matrix td:first-child {
   border-radius: 7px;
   background: var(--bg);
   border: 1px solid var(--border);
-  border-left: 3px solid var(--border-s);
   font-size: 11.5px;
   line-height: 1.48;
   white-space: pre-wrap;
@@ -1814,8 +1812,8 @@ table.matrix td:first-child {
   color: var(--muted);
 }
 .opinion-body pre.op-case-pre.is-err {
-  border-left-color: var(--danger);
-  background: color-mix(in srgb, var(--danger) 5%, var(--bg));
+  border-color: color-mix(in srgb, var(--danger) 28%, var(--border));
+  background: color-mix(in srgb, var(--danger) 4%, var(--bg));
   color: var(--text);
 }
 .opinion-body pre.op-case-pre .op-case-pre-lbl {
