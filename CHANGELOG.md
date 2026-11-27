@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.3.0-alpha.20 (2026-11-27)
+
+This release fixes two mobile layout and navigation bugs caught on live testing: full-width stacking of `.page-head` titles/subtitles on narrow viewports and preventing the mobile bottom-nav `More` button from navigating to `Brief` when opened.
+
+### Changes
+
+- **Full-Width Mobile Page Headers (`apps/web/src/ui/styles.css`, `stats-view.ts`, `app.ts`):**
+  - Replaced inline `flex: 1` on `.page-head` title blocks with responsive `flex: 1 1 280px` on desktop and `flex-direction: column; width: 100%` below `720px` so titles and subtitles span the full viewport width on mobile instead of squeezing beside action buttons.
+- **Mobile Bottom-Nav `More` Button Fix (`apps/web/src/ui/app.ts`):**
+  - Scoped the bottom-nav tab click handler to `.btab[data-tab]` so tapping `More` opens the **All Sections** sheet in place without triggering a spurious navigation to `Brief`.
+
 ## v0.3.0-alpha.19 (2026-11-27)
 
 This release fixes five UI/UX bugs across the Public App: adds full mobile navigation via a `More` sheet, adds search/filters/sorting/pagination to Opinions, links every entry in standalone/embed briefs to its public `/patch/<id>` page, distinguishes `Patch Author` from `Thread Starter` in discussions, and fixes baseline opinion counts on patch pages.

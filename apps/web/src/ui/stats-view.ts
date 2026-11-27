@@ -189,7 +189,7 @@ export function renderStatsObservatory(params: {
 
   return `
     <div class="page-head">
-      <div style="min-width:0;flex:1;">
+      <div class="page-head-main">
         <div class="viz-kicker">CommitFest Intelligence &amp; Verification Observatory</div>
         <h1 class="page-title">CommitFest Stats &amp; Live Build Telemetry</h1>
         <div class="page-sub">

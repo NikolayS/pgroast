@@ -2378,7 +2378,7 @@ function renderBriefTab(): string {
 
   return `
     <div class="page-head">
-      <div style="min-width:0;flex:1;">
+      <div class="page-head-main">
         <h1 class="page-title">${esc(brief.title)}</h1>
         <div class="page-sub">
           ${esc(brief.commitfest_label)} · ${esc(brief.created_at.slice(0, 10))}
@@ -4065,9 +4065,10 @@ function render(): void {
 }
 
 /* ---- Global Shell Listeners ---- */
-document.querySelectorAll<HTMLButtonElement>("#web-nav .nav-link, #web-bottom-nav .btab").forEach((btn) => {
+document.querySelectorAll<HTMLButtonElement>("#web-nav .nav-link[data-tab], #web-bottom-nav .btab[data-tab]").forEach((btn) => {
   btn.addEventListener("click", () => {
-    navigateToTab((btn.dataset.tab as TabId) || "brief");
+    const tab = btn.dataset.tab as TabId | undefined;
+    if (tab) navigateToTab(tab);
   });
 });
 

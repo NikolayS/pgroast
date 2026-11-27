@@ -613,6 +613,11 @@ input, select { height: 34px; }
   margin-bottom: 14px;
   flex-wrap: wrap;
 }
+.page-head > div:first-child,
+.page-head-main {
+  flex: 1 1 280px;
+  min-width: 0;
+}
 .page-title {
   margin: 0;
   font-size: 18px;
@@ -3680,6 +3685,16 @@ html, body {
   margin-top: 1px;
 }
 @media (max-width: 720px) {
+  .page-head {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+  .page-head > div:first-child,
+  .page-head-main {
+    flex: none;
+    width: 100%;
+  }
   .op-controls {
     flex-direction: column;
     align-items: stretch;
