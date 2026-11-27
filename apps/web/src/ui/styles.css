@@ -334,6 +334,11 @@
 html {
   overflow-x: clip;
   -webkit-text-size-adjust: 100%;
+  scroll-padding-top: calc(68px + env(safe-area-inset-top));
+}
+
+[id] {
+  scroll-margin-top: calc(68px + env(safe-area-inset-top));
 }
 
 body {
