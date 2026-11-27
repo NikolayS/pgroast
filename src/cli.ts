@@ -36,86 +36,92 @@ import { closePrecedents } from "./roast/precedents.ts";
 import { runRoast, slugFor } from "./roast/pipeline.ts";
 import { renderCompactMarkdown, renderMarkdown, renderSummary } from "./roast/render.ts";
 
-const USAGE = `Usage: bun run src/cli.ts <cf-id|cf-url|message-id|thread-url> [options]
-       bun run src/cli.ts --self --proposal FILE [--patch FILE ...]
-       bun run src/cli.ts page <roast.json> [--out FILE] [--site DIR [--base-url URL]]
-       bun run src/cli.ts pushback <cf-id|cf-url|thread-url> [--out DIR] [--backend NAME] [--dry-run] [--offline]
-       bun run src/cli.ts batch <commitfest-number> --out DIR [--status open|all|"Needs review"] [--limit K]
-                                      [--concurrency N] [--only id,id] [--blind N] [--backend NAME] [--dry-run]
-       bun run src/cli.ts shortlist <batch-dir> [--top 20] [--reject 50] [--pg-repo PATH] [--out DIR]
-       bun run src/cli.ts bugs [--days 14] [--limit 30] [--backend NAME] [--out DIR] [--offline] [--dry-run]
-       bun run src/cli.ts publish <roast.json|dir> [--hub URL] [--token TOK] [--dry-run]
-       bun run src/cli.ts login [--token TOK] [--hub URL] [--logout]
-       bun run src/cli.ts whoami      show saved pgroast publish token & hub
-       bun run src/cli.ts contribute [--init|--status|--dry-run|--once|--auto] [--backend NAME] [--publish]
-       bun run src/cli.ts doctor      check the installed CLIs and their login
-       bun run src/cli.ts init-db     create the precedent database and load the shipped index
+export function getCliVersion(): string {
+  try {
+    const pkg = JSON.parse(readFileSync(join(REPO_ROOT, "package.json"), "utf8")) as { version?: string };
+    return pkg.version || "0.0.0";
+  } catch {
+    return "0.0.0";
+  }
+}
 
-  --self           your own proposal, before you send it: same roast, written for the author
-                   ("objections to address before you send": fix it, or rebut it in the cover
-                   letter); the verdict stays in roast.json and moves down in roast.md
-  --proposal FILE  with --self: a draft email on disk instead of a thread
-  --patch FILE     with --proposal: a patch file (repeatable); only its commit message, file
-                   list and doc hunks are read
-  --rounds N       extra rounds after the first pass (default 0): 1 asks every roaster "What
-                   did you forget?"; 2 also asks "Are you happy with the results?"; 3 and more
-                   add supervisor follow-ups on areas nobody examined
+function makeStyle(useColor: boolean) {
+  const wrap = (code: string) => (s: string) => (useColor ? `\x1b[${code}m${s}\x1b[0m` : s);
+  return {
+    bold: wrap("1"),
+    dim: wrap("2"),
+    cyan: wrap("36"),
+    green: wrap("32"),
+    yellow: wrap("33"),
+    red: wrap("31"),
+  };
+}
 
-  --blind N        read only the first N messages of the thread (evaluation: judge the idea itself)
-  --before DATE    read only messages strictly before DATE (YYYY-MM-DD); also the precedent cutoff
-  --hint TEXT      directed precedent lookup, e.g. "the 2018 suggestion of doing X"
-  --out DIR        output directory (default: out/<slug>)
-  --backend NAME   claude, codex, agy, or dual (default: PGROAST_BACKEND, else claude > codex > agy)
-  --roast-level L  light, medium (default), or dark (alias: --level)
-  --flavour NAME   default (House Blend), edge-case-hunter, spec-lawyer, systems-architect,
-                   perf-hawk, storage-skeptic, index-specialist, or production-dba (alias: --flavor)
-  --no-enrich      do not read precedent threads and do not filter precedents for relevance
-  --dry-run        print the prompts, call no model
-  --offline        use only cached pages
-  -h, --help
+function colorVerdict(verdict: string, useColor: boolean): string {
+  const s = makeStyle(useColor);
+  if (verdict === "NO-FUNDAMENTAL-OBJECTION") return s.bold(s.green(verdict));
+  if (verdict === "NEEDS-COMMITTER-EYES") return s.bold(s.cyan(verdict));
+  if (verdict === "NEEDS-DESIGN-DISCUSSION") return s.bold(s.yellow(verdict));
+  if (verdict === "LIKELY-REJECT") return s.bold(s.red(verdict));
+  return s.bold(verdict);
+}
 
-pushback: for a long-stuck entry, "what is the real pushback?". Reads the whole thread (every
-thread of the CommitFest entry) in parts, one model call per part plus one to merge, and writes
-pushback.md and pushback.json: the blocking objections with verified quotes and message links,
-who raised them, whether they were resolved, when the thread last moved, and a bucket.
---dry-run prints the number of parts and calls and calls no model.
+export function renderUsage(useColor = Boolean(process.stdout.isTTY && !process.env.NO_COLOR)): string {
+  const s = makeStyle(useColor);
+  const ver = getCliVersion();
+  const cmd = (c: string) => s.cyan(c);
+  const h = (t: string) => s.bold(t);
+  const d = (t: string) => s.dim(t);
 
-batch: roasts every selected entry of one commitfest into DIR/cf/<id>/ and writes an index
-DIR/README.md. An entry that is already done is skipped, and the run stops at a usage limit, so
-the same command continues it later. It commits and pushes nothing.
-
-shortlist: ranks finished roast.json entries in <batch-dir> into Top N patches worth committer
-attention (shortlist.md) and Top M patches worth closing or rethinking (top-reject.md), with
-optional git log subsystem expert routing (--pg-repo PATH).
-
-bugs: fetches recent pgsql-bugs threads and prioritizes real production user hits over
-synthetic/AI bug-hunt reports, writing bugs-triage.md and bugs-triage.json.
-
-publish: runs the Public-Confidentiality Hard Gate on a finished roast.json and publishes
-a sanitized roast to the pgroast Public App (never posts to pgsql-hackers or CommitFest).
-
-contribute: spends leftover weekly OAuth subscription quota (claude, codex, agy) right before
-your weekly reset to pre-review uncovered CommitFest patches from the shared soft-lease queue.
-Use --init to create ~/.pgroast/contribute.json, --status for live coverage progress, --dry-run
-to preview, --once to roast 1 patch now, or --auto from hourly cron.
-
-page: renders a finished roast.json, with no model call, to one self-contained HTML file
-(default: roast.html next to the JSON; --out FILE), or with --site DIR to a static layout:
-DIR/cf/<cf-id>.html (embeddable card), DIR/cf/<cf-id>.json, DIR/cf/<cf-id>/full.html
-(DIR/msg/<message-id>.* for a thread without a CommitFest entry). The card links to
-{{PGROAST_BASE_URL}}/cf/<cf-id>/full.html unless --base-url is given. Local files only:
-nothing is uploaded or published.
-
-The model runs through an installed Claude Code, Codex, or Antigravity (agy) CLI on your
-subscription login. No API key is used: API key variables are removed from the CLI's environment.
-
-Environment: PGROAST_BACKEND; for claude: PGROAST_ROASTER_MODEL (default opus), PGROAST_CRITIC_MODEL
-(default opus; also used for synthesis); for agy: PGROAST_AGY_MODEL, PGROAST_AGY_CRITIC_MODEL;
-for dual: PGROAST_DUAL_CRITIC_BACKEND (agy or claude, default agy); for codex: PGROAST_CODEX_MODEL
-(default: the CLI's configured model); PGROAST_CONCURRENCY (3), PGROAST_LLM_TIMEOUT_MS (900000).
-
-Output: roast.md, roast.json, roast-summary.txt (a draft of at most 10 lines, to rewrite in your
-own words) and llm/ (every prompt and reply). Local files only.`;
+  return [
+    `${s.bold("pgroast")} ${d(`v${ver}`)} — adversarial idea & design pre-review for Postgres patches`,
+    "",
+    h("Usage:"),
+    `  ${cmd("pgroast")} <patch> [options]        Roast a CommitFest ID/URL, message-id, or thread URL`,
+    `  ${cmd("pgroast")} <command> [options]      Run a subcommand`,
+    "",
+    h("Quick Start:"),
+    `  ${cmd("pgroast doctor")}                                ${d("Check installed AI CLIs (claude, codex, agy)")}`,
+    `  ${cmd("pgroast 7388 --level light")}                    ${d("Fast idea & precedent roast (local only)")}`,
+    `  ${cmd("pgroast 7388 --level medium")}                   ${d("Idea scrutiny + code diff, build & tests")}`,
+    `  ${cmd("pgroast login --token pgroast_pub_...")}         ${d("Save publish token in ~/.pgroast/auth.json")}`,
+    `  ${cmd("pgroast publish ./out/cf-7388/roast.json")}      ${d("Publish a sanitized roast to pgroast.postgres.ai")}`,
+    "",
+    h("Commands:"),
+    `  ${cmd("doctor")}                Check installed AI CLIs, logins, and local Postgres`,
+    `  ${cmd("login")} / ${cmd("whoami")}        Save or inspect your publish-only token (~/.pgroast/auth.json)`,
+    `  ${cmd("publish")} <path>        Run confidentiality gate and publish a sanitized roast`,
+    `  ${cmd("contribute")} [flags]    Spend leftover weekly OAuth quota on open CommitFest patches`,
+    `  ${cmd("batch")} <cf-num>        Roast open entries of a CommitFest in parallel (resumable)`,
+    `  ${cmd("shortlist")} <dir>       Rank finished roasts into shortlist and top-reject lists`,
+    `  ${cmd("pushback")} <patch>      Extract blocking objections from a long-stuck thread`,
+    `  ${cmd("bugs")} [flags]          Triage recent pgsql-bugs (production hits vs synthetic hunts)`,
+    `  ${cmd("page")} <roast.json>     Render a standalone HTML report locally (zero LLM calls)`,
+    `  ${cmd("init-db")}               Create the local precedent database (2,547 historical rows)`,
+    "",
+    h("Options:"),
+    `  ${cmd("--level L")}             light, medium ${d("(default)")}, or dark ${d("(alias: --roast-level)")}`,
+    `  ${cmd("--flavour NAME")}        default ${d("(House Blend)")}, edge-case-hunter, spec-lawyer, systems-architect,`,
+    `                        perf-hawk, storage-skeptic, index-specialist, production-dba`,
+    `  ${cmd("--backend NAME")}        claude, codex, agy, or dual ${d("(default: PGROAST_BACKEND or auto)")}`,
+    `  ${cmd("--out DIR")}             Output directory ${d("(default: out/<slug>)")}`,
+    `  ${cmd("--self")}                Roast your own draft before posting ${d("(use with --proposal FILE)")}`,
+    `  ${cmd("--proposal FILE")}       Draft email file on disk ${d("(with --self)")}`,
+    `  ${cmd("--patch FILE")}          Patch file on disk ${d("(repeatable, with --proposal)")}`,
+    `  ${cmd("--rounds N")}            Extra review rounds 0..6 ${d("(default: 0)")}`,
+    `  ${cmd("--blind N")}             Read only the first N messages of the thread`,
+    `  ${cmd("--before DATE")}         Read only messages before YYYY-MM-DD ${d("(also precedent cutoff)")}`,
+    `  ${cmd("--hint TEXT")}           Directed precedent lookup hint`,
+    `  ${cmd("--no-enrich")}           Skip precedent thread reading and relevance filtering`,
+    `  ${cmd("--dry-run")}             Build prompts locally without calling any model`,
+    `  ${cmd("--offline")}             Use cached archive pages only`,
+    `  ${cmd("-V, --version")}         Show pgroast version`,
+    `  ${cmd("-h, --help")}            Show this help message`,
+    "",
+    d("Run 'pgroast <command> --help' for subcommand options."),
+    d("All files stay local unless you run 'pgroast publish' or 'pgroast contribute --publish'."),
+  ].join("\n");
+}
 
 export interface CliArgs {
   input: string;
@@ -139,8 +145,9 @@ export interface CliArgs {
   offline: boolean;
 }
 
-export function parseArgs(argv: string[]): CliArgs | "help" {
+export function parseArgs(argv: string[]): CliArgs | "help" | "version" {
   const a: CliArgs = { input: "", dryRun: false, offline: false };
+  if (argv[0] === "version") return "version";
   if (argv[0] === "page") return parsePageArgs(argv.slice(1));
   const rest = [...argv];
   if (rest[0] === "pushback") {
@@ -161,6 +168,10 @@ export function parseArgs(argv: string[]): CliArgs | "help" {
       case "-h":
       case "--help":
         return "help";
+      case "-v":
+      case "-V":
+      case "--version":
+        return "version";
       case "--blind": {
         const n = Number(value(flag, inline));
         if (!Number.isInteger(n) || n < 1) throw new Error("--blind needs a positive integer");
@@ -227,7 +238,7 @@ export function parseArgs(argv: string[]): CliArgs | "help" {
         a.offline = true;
         break;
       default:
-        if (flag.startsWith("--")) throw new Error(`unknown option ${flag}`);
+        if (flag.startsWith("-") && flag !== "-") throw new Error(`unknown option ${flag}`);
         if (a.input) throw new Error(`unexpected argument "${tok}"`);
         a.input = tok;
     }
@@ -361,26 +372,36 @@ function initDb(): number {
 }
 
 async function main(): Promise<number> {
-  if (process.argv[2] === "batch") return (await import("./batch.ts")).batchMain(process.argv.slice(3));
-  if (process.argv[2] === "shortlist") return (await import("./shortlist.ts")).shortlistMain(process.argv.slice(3));
-  if (process.argv[2] === "bugs") return (await import("./bugs.ts")).bugsMain(process.argv.slice(3));
-  if (process.argv[2] === "publish") return (await import("./publish.ts")).publishMain(process.argv.slice(3));
-  if (process.argv[2] === "login") return (await import("./publish.ts")).loginMain(process.argv.slice(3), "login");
-  if (process.argv[2] === "whoami") return (await import("./publish.ts")).loginMain(process.argv.slice(3), "whoami");
-  if (process.argv[2] === "contribute") return (await import("./contribute.ts")).contributeMain(process.argv.slice(3));
-  let args: CliArgs | "help";
+  const rawArgs = process.argv.slice(2);
+  if (rawArgs.length === 0) {
+    console.log(renderUsage());
+    return 0;
+  }
+  if (rawArgs[0] === "batch") return (await import("./batch.ts")).batchMain(rawArgs.slice(1));
+  if (rawArgs[0] === "shortlist") return (await import("./shortlist.ts")).shortlistMain(rawArgs.slice(1));
+  if (rawArgs[0] === "bugs") return (await import("./bugs.ts")).bugsMain(rawArgs.slice(1));
+  if (rawArgs[0] === "publish") return (await import("./publish.ts")).publishMain(rawArgs.slice(1));
+  if (rawArgs[0] === "login") return (await import("./publish.ts")).loginMain(rawArgs.slice(1), "login");
+  if (rawArgs[0] === "whoami") return (await import("./publish.ts")).loginMain(rawArgs.slice(1), "whoami");
+  if (rawArgs[0] === "contribute") return (await import("./contribute.ts")).contributeMain(rawArgs.slice(1));
+  let args: CliArgs | "help" | "version";
   try {
-    args = parseArgs(process.argv.slice(2));
+    args = parseArgs(rawArgs);
   } catch (e) {
-    console.error(`pgroast: ${(e as Error).message}\n\n${USAGE}`);
+    console.error(`pgroast: ${(e as Error).message}`);
+    console.error("Run 'pgroast --help' for usage.");
     return 2;
   }
+  if (args === "version") {
+    console.log(`pgroast ${getCliVersion()}`);
+    return 0;
+  }
   if (args === "help") {
-    console.log(USAGE);
+    console.log(renderUsage());
     return 0;
   }
   if (args.page) {
-    runPage(args.page, (m) => console.error(m));
+    runPage(args.page, (m) => console.log(m));
     return 0;
   }
   if (args.initDb) return initDb();
@@ -390,7 +411,10 @@ async function main(): Promise<number> {
     return d.ok ? 0 : 1;
   }
   const t0 = Date.now();
-  const log = (m: string) => console.error(m);
+  const useColor = Boolean(process.stdout.isTTY && !process.env.NO_COLOR);
+  const st = makeStyle(useColor);
+  const log = (m: string) => console.log(m);
+  const warn = (m: string) => console.error(m);
   const backendName: BackendName = args.dryRun ? (args.backend ?? "claude") : pickBackend(args.backend);
   const models = modelsFromEnv(process.env, backendName);
 
@@ -408,9 +432,9 @@ async function main(): Promise<number> {
     log("");
     if (args.dryRun) log(`dry run: no model was called; prompts are in ${transcriptDir}`);
     else {
-      log(`bucket: ${result.bucket}`);
-      log(`objections: ${result.objections.length} (${result.objections.filter((o) => o.blocking).length} blocking), from ${result.candidates.length} candidates`);
-      for (const w of result.warnings) log(`warning: ${w}`);
+      log(`${st.bold("bucket:")} ${result.bucket}`);
+      log(`${st.bold("objections:")} ${result.objections.length} (${result.objections.filter((o) => o.blocking).length} blocking), from ${result.candidates.length} candidates`);
+      for (const w of result.warnings) warn(`warning: ${w}`);
     }
     log(`model calls: ${result.stats.llm_calls}; parts: ${result.stats.chunks}; wall time: ${Math.round(result.stats.wall_ms / 1000)} s`);
     log(`wrote ${join(outDir, "pushback.md")}`);
@@ -460,11 +484,11 @@ async function main(): Promise<number> {
   writeFileSync(join(outDir, "roast-full.md"), renderMarkdown(roast));
   writeFileSync(join(outDir, "roast-summary.txt"), renderSummary(roast));
   log("");
-  log(`${args.dryRun ? "DRY RUN, placeholder verdict" : "verdict"}: ${roast.verdict} (confidence: ${roast.confidence})`);
-  log(`objections: ${roast.objections.length} listed, ${roast.other_surviving.length} more survived, ${roast.refuted.length} refuted; prior attempts: ${roast.prior_attempts.length}`);
+  log(`${st.bold(args.dryRun ? "DRY RUN, placeholder verdict:" : "verdict:")} ${colorVerdict(roast.verdict, useColor)} ${st.dim(`(confidence: ${roast.confidence})`)}`);
+  log(`${st.bold("objections:")} ${roast.objections.length} listed, ${roast.other_surviving.length} more survived, ${roast.refuted.length} refuted; prior attempts: ${roast.prior_attempts.length}`);
   for (const x of roast.rounds.slice(1)) log(`round ${x.round} (${x.kind}): ${x.llm_calls} calls, ${x.new_objections} new objection(s), ${x.new_survived} survived, ${x.revised} revised, ${x.withdrawn} withdrawn`);
   log(`LLM calls: ${roast.stats.llm_calls}; wall time: ${Math.round(roast.stats.wall_ms / 1000)} s`);
-  if (!args.dryRun) for (const w of roast.warnings) log(`warning: ${w}`);
+  if (!args.dryRun) for (const w of roast.warnings) warn(`warning: ${w}`);
   else log(`dry run: prompts are in ${transcriptDir}; roast.md and roast.json hold placeholders`);
   log(`wrote ${join(outDir, "roast.md")} (short report; roast-full.md has everything)`);
   log(`wrote ${join(outDir, "roast.json")}`);

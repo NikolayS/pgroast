@@ -602,7 +602,8 @@ export async function contributeMain(argv: string[]): Promise<number> {
         .map((x) => x.trim())
         .filter(Boolean);
     } else {
-      console.error(`pgroast contribute: unknown argument "${tok}"\n\n${CONTRIBUTE_USAGE}`);
+      console.error(`pgroast contribute: unknown argument "${tok}"`);
+      console.error("Run 'pgroast contribute --help' for usage.");
       return 2;
     }
   }

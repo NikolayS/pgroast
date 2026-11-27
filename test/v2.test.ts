@@ -612,12 +612,12 @@ describe("v2 pipeline: novelty, critic duplicate + upgrade, clean lead prose", (
 
   test("roast level (light/medium/dark) and reviewer archetype flags parse, inject prompts, and appear in reports", async () => {
     const cliParsed = parseArgs(["--roast-level", "dark", "--flavour", "edge-case-hunter", "5879"]);
-    expect(cliParsed !== "help" && cliParsed.roastLevel).toBe("dark");
-    expect(cliParsed !== "help" && cliParsed.roastFlavour).toBe("edge-case-hunter");
+    expect(typeof cliParsed === "object" && cliParsed.roastLevel).toBe("dark");
+    expect(typeof cliParsed === "object" && cliParsed.roastFlavour).toBe("edge-case-hunter");
 
     const aliasParsed = parseArgs(["--level", "light", "--flavor", "spec", "5879"]);
-    expect(aliasParsed !== "help" && aliasParsed.roastLevel).toBe("light");
-    expect(aliasParsed !== "help" && aliasParsed.roastFlavour).toBe("spec-lawyer");
+    expect(typeof aliasParsed === "object" && aliasParsed.roastLevel).toBe("light");
+    expect(typeof aliasParsed === "object" && aliasParsed.roastFlavour).toBe("spec-lawyer");
 
     const batchParsed = parseBatchArgs(["62", "--out", "/tmp/out", "--roast-level", "dark", "--flavour", "systems-architect"]);
     expect(batchParsed.roastLevel).toBe("dark");
@@ -1275,5 +1275,53 @@ describe("v2 CLI publish & weekly quota auto-contribute", () => {
     expect(payload.summary).toContain("Missing page lock release on early return");
     expect(payload.models.spec).toBe("openai/gpt-6.2-astra:xhigh");
     expect(payload.models.evidence).toContain("live PG SQL: 1/1 ok");
+  });
+
+  test("CLI polish: -V/--version, clean stdout help, and concise 2-line stderr on bad flags", async () => {
+    const { spawnSync } = await import("node:child_process");
+    const { getCliVersion } = await import("../src/cli.ts");
+    const ver = getCliVersion();
+
+    expect(parseArgs(["-V"])).toBe("version");
+    expect(parseArgs(["-v"])).toBe("version");
+    expect(parseArgs(["--version"])).toBe("version");
+    expect(parseArgs(["version"])).toBe("version");
+    expect(() => parseArgs(["-Z"])).toThrow(/unknown option/);
+
+    const repoRoot = join(import.meta.dir, "..");
+    const vNode = spawnSync("node", [join(repoRoot, "bin", "pgroast.mjs"), "--version"], { encoding: "utf8" });
+    expect(vNode.status).toBe(0);
+    expect(vNode.stdout.trim()).toBe(`pgroast ${ver}`);
+    expect(vNode.stderr).toBe("");
+
+    const vShort = spawnSync("node", [join(repoRoot, "bin", "pgroast.mjs"), "-V"], { encoding: "utf8" });
+    expect(vShort.status).toBe(0);
+    expect(vShort.stdout.trim()).toBe(`pgroast ${ver}`);
+    expect(vShort.stderr).toBe("");
+
+    const helpRes = spawnSync(process.execPath, ["run", join(repoRoot, "src", "cli.ts"), "--help"], {
+      encoding: "utf8",
+      env: { ...process.env, NO_COLOR: "1" },
+    });
+    expect(helpRes.status).toBe(0);
+    expect(helpRes.stderr).toBe("");
+    expect(helpRes.stdout).toContain(`pgroast v${ver}`);
+    expect(helpRes.stdout).toContain("-V, --version");
+    expect(helpRes.stdout).not.toContain("bun run src/cli.ts");
+
+    const noArgs = spawnSync(process.execPath, ["run", join(repoRoot, "src", "cli.ts")], {
+      encoding: "utf8",
+      env: { ...process.env, NO_COLOR: "1" },
+    });
+    expect(noArgs.status).toBe(0);
+    expect(noArgs.stderr).toBe("");
+    expect(noArgs.stdout).toContain("Quick Start:");
+
+    const badFlag = spawnSync(process.execPath, ["run", join(repoRoot, "src", "cli.ts"), "--bogus"], { encoding: "utf8" });
+    expect(badFlag.status).toBe(2);
+    expect(badFlag.stdout).toBe("");
+    expect(badFlag.stderr.trim().split("\n").length).toBe(2);
+    expect(badFlag.stderr).toContain("unknown option --bogus");
+    expect(badFlag.stderr).toContain("Run 'pgroast --help' for usage.");
   });
 });

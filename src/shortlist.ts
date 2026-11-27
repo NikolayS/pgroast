@@ -483,7 +483,7 @@ export function renderRejectMarkdown(res: ShortlistResult): string {
 }
 
 export function runShortlist(opts: ShortlistOptions): { result: ShortlistResult; outDir: string; files: string[] } {
-  const log = opts.log ?? ((m: string) => console.error(m));
+  const log = opts.log ?? ((m: string) => console.log(m));
   const batchDir = resolve(opts.batchDir);
   if (!existsSync(batchDir)) throw new Error(`batch directory not found: ${batchDir}`);
   const discovered = discoverRoastFiles(batchDir);

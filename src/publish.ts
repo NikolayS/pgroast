@@ -369,8 +369,9 @@ export async function publishMain(argv: string[]): Promise<number> {
       cfIdOverride = Number(rest.shift() || 0);
     } else if (tok === "--dry-run") {
       dryRun = true;
-    } else if (tok.startsWith("--")) {
-      console.error(`pgroast publish: unknown option ${tok}\n\n${PUBLISH_USAGE}`);
+    } else if (tok.startsWith("-")) {
+      console.error(`pgroast publish: unknown option ${tok}`);
+      console.error("Run 'pgroast publish --help' for usage.");
       return 2;
     } else if (!target) {
       target = tok;
@@ -381,7 +382,8 @@ export async function publishMain(argv: string[]): Promise<number> {
   }
 
   if (!target) {
-    console.error(`pgroast publish: missing path to roast.json or output directory\n\n${PUBLISH_USAGE}`);
+    console.error("pgroast publish: missing path to roast.json or output directory");
+    console.error("Run 'pgroast publish --help' for usage.");
     return 2;
   }
 
@@ -462,7 +464,8 @@ export async function loginMain(argv: string[], mode: "login" | "whoami" = "logi
     } else if (!token && tok.startsWith("pgroast_pub_")) {
       token = tok;
     } else {
-      console.error(`pgroast login: unknown option ${tok}\n\n${LOGIN_USAGE}`);
+      console.error(`pgroast login: unknown option ${tok}`);
+      console.error("Run 'pgroast login --help' for usage.");
       return 2;
     }
   }

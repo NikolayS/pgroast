@@ -142,7 +142,7 @@ export function renderIndex(outDir: string, selected: BatchEntry[] = []): string
 }
 
 export async function runBatch(o: BatchOptions): Promise<{ done: number; skipped: number; failed: number; stopped: string | null; selected: number }> {
-  const log = o.log ?? ((m: string) => console.error(m));
+  const log = o.log ?? ((m: string) => console.log(m));
   const outDir = resolve(o.outDir);
   const backendName: BackendName = o.dryRun || o.roastOne ? (o.backend ?? "claude") : pickBackend(o.backend);
   const models = modelsFromEnv(process.env, backendName);
@@ -272,15 +272,35 @@ export function parseBatchArgs(argv: string[]): BatchOptions {
   return o as BatchOptions;
 }
 
+const BATCH_USAGE = `Usage: pgroast batch <commitfest-number> --out DIR [options]
+
+  --out DIR          Output directory (required)
+  --status S         open (default), all, or an exact CommitFest status (e.g. "Needs review")
+  --limit K          Roast at most K entries
+  --concurrency N    Parallel workers (default: 3)
+  --only id,id       Roast only specific CommitFest patch IDs
+  --backend NAME     claude, codex, agy, or dual
+  --level L          light, medium (default), or dark
+  --flavour NAME     Reviewer archetype slug (default: default)
+  --blind N          Read only the first N messages of each thread
+  --dry-run          Build prompts without calling any model
+  --offline          Use cached pages only
+  -h, --help         Show this help message`;
+
 /** Entry point for `pgroast batch ...` and for `bun run src/batch.ts ...`. Returns the exit code. */
 export async function batchMain(argv: string[]): Promise<number> {
+  if (argv.length === 0 || argv.includes("-h") || argv.includes("--help")) {
+    console.log(BATCH_USAGE);
+    return 0;
+  }
   try {
     const o = parseBatchArgs(argv);
     const r = await runBatch(o);
-    console.error(`batch: ${r.done} done, ${r.skipped} already done, ${r.failed} failed, ${r.selected - r.done - r.skipped - r.failed} left${r.stopped ? `; stopped: ${r.stopped}` : ""}`);
+    console.log(`batch: ${r.done} done, ${r.skipped} already done, ${r.failed} failed, ${r.selected - r.done - r.skipped - r.failed} left${r.stopped ? `; stopped: ${r.stopped}` : ""}`);
     return r.stopped ? 3 : 0;
   } catch (e) {
     console.error(`pgroast batch: ${(e as Error).message}`);
+    console.error("Run 'pgroast batch --help' for usage.");
     return 2;
   }
 }

@@ -1,5 +1,20 @@
 # Changelog
 
+## v0.3.0-alpha.33 (2026-11-27)
+
+This release adds `-V` / `-v` / `--version` / `version` flags and polishes CLI help, errors, and stdout/stderr output so normal runs and help screens no longer dump walls of red stderr text.
+
+### Changes
+
+- **Version Flags (`bin/pgroast.mjs`, `src/cli.ts`):**
+  - Added `-V`, `-v`, `--version`, and `version` (prints `pgroast <version>` to `stdout` and exits `0`, handled instantly in `bin/pgroast.mjs` as well as `src/cli.ts`).
+  - Unknown single-dash flags (like `-Z`) now return a clean `unknown option` error instead of being treated as a thread ID.
+- **Clean stdout vs. stderr & Concise Errors (`src/cli.ts`, `src/batch.ts`, `src/shortlist.ts`, `src/bugs.ts`, `src/publish.ts`, `src/contribute.ts`):**
+  - Moved normal CLI progress, verdicts, file paths, and `pgroast` (no-args) help output from `stderr` to `stdout` so terminals that color stderr red only highlight real errors and warnings.
+  - Replaced 80-line error dumps on typos with a 2-line error (`pgroast: unknown option ...` + `Run 'pgroast --help' for usage.`).
+  - Rewrote `--help` to use `pgroast` (not `bun run src/cli.ts`), grouped into Quick Start, Commands, and Options with subtle TTY-only ANSI styling (respects `NO_COLOR`).
+  - Added `--help` support for `pgroast batch`.
+
 ## v0.3.0-alpha.32 (2026-11-27)
 
 This release renames user-facing "opinion" / "Opinions" labels to **roast** / **Roasts** across the Public App, Personal Backoffice, CLI help/output, and `README.md` so the product uses one consistent term everywhere. Existing API paths (`/api/v1/opinions`, `/api/v1/publish/opinion`) and JSON keys stay unchanged for backwards compatibility, and `/roasts` now works as the canonical route alongside `/?tab=opinions`.

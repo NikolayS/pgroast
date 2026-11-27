@@ -407,7 +407,7 @@ export interface BugsTriageOptions {
 }
 
 export async function runBugsTriage(opts: BugsTriageOptions = {}): Promise<{ report: BugsTriageReport; outDir: string }> {
-  const log = opts.log ?? ((m: string) => console.error(m));
+  const log = opts.log ?? ((m: string) => console.log(m));
   const now = opts.now ?? new Date();
   const days = opts.days ?? 14;
   const limit = opts.limit ?? 30;
