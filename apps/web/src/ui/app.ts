@@ -1253,19 +1253,58 @@ function renderEvidenceStrip(badges: string[]): string {
     .join("")}</div>`;
 }
 
+function cleanVerifySnippet(raw: string): string {
+  let s = (raw || "").trim();
+  // Strip local temp directory prefixes from psql error paths (e.g. /var/folders/.../pgroast-darkpg-xxx/case-2.sql -> case-2.sql)
+  s = s.replace(/(?:\/private)?\/var\/folders\/[^\s:"]+\/pgroast-darkpg-[^\s/":]+\//g, "");
+  s = s.replace(/\/tmp\/pgroast-darkpg-[^\s/":]+\//g, "");
+  // Collapse ugly flattened psql horizontal divider bars (--------+--------)
+  s = s.replace(/\s*-{6,}(?:\+-{6,})*\s*/g, " | ");
+  s = s.replace(/\s*\|\s*(?=\|\s*|$)/g, "").replace(/^\|\s*/, "").trim();
+  return s;
+}
+
 function formatInlineMd(escaped: string): string {
   let out = escaped;
   // Safe links [label](https://...)
   out = out.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, (_m, label: string, url: string) => {
     return `<a href="${url}" target="_blank" rel="noopener">${label}</a>`;
   });
-  // Inline code
-  out = out.replace(/`([^`\n]+)`/g, `<code class="mono">$1</code>`);
+  // Inline code (with semantic pills for verification status tokens)
+  out = out.replace(/`([^`\n]+)`/g, (_m, code: string) => {
+    const low = code.trim().toLowerCase();
+    if (low === "[pass]" || low === "pass" || low === "clean" || low === "applied") {
+      return `<span class="op-st op-st-ok mono">${code.replace(/^\[|\]$/g, "")}</span>`;
+    }
+    if (low === "[error]" || low === "[fail]" || low === "[crash]" || low === "error" || low === "fail" || low === "crash") {
+      return `<span class="op-st op-st-err mono">${code.replace(/^\[|\]$/g, "")}</span>`;
+    }
+    if (low === "[timeout]" || low === "timeout" || low === "issue_found" || low === "[issue_found]" || low === "skipped") {
+      return `<span class="op-st op-st-warn mono">${code.replace(/^\[|\]$/g, "")}</span>`;
+    }
+    if (code.length > 78) {
+      return `<pre class="op-code op-code-inline mono"><code>${cleanVerifySnippet(code)}</code></pre>`;
+    }
+    return `<code class="mono">${code}</code>`;
+  });
   // Bold
   out = out.replace(/\*\*([^*\n]+)\*\*/g, `<strong>$1</strong>`);
   // Italic
   out = out.replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, `$1<em>$2</em>`);
   return out;
+}
+
+function formatListItemHtml(item: string): string {
+  // Split trailing "— Output: `...`" or "— Error: `...`" onto its own clean code block
+  const m = item.match(/^(.+?)\s+[—-]\s+(Output|Error):\s+`([^`\n]+)`\s*$/);
+  if (m) {
+    const head = m[1]!;
+    const kind = m[2]!;
+    const snippet = cleanVerifySnippet(m[3]!);
+    const isErr = kind === "Error";
+    return `${formatInlineMd(esc(head))}<pre class="op-case-pre ${isErr ? "is-err" : ""} mono"><span class="op-case-pre-lbl">${kind}</span><code>${esc(snippet)}</code></pre>`;
+  }
+  return formatInlineMd(esc(item));
 }
 
 function renderOpinionMarkdown(raw: string): string {
@@ -1276,7 +1315,7 @@ function renderOpinionMarkdown(raw: string): string {
   let inCode = false;
   let codeLines: string[] = [];
   let listType: "ul" | "ol" | null = null;
-  let listItems: string[] = [];
+  let listItems: Array<{ text: string; nested: boolean }> = [];
   let paraLines: string[] = [];
 
   const flushPara = () => {
@@ -1286,7 +1325,20 @@ function renderOpinionMarkdown(raw: string): string {
   };
   const flushList = () => {
     if (!listType || listItems.length === 0) return;
-    blocks.push(`<${listType}>${listItems.map((it) => `<li>${formatInlineMd(esc(it))}</li>`).join("")}</${listType}>`);
+    const htmlParts: string[] = [];
+    let i = 0;
+    while (i < listItems.length) {
+      const cur = listItems[i]!;
+      const nestedKids: string[] = [];
+      i++;
+      while (i < listItems.length && listItems[i]!.nested && !cur.nested) {
+        nestedKids.push(`<li>${formatListItemHtml(listItems[i]!.text)}</li>`);
+        i++;
+      }
+      const subHtml = nestedKids.length > 0 ? `<ul class="op-sublist">${nestedKids.join("")}</ul>` : "";
+      htmlParts.push(`<li${cur.nested ? ' class="op-sub-orphan"' : ""}>${formatListItemHtml(cur.text)}${subHtml}</li>`);
+    }
+    blocks.push(`<${listType}>${htmlParts.join("")}</${listType}>`);
     listType = null;
     listItems = [];
   };
@@ -1322,20 +1374,20 @@ function renderOpinionMarkdown(raw: string): string {
       blocks.push(`<${tag} class="op-h">${formatInlineMd(esc(hMatch[2]!))}</${tag}>`);
       continue;
     }
-    const ulMatch = line.match(/^\s*[-*]\s+(.+)$/);
+    const ulMatch = line.match(/^(\s*)[-*]\s+(.+)$/);
     if (ulMatch) {
       flushPara();
       if (listType && listType !== "ul") flushList();
       listType = "ul";
-      listItems.push(ulMatch[1]!);
+      listItems.push({ text: ulMatch[2]!, nested: (ulMatch[1] || "").length >= 2 });
       continue;
     }
-    const olMatch = line.match(/^\s*\d+\.\s+(.+)$/);
+    const olMatch = line.match(/^(\s*)\d+\.\s+(.+)$/);
     if (olMatch) {
       flushPara();
       if (listType && listType !== "ol") flushList();
       listType = "ol";
-      listItems.push(olMatch[1]!);
+      listItems.push({ text: olMatch[2]!, nested: (olMatch[1] || "").length >= 2 });
       continue;
     }
     flushList();

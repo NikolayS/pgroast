@@ -1755,7 +1755,14 @@ table.matrix td:first-child {
   padding-left: 19px;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 5px;
+}
+.opinion-body ul.op-sublist {
+  margin-top: 6px;
+  padding-left: 16px;
+  list-style: none;
+  border-left: 2px solid var(--border);
+  gap: 7px;
 }
 .opinion-body code {
   font-size: 12px;
@@ -1763,6 +1770,79 @@ table.matrix td:first-child {
   border-radius: 4px;
   background: var(--bg);
   border: 1px solid var(--border);
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+.opinion-body .op-st {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  border-radius: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.4;
+  vertical-align: baseline;
+  border: 1px solid transparent;
+}
+.opinion-body .op-st-ok {
+  background: color-mix(in srgb, var(--ok) 14%, transparent);
+  color: var(--ok);
+  border-color: color-mix(in srgb, var(--ok) 30%, transparent);
+}
+.opinion-body .op-st-err {
+  background: color-mix(in srgb, var(--danger) 14%, transparent);
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 30%, transparent);
+}
+.opinion-body .op-st-warn {
+  background: color-mix(in srgb, var(--warn) 16%, transparent);
+  color: var(--warn);
+  border-color: color-mix(in srgb, var(--warn) 32%, transparent);
+}
+.opinion-body pre.op-case-pre {
+  margin: 5px 0 2px;
+  padding: 7px 10px;
+  border-radius: 7px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--border-s);
+  font-size: 11.5px;
+  line-height: 1.48;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  color: var(--muted);
+}
+.opinion-body pre.op-case-pre.is-err {
+  border-left-color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 5%, var(--bg));
+  color: var(--text);
+}
+.opinion-body pre.op-case-pre .op-case-pre-lbl {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--dim);
+  margin-right: 7px;
+}
+.opinion-body pre.op-case-pre.is-err .op-case-pre-lbl {
+  color: var(--danger);
+}
+.opinion-body pre.op-case-pre code {
+  padding: 0;
+  border: none;
+  background: transparent;
+  font-size: inherit;
+  color: inherit;
+}
+.opinion-body pre.op-code-inline {
+  margin: 4px 0 2px;
+  padding: 7px 10px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 11.5px;
 }
 .opinion-body pre.op-code {
   margin: 0;

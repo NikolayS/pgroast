@@ -184,12 +184,20 @@ export function buildRichOpinionMarkdown(roast: Roast): string {
       vLines.push(`- **meson test (${v.testSuites.join(", ")}):** \`${v.testsStatus}\` (${v.testsPassed}/${v.testsRun} passed${v.testsFailed ? `, ${v.testsFailed} failed` : ""})`);
     }
     if (v.liveReproCases.length > 0) {
-      vLines.push(`- **Live patched PostgreSQL SQL stress tests (\`${v.liveReproStatus}\`):**`);
+      const cleanSqlSnippet = (raw: string, maxLen: number): string =>
+        raw
+          .replace(/(?:\/private)?\/var\/folders\/[^\s:"]+\/pgroast-darkpg-[^\s/":]+\//g, "")
+          .replace(/\/tmp\/pgroast-darkpg-[^\s/":]+\//g, "")
+          .replace(/\s*-{6,}(?:\+-{6,})*\s*/g, " | ")
+          .replace(/\s+/g, " ")
+          .trim()
+          .slice(0, maxLen);
+      vLines.push(`- **Live patched Postgres SQL stress tests (\`${v.liveReproStatus}\`):**`);
       for (const c of v.liveReproCases) {
         const detail = c.errorExcerpt
-          ? ` — Error: \`${c.errorExcerpt.replace(/\s+/g, " ").slice(0, 220)}\``
+          ? ` — Error: \`${cleanSqlSnippet(c.errorExcerpt, 220)}\``
           : c.outputExcerpt
-            ? ` — Output: \`${c.outputExcerpt.replace(/\s+/g, " ").slice(0, 180)}\``
+            ? ` — Output: \`${cleanSqlSnippet(c.outputExcerpt, 180)}\``
             : "";
         vLines.push(`  - \`[${c.status}]\` **${c.name}** (${c.category}, ${c.durationMs}ms)${detail}`);
       }
