@@ -35,7 +35,11 @@ import {
   type MailingListMessageItem,
   type MailingListsOverviewData,
 } from "./lists-view.ts";
-import { renderStatsObservatory, type StatsRadarTab } from "./stats-view.ts";
+import {
+  renderStatsObservatory,
+  type StatsDarkFilter,
+  type StatsQueueFilter,
+} from "./stats-view.ts";
 import { initVizInteractions } from "./viz-engine.ts";
 
 type TabId = "brief" | "hackers" | "lists" | "stats" | "entries" | "opinions" | "coordination" | "connect" | "contribute" | "docs";
@@ -347,8 +351,8 @@ const state = {
   statsOverview: null as StatsOverviewData | null,
   statsLoading: false,
   statsError: "",
-  statsRadarTab: "darkCleanRfc" as StatsRadarTab,
-  statsContribTab: "authors" as "authors" | "roasters" | "roles",
+  statsQueueFilter: "all" as StatsQueueFilter,
+  statsDarkFilter: "all" as StatsDarkFilter,
   health: null as HealthInfo | null,
   views: null as PageViewsInfo | null,
   briefs: [] as BriefSummary[],
@@ -2138,9 +2142,8 @@ function renderStatsTab(): string {
     data: state.statsOverview,
     loading: state.statsLoading,
     error: state.statsError,
-    radarTab: state.statsRadarTab,
-    contributorTab: state.statsContribTab,
-    renderDonut: renderSvgDonut,
+    queueFilter: state.statsQueueFilter,
+    darkFilter: state.statsDarkFilter,
   });
 }
 
@@ -3129,11 +3132,21 @@ function renderConnectTab(): string {
 
 /* ---- Event Binding ---- */
 function bindPatchRowClicks(container: HTMLElement | Document): void {
-  container.querySelectorAll<HTMLElement>("[data-open-patch]").forEach((el) => {
-    el.addEventListener("click", () => {
-      const cfId = Number(el.dataset.openPatch);
+  container.querySelectorAll<Element>("[data-open-patch]").forEach((el) => {
+    const go = () => {
+      const cfId = Number(el.getAttribute("data-open-patch"));
       if (cfId > 0) void openPatchPage(cfId, true);
-    });
+    };
+    el.addEventListener("click", go);
+    if (el.tagName.toLowerCase() !== "button" && el.tagName.toLowerCase() !== "a") {
+      el.addEventListener("keydown", (ev) => {
+        const ke = ev as KeyboardEvent;
+        if (ke.key === "Enter" || ke.key === " ") {
+          ke.preventDefault();
+          go();
+        }
+      });
+    }
   });
 }
 
@@ -3796,25 +3809,16 @@ function render(): void {
     bindPatchRowClicks(root);
     bindHackerClicks(root);
     document.getElementById("stats-refresh-btn")?.addEventListener("click", () => void loadStatsOverview(true));
-    document.getElementById("stats-jump-dark-pipeline")?.addEventListener("click", () => {
-      document.getElementById("stats-verification-pipeline")?.scrollIntoView({ behavior: "smooth", block: "start" });
-    });
-    document.getElementById("stats-goto-opinions")?.addEventListener("click", () => navigateToTab("opinions"));
-    document.querySelectorAll<HTMLButtonElement>("[data-stats-radar]").forEach((btn) => {
+    document.querySelectorAll<HTMLButtonElement>("[data-stats-qfilter]").forEach((btn) => {
       btn.addEventListener("click", () => {
-        state.statsRadarTab = (btn.dataset.statsRadar as StatsRadarTab) || "darkCleanRfc";
+        state.statsQueueFilter = (btn.dataset.statsQfilter as StatsQueueFilter) || "all";
         render();
       });
     });
-    document.querySelectorAll<HTMLButtonElement>("[data-stats-contrib-tab]").forEach((btn) => {
+    document.querySelectorAll<HTMLButtonElement>("[data-stats-dfilter]").forEach((btn) => {
       btn.addEventListener("click", () => {
-        state.statsContribTab = (btn.dataset.statsContribTab as typeof state.statsContribTab) || "authors";
+        state.statsDarkFilter = (btn.dataset.statsDfilter as StatsDarkFilter) || "all";
         render();
-      });
-    });
-    document.querySelectorAll<HTMLElement>("[data-stats-status]").forEach((el) => {
-      el.addEventListener("click", () => {
-        jumpToEntries({ status: el.dataset.statsStatus || "all", verdict: "all", search: "" });
       });
     });
     document.querySelectorAll<Element>("[data-stats-topic]").forEach((el) => {
@@ -3832,11 +3836,6 @@ function render(): void {
           }
         });
       }
-    });
-    document.querySelectorAll<HTMLElement>("[data-stats-person]").forEach((el) => {
-      el.addEventListener("click", () => {
-        void openHackerByName(el.dataset.statsPerson || "");
-      });
     });
   }
 

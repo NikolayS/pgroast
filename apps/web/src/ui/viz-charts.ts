@@ -1424,3 +1424,377 @@ export function renderTrafficTimelineSvg(
     </svg>
   `;
 }
+
+/* ============================================================================
+ * 15. STATS HERO: The Queue (736-Square Unit Chart — 1 clickable square per patch)
+ * ============================================================================ */
+function verdictColorVar(v: string): string {
+  if (v === "NO-FUNDAMENTAL-OBJECTION") return "var(--viz-2)";
+  if (v === "NEEDS-COMMITTER-EYES") return "var(--viz-1)";
+  if (v === "NEEDS-DESIGN-DISCUSSION") return "var(--viz-3)";
+  if (v === "LIKELY-REJECT") return "var(--viz-5)";
+  return "transparent";
+}
+
+function verdictHumanShort(v: string): string {
+  if (v === "NO-FUNDAMENTAL-OBJECTION") return "No objection";
+  if (v === "NEEDS-COMMITTER-EYES") return "Committer eyes";
+  if (v === "NEEDS-DESIGN-DISCUSSION") return "Design disc.";
+  if (v === "LIKELY-REJECT") return "Likely reject";
+  return "Unroasted";
+}
+
+export function renderQueueUnitChartSvg(
+  units: Array<{
+    cf_id: number;
+    title: string;
+    author: string;
+    subsystem: string;
+    status: string;
+    col: "needs_review" | "waiting" | "rfc" | "closed";
+    verdict: string;
+    isDark: boolean;
+    hasCommunityOpinion: boolean;
+    score: number;
+    evidenceShort: string;
+  }>,
+  highlight: "all" | "dark" | "warnings" | "clean" = "all",
+): string {
+  if (!units || units.length === 0) return `<div class="empty-state">No CommitFest entries indexed.</div>`;
+
+  const allGroups: Array<{
+    key: "needs_review" | "waiting" | "rfc" | "closed";
+    label: string;
+    items: typeof units;
+  }> = [
+    { key: "needs_review", label: "Needs review", items: units.filter((u) => u.col === "needs_review") },
+    { key: "waiting", label: "Waiting on Author", items: units.filter((u) => u.col === "waiting") },
+    { key: "rfc", label: "Ready for Committer", items: units.filter((u) => u.col === "rfc") },
+    { key: "closed", label: "Closed", items: units.filter((u) => u.col === "closed") },
+  ];
+  const groups = allGroups.filter((g) => g.items.length > 0);
+
+  const cell = 11;
+  const gap = 3;
+  const step = cell + gap;
+  const colGap = 24;
+  const padX = 12;
+  const padT = 38;
+  const padB = 12;
+  const targetRows = 19;
+
+  // Compute grid columns per status group proportional to count AND guarantee
+  // every column box is at least wide enough for its title + count subtitle.
+  const colsSpec = groups.map((g) => {
+    const darkInGroup = g.items.filter((u) => u.isDark).length;
+    const subLabel = `n=${g.items.length}${darkInGroup > 0 ? ` · ${darkInGroup} Dark` : ""}`;
+    const minColsForHeader = g.key === "waiting" ? 6 : g.key === "rfc" ? 8 : 5;
+    const nCols = Math.max(minColsForHeader, Math.ceil(g.items.length / targetRows));
+    const nRows = Math.ceil(g.items.length / nCols);
+    const gridW = nCols * step - gap;
+    const headerMinW = Math.ceil(Math.max(g.label.length * 7.3, subLabel.length * 6.4)) + 6;
+    const boxW = Math.max(gridW, headerMinW);
+    return { ...g, darkInGroup, subLabel, nCols, nRows, gridW, boxW };
+  });
+
+  const maxRows = Math.max(1, ...colsSpec.map((c) => c.nRows));
+  const totalW = padX * 2 + colsSpec.reduce((a, c) => a + c.boxW, 0) + Math.max(0, colsSpec.length - 1) * colGap;
+  const totalH = padT + maxRows * step + padB;
+
+  const isHighlighted = (u: (typeof units)[number]): boolean => {
+    if (highlight === "all") return true;
+    if (highlight === "dark") return u.isDark;
+    if (highlight === "warnings") {
+      return u.col === "rfc" && (u.verdict === "LIKELY-REJECT" || u.verdict === "NEEDS-DESIGN-DISCUSSION" || u.evidenceShort.includes("✗"));
+    }
+    if (highlight === "clean") {
+      return u.col === "needs_review" && u.verdict === "NO-FUNDAMENTAL-OBJECTION";
+    }
+    return true;
+  };
+
+  let curX = padX;
+  const parts: string[] = [];
+
+  for (let gi = 0; gi < colsSpec.length; gi++) {
+    const g = colsSpec[gi]!;
+    if (gi > 0) {
+      const divX = curX - colGap / 2;
+      parts.push(`<line x1="${divX.toFixed(1)}" y1="8" x2="${divX.toFixed(1)}" y2="${totalH - 8}" stroke="var(--border)" stroke-dasharray="2 3" />`);
+    }
+    parts.push(
+      `<text x="${curX}" y="15" fill="var(--text)" font-size="11.5" font-weight="650">${esc(g.label)}</text>`,
+      `<text x="${curX}" y="29" fill="var(--dim)" font-size="10" class="mono">${esc(g.subLabel)}</text>`,
+    );
+
+    g.items.forEach((u, idx) => {
+      const r = Math.floor(idx / g.nCols);
+      const c = idx % g.nCols;
+      const x = curX + c * step;
+      const y = padT + r * step;
+      const unroasted = !u.verdict || u.verdict === "UNROASTED";
+      const fill = unroasted ? "transparent" : verdictColorVar(u.verdict);
+      const active = isHighlighted(u);
+      const opacity = active ? (unroasted ? "0.7" : "0.9") : "0.13";
+      const stroke = u.isDark ? "var(--text)" : unroasted ? "var(--border-s)" : "none";
+      const sw = u.isDark ? "1.6" : unroasted ? "1.1" : "0";
+      const subLine = [
+        u.status,
+        verdictHumanShort(u.verdict),
+        u.isDark ? `Dark (${u.evidenceShort || "verified"})` : u.hasCommunityOpinion ? "Light opinion" : "",
+      ]
+        .filter(Boolean)
+        .join(" · ");
+      const tipSub = `${u.author} · ${u.subsystem} · Click to open patch`;
+
+      parts.push(
+        `<g class="viz-hoverable" tabindex="0" data-open-patch="${u.cf_id}" opacity="${opacity}" data-tip-title="CF ${u.cf_id}: ${esc(u.title)}" data-tip-body="${esc(subLine)}" data-tip-sub="${esc(tipSub)}">` +
+          `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${cell}" height="${cell}" rx="2.2" fill="${fill}" stroke="${stroke}" stroke-width="${sw}" />` +
+          `${u.isDark ? `<circle cx="${(x + cell / 2).toFixed(1)}" cy="${(y + cell / 2).toFixed(1)}" r="1.7" fill="var(--bg)" pointer-events="none" />` : ""}` +
+          `</g>`,
+      );
+    });
+
+    curX += g.boxW + colGap;
+  }
+
+  return `
+    <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
+      <svg viewBox="0 0 ${totalW} ${totalH}" class="obs-chart-svg" style="min-width:680px;" role="img" aria-label="All ${units.length} CommitFest patches as clickable squares grouped by status and colored by AI verdict">
+        ${parts.join("")}
+      </svg>
+    </div>
+    <div class="obs-chart-legend">
+      <span><span class="dot" style="background:var(--viz-2)"></span>No objection</span>
+      <span><span class="dot" style="background:var(--viz-1)"></span>Committer eyes</span>
+      <span><span class="dot" style="background:var(--viz-3)"></span>Design disc.</span>
+      <span><span class="dot" style="background:var(--viz-5)"></span>Likely reject</span>
+      <span><span class="dot" style="background:transparent;border:1.5px solid var(--border-s);"></span>Unroasted</span>
+      <span><span class="dot" style="background:var(--viz-1);border:1.6px solid var(--text);"></span>Dark-verified (build + live PG SQL)</span>
+    </div>
+  `;
+}
+
+/* ============================================================================
+ * 16. STATS: Review Load vs. Committer Capacity (Butterfly / Paired Chart)
+ * ============================================================================ */
+export function renderLoadVsCapacitySvg(
+  rows: Array<{
+    subsystem: string;
+    openTotal: number;
+    rfc: number;
+    needsReview: number;
+    waiting: number;
+    darkCount: number;
+    committers12m: number;
+    commits12m: number;
+    openPerCommitter: number | null;
+  }>,
+): string {
+  const valid = rows.filter((r) => r.openTotal > 0).slice(0, 14);
+  if (valid.length === 0) return `<div class="empty-state">No subsystem load data available.</div>`;
+
+  const w = 780;
+  const rowH = 26;
+  const gap = 5;
+  const padT = 26;
+  const padB = 10;
+  const centerW = 248;
+  const sidePad = 38;
+  const leftEnd = (w - centerW) / 2; // x where left bars end (grow leftward)
+  const rightStart = leftEnd + centerW; // x where right bars start (grow rightward)
+  const sideMaxW = leftEnd - sidePad;
+
+  const maxOpen = Math.max(10, ...valid.map((r) => r.openTotal));
+  const maxComm = Math.max(5, ...valid.map((r) => r.committers12m));
+  const h = padT + valid.length * (rowH + gap) + padB;
+
+  const header = `
+    <text x="${leftEnd - 4}" y="14" text-anchor="end" fill="var(--dim)" font-size="10" font-weight="600">← OPEN PATCHES (RFC · Review · Wait)</text>
+    <text x="${w / 2}" y="14" text-anchor="middle" fill="var(--dim)" font-size="10" font-weight="600">SUBSYSTEM · LOAD/COMMITTER</text>
+    <text x="${rightStart + 4}" y="14" text-anchor="start" fill="var(--dim)" font-size="10" font-weight="600">ACTIVE COMMITTERS (12m) →</text>
+    <line x1="${leftEnd}" y1="20" x2="${leftEnd}" y2="${h - 6}" stroke="var(--border)" />
+    <line x1="${rightStart}" y1="20" x2="${rightStart}" y2="${h - 6}" stroke="var(--border)" />
+  `;
+
+  const body = valid
+    .map((r, i) => {
+      const y = padT + i * (rowH + gap);
+      const barY = y + 5;
+      const barH = 14;
+
+      // Left stacked segments growing right-to-left from leftEnd
+      const wRfc = (r.rfc / maxOpen) * sideMaxW;
+      const wRev = (r.needsReview / maxOpen) * sideMaxW;
+      const wWait = (r.waiting / maxOpen) * sideMaxW;
+      const xRfc = leftEnd - wRfc;
+      const xRev = xRfc - wRev;
+      const xWait = xRev - wWait;
+      const totalLeftW = wRfc + wRev + wWait;
+
+      // Right bar growing left-to-right from rightStart
+      const wComm = (r.committers12m / maxComm) * sideMaxW;
+
+      const ratioTxt = r.openPerCommitter != null ? `${r.openPerCommitter.toFixed(1)}×` : "—";
+      const ratioCol = (r.openPerCommitter ?? 0) >= 4.0 ? "var(--viz-5)" : (r.openPerCommitter ?? 0) >= 2.5 ? "var(--viz-3)" : "var(--viz-2)";
+      const tipBody = `${r.openTotal} open (${r.rfc} RFC, ${r.needsReview} Needs review, ${r.waiting} Waiting) ÷ ${r.committers12m} active committers = ${ratioTxt}`;
+      const tipSub = `${fmtNum(r.commits12m)} commits in last 12m · ${r.darkCount} Dark-verified · Click to filter Entries`;
+
+      return `
+        <g class="viz-hoverable" tabindex="0" data-stats-topic="${esc(r.subsystem)}" data-tip-title="${esc(r.subsystem)}" data-tip-body="${esc(tipBody)}" data-tip-sub="${esc(tipSub)}">
+          <rect x="0" y="${y}" width="${w}" height="${rowH}" fill="transparent" />
+          ${wWait > 0 ? `<rect x="${xWait.toFixed(1)}" y="${barY}" width="${Math.max(1.5, wWait).toFixed(1)}" height="${barH}" rx="2" fill="var(--border-s)" />` : ""}
+          ${wRev > 0 ? `<rect x="${xRev.toFixed(1)}" y="${barY}" width="${Math.max(1.5, wRev).toFixed(1)}" height="${barH}" rx="2" fill="var(--viz-3)" fill-opacity="0.85" />` : ""}
+          ${wRfc > 0 ? `<rect x="${xRfc.toFixed(1)}" y="${barY}" width="${Math.max(1.5, wRfc).toFixed(1)}" height="${barH}" rx="2" fill="var(--viz-1)" fill-opacity="0.92" />` : ""}
+          <text x="${(leftEnd - totalLeftW - 5).toFixed(1)}" y="${barY + 10.5}" text-anchor="end" fill="var(--text)" font-size="10.5" font-weight="600" class="mono">${r.openTotal}</text>
+
+          <text x="${leftEnd + 8}" y="${barY + 10.5}" text-anchor="start" fill="var(--text)" font-size="10.5" font-weight="600">${esc(r.subsystem.length > 28 ? `${r.subsystem.slice(0, 27)}…` : r.subsystem)}</text>
+          <text x="${rightStart - 8}" y="${barY + 10.5}" text-anchor="end" fill="${ratioCol}" font-size="10.5" font-weight="700" class="mono">${ratioTxt}</text>
+
+          ${wComm > 0 ? `<rect x="${rightStart}" y="${barY}" width="${Math.max(2, wComm).toFixed(1)}" height="${barH}" rx="2" fill="var(--viz-2)" fill-opacity="0.72" />` : ""}
+          <text x="${(rightStart + wComm + 5).toFixed(1)}" y="${barY + 10.5}" text-anchor="start" fill="var(--viz-axis)" font-size="10.5" class="mono">${r.committers12m}</text>
+        </g>
+      `;
+    })
+    .join("");
+
+  return `
+    <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
+      <svg viewBox="0 0 ${w} ${h}" class="obs-chart-svg" style="min-width:660px;" role="img" aria-label="Open CommitFest patches versus 12-month active committers per PostgreSQL subsystem">
+        ${header}
+        ${body}
+      </svg>
+    </div>
+    <div class="obs-chart-legend">
+      <span><span class="dot" style="background:var(--viz-1)"></span>Ready for Committer</span>
+      <span><span class="dot" style="background:var(--viz-3)"></span>Needs review</span>
+      <span><span class="dot" style="background:var(--border-s)"></span>Waiting on Author</span>
+      <span><span class="dot" style="background:var(--viz-2)"></span>Active committers (last 12m, pg_commits)</span>
+    </div>
+  `;
+}
+
+/* ============================================================================
+ * 17. STATS: Author Track Record Beeswarm (Prior Credited Commits vs Status)
+ * ============================================================================ */
+export function renderAuthorBeeswarmSvg(
+  dots: Array<{
+    cf_id: number;
+    title: string;
+    author: string;
+    authorSlug: string | null;
+    priorCommits: number;
+    matched: boolean;
+    statusRow: "rfc" | "needs_review" | "waiting";
+    verdict: string;
+    isDark: boolean;
+    subsystem: string;
+  }>,
+): string {
+  if (!dots || dots.length === 0) return `<div class="empty-state">No open patches to plot.</div>`;
+
+  const w = 700;
+  const padL = 132;
+  const padR = 20;
+  const padT = 18;
+  const padB = 34;
+  const plotW = w - padL - padR;
+
+  const lanes: Array<{ key: "rfc" | "needs_review" | "waiting"; label: string; height: number }> = [
+    { key: "rfc", label: "Ready for Committer", height: 56 },
+    { key: "needs_review", label: "Needs review", height: 96 },
+    { key: "waiting", label: "Waiting on Author", height: 42 },
+  ];
+
+  // Log10(priorCommits + 1) scale from 0 to max (~5000)
+  const maxLog = Math.max(3.2, ...dots.map((d) => Math.log10(d.priorCommits + 1)));
+  const zeroZoneW = 54; // dedicated left band for 0 prior commits (first-timers)
+  const expStartX = padL + zeroZoneW + 14;
+  const expW = w - padR - expStartX;
+
+  const xOf = (commits: number, cfId: number): number => {
+    if (commits <= 0) {
+      // Deterministic horizontal spread inside the 0-commit zone
+      const jitter = ((cfId * 2654435761) >>> 0) % 1000 / 1000;
+      return padL + 6 + jitter * (zeroZoneW - 12);
+    }
+    const frac = Math.log10(commits + 1) / maxLog;
+    return expStartX + Math.min(1, Math.max(0, frac)) * expW;
+  };
+
+  let curY = padT;
+  const laneTops = new Map<string, { top: number; height: number; midY: number }>();
+  for (const ln of lanes) {
+    laneTops.set(ln.key, { top: curY, height: ln.height, midY: curY + ln.height / 2 });
+    curY += ln.height + 8;
+  }
+  const totalH = curY + padB - 8;
+
+  // Ticks on log axis
+  const ticks = [1, 3, 10, 30, 100, 300, 1000];
+  const gridLines = [
+    `<rect x="${padL}" y="${padT - 4}" width="${zeroZoneW}" height="${curY - padT - 4}" rx="4" fill="var(--hover)" />`,
+    `<text x="${padL + zeroZoneW / 2}" y="${totalH - 12}" text-anchor="middle" fill="var(--text)" font-size="9.5" font-weight="600" class="mono">0 (First-time)</text>`,
+    `<line x1="${padL + zeroZoneW + 7}" y1="${padT - 4}" x2="${padL + zeroZoneW + 7}" y2="${curY - 8}" stroke="var(--border-s)" stroke-dasharray="3 3" />`,
+    ...ticks
+      .filter((t) => Math.log10(t + 1) <= maxLog * 1.02)
+      .map((t) => {
+        const tx = expStartX + (Math.log10(t + 1) / maxLog) * expW;
+        return `<line x1="${tx.toFixed(1)}" y1="${padT - 4}" x2="${tx.toFixed(1)}" y2="${curY - 8}" stroke="var(--viz-grid)" stroke-dasharray="2 3" />
+                <text x="${tx.toFixed(1)}" y="${totalH - 12}" text-anchor="middle" fill="var(--viz-axis)" font-size="9.5" class="mono">${t}</text>`;
+      }),
+    `<text x="${(expStartX + expW / 2).toFixed(1)}" y="${totalH - 1}" text-anchor="middle" fill="var(--dim)" font-size="9">Author prior credited PostgreSQL commits (log scale)</text>`,
+  ].join("");
+
+  // Lane labels + baselines
+  const laneChrome = lanes
+    .map((ln) => {
+      const m = laneTops.get(ln.key)!;
+      const cnt = dots.filter((d) => d.statusRow === ln.key).length;
+      return `
+        <line x1="${padL}" y1="${m.midY.toFixed(1)}" x2="${w - padR}" y2="${m.midY.toFixed(1)}" stroke="var(--border)" stroke-opacity="0.55" />
+        <text x="${padL - 10}" y="${(m.midY - 2).toFixed(1)}" text-anchor="end" fill="var(--text)" font-size="11" font-weight="600">${esc(ln.label)}</text>
+        <text x="${padL - 10}" y="${(m.midY + 11).toFixed(1)}" text-anchor="end" fill="var(--dim)" font-size="9.5" class="mono">n=${cnt}</text>
+      `;
+    })
+    .join("");
+
+  // Deterministic beeswarm vertical packing per (lane, 6px x-bucket)
+  const bucketCounts = new Map<string, number>();
+  const dotEls = dots
+    .map((d) => {
+      const m = laneTops.get(d.statusRow)!;
+      const cx = xOf(d.priorCommits, d.cf_id);
+      const bKey = `${d.statusRow}:${Math.round(cx / 6)}`;
+      const idx = bucketCounts.get(bKey) || 0;
+      bucketCounts.set(bKey, idx + 1);
+      // Alternating above/below midline within lane bounds
+      const ring = Math.ceil(idx / 2);
+      const sign = idx % 2 === 0 ? 1 : -1;
+      const maxSpread = m.height / 2 - 5;
+      const rawDy = idx === 0 ? 0 : sign * ring * 5.2;
+      const dy = Math.max(-maxSpread, Math.min(maxSpread, rawDy));
+      const cy = m.midY + dy;
+
+      const unroasted = !d.verdict || d.verdict === "UNROASTED";
+      const fill = unroasted ? "var(--bg)" : verdictColorVar(d.verdict);
+      const stroke = d.isDark ? "var(--text)" : unroasted ? "var(--border-s)" : "var(--surface)";
+      const r = d.isDark ? 4.3 : 3.4;
+      const sw = d.isDark ? 1.5 : 0.8;
+      const priorLabel = d.matched ? `${fmtNum(d.priorCommits)} prior PG commits` : "0 prior commits (unmatched in git)";
+      return `
+        <circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${r}" fill="${fill}" fill-opacity="${unroasted ? "0.9" : "0.85"}" stroke="${stroke}" stroke-width="${sw}" class="viz-hoverable" tabindex="0" data-open-patch="${d.cf_id}" data-tip-title="CF ${d.cf_id}: ${esc(d.title)}" data-tip-body="${esc(d.author)} (${priorLabel}) · ${esc(verdictHumanShort(d.verdict))}${d.isDark ? " · Dark" : ""}" data-tip-sub="${esc(d.subsystem)} · Click to open patch" />
+      `;
+    })
+    .join("");
+
+  return `
+    <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
+      <svg viewBox="0 0 ${w} ${totalH}" class="obs-chart-svg" style="min-width:640px;" role="img" aria-label="Open CommitFest patches plotted by author prior PostgreSQL commits and status">
+        ${gridLines}
+        ${laneChrome}
+        ${dotEls}
+      </svg>
+    </div>
+  `;
+}

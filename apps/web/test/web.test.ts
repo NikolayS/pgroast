@@ -949,11 +949,25 @@ describe("pgroast-web public companion API & security gates", () => {
     expect(listsHtml).toContain("PostgreSQL Mailing Lists Archive (Continuous Sync) — pgroast");
   });
 
-  test("CommitFest Stats Observatory API (/api/v1/stats/overview) computes live verification funnel & unified authors", async () => {
+  test("CommitFest Stats Observatory API (/api/v1/stats/overview) computes live verification funnel, queue units & unified authors", async () => {
     const res = await req("/api/v1/stats/overview");
     expect(res.status).toBe(200);
     const data = (await res.json()) as {
-      totals: { total: number; totalOpinions: number };
+      totals: {
+        total: number;
+        open: number;
+        closed: number;
+        roastedOpen: number;
+        totalOpinions: number;
+        closedBreakdown: { committed: number; moved: number; withdrawn: number; rejected: number; returned: number };
+      };
+      queueUnits: Array<{ cf_id: number; col: string; verdict: string }>;
+      statusVsEvidence: { committerWarnings: unknown[]; cleanPickups: unknown[] };
+      darkMatrix: Array<{ cf_id: number; breakRank: number }>;
+      loadVsCapacity: Array<{ subsystem: string; openTotal: number; committers12m: number }>;
+      authorBeeswarm: { dots: unknown[]; matchedCount: number; firstTimerCount: number };
+      productionHits: unknown[];
+      calibration: { rows: unknown[]; totalClosedWithVerdict: number; totalClosedWithoutVerdict: number };
       statusMatrix: unknown[];
       subsystems: unknown[];
       kindComparison: unknown[];
@@ -962,6 +976,15 @@ describe("pgroast-web public companion API & security gates", () => {
       traffic: { total: number; timeline: unknown[] };
     };
     expect(data.totals.total).toBeGreaterThanOrEqual(1);
+    expect(data.totals.open + data.totals.closed).toBe(data.totals.total);
+    expect(data.queueUnits.length).toBe(data.totals.total);
+    expect(Array.isArray(data.statusVsEvidence.committerWarnings)).toBe(true);
+    expect(Array.isArray(data.statusVsEvidence.cleanPickups)).toBe(true);
+    expect(Array.isArray(data.darkMatrix)).toBe(true);
+    expect(Array.isArray(data.loadVsCapacity)).toBe(true);
+    expect(data.authorBeeswarm.dots.length).toBe(data.totals.open);
+    expect(Array.isArray(data.productionHits)).toBe(true);
+    expect(Array.isArray(data.calibration.rows)).toBe(true);
     expect(Array.isArray(data.statusMatrix)).toBe(true);
     expect(Array.isArray(data.subsystems)).toBe(true);
     expect(data.kindComparison.length).toBe(3);

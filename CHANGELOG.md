@@ -1,5 +1,21 @@
 # Changelog
 
+## v0.3.0-alpha.22 (2026-11-27)
+
+This release redesigns the Public App **Stats** page from the ground up into six non-repetitive, decision-focused CommitFest visualizations with reconciled counts, zero misleading small-n percentages, and every mark linking straight to its patch.
+
+### Changes
+
+- **The Queue — 736-Square Clickable Hero Unit Chart (`apps/web/src/ui/viz-charts.ts`, `stats-view.ts`):**
+  - Renders all 736 CommitFest patches as individual clickable squares grouped into four status columns (`Needs review`, `Waiting on Author`, `Ready for Committer`, `Closed`), sorted by priority score, using one unified verdict color scale with heavy-bordered dots for Dark-verified patches and instant highlight filters (`All`, `Dark-verified`, `RFC warnings`, `Clean pickups`).
+- **Status vs. Evidence Triage Tables & Dark Evidence Matrix (`apps/web/src/stats-queries.ts`, `stats-view.ts`):**
+  - Replaced duplicate status/verdict donuts and 12-card radar walls with two side-by-side ranked lists (**Committer Warnings** on Ready-for-Committer patches vs. **Cheapest Clean Pickups** in Needs review) plus a compact **Dark Evidence Matrix** (1 row per unique Dark-verified patch sorted by where it breaks: `Apply` → `Compile` → `Tests` → `Live PG SQL` → `Verdict`).
+- **Review Load vs. Committer Capacity & Author Track Record Beeswarm (`apps/web/src/stats-queries.ts`, `viz-charts.ts`):**
+  - Mapped both CommitFest open patches and the last 12 months of `pg_commits` to the same 14 canonical PostgreSQL subsystems to surface structural review bottlenecks (`open patches ÷ active 12m committers`).
+  - Added a log-scale **Author Track Record Beeswarm** plotting all 585 open patches by the author's prior credited PostgreSQL commits (`0 [First-time]` through `1000+`) across status swimlanes so clean first-time patches stand out immediately.
+- **Exact Small-n Tables & Honest Calibration (`apps/web/src/ui/stats-view.ts`):**
+  - Replaced the misleading `"Seen in Production — 100%"` stacked bar with a direct 10-row **Production-Hit Patches** table, added a counts-only **Outcome Calibration** table (`AI Verdict × Final CommitFest Outcome`, no percentages below `n=30`), and removed redundant 1-model, 1-person, and empty-referrer charts.
+
 ## v0.3.0-alpha.21 (2026-11-27)
 
 This release adds a configurable **System (Auto Day / Night)** theme mode across both the Public App and Personal Backoffice, defaulting new sessions to **Warm Paper** during the day and **Espresso** at night.
