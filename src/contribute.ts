@@ -523,7 +523,7 @@ Modes:
 Options:
   --backend NAME     claude, codex, or agy (default: all enabled backends in config)
   --model NAME       Override model for the run (e.g. gpt-6.2-astra, opus)
-  --effort LEVEL     Reasoning effort for codex (low, medium, high, xhigh)
+  --effort LEVEL     Reasoning effort for claude/codex (low, medium, high, xhigh, max)
   --strategy S       unroasted-first | cross-model-second-opinion | ready-for-committer
   --level L          light | medium | dark
   --flavour NAME     auto-by-subsystem (default) or any reviewer archetype
@@ -723,6 +723,9 @@ export async function contributeMain(argv: string[]): Promise<number> {
   }
   if (effortOverride) {
     process.env.PGROAST_CODEX_EFFORT = effortOverride;
+    process.env.PGROAST_CLAUDE_EFFORT = effortOverride;
+  } else if (!process.env.PGROAST_CLAUDE_EFFORT) {
+    process.env.PGROAST_CLAUDE_EFFORT = "high";
   }
 
   // Run dry-run, once, or auto. Bind saved auth.json tokens strictly to their saved hub origin.

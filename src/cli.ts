@@ -105,7 +105,7 @@ export function renderUsage(useColor = Boolean(process.stdout.isTTY && !process.
     `                        perf-hawk, storage-skeptic, index-specialist, production-dba`,
     `  ${cmd("--backend NAME")}        claude, codex, agy, or dual ${d("(default: PGROAST_BACKEND or auto)")}`,
     `  ${cmd("--model NAME")}          Override model ${d("(e.g. opus, gpt-6.2-astra, gemini-4-neon-high)")}`,
-    `  ${cmd("--effort LEVEL")}        Reasoning effort for codex ${d("(low, medium, high, xhigh)")}`,
+    `  ${cmd("--effort LEVEL")}        Reasoning effort for claude/codex ${d("(low, medium, high, xhigh, max)")}`,
     `  ${cmd("--pg-repo PATH")}        Local postgres.git path for Medium/Dark apply, build & tests`,
     `  ${cmd("--skip-verify")}         Skip local git apply / meson build / live SQL harness`,
     `  ${cmd("--publish")}             Publish sanitized roast to the Public App after finishing`,
@@ -464,6 +464,9 @@ async function main(): Promise<number> {
   }
   if (args.effort) {
     modelEnv.PGROAST_CODEX_EFFORT = args.effort;
+    modelEnv.PGROAST_CLAUDE_EFFORT = args.effort;
+  } else if ((backendName === "claude" || backendName === "dual") && !modelEnv.PGROAST_CLAUDE_EFFORT) {
+    modelEnv.PGROAST_CLAUDE_EFFORT = "high";
   }
   const models = modelsFromEnv(modelEnv, backendName);
 

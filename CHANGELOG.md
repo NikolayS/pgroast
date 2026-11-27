@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.5.2 (2026-11-27)
+
+Records the exact resolved Claude model version (for example `anthropic/claude-opus-5-5:high` instead of bare `anthropic/claude-opus`) and wires `--effort` to Claude Code runs (defaulting to `high`).
+
+### Changes
+
+- **Resolved Model Version & Claude Effort (`src/roast/llm.ts`, `src/roast/pipeline.ts`, `src/cli.ts`, `src/contribute.ts`):**
+  - `CliBackend` and `DualBackend` now track the actual model ID reported by each CLI stream (such as `claude-opus-5-5` from Claude Code's `system/init` event) and write it into `roast.models` alongside the `:effort` suffix.
+  - Wired `--effort` and `PGROAST_CLAUDE_EFFORT` to `claude -p --effort <level>` (defaulting to `high` when unset on Claude runs).
+
 ## v0.5.1 (2026-11-27)
 
 Adds a zero-DB local JSON enrichment cache (`~/.pgroast/cache/enrichment.json`) so `npx pgroast` runs without local Postgres no longer print `warning: the enrichment table could not be opened` and reuse enriched precedent summaries across runs.

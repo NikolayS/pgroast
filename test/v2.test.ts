@@ -1518,4 +1518,47 @@ describe("v2 CLI publish & weekly quota auto-contribute", () => {
     expect(hit?.objection).toBe("Rejected due to WAL overhead");
     expect(hit?.objectors).toEqual(["Tom Lane"]);
   });
+
+  test("Claude backend passes --effort and records exact resolved model version + effort", async () => {
+    const { claudeArgs, formatResolvedModelSpec } = await import("../src/roast/llm.ts");
+    const { formatCanonicalModelSpec } = await import("../src/publish.ts");
+
+    const argv = claudeArgs("opus:high", "SYS", "");
+    expect(argv.slice(0, 5)).toEqual(["-p", "--model", "opus", "--effort", "high"]);
+
+    const envModels = modelsFromEnv({ PGROAST_CLAUDE_EFFORT: "xhigh" }, "claude");
+    expect(envModels).toEqual({
+      roaster: "opus:xhigh",
+      critic: "opus:xhigh",
+      synth: "opus:xhigh",
+      brief: "opus:xhigh",
+    });
+
+    expect(formatResolvedModelSpec("opus:high", "claude-opus-5-5[1m]")).toBe("claude-opus-5-5:high");
+
+    const tmpDir = mkdtempSync(join(tmpdir(), "pgroast-resolved-model-"));
+    const backend = new CliBackend({
+      backend: "claude",
+      transcriptDir: tmpDir,
+      log: () => undefined,
+      runner: async () => ({
+        text: JSON.stringify({ verdicts: [] }),
+        costUsd: 0.01,
+        model: "claude-opus-5-5",
+        durationMs: 10,
+        usage: null,
+      }),
+    });
+    await backend.complete({
+      label: "critic",
+      model: "opus:high",
+      system: "SYS",
+      prompt: "P",
+      schema: { type: "object", properties: { verdicts: { type: "array", items: { type: "string" } } } },
+    });
+    expect(backend.resolvedModels().critic).toBe("claude-opus-5-5:high");
+    expect(formatCanonicalModelSpec("claude", { critic: backend.resolvedModels().critic! })).toBe(
+      "anthropic/claude-opus-5-5:high",
+    );
+  });
 });

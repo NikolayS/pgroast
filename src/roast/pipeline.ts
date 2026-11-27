@@ -1070,5 +1070,14 @@ export async function runRoast(proposal: ProposalInput, opts: RunOptions): Promi
 
   const st = backend.stats();
   roast.stats = { llm_calls: st.calls, wall_ms: Date.now() - t0, cost_usd: st.costUsd, dry_run: backend.dryRun };
+  const resolved = backend.resolvedModels?.();
+  if (resolved) {
+    roast.models = {
+      roaster: resolved.roaster || roast.models.roaster,
+      critic: resolved.critic || roast.models.critic,
+      synth: resolved.synth || roast.models.synth,
+      brief: resolved.brief || roast.models.brief,
+    };
+  }
   return roast;
 }

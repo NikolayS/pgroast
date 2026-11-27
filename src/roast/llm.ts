@@ -27,6 +27,8 @@ export interface LlmBackend {
   readonly dryRun: boolean;
   complete<T>(args: CompleteArgs): Promise<T>;
   stats(): { calls: number; costUsd: number | null };
+  /** Exact resolved model IDs (+ :effort) observed from CLI output per stage, when available. */
+  resolvedModels?(): Partial<Models>;
 }
 
 export type SingleBackendName = "claude" | "codex" | "agy";
@@ -118,8 +120,14 @@ export function modelsFromEnv(env: Env = process.env, backend: BackendName = "cl
       brief: criticOn === "agy" ? claude.brief : agyRoaster,
     };
   }
-  const roaster = assertAllowedModel(env.PGROAST_ROASTER_MODEL || DEFAULT_ROASTER_MODEL);
-  const critic = assertAllowedModel(env.PGROAST_CRITIC_MODEL || DEFAULT_CRITIC_MODEL);
+  const rawClaudeEffort = env.PGROAST_CLAUDE_EFFORT?.trim().toLowerCase() || "";
+  const fmtClaude = (raw: string): string => {
+    const parsed = splitModelAndEffort(raw, rawClaudeEffort);
+    assertAllowedModel(parsed.model);
+    return parsed.effort ? `${parsed.model}:${parsed.effort}` : parsed.model;
+  };
+  const roaster = fmtClaude(env.PGROAST_ROASTER_MODEL || DEFAULT_ROASTER_MODEL);
+  const critic = fmtClaude(env.PGROAST_CRITIC_MODEL || DEFAULT_CRITIC_MODEL);
   return { roaster, critic, synth: critic, brief: roaster };
 }
 
@@ -333,11 +341,13 @@ export function claudeLoginHint(env: Env = process.env): string {
  *   --disable-slash-commands
  * The init event of the stream is then checked: if it lists any tool or MCP server, the call fails.
  */
-export function claudeArgs(model: string, system: string): string[] {
+export function claudeArgs(model: string, system: string, effortOverride?: string): string[] {
+  const { model: baseModel, effort } = splitModelAndEffort(model, effortOverride ?? process.env.PGROAST_CLAUDE_EFFORT ?? "");
   return [
     "-p",
     "--model",
-    model,
+    baseModel,
+    ...(effort ? ["--effort", effort] : []),
     "--system-prompt",
     system,
     "--tools",
@@ -620,12 +630,30 @@ export function runCli(
   });
 }
 
+export function stageForLabel(label: string): keyof Models | null {
+  if (label === "brief") return "brief";
+  if (label === "critic" || label.startsWith("critic-") || label.endsWith("-supervisor")) return "critic";
+  if (label === "synth" || label === "tone-repair" || label === "reduce") return "synth";
+  if (label.startsWith("roaster-") || label.includes("-roaster-") || label.startsWith("map-")) return "roaster";
+  return null;
+}
+
+export function formatResolvedModelSpec(requestedModel: string, observedModel: string): string {
+  const obsClean = observedModel.trim().replace(/\[\d+[km]\]$/i, "");
+  if (!obsClean || obsClean === CODEX_DEFAULT) return requestedModel;
+  const req = splitModelAndEffort(requestedModel);
+  const obs = splitModelAndEffort(obsClean);
+  const effort = obs.effort || req.effort;
+  return effort ? `${obs.model}:${effort}` : obs.model;
+}
+
 export class CliBackend implements LlmBackend {
   readonly dryRun = false;
   readonly driver: CliDriver;
   private calls = 0;
   private cost = 0;
   private costKnown = true;
+  private readonly observedModels: Partial<Models> = {};
   private readonly sem: Semaphore;
   private readonly transcript: Transcript;
   private readonly cwd: string;
@@ -641,6 +669,10 @@ export class CliBackend implements LlmBackend {
 
   stats() {
     return { calls: this.calls, costUsd: this.costKnown ? this.cost : null };
+  }
+
+  resolvedModels(): Partial<Models> {
+    return { ...this.observedModels };
   }
 
   private async runOnce(args: CompleteArgs, prompt: string): Promise<RawReply> {
@@ -680,6 +712,10 @@ export class CliBackend implements LlmBackend {
         }
         if (reply.costUsd == null) this.costKnown = false;
         else this.cost += reply.costUsd;
+        const stage = stageForLabel(args.label);
+        if (stage && reply.model) {
+          this.observedModels[stage] = formatResolvedModelSpec(args.model, reply.model);
+        }
         this.transcript.write(base, ".response.txt", reply.text);
         const parsed = parseAndValidate<T>(reply.text, args.schema);
         this.transcript.write(
@@ -798,6 +834,19 @@ export class DualBackend implements LlmBackend {
     return {
       calls: a.calls + b.calls,
       costUsd: a.costUsd != null && b.costUsd != null ? a.costUsd + b.costUsd : null,
+    };
+  }
+
+  resolvedModels(): Partial<Models> {
+    const c = this.claude.resolvedModels();
+    const g = this.agy.resolvedModels();
+    const roaster =
+      c.roaster && g.roaster ? `${c.roaster}+${g.roaster}` : c.roaster || g.roaster;
+    return {
+      ...(roaster ? { roaster } : {}),
+      ...(this.criticOn === "agy"
+        ? { critic: g.critic, synth: c.synth, brief: c.brief }
+        : { critic: c.critic, synth: g.synth, brief: g.brief }),
     };
   }
 
