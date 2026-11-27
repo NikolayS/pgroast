@@ -104,10 +104,30 @@ function renderCoverageGaugeSvg(cov: CommunityCoverageData): string {
   const segUn = Math.max(0, total - seg2 - seg1 - segBase);
 
   const items = [
-    { label: "2+ models (consensus)", count: seg2, color: "var(--viz-2, #10b981)" },
-    { label: "1 community roast", count: seg1, color: "var(--viz-1, #5e6ad2)" },
-    { label: "Baseline brief roast", count: segBase, color: "var(--viz-4, #38bdf8)" },
-    { label: "Unroasted open", count: segUn, color: "var(--viz-muted, rgba(128,128,128,0.28))" },
+    {
+      label: "2+ models (consensus)",
+      count: seg2,
+      color: "var(--viz-2, #10b981)",
+      tip: "Open patches with 2 or more independent published community roasts so reviewers can compare models and spot consensus.",
+    },
+    {
+      label: "1 community roast",
+      count: seg1,
+      color: "var(--viz-1, #5e6ad2)",
+      tip: "Open patches with 1 individual roast published by a contributor via CLI --publish or Personal Backoffice.",
+    },
+    {
+      label: "Baseline brief roast",
+      count: segBase,
+      color: "var(--viz-4, #38bdf8)",
+      tip: "Open patches covered only by an automated Light-level CommitFest batch sweep (no individual contributor roast yet).",
+    },
+    {
+      label: "Unroasted open",
+      count: segUn,
+      color: "var(--viz-muted, rgba(128,128,128,0.28))",
+      tip: "Open CommitFest patches with neither a baseline brief pass nor a community roast yet.",
+    },
   ];
 
   const w = 720;
@@ -117,7 +137,7 @@ function renderCoverageGaugeSvg(cov: CommunityCoverageData): string {
     .filter((it) => it.count > 0)
     .map((it) => {
       const rw = Math.max(4, (it.count / total) * w);
-      const out = `<rect x="${x.toFixed(1)}" y="8" width="${rw.toFixed(1)}" height="20" rx="3" fill="${it.color}" class="viz-hoverable" data-tip-title="${esc(it.label)}" data-tip-body="${fmtNum(it.count)} of ${fmtNum(cov.totalOpen)} open patches (${pct(it.count, cov.totalOpen)}%)"/>`;
+      const out = `<rect x="${x.toFixed(1)}" y="8" width="${rw.toFixed(1)}" height="20" rx="3" fill="${it.color}" class="viz-hoverable" data-tip-title="${esc(it.label)}" data-tip-body="${fmtNum(it.count)} of ${fmtNum(cov.totalOpen)} open patches (${pct(it.count, cov.totalOpen)}%)" data-tip-sub="${esc(it.tip)}"/>`;
       x += rw + 2;
       return out;
     })
@@ -132,7 +152,7 @@ function renderCoverageGaugeSvg(cov: CommunityCoverageData): string {
         ${items
           .map(
             (it) => `
-          <span class="viz-legend-chip">
+          <span class="viz-legend-chip term-tip" tabindex="0" data-tip-title="${esc(it.label)}" data-tip-body="${esc(it.tip)}" data-tip-sub="${fmtNum(it.count)} of ${fmtNum(cov.totalOpen)} open patches (${pct(it.count, cov.totalOpen)}%)">
             <span class="dot" style="background:${it.color};"></span>
             <span>${esc(it.label)}</span>
             <strong class="mono">${fmtNum(it.count)}</strong>
@@ -213,7 +233,7 @@ export function renderContributeTab(params: {
             <div class="kpi-v mono">${fmtNum(cov.totalOpen)}</div>
             <div class="kpi-sub">${fmtNum(cov.totalAll)} total indexed</div>
           </div>
-          <div class="kpi" style="cursor:default;">
+          <div class="kpi term-tip" tabindex="0" style="cursor:help;" data-tip-title="Baseline roasted" data-tip-body="Open patches covered by an automated Light-level CommitFest batch sweep (used to seed the Brief shortlist).">
             <div class="kpi-l"><span class="dot" style="background:var(--viz-4, #38bdf8)"></span>Baseline roasted</div>
             <div class="kpi-v mono">${basePct}%</div>
             <div class="kpi-sub">${fmtNum(cov.baselineRoastedOpen)} of ${fmtNum(cov.totalOpen)} open</div>

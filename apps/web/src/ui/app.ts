@@ -1903,26 +1903,29 @@ function renderPatchPage(): string {
   const barTotal = breakdownEntries.reduce((acc, [, n]) => acc + n, 0);
 
   const consensusBadge = !consensus || consensus.status === "baseline_only"
-    ? `<span class="pill">Baseline brief pass</span>`
+    ? `<span class="pill term-tip" tabindex="0" data-tip-title="Baseline brief pass" data-tip-body="Automated Light-level triage pass from a CommitFest-wide batch sweep used to build the Brief shortlist. No individual contributor roast has been published yet.">Baseline brief pass</span>`
     : consensus.status === "single_opinion"
-      ? `<span class="pill p-info">1 roast</span>`
+      ? `<span class="pill p-info term-tip" tabindex="0" data-tip-title="1 community roast" data-tip-body="One contributor published a roast from their local CLI or Backoffice. Publish a second run (especially from another model) to build consensus.">1 roast</span>`
       : consensus.status === "unanimous"
-        ? `<span class="pill p-ok">Unanimous agreement</span>`
+        ? `<span class="pill p-ok term-tip" tabindex="0" data-tip-title="Unanimous agreement" data-tip-body="All published community roasts for this patch reached the same verdict.">Unanimous agreement</span>`
         : consensus.status === "majority"
-          ? `<span class="pill p-info">Majority consensus</span>`
-          : `<span class="pill p-warn">Split roasts</span>`;
+          ? `<span class="pill p-info term-tip" tabindex="0" data-tip-title="Majority consensus" data-tip-body="At least 60% of published community roasts agree on the leading verdict.">Majority consensus</span>`
+          : `<span class="pill p-warn term-tip" tabindex="0" data-tip-title="Split roasts" data-tip-body="Published community roasts disagree on the verdict. Compare their objections and verification evidence below.">Split roasts</span>`;
 
   const hasBaselineCard =
     verdict !== "UNROASTED" || reasons.length > 0 || Boolean(workaround) || Boolean(failingSummary) || Boolean(nextStep);
   const totalShownOpinions = opinions.length + (hasBaselineCard ? 1 : 0);
-  const opinionsSubLabel =
+  const communityTermHtml = (n: number) =>
+    `<span class="term-tip" tabindex="0" data-tip-title="Community run" data-tip-body="An individual roast executed by a contributor on their own machine (Light, Medium, or Dark) and explicitly published here via CLI --publish or Personal Backoffice.">${n} community run${n === 1 ? "" : "s"}</span>`;
+  const baselineTermHtml = `<span class="term-tip" tabindex="0" data-tip-title="Baseline brief pass" data-tip-body="An automated Light-level triage pass from a CommitFest-wide batch sweep that seeds the Brief shortlist before individual reviewers run deeper roasts.">1 baseline brief pass</span>`;
+  const opinionsSubLabelHtml =
     opinions.length > 0 && hasBaselineCard
-      ? `${opinions.length} community run${opinions.length === 1 ? "" : "s"} · 1 baseline brief pass`
+      ? `${communityTermHtml(opinions.length)} · ${baselineTermHtml}`
       : opinions.length > 0
-        ? `${opinions.length} published from local workbenches`
+        ? communityTermHtml(opinions.length)
         : hasBaselineCard
-          ? "1 baseline CommitFest brief pass · 0 individual reviewer runs yet"
-          : "Published from each reviewer's local workbench";
+          ? `${baselineTermHtml} · 0 community runs yet`
+          : "Published from each reviewer's local CLI or Backoffice";
 
   // Unique contributor + exact model spec pairs
   const contributorChips = opinions.map((o) => {
@@ -2064,7 +2067,7 @@ function renderPatchPage(): string {
           <div class="card-head" style="margin-bottom:10px;">
             <h2>Published Roasts (${totalShownOpinions})</h2>
             <div class="row" style="gap:10px;align-items:center;flex-wrap:wrap;">
-              <span class="dim" style="font-size:12px;">${esc(opinionsSubLabel)}</span>
+              <span class="dim" style="font-size:12px;">${opinionsSubLabelHtml}</span>
               <button type="button" class="about-link-inline" data-open-about="#roast-levels">What is a roast?</button>
             </div>
           </div>

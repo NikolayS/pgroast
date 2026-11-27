@@ -2469,6 +2469,17 @@ details.diff-file[open] > summary {
   border-color: var(--accent);
   background: var(--hover);
 }
+.term-tip {
+  cursor: help;
+}
+span.term-tip:not(.pill):not(.viz-legend-chip) {
+  border-bottom: 1px dotted var(--border-s);
+  padding-bottom: 1px;
+}
+.term-tip:hover,
+.term-tip:focus-visible {
+  color: var(--text);
+}
 .mr-rev-strip {
   display: flex;
   align-items: center;
