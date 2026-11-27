@@ -387,6 +387,7 @@ export async function createWebHandler(opts?: {
   const appTsPath = join(WEB_ROOT, "src", "ui", "app.ts");
   const hackersViewPath = join(WEB_ROOT, "src", "ui", "hackers-view.ts");
   const docsViewPath = join(WEB_ROOT, "src", "ui", "docs-view.ts");
+  const apiDocsViewPath = join(WEB_ROOT, "src", "ui", "api-docs-view.ts");
   const contributeViewPath = join(WEB_ROOT, "src", "ui", "contribute-view.ts");
   const listsViewPath = join(WEB_ROOT, "src", "ui", "lists-view.ts");
   const vizChartsPath = join(WEB_ROOT, "src", "ui", "viz-charts.ts");
@@ -399,6 +400,7 @@ export async function createWebHandler(opts?: {
     (existsSync(appTsPath) ? statSync(appTsPath).mtimeMs : 0) +
     (existsSync(hackersViewPath) ? statSync(hackersViewPath).mtimeMs : 0) +
     (existsSync(docsViewPath) ? statSync(docsViewPath).mtimeMs : 0) +
+    (existsSync(apiDocsViewPath) ? statSync(apiDocsViewPath).mtimeMs : 0) +
     (existsSync(contributeViewPath) ? statSync(contributeViewPath).mtimeMs : 0) +
     (existsSync(listsViewPath) ? statSync(listsViewPath).mtimeMs : 0) +
     (existsSync(vizChartsPath) ? statSync(vizChartsPath).mtimeMs : 0) +
@@ -535,6 +537,36 @@ export async function createWebHandler(opts?: {
           },
         });
       }
+      if (method === "GET" && path === "/openapi.json") {
+        const origin = resolveRequestOrigin(req, cfg);
+        const spec = {
+          openapi: "3.1.0",
+          info: {
+            title: "pgroast Public Companion API",
+            version: ROOT_PKG_VERSION,
+            description: "Read-only CommitFest intelligence, multi-model roast opinions, PostgreSQL Hacking Observatory, Mailing Lists Archive, and Weekly Quota Auto-Contribute queue.",
+          },
+          servers: [{ url: origin }],
+          paths: {
+            "/api/v1/health": { get: { summary: "Service health, version, and DB counts" } },
+            "/api/v1/entries": { get: { summary: "List indexed CommitFest entries", parameters: [{ name: "limit", in: "query", schema: { type: "integer" } }] } },
+            "/api/v1/entries/{cf_id}": { get: { summary: "Get patch consensus, opinions, and claims", parameters: [{ name: "cf_id", in: "path", required: true, schema: { type: "integer" } }] } },
+            "/api/v1/opinions": { get: { summary: "List recent attributed community AI opinions" } },
+            "/api/v1/hackers/overview": { get: { summary: "PostgreSQL Hacking Observatory overview & charts", parameters: [{ name: "window", in: "query", schema: { type: "string" } }] } },
+            "/api/v1/hackers": { get: { summary: "Search unified PostgreSQL contributors", parameters: [{ name: "search", in: "query", schema: { type: "string" } }] } },
+            "/api/v1/hackers/{slug}": { get: { summary: "Unified multi-email contributor profile", parameters: [{ name: "slug", in: "path", required: true, schema: { type: "string" } }] } },
+            "/api/v1/lists/overview": { get: { summary: "49 PostgreSQL mailing lists overview & sparklines" } },
+            "/api/v1/lists/messages": { get: { summary: "Search archived PostgreSQL mailing list messages", parameters: [{ name: "list", in: "query", schema: { type: "string" } }, { name: "search", in: "query", schema: { type: "string" } }] } },
+            "/api/v1/contribute/status": { get: { summary: "Live CommitFest roast coverage & active soft leases" } },
+            "/api/v1/contribute/next": { get: { summary: "Claim or dry-run preview next uncovered CommitFest patch", parameters: [{ name: "backend", in: "query", schema: { type: "string" } }, { name: "strategy", in: "query", schema: { type: "string" } }, { name: "dry_run", in: "query", schema: { type: "integer" } }] } },
+          },
+        };
+        return new Response(JSON.stringify(spec, null, 2), {
+          status: 200,
+          headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "public, max-age=300", ...securityHeaders("json") },
+        });
+      }
+
       if (method === "GET" && path === "/robots.txt") {
         const origin = resolveRequestOrigin(req, cfg);
         const body = [

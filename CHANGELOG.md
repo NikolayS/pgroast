@@ -1,5 +1,21 @@
 # Changelog
 
+## v0.3.0-alpha.15 (2026-11-26)
+
+This release adds interactive **CLI & API Playgrounds** (plus OpenAPI 3.1 spec at `/openapi.json`) to `/docs`, upgrades every remaining chart with hover/tap concrete-number tooltips, updates PostgreSQL git analytics through today (`upstream/master`), and fixes all Desktop + Mobile layout and SVG clipping issues found by a 36-view headless Chrome audit across both Front Office and Personal Backoffice.
+
+### Changes
+
+- **Stripe-Style 3-Column API Reference & CLI Playground (`/docs`, `/openapi.json`):**
+  - Added a 3-column interactive **Stripe-style API Reference** to `/docs`: sticky categorized endpoint sidebar (15 endpoints across 6 groups), center documentation with inline editable parameters and `Returns` schema tables, and a sticky dark code + live response rail (`cURL` | `TypeScript` | `Python` | `CLI`) with one-click **Try It Live ▶** execution against live PostgreSQL data, backed by `GET /openapi.json` (OpenAPI 3.1.0).
+  - Added an **Interactive CLI Playground** to `/docs` to compose live `npx pgroast@next ...` commands with backend, model, reasoning effort, archetype, level, and target selection, plus identity notes (`PGROAST_PUBLISH_TOKEN`).
+- **Concrete-Number Hover/Tap Tooltips on All Charts (`apps/web/src/ui/hackers-view.ts`, `viz-charts.ts`):**
+  - Upgraded the profile **Career Trajectory** stacked bar chart to full interactive floating hover/tap tooltips (exact authored, committed, reviewed, and reported counts per year) and fixed overlapping final-year x-axis labels (`2025`/`2026`).
+- **Desktop & Mobile Layout + SVG Clipping Fixes (`apps/web`, `apps/local`):**
+  - Fixed vertical `viewBox` clipping on the Stats **Status × AI Verdict Marimekko** chart (`Moved to different CF`), right-edge SVG label clipping on **Commit Sponsorship** and **30-Day Mail Velocity**, and right-edge wrapping of the **Contribution Activity** year chips on `/hacker/<slug>`.
+  - Fixed mobile card & header overflow across Personal Backoffice **Stats**, **Jobs**, and **Settings** views (`390px` viewport) via strict `min-width: 0` grid guards and responsive single-column collapse.
+  - Synced `postgres.git` `upstream/master` through `2026-11-26` (66,150 commits, 2,121 unified people, 154,141 credits) so Sep–Nov 2026 activity appears on every profile.
+
 ## v0.3.0-alpha.14 (2026-11-26)
 
 This release adds explicit model version & reasoning-effort tracking in standard `provider/model:effort` format (such as `openai/gpt-6.2-astra:xhigh` and `anthropic/claude-opus-5-5`) across the CLI, Personal Backoffice, and Public App, fixes `models` persistence on opinion publish, and makes every Backoffice Jobs row clickable to both the local Workbench entry and its public opinion page.

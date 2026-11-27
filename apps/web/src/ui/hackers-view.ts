@@ -351,6 +351,7 @@ function renderCareerChartSvg(
     })
     .join("");
 
+  const lblStep = Math.max(1, Math.ceil(career.length / 8));
   const bars = career
     .map((c, i) => {
       const cx = padL + i * step + step / 2;
@@ -361,15 +362,17 @@ function renderCareerChartSvg(
       const yA = padT + innerH - hA;
       const yR = yA - hR;
       const yB = yR - hB;
-      const showLbl = career.length <= 12 || i % Math.ceil(career.length / 10) === 0 || i === career.length - 1;
-      const tip = `${c.year}: ${c.authored} authored · ${c.committed} committed · ${c.reviewed} reviewed · ${c.reported} reported`;
+      const total = c.authored + c.reviewed + c.reported;
+      const showLbl = career.length <= 12 || i === career.length - 1 || (i % lblStep === 0 && i < career.length - 2);
+      const bodyTip = `${fmtNum(c.authored)} authored · ${fmtNum(c.reviewed)} reviewed · ${fmtNum(c.reported)} reported`;
+      const subTip = `${fmtNum(c.committed)} committed · ${fmtNum(total)} total credits`;
       return `
-      <g>
-        <title>${esc(tip)}</title>
-        ${hA > 0 ? `<rect x="${x.toFixed(1)}" y="${yA.toFixed(1)}" width="${barW.toFixed(1)}" height="${hA.toFixed(1)}" fill="var(--accent)" />` : ""}
-        ${hR > 0 ? `<rect x="${x.toFixed(1)}" y="${yR.toFixed(1)}" width="${barW.toFixed(1)}" height="${hR.toFixed(1)}" fill="var(--ok)" />` : ""}
-        ${hB > 0 ? `<rect x="${x.toFixed(1)}" y="${yB.toFixed(1)}" width="${barW.toFixed(1)}" height="${hB.toFixed(1)}" fill="var(--warn)" />` : ""}
-        ${showLbl ? `<text x="${cx.toFixed(1)}" y="${H - 6}" text-anchor="middle" fill="var(--dim)" font-size="9.5">${esc(c.year)}</text>` : ""}
+      <g class="viz-hoverable" tabindex="0" data-tip-title="${esc(c.year)}" data-tip-body="${esc(bodyTip)}" data-tip-sub="${esc(subTip)}">
+        <rect x="${(cx - step / 2).toFixed(1)}" y="${padT}" width="${step.toFixed(1)}" height="${innerH}" fill="transparent" />
+        ${hA > 0 ? `<rect x="${x.toFixed(1)}" y="${yA.toFixed(1)}" width="${barW.toFixed(1)}" height="${hA.toFixed(1)}" rx="1.5" fill="var(--viz-1)" />` : ""}
+        ${hR > 0 ? `<rect x="${x.toFixed(1)}" y="${yR.toFixed(1)}" width="${barW.toFixed(1)}" height="${hR.toFixed(1)}" rx="1.5" fill="var(--viz-2)" />` : ""}
+        ${hB > 0 ? `<rect x="${x.toFixed(1)}" y="${yB.toFixed(1)}" width="${barW.toFixed(1)}" height="${hB.toFixed(1)}" rx="1.5" fill="var(--viz-3)" />` : ""}
+        ${showLbl ? `<text x="${cx.toFixed(1)}" y="${H - 6}" text-anchor="middle" fill="var(--viz-axis)" font-size="9.5" class="mono">${esc(c.year)}</text>` : ""}
       </g>
     `;
     })
@@ -381,9 +384,9 @@ function renderCareerChartSvg(
       ${bars}
     </svg>
     <div class="obs-chart-legend">
-      <span><span class="dot" style="background:var(--accent);"></span>Authored</span>
-      <span><span class="dot" style="background:var(--ok);"></span>Reviewed-by</span>
-      <span><span class="dot" style="background:var(--warn);"></span>Reported-by</span>
+      <span><span class="dot" style="background:var(--viz-1);"></span>Authored</span>
+      <span><span class="dot" style="background:var(--viz-2);"></span>Reviewed-by</span>
+      <span><span class="dot" style="background:var(--viz-3);"></span>Reported-by</span>
     </div>
   `;
 }

@@ -1,4 +1,10 @@
 import {
+  API_ENDPOINTS,
+  buildApiCodeSnippet,
+  buildEndpointPath,
+  type ApiLang,
+} from "./api-docs-view.ts";
+import {
   buildQuotaAgentPrompt,
   renderContributeTab,
   type CommunityCoverageData,
@@ -299,6 +305,14 @@ const state = {
   docsCoverageLoading: false,
   docsCategory: "all" as DocsCategory,
   docsSearch: "",
+  apiEndpointId: "health",
+  apiLang: "curl" as ApiLang,
+  apiParams: {} as Record<string, string>,
+  apiLiveStatus: "",
+  apiLiveOk: null as boolean | null,
+  apiLiveMeta: "",
+  apiLiveBody: "",
+  apiLiveLoading: false,
   quotaPreviewBackend: "claude",
   quotaPreviewStrategy: "unroasted-first",
   quotaPreviewFlavour: "auto-by-subsystem",
@@ -3366,8 +3380,17 @@ function render(): void {
     });
   } else if (state.tab === "docs") {
     root.innerHTML = renderDocsTab({
+      origin: window.location.origin,
       category: state.docsCategory,
       search: state.docsSearch,
+      apiEndpointId: state.apiEndpointId,
+      apiLang: state.apiLang,
+      apiParams: state.apiParams,
+      apiLiveStatus: state.apiLiveStatus,
+      apiLiveOk: state.apiLiveOk,
+      apiLiveMeta: state.apiLiveMeta,
+      apiLiveBody: state.apiLiveBody,
+      apiLiveLoading: state.apiLiveLoading,
     });
   } else root.innerHTML = renderConnectTab();
 
@@ -3449,6 +3472,138 @@ function render(): void {
         });
         updateDocsFeaturesOnly();
       });
+    });
+
+    // Interactive CLI Playground builder
+    const updateCliPlayground = () => {
+      const cmd = (document.getElementById("pg-cli-cmd") as HTMLSelectElement | null)?.value || "contribute";
+      const backend = (document.getElementById("pg-cli-backend") as HTMLSelectElement | null)?.value || "codex";
+      const modelRaw = ((document.getElementById("pg-cli-model") as HTMLInputElement | null)?.value || "").trim();
+      const flavour = (document.getElementById("pg-cli-flavour") as HTMLSelectElement | null)?.value || "default";
+      const level = (document.getElementById("pg-cli-level") as HTMLSelectElement | null)?.value || "medium";
+      const target = ((document.getElementById("pg-cli-target") as HTMLInputElement | null)?.value || "7508").trim() || "7508";
+
+      const mMatch = modelRaw.match(/^(.+?):(low|medium|high|xhigh|max|ultra)$/i);
+      const baseModel = mMatch ? mMatch[1]! : modelRaw;
+      const effort = mMatch ? mMatch[2]!.toLowerCase() : "";
+      const envPrefix =
+        backend === "codex" && modelRaw
+          ? `PGROAST_CODEX_MODEL=${modelRaw} `
+          : backend === "claude" && baseModel && baseModel !== "opus"
+            ? `PGROAST_ROASTER_MODEL=${baseModel} PGROAST_CRITIC_MODEL=${baseModel} `
+            : backend === "agy" && baseModel
+              ? `PGROAST_AGY_MODEL=${baseModel} `
+              : "";
+
+      let built = "";
+      if (cmd === "roast") {
+        const fl = flavour === "auto-by-subsystem" ? "default" : flavour;
+        built = `${envPrefix}npx pgroast@next ${target} --backend ${backend} --roast-level ${level} --flavour ${fl}`;
+      } else if (cmd === "contribute") {
+        const qb = backend === "dual" ? "claude" : backend;
+        built = `PGROAST_PUBLISH_TOKEN=pgroast_pub_YOUR_TOKEN npx pgroast@next contribute --once --backend ${qb}${baseModel ? ` --model ${baseModel}` : ""}${effort ? ` --effort ${effort}` : ""} --flavour ${flavour} --level ${level} --publish`;
+      } else if (cmd === "batch") {
+        const fl = flavour === "auto-by-subsystem" ? "default" : flavour;
+        const cfNum = /^\d{1,3}$/.test(target) ? target : "62";
+        built = `${envPrefix}npx pgroast@next batch ${cfNum} --out ./out/cf${cfNum} --status open --concurrency 3 --backend ${backend} --roast-level ${level} --flavour ${fl}`;
+      } else if (cmd === "pushback") {
+        built = `${envPrefix}npx pgroast@next pushback ${target} --backend ${backend}`;
+      } else if (cmd === "shortlist") {
+        built = `npx pgroast@next shortlist ./out/cf62 --top 20 --reject 50 --pg-repo ~/postgres`;
+      } else if (cmd === "bugs") {
+        built = `${envPrefix}npx pgroast@next bugs --days 14 --limit 30 --backend ${backend}`;
+      } else {
+        built = `PGROAST_PUBLISH_TOKEN=pgroast_pub_YOUR_TOKEN npx pgroast@next publish ./out/cf-${target}/roast.json`;
+      }
+      const outEl = document.getElementById("pg-cli-output");
+      if (outEl) outEl.textContent = built;
+    };
+    ["pg-cli-cmd", "pg-cli-backend", "pg-cli-model", "pg-cli-flavour", "pg-cli-level", "pg-cli-target"].forEach((id) => {
+      document.getElementById(id)?.addEventListener("change", updateCliPlayground);
+      document.getElementById(id)?.addEventListener("input", updateCliPlayground);
+    });
+    document.getElementById("pg-cli-copy-btn")?.addEventListener("click", (ev) => {
+      const txt = document.getElementById("pg-cli-output")?.textContent || "";
+      if (txt) copyTextWithFeedback(ev.currentTarget as HTMLElement, txt, "Copy");
+    });
+
+    // Stripe-style 3-column Interactive API Reference
+    const getActiveApiEp = () => API_ENDPOINTS.find((e) => e.id === state.apiEndpointId) || API_ENDPOINTS[0]!;
+    const refreshStripeCodeOnly = () => {
+      const ep = getActiveApiEp();
+      const pre = document.getElementById("stripe-code-pre");
+      const urlEl = document.getElementById("stripe-url-preview");
+      if (pre) pre.textContent = buildApiCodeSnippet(ep, state.apiLang, window.location.origin, state.apiParams);
+      if (urlEl) urlEl.textContent = `${ep.method} ${buildEndpointPath(ep, state.apiParams)}`;
+    };
+    document.querySelectorAll<HTMLButtonElement>("[data-api-select]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const nextId = btn.dataset.apiSelect || "health";
+        if (nextId !== state.apiEndpointId) {
+          state.apiEndpointId = nextId;
+          state.apiParams = {};
+          state.apiLiveStatus = "";
+          state.apiLiveOk = null;
+          state.apiLiveMeta = "";
+          state.apiLiveBody = "";
+          render();
+        }
+      });
+    });
+    document.querySelectorAll<HTMLButtonElement>("[data-api-lang]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        state.apiLang = (btn.dataset.apiLang as ApiLang) || "curl";
+        document.querySelectorAll<HTMLButtonElement>("[data-api-lang]").forEach((b) => {
+          b.classList.toggle("active", b.dataset.apiLang === state.apiLang);
+        });
+        refreshStripeCodeOnly();
+      });
+    });
+    document.querySelectorAll<HTMLInputElement | HTMLSelectElement>("[data-api-param]").forEach((inp) => {
+      const onChange = () => {
+        const k = inp.getAttribute("data-api-param") || "";
+        if (!k) return;
+        state.apiParams[k] = inp.value;
+        refreshStripeCodeOnly();
+      };
+      inp.addEventListener("input", onChange);
+      inp.addEventListener("change", onChange);
+    });
+    document.getElementById("stripe-copy-code-btn")?.addEventListener("click", (ev) => {
+      const txt = document.getElementById("stripe-code-pre")?.textContent || "";
+      if (txt) copyTextWithFeedback(ev.currentTarget as HTMLElement, txt, "Copy");
+    });
+    document.getElementById("stripe-try-btn")?.addEventListener("click", async () => {
+      const ep = getActiveApiEp();
+      if (ep.method !== "GET") return;
+      const targetPath = buildEndpointPath(ep, state.apiParams);
+      state.apiLiveLoading = true;
+      state.apiLiveBody = "Fetching live PostgreSQL response…";
+      render();
+      const t0 = performance.now();
+      try {
+        const res = await fetch(targetPath, { headers: { Accept: "application/json, text/plain" } });
+        const ms = Math.round(performance.now() - t0);
+        const raw = await res.text();
+        let pretty = raw;
+        try {
+          pretty = JSON.stringify(JSON.parse(raw), null, 2);
+        } catch {
+          // plain text
+        }
+        state.apiLiveStatus = `${res.status} ${res.statusText || (res.ok ? "OK" : "ERROR")}`;
+        state.apiLiveOk = res.ok;
+        state.apiLiveMeta = `${ms} ms · ${raw.length.toLocaleString()} B`;
+        state.apiLiveBody = pretty.length > 20000 ? `${pretty.slice(0, 20000)}\n… (truncated ${pretty.length - 20000} bytes)` : pretty;
+      } catch (err) {
+        state.apiLiveStatus = "NETWORK ERROR";
+        state.apiLiveOk = false;
+        state.apiLiveMeta = "";
+        state.apiLiveBody = err instanceof Error ? err.message : String(err);
+      } finally {
+        state.apiLiveLoading = false;
+        render();
+      }
     });
   }
 

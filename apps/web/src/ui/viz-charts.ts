@@ -412,7 +412,7 @@ export function renderSponsorshipTimelineSvg(
   const w = 660;
   const h = 196;
   const padL = 40;
-  const padR = 36;
+  const padR = 56;
   const padT = 14;
   const padB = 26;
   const plotW = w - padL - padR;
@@ -732,18 +732,17 @@ export function renderStatusVerdictMarimekkoSvg(rows: StatusMatrixRow[]): { head
   ];
 
   const w = 680;
-  const padL = 148;
+  const padL = 162;
   const padR = 44;
   const padT = 8;
   const plotW = w - padL - padR;
   const totalBarH = 190;
   const gapY = 6;
-  const h = padT + totalBarH + (useRows.length - 1) * gapY + 12;
 
   let curY = padT;
   const bands = useRows
     .map((row) => {
-      const bh = Math.max(24, (row.total / Math.max(1, totalPatches)) * totalBarH);
+      const bh = Math.max(26, (row.total / Math.max(1, totalPatches)) * totalBarH);
       let curX = padL;
       const segs = verdictOrder
         .map((v) => {
@@ -773,6 +772,8 @@ export function renderStatusVerdictMarimekkoSvg(rows: StatusMatrixRow[]): { head
       return `${lbl}${segs}`;
     })
     .join("");
+
+  const h = Math.ceil(curY + 8);
 
   const svg = `
     <svg viewBox="0 0 ${w} ${h}" class="obs-chart-svg" role="img" aria-label="${esc(headline)}">
@@ -880,7 +881,7 @@ export function renderMailingListAreaMaSvg(daily: Array<{ day: string; count: nu
   const w = 640;
   const h = 186;
   const padL = 38;
-  const padR = 14;
+  const padR = 28;
   const padT = 14;
   const padB = 26;
   const plotW = w - padL - padR;

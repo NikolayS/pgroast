@@ -2350,3 +2350,51 @@ tbody tr.clickable:hover {
 [hidden] {
   display: none !important;
 }
+
+/* ---- Mobile & Responsive Overflow Guards (Desktop + Mobile Audit) ---- */
+.card,
+.split-pane > *,
+.stats-grid-2 > *,
+.stats-grid-3 > *,
+.form-grid > *,
+.ob-card,
+.cmd-snippet {
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+.card-header {
+  flex-wrap: wrap;
+  min-width: 0;
+  max-width: 100%;
+}
+.card-header > * {
+  min-width: 0;
+  max-width: 100%;
+}
+.cmd-snippet code {
+  min-width: 0;
+  max-width: 100%;
+}
+@media (max-width: 760px) {
+  .main-content,
+  .content-body,
+  .app-shell {
+    min-width: 0;
+    max-width: 100vw;
+    overflow-x: clip;
+  }
+  .stats-grid-2,
+  .stats-grid-3,
+  .split-pane,
+  .form-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+  .card {
+    padding: 12px;
+    overflow-x: hidden;
+  }
+  .card-header {
+    gap: 6px;
+  }
+}

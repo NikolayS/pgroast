@@ -1,3 +1,5 @@
+import { renderStripeApiExplorer, type ApiLang } from "./api-docs-view.ts";
+
 export type DocsCategory = "all" | "front-office" | "quota" | "backoffice" | "cli" | "safety";
 
 function esc(s: unknown): string {
@@ -270,10 +272,31 @@ const ALL_FEATURES: FeatureDocItem[] = [
 ];
 
 export function renderDocsTab(params: {
+  origin: string;
   category: DocsCategory;
   search: string;
+  apiEndpointId: string;
+  apiLang: ApiLang;
+  apiParams: Record<string, string>;
+  apiLiveStatus: string;
+  apiLiveOk: boolean | null;
+  apiLiveMeta: string;
+  apiLiveBody: string;
+  apiLiveLoading: boolean;
 }): string {
-  const { category, search } = params;
+  const {
+    origin,
+    category,
+    search,
+    apiEndpointId,
+    apiLang,
+    apiParams,
+    apiLiveStatus,
+    apiLiveOk,
+    apiLiveMeta,
+    apiLiveBody,
+    apiLiveLoading,
+  } = params;
   const filteredFeatures = filterDocsFeatures(category, search);
 
   const categories: Array<{ id: DocsCategory; label: string; count: number }> = [
@@ -312,9 +335,10 @@ export function renderDocsTab(params: {
           Every capability across the Front Office, Personal Backoffice, CLI, Weekly Quota Auto-Contribute, and Safety Gates.
         </div>
       </div>
-      <div class="row" style="gap:6px;">
-        <button type="button" class="btn btn-primary btn-sm" data-docs-nav="contribute">Quota Auto-Contribute →</button>
-        <button type="button" class="btn btn-secondary btn-sm" data-docs-nav="connect">Backoffice Setup →</button>
+      <div class="row" style="gap:6px;flex-wrap:wrap;">
+        <a class="btn btn-primary btn-sm" href="#api-reference">API Reference ↓</a>
+        <a class="btn btn-secondary btn-sm" href="#cli-playground">CLI Playground ↓</a>
+        <button type="button" class="btn btn-ghost btn-sm" data-docs-nav="contribute">Auto-Contribute →</button>
       </div>
     </div>
 
@@ -373,6 +397,79 @@ export function renderDocsTab(params: {
       </div>
     </section>
 
+    <!-- Interactive CLI Playground -->
+    <section class="card" id="cli-playground">
+      <div class="card-head">
+        <div>
+          <div class="viz-kicker">Interactive CLI Builder</div>
+          <h2>CLI Playground (<code class="mono">npx pgroast</code>)</h2>
+          <div class="dim" style="font-size:12px;">Pick any command, model, reasoning effort, and reviewer archetype — copy the exact runnable command.</div>
+        </div>
+        <span class="pill p-ok">OAuth CLI · Zero API keys</span>
+      </div>
+      <div class="quota-preview-controls" style="margin-bottom:10px;">
+        <label>
+          <span class="dim" style="font-size:11px;display:block;margin-bottom:3px;">Command</span>
+          <select id="pg-cli-cmd">
+            <option value="roast">Roast 1 patch</option>
+            <option value="contribute" selected>Quota auto-contribute (--once)</option>
+            <option value="batch">Bulk CommitFest batch</option>
+            <option value="pushback">Pushback thread archaeology</option>
+            <option value="shortlist">Shortlist &amp; closing report</option>
+            <option value="bugs">pgsql-bugs production triage</option>
+            <option value="publish">Publish local roast.json</option>
+          </select>
+        </label>
+        <label>
+          <span class="dim" style="font-size:11px;display:block;margin-bottom:3px;">Backend</span>
+          <select id="pg-cli-backend">
+            <option value="codex" selected>codex (OpenAI Codex CLI)</option>
+            <option value="claude">claude (Claude Code CLI)</option>
+            <option value="agy">agy (Antigravity CLI)</option>
+            <option value="dual">dual (Claude + agy)</option>
+          </select>
+        </label>
+        <label>
+          <span class="dim" style="font-size:11px;display:block;margin-bottom:3px;">Model &amp; Effort</span>
+          <input type="text" id="pg-cli-model" value="gpt-6.2-astra:xhigh" placeholder="e.g. gpt-6.2-astra:xhigh or opus" />
+        </label>
+        <label>
+          <span class="dim" style="font-size:11px;display:block;margin-bottom:3px;">Archetype</span>
+          <select id="pg-cli-flavour">
+            <option value="default" selected>House Blend (default)</option>
+            <option value="auto-by-subsystem">Auto by subsystem</option>
+            <option value="edge-case-hunter">The Edge-Case Hunter</option>
+            <option value="spec-lawyer">The Spec Lawyer</option>
+            <option value="systems-architect">The Systems Architect</option>
+            <option value="perf-hawk">The Perf Hawk</option>
+            <option value="storage-skeptic">The Storage Skeptic</option>
+            <option value="index-specialist">The Index Specialist</option>
+            <option value="production-dba">The Production DBA</option>
+          </select>
+        </label>
+        <label>
+          <span class="dim" style="font-size:11px;display:block;margin-bottom:3px;">Roast Level</span>
+          <select id="pg-cli-level">
+            <option value="light">Light</option>
+            <option value="medium" selected>Medium</option>
+            <option value="dark">Dark</option>
+          </select>
+        </label>
+        <label>
+          <span class="dim" style="font-size:11px;display:block;margin-bottom:3px;">CF # / Patch ID</span>
+          <input type="text" id="pg-cli-target" value="7508" placeholder="Patch ID or CF #" />
+        </label>
+      </div>
+      <div class="cli-bar">
+        <span class="cli-bar-label">CMD</span>
+        <code class="mono cli-bar-cmd" id="pg-cli-output">PGROAST_PUBLISH_TOKEN=pgroast_pub_… npx pgroast@next contribute --once --backend codex --model gpt-6.2-astra --effort xhigh --flavour default --level medium --publish</code>
+        <button type="button" class="btn btn-primary btn-sm" id="pg-cli-copy-btn">Copy</button>
+      </div>
+      <div class="dim" style="font-size:11.5px;margin-top:6px;">
+        Tip: use <code class="mono">npx pgroast@next</code> for the latest prerelease (or <code class="mono">bunx pgroast@next</code>). Identity for <code class="mono">--publish</code> comes from your <code class="mono">PGROAST_PUBLISH_TOKEN</code>.
+      </div>
+    </section>
+
     <!-- Complete CLI Reference -->
     <section class="card" id="cli-reference">
       <div class="card-head">
@@ -398,42 +495,18 @@ export function renderDocsTab(params: {
       </div>
     </section>
 
-    <!-- Public Read-Only API Reference -->
-    <section class="card">
-      <div class="card-head">
-        <div>
-          <h2>Public Read-Only API &amp; Machine Endpoints</h2>
-          <div class="dim" style="font-size:12px;">JSON, XML, and Markdown endpoints served directly by the Front Office</div>
-        </div>
-      </div>
-      <div class="docs-cli-list">
-        ${[
-          ["GET /api/v1/health", "App version, PostgreSQL server info, entry/opinion/brief counts, and view totals"],
-          ["GET /api/v1/entries?limit=300", "Indexed CommitFest entries with verdict, status, topic, and authors"],
-          ["GET /api/v1/entries/<cf_id>", "Per-patch consensus breakdown, community opinions, and team claims"],
-          ["GET /api/v1/entries/<cf_id>/thread", "Parsed pgsql-hackers timeline, TL;DR, participants, and patch revisions"],
-          ["GET /api/v1/entries/<cf_id>/diff", "Live CFBot unified diff with inline matched -hackers review comments"],
-          ["GET /api/v1/hackers/overview?window=1y", "Hacking Observatory KPIs, timeline, 7x24 UTC heatmap, subsystems, and leaderboards"],
-          ["GET /api/v1/hackers/<slug>", "Unified multi-email contributor profile (zero raw emails exposed)"],
-          ["GET /api/v1/lists/overview", "49 PostgreSQL mailing lists catalog, daily volume, active threads, and top posters"],
-          ["GET /api/v1/lists/messages?list=pgsql-hackers", "Searchable archived messages linked to /hacker/<slug>"],
-          ["GET /api/v1/contribute/status", "Live community CommitFest coverage gauges and active soft leases"],
-          ["GET /api/v1/contribute/next?backend=claude&dry_run=1", "Soft-lease work queue returning next patch + auto-selected archetype"],
-          ["GET /llms.txt · /llms-full.txt · /sitemap.xml", "AI crawler digest and full XML sitemap of patches and hacker profiles"],
-        ]
-          .map(
-            ([ep, desc]) => `
-          <div class="docs-cli-row">
-            <div style="min-width:0;flex:1;">
-              <code class="mono docs-cli-cmd">${esc(ep)}</code>
-              <div class="muted" style="font-size:12px;margin-top:2px;">${esc(desc)}</div>
-            </div>
-          </div>
-        `,
-          )
-          .join("")}
-      </div>
-    </section>
+    <!-- Stripe-Style 3-Column Interactive API Reference (OpenAPI 3.1) -->
+    ${renderStripeApiExplorer({
+      origin,
+      selectedId: apiEndpointId,
+      lang: apiLang,
+      paramValues: apiParams,
+      liveStatus: apiLiveStatus,
+      liveOk: apiLiveOk,
+      liveMeta: apiLiveMeta,
+      liveBody: apiLiveBody,
+      liveLoading: apiLiveLoading,
+    })}
   `;
 }
 
