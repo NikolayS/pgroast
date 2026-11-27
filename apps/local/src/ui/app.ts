@@ -2371,16 +2371,44 @@ function renderWorkbenchView(): string {
             </div>
             <div class="form-field">
               <label>Antigravity (agy) Model</label>
-              <input type="text" id="roast-agy-model" value="${esc(state.settings?.defaultAgyModel || "")}" placeholder="CLI default (or custom model ID)" />
+              ${(() => {
+                const curAgy = (state.settings?.defaultAgyModel || "").trim();
+                const agyPresets = [
+                  { v: "", l: "CLI default (gemini-4-neon-high / xhigh)" },
+                  { v: "gemini-4-neon-xhigh", l: "gemini-4-neon-xhigh" },
+                  { v: "gemini-4-neon-high", l: "gemini-4-neon-high" },
+                  { v: "gemini-4-neon-medium", l: "gemini-4-neon-medium" },
+                  { v: "gemini-4-neon-low", l: "gemini-4-neon-low" },
+                  { v: "gemini-3.1-pro-high", l: "gemini-3.1-pro-high" },
+                  { v: "gemini-3.1-pro-low", l: "gemini-3.1-pro-low" },
+                ];
+                const isCustomAgy = Boolean(curAgy && !agyPresets.some((p) => p.v === curAgy));
+                return `
+              <select id="roast-agy-model">
+                ${agyPresets.map((p) => `<option value="${esc(p.v)}" ${!isCustomAgy && curAgy === p.v ? "selected" : ""}>${esc(p.l)}</option>`).join("")}
+                <option value="__custom__" ${isCustomAgy ? "selected" : ""}>Custom agy model ID…</option>
+              </select>
+              <input type="text" id="roast-agy-model-custom" value="${esc(isCustomAgy ? curAgy : "")}" placeholder="e.g. gemini-4-neon-xhigh" style="${isCustomAgy ? "" : "display:none;"}margin-top:6px;" />`;
+              })()}
             </div>
             <div class="form-field">
               <label>Codex Model</label>
-              <input type="text" id="roast-codex-model" value="" placeholder="CLI default (e.g. gpt-6.2-astra)" />
+              <select id="roast-codex-model">
+                <option value="" selected>CLI default</option>
+                <option value="gpt-6.2-astra">gpt-6.2-astra</option>
+                <option value="gpt-5.4">gpt-5.4</option>
+                <option value="gpt-5.3-codex">gpt-5.3-codex</option>
+                <option value="__custom__">Custom Codex model ID…</option>
+              </select>
+              <input type="text" id="roast-codex-model-custom" placeholder="e.g. gpt-6.2-astra" style="display:none;margin-top:6px;" />
             </div>
           </div>
           <div class="inline-row" style="margin-top:8px;">
             <label class="inline-row" style="cursor:pointer;">
-              <input type="checkbox" id="roast-self" /> <span>--self (author pre-flight mode for your own patch)</span>
+              <input type="checkbox" id="roast-publish" checked /> <span><strong>Publish to Public App</strong> automatically when done</span>
+            </label>
+            <label class="inline-row" style="cursor:pointer;">
+              <input type="checkbox" id="roast-self" /> <span>--self (author pre-flight mode, local only)</span>
             </label>
             <label class="inline-row" style="cursor:pointer;">
               <input type="checkbox" id="roast-dryrun" /> <span>--dry-run (print prompts, no model call)</span>
@@ -2406,7 +2434,7 @@ function renderWorkbenchView(): string {
         <div style="margin-top:10px;border-top:1px solid var(--border);padding-top:10px;">
           <div class="dim" style="font-size:11px;font-weight:600;margin-bottom:4px;">Run the same from CLI (<code>npx pgroast</code>):</div>
           ${renderCmdSnippet(
-            `npx pgroast ${state.detail.entry.cf_id}${defBackend && defBackend !== "auto" ? ` --backend ${defBackend}` : ""} --roast-level ${state.roastLevel} --flavour ${currentFlavourId}`,
+            `npx pgroast ${state.detail.entry.cf_id}${defBackend && defBackend !== "auto" ? ` --backend ${defBackend}` : ""} --level ${state.roastLevel} --flavour ${currentFlavourId} --publish`,
           )}
           <div style="margin-top:6px;">
             ${renderCmdSnippet(`npx pgroast pushback ${state.detail.entry.cf_id}`)}
@@ -4599,14 +4627,25 @@ function bindViewEvents(): void {
     render();
   });
 
-  document.getElementById("roast-claude-model")?.addEventListener("change", (ev) => {
-    const val = (ev.target as HTMLSelectElement).value;
-    const custom = document.getElementById("roast-claude-model-custom") as HTMLInputElement | null;
-    if (custom) {
-      custom.style.display = val === "__custom__" ? "" : "none";
-      if (val === "__custom__") custom.focus();
-    }
-  });
+  const bindCustomSelect = (selId: string, customId: string) => {
+    document.getElementById(selId)?.addEventListener("change", (ev) => {
+      const val = (ev.target as HTMLSelectElement).value;
+      const custom = document.getElementById(customId) as HTMLInputElement | null;
+      if (custom) {
+        custom.style.display = val === "__custom__" ? "" : "none";
+        if (val === "__custom__") custom.focus();
+      }
+    });
+  };
+  bindCustomSelect("roast-claude-model", "roast-claude-model-custom");
+  bindCustomSelect("roast-agy-model", "roast-agy-model-custom");
+  bindCustomSelect("roast-codex-model", "roast-codex-model-custom");
+
+  const readModelField = (selId: string, customId: string, fallback = ""): string | undefined => {
+    const sel = (document.getElementById(selId) as HTMLSelectElement | null)?.value ?? "";
+    const val = sel === "__custom__" ? ((document.getElementById(customId) as HTMLInputElement | null)?.value.trim() || "") : sel.trim();
+    return val || fallback || undefined;
+  };
 
   document.getElementById("run-roast-btn")?.addEventListener("click", async () => {
     if (!state.selectedCfId) return;
@@ -4614,18 +4653,18 @@ function bindViewEvents(): void {
     const roastLevel = state.roastLevel || "medium";
     const roastFlavour = state.roastFlavour || "default";
     const rounds = Number((document.getElementById("roast-rounds") as HTMLSelectElement)?.value ?? 1);
-    const claudeSel = (document.getElementById("roast-claude-model") as HTMLSelectElement)?.value || "opus";
-    const claudeCustom = (document.getElementById("roast-claude-model-custom") as HTMLInputElement)?.value.trim() || "";
-    const claudeModel = claudeSel === "__custom__" ? claudeCustom || "opus" : claudeSel;
+    const claudeModel = readModelField("roast-claude-model", "roast-claude-model-custom", "opus");
     const effort = (document.getElementById("roast-effort") as HTMLSelectElement)?.value || undefined;
-    const agyModel = (document.getElementById("roast-agy-model") as HTMLInputElement)?.value.trim() || undefined;
-    const codexModel = (document.getElementById("roast-codex-model") as HTMLInputElement)?.value.trim() || undefined;
+    const agyModel = readModelField("roast-agy-model", "roast-agy-model-custom");
+    const codexModel = readModelField("roast-codex-model", "roast-codex-model-custom");
+    const publishEl = document.getElementById("roast-publish") as HTMLInputElement | null;
+    const publish = publishEl ? publishEl.checked : true;
     const selfMode = Boolean((document.getElementById("roast-self") as HTMLInputElement)?.checked);
     const dryRun = Boolean((document.getElementById("roast-dryrun") as HTMLInputElement)?.checked);
     try {
       const { job } = await api<{ job: JobRecord }>("/api/jobs/roast", {
         method: "POST",
-        body: JSON.stringify({ cfId: state.selectedCfId, backend, roastLevel, roastFlavour, rounds, claudeModel, effort, agyModel, codexModel, selfMode, dryRun }),
+        body: JSON.stringify({ cfId: state.selectedCfId, backend, roastLevel, roastFlavour, rounds, claudeModel, effort, agyModel, codexModel, publish, selfMode, dryRun }),
       });
       openJobStream(job);
       void refreshJobsList();

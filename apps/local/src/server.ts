@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { APP_ROOT, ensureDataDirs, expandHome } from "./config.ts";
 import { AppDatabase } from "./db.ts";
@@ -135,7 +135,9 @@ export async function createAppHandler(opts?: {
     }
   }
 
+  const appTsPath = join(APP_ROOT, "src", "ui", "app.ts");
   let cachedBundle = await buildUiBundle();
+  let appTsMtime = existsSync(appTsPath) ? statSync(appTsPath).mtimeMs : 0;
   const htmlPath = join(APP_ROOT, "src", "ui", "index.html");
   const cssPath = join(APP_ROOT, "src", "ui", "styles.css");
   const faviconPath = join(APP_ROOT, "src", "ui", "favicon.svg");
@@ -201,8 +203,10 @@ export async function createAppHandler(opts?: {
         });
       }
       if (method === "GET" && path === "/app.js") {
-        if (process.env.PGROAST_APP_DEV === "1") {
+        const curMtime = existsSync(appTsPath) ? statSync(appTsPath).mtimeMs : 0;
+        if (process.env.PGROAST_APP_DEV === "1" || curMtime !== appTsMtime) {
           cachedBundle = await buildUiBundle();
+          appTsMtime = curMtime;
         }
         return new Response(cachedBundle, {
           headers: { "Content-Type": "application/javascript; charset=utf-8", ...localSecurityHeaders("asset") },
@@ -648,6 +652,7 @@ export async function createAppHandler(opts?: {
             effort?: string;
             agyModel?: string;
             codexModel?: string;
+            publish?: boolean;
             rounds?: number;
             selfMode?: boolean;
             dryRun?: boolean;

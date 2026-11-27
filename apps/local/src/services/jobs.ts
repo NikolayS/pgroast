@@ -303,6 +303,7 @@ export class JobRunner {
     effort?: string;
     agyModel?: string;
     codexModel?: string;
+    publish?: boolean;
     rounds?: number;
     selfMode?: boolean;
     dryRun?: boolean;
@@ -339,12 +340,22 @@ export class JobRunner {
       log_path: logPath,
     });
 
+    const shouldPublish = params.publish !== false && !params.selfMode && !params.dryRun;
     const cliArgs = ["run", "src/cli.ts", target, "--out", outDir, "--backend", backend, "--roast-level", roastLevel, "--flavour", roastFlavour];
     if (rounds > 0) cliArgs.push("--rounds", String(rounds));
     if (params.selfMode) cliArgs.push("--self");
     if (params.dryRun) cliArgs.push("--dry-run");
+    if (shouldPublish) {
+      cliArgs.push("--publish");
+      if (settings.publicHubUrl) cliArgs.push("--hub", settings.publicHubUrl);
+    }
 
     const extraEnv: Record<string, string> = {};
+    if (shouldPublish) {
+      const hubTok = await this.db.getHubTokenDecrypted();
+      if (hubTok) extraEnv.PGROAST_PUBLISH_TOKEN = hubTok;
+      if (settings.publicHubUrl) extraEnv.PGROAST_PUBLIC_HUB_URL = settings.publicHubUrl;
+    }
     if (params.claudeModel) {
       extraEnv.PGROAST_ROASTER_MODEL = params.claudeModel;
       extraEnv.PGROAST_CRITIC_MODEL = params.claudeModel;
