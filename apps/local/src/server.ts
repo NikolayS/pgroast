@@ -645,7 +645,9 @@ export async function createAppHandler(opts?: {
             roastLevel?: "light" | "medium" | "dark";
             roastFlavour?: string;
             claudeModel?: string;
+            effort?: string;
             agyModel?: string;
+            codexModel?: string;
             rounds?: number;
             selfMode?: boolean;
             dryRun?: boolean;

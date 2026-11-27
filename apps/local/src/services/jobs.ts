@@ -300,7 +300,9 @@ export class JobRunner {
     roastLevel?: "light" | "medium" | "dark";
     roastFlavour?: string;
     claudeModel?: string;
+    effort?: string;
     agyModel?: string;
+    codexModel?: string;
     rounds?: number;
     selfMode?: boolean;
     dryRun?: boolean;
@@ -344,10 +346,18 @@ export class JobRunner {
 
     const extraEnv: Record<string, string> = {};
     if (params.claudeModel) {
+      extraEnv.PGROAST_ROASTER_MODEL = params.claudeModel;
       extraEnv.PGROAST_CRITIC_MODEL = params.claudeModel;
+    }
+    if (params.effort) {
+      extraEnv.PGROAST_CLAUDE_EFFORT = params.effort.trim().toLowerCase();
+      extraEnv.PGROAST_CODEX_EFFORT = params.effort.trim().toLowerCase();
     }
     if (params.agyModel) {
       extraEnv.PGROAST_AGY_MODEL = params.agyModel;
+    }
+    if (params.codexModel) {
+      extraEnv.PGROAST_CODEX_MODEL = params.codexModel;
     }
 
     const env = buildChildEnv(settings, { stripApiKeys: true, extra: extraEnv });
@@ -931,6 +941,9 @@ echo "=== Build & test complete (PGPORT=${pgPort}) ==="
     if (backend === "claude" && model) {
       extraEnv.PGROAST_ROASTER_MODEL = model;
       extraEnv.PGROAST_CRITIC_MODEL = model;
+    }
+    if ((backend === "claude" || backend === "dual") && effort) {
+      extraEnv.PGROAST_CLAUDE_EFFORT = effort;
     }
     if (backend === "agy" && model) {
       extraEnv.PGROAST_AGY_MODEL = model;

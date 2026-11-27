@@ -2345,15 +2345,37 @@ function renderWorkbenchView(): string {
               </select>
             </div>
             <div class="form-field">
-              <label>Claude Critic/Synth Model</label>
+              <label>Claude Code Model</label>
               <select id="roast-claude-model">
-                <option value="opus" selected>opus (default — works on all Claude accounts)</option>
-                <option value="claude-opus-4-6">claude-opus-4-6</option>
+                <option value="opus" selected>Latest Opus (opus — auto-picks newest Claude Code Opus)</option>
+                <option value="fable">Latest Fable / Mythos (fable — if enabled on account)</option>
+                <option value="claude-opus-5-5">claude-opus-5-5</option>
+                <option value="claude-mythos-5-2">claude-mythos-5-2</option>
+                <option value="claude-opus-4-7">claude-opus-4-7</option>
+                <option value="claude-opus-4-6">claude-opus-4-6 (legacy)</option>
+                <option value="claude-opus-4-5">claude-opus-4-5 (legacy)</option>
+                <option value="claude-opus-4-1">claude-opus-4-1 (legacy)</option>
+                <option value="__custom__">Custom Claude model ID…</option>
+              </select>
+              <input type="text" id="roast-claude-model-custom" placeholder="e.g. claude-opus-5-5" style="display:none;margin-top:6px;" />
+            </div>
+            <div class="form-field">
+              <label>Reasoning Effort (Claude / Codex)</label>
+              <select id="roast-effort">
+                <option value="high" selected>high (default)</option>
+                <option value="xhigh">xhigh</option>
+                <option value="max">max</option>
+                <option value="medium">medium</option>
+                <option value="low">low</option>
               </select>
             </div>
             <div class="form-field">
               <label>Antigravity (agy) Model</label>
               <input type="text" id="roast-agy-model" value="${esc(state.settings?.defaultAgyModel || "")}" placeholder="CLI default (or custom model ID)" />
+            </div>
+            <div class="form-field">
+              <label>Codex Model</label>
+              <input type="text" id="roast-codex-model" value="" placeholder="CLI default (e.g. gpt-6.2-astra)" />
             </div>
           </div>
           <div class="inline-row" style="margin-top:8px;">
@@ -4577,20 +4599,33 @@ function bindViewEvents(): void {
     render();
   });
 
+  document.getElementById("roast-claude-model")?.addEventListener("change", (ev) => {
+    const val = (ev.target as HTMLSelectElement).value;
+    const custom = document.getElementById("roast-claude-model-custom") as HTMLInputElement | null;
+    if (custom) {
+      custom.style.display = val === "__custom__" ? "" : "none";
+      if (val === "__custom__") custom.focus();
+    }
+  });
+
   document.getElementById("run-roast-btn")?.addEventListener("click", async () => {
     if (!state.selectedCfId) return;
     const backend = (document.getElementById("roast-backend") as HTMLSelectElement)?.value || state.settings?.defaultBackend || "auto";
     const roastLevel = state.roastLevel || "medium";
     const roastFlavour = state.roastFlavour || "default";
     const rounds = Number((document.getElementById("roast-rounds") as HTMLSelectElement)?.value ?? 1);
-    const claudeModel = (document.getElementById("roast-claude-model") as HTMLSelectElement)?.value || "opus";
+    const claudeSel = (document.getElementById("roast-claude-model") as HTMLSelectElement)?.value || "opus";
+    const claudeCustom = (document.getElementById("roast-claude-model-custom") as HTMLInputElement)?.value.trim() || "";
+    const claudeModel = claudeSel === "__custom__" ? claudeCustom || "opus" : claudeSel;
+    const effort = (document.getElementById("roast-effort") as HTMLSelectElement)?.value || undefined;
     const agyModel = (document.getElementById("roast-agy-model") as HTMLInputElement)?.value.trim() || undefined;
+    const codexModel = (document.getElementById("roast-codex-model") as HTMLInputElement)?.value.trim() || undefined;
     const selfMode = Boolean((document.getElementById("roast-self") as HTMLInputElement)?.checked);
     const dryRun = Boolean((document.getElementById("roast-dryrun") as HTMLInputElement)?.checked);
     try {
       const { job } = await api<{ job: JobRecord }>("/api/jobs/roast", {
         method: "POST",
-        body: JSON.stringify({ cfId: state.selectedCfId, backend, roastLevel, roastFlavour, rounds, claudeModel, agyModel, selfMode, dryRun }),
+        body: JSON.stringify({ cfId: state.selectedCfId, backend, roastLevel, roastFlavour, rounds, claudeModel, effort, agyModel, codexModel, selfMode, dryRun }),
       });
       openJobStream(job);
       void refreshJobsList();
@@ -5151,7 +5186,7 @@ function bindViewEvents(): void {
       state.bulkRoast.effort = "xhigh";
     } else if (nextB === "claude" && state.bulkRoast.model.startsWith("gpt-")) {
       state.bulkRoast.model = "opus";
-      state.bulkRoast.effort = "";
+      state.bulkRoast.effort = "high";
     }
     syncBulkAndRender();
   });
