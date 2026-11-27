@@ -537,6 +537,8 @@ export async function contributeMain(argv: string[]): Promise<number> {
   let hubOverride: string | undefined;
   let tokenOverride: string | undefined;
   let publishOverride: boolean | undefined;
+  let modelOverride: string | undefined;
+  let effortOverride: string | undefined;
   let forceWindow = false;
 
   const rest = [...argv];
@@ -556,6 +558,8 @@ export async function contributeMain(argv: string[]): Promise<number> {
     else if (tok === "--config") configPath = resolve(rest.shift() || configPath);
     else if (tok === "--hub") hubOverride = rest.shift() || "";
     else if (tok === "--token") tokenOverride = rest.shift() || "";
+    else if (tok === "--model") modelOverride = (rest.shift() || "").trim();
+    else if (tok === "--effort") effortOverride = (rest.shift() || "").trim().toLowerCase();
     else if (tok === "--backend") {
       const b = (rest.shift() || "").toLowerCase();
       if (b !== "claude" && b !== "codex" && b !== "agy") {
@@ -692,6 +696,22 @@ export async function contributeMain(argv: string[]): Promise<number> {
       }
     }
     return 0;
+  }
+
+  // Apply optional --model / --effort overrides to process.env for the chosen backend
+  if (modelOverride) {
+    const b = onlyBackend || "codex";
+    if (b === "codex") process.env.PGROAST_CODEX_MODEL = modelOverride;
+    else if (b === "agy") {
+      process.env.PGROAST_AGY_MODEL = modelOverride;
+      process.env.PGROAST_AGY_CRITIC_MODEL = modelOverride;
+    } else {
+      process.env.PGROAST_ROASTER_MODEL = modelOverride;
+      process.env.PGROAST_CRITIC_MODEL = modelOverride;
+    }
+  }
+  if (effortOverride) {
+    process.env.PGROAST_CODEX_EFFORT = effortOverride;
   }
 
   // Run dry-run, once, or auto

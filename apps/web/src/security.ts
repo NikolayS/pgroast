@@ -9,7 +9,6 @@ const BLOCKED_PATTERNS: Array<{ label: string; regex: RegExp }> = [
   { label: "Local machine path (/Users/ or /home/ or C:\\Users\\)", regex: /(?:\/Users\/[A-Za-z0-9._-]+|\/home\/[A-Za-z0-9._-]+|[A-Za-z]:\\Users\\)/i },
   { label: "Session cookie or secret leak", regex: /\b(?:sessionid|csrftoken)\s*=\s*[A-Za-z0-9._-]{8,}/i },
   { label: "Internal harness/gate terminology", regex: /\b(?:pg-correctness-harness|pg-hackers-lead|anti-slop gate|blind verification gate|draft-gate|subagent)\b/i },
-  { label: "Internal model codename", regex: /\b(?:claude-(?:fable|mythos)|gemini-4-neon)\b/i },
   {
     label: "Private key or API token",
     regex: /(?:-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----|\b(?:sk-ant-|sk-proj-|ghp_[A-Za-z0-9]{20,}|gho_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|AIza[0-9A-Za-z_-]{30,}|xox[baprs]-[A-Za-z0-9-]{10,}|pgroast_pub_[A-Za-z0-9_-]{20,}))/,

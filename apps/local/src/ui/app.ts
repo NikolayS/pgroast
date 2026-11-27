@@ -189,6 +189,8 @@ interface AppState {
   bulkRoast: {
     mode: "queue" | "batch";
     backend: "codex" | "claude" | "agy" | "dual";
+    model: string;
+    effort: string;
     strategy: "unroasted-first" | "ready-for-committer" | "cross-model-second-opinion";
     flavour: string;
     level: "light" | "medium" | "dark";
@@ -292,11 +294,13 @@ const state: AppState = {
   bulkRoast: {
     mode: "queue",
     backend: "codex",
+    model: "gpt-6.2-astra",
+    effort: "xhigh",
     strategy: "unroasted-first",
     flavour: "default",
     level: "medium",
-    count: 50,
-    workers: 3,
+    count: 100,
+    workers: 4,
     publish: true,
     cfNumber: 62,
     status: "open",
@@ -3187,17 +3191,24 @@ function renderWorkItemsView(): string {
 
 function buildBulkRoastCliSnippet(): string {
   const b = state.bulkRoast;
+  const modelFlag = b.model.trim() ? ` --model ${b.model.trim()}` : "";
+  const effortFlag = b.backend === "codex" && b.effort.trim() ? ` --effort ${b.effort.trim()}` : "";
   if (b.mode === "batch") {
     const fl = b.flavour === "auto-by-subsystem" ? "default" : b.flavour;
     const statusArg = b.status.includes(" ") ? `"${b.status}"` : b.status;
-    return `npx pgroast batch ${b.cfNumber} --out ./out/cf${b.cfNumber} --status ${statusArg} --limit ${b.count} --concurrency ${b.workers} --backend ${b.backend} --roast-level ${b.level} --flavour ${fl}`;
+    const envPrefix =
+      b.backend === "codex" && b.model.trim()
+        ? `PGROAST_CODEX_MODEL=${b.model.trim()}${b.effort.trim() ? `:${b.effort.trim()}` : ""} `
+        : "";
+    return `${envPrefix}npx pgroast batch ${b.cfNumber} --out ./out/cf${b.cfNumber} --status ${statusArg} --limit ${b.count} --concurrency ${b.workers} --backend ${b.backend} --roast-level ${b.level} --flavour ${fl}`;
   }
   const qb = b.backend === "dual" ? "claude" : b.backend;
   const pubFlag = b.publish ? " --publish" : "";
+  const singleCmd = `npx pgroast contribute --once --backend ${qb}${modelFlag}${effortFlag} --strategy ${b.strategy} --flavour ${b.flavour} --level ${b.level}${pubFlag}`;
   if (b.workers > 1) {
-    return `for w in $(seq 1 ${b.workers}); do (for i in $(seq 1 ${Math.ceil(b.count / b.workers)}); do npx pgroast contribute --once --backend ${qb} --strategy ${b.strategy} --flavour ${b.flavour} --level ${b.level}${pubFlag} || break; done) & done; wait`;
+    return `for w in $(seq 1 ${b.workers}); do (for i in $(seq 1 ${Math.ceil(b.count / b.workers)}); do ${singleCmd} || break; done) & done; wait`;
   }
-  return `for i in $(seq 1 ${b.count}); do npx pgroast contribute --once --backend ${qb} --strategy ${b.strategy} --flavour ${b.flavour} --level ${b.level}${pubFlag} || break; done`;
+  return `for i in $(seq 1 ${b.count}); do ${singleCmd} || break; done`;
 }
 
 function renderJobsView(): string {
@@ -3242,6 +3253,18 @@ function renderJobsView(): string {
             <option value="claude" ${b.backend === "claude" ? "selected" : ""}>claude (Claude Code CLI)</option>
             <option value="agy" ${b.backend === "agy" ? "selected" : ""}>agy (Antigravity CLI)</option>
             ${b.mode === "batch" ? `<option value="dual" ${b.backend === "dual" ? "selected" : ""}>dual (Claude + agy)</option>` : ""}
+          </select>
+        </div>
+        <div class="form-field">
+          <label>Model</label>
+          <input type="text" id="bulk-model" value="${esc(b.model)}" placeholder="e.g. gpt-6.2-astra, opus" />
+        </div>
+        <div class="form-field">
+          <label>Reasoning Effort</label>
+          <select id="bulk-effort">
+            ${["", "low", "medium", "high", "xhigh", "max"]
+              .map((ef) => `<option value="${ef}" ${b.effort === ef ? "selected" : ""}>${ef || "default"}</option>`)
+              .join("")}
           </select>
         </div>
         ${
@@ -3342,20 +3365,51 @@ function renderJobsView(): string {
             state.jobs.length === 0
               ? `<tr><td colspan="7" class="empty-state">No jobs have been run yet. Launch a Roast, Build &amp; Test, or AI Review from any entry.</td></tr>`
               : state.jobs
-                  .map(
-                    (j) => `
+                  .map((j) => {
+                    const hubBase = (state.hubStatus?.url || state.settings?.publicHubUrl || "https://pgroast.postgres.ai").replace(/\/$/, "");
+                    let parsedResult: {
+                      cfIds?: number[];
+                      items?: Array<{ cfId: number; title?: string; verdict?: string; published?: boolean; publicUrl?: string }>;
+                    } = {};
+                    try {
+                      if (j.result_json) parsedResult = JSON.parse(j.result_json) as typeof parsedResult;
+                    } catch {
+                      // ignore
+                    }
+                    const titleCfMatch = j.title.match(/\bCF\s+(\d+)\b/i);
+                    const primaryCfId = j.cf_id || parsedResult.items?.[0]?.cfId || parsedResult.cfIds?.[0] || (titleCfMatch ? Number(titleCfMatch[1]) : 0);
+                    const multiItems = parsedResult.items && parsedResult.items.length > 0 ? parsedResult.items : [];
+                    return `
                 <tr>
                   <td class="mono" style="font-size:11.5px;">${esc(j.id)}</td>
                   <td><span class="pill pill-neutral">${esc(j.kind)}</span></td>
                   <td>
                     <strong>${esc(j.title)}</strong>
+                    ${
+                      multiItems.length > 0
+                        ? `<div class="inline-row" style="gap:4px;flex-wrap:wrap;margin-top:4px;">
+                            ${multiItems
+                              .slice(0, 8)
+                              .map(
+                                (it) => `
+                              <button type="button" class="btn btn-ghost btn-sm" style="padding:1px 6px;font-size:11px;" data-open-cf="${it.cfId}">CF ${it.cfId}${it.verdict ? ` · ${esc(it.verdict)}` : ""}</button>
+                              ${it.published ? `<a class="pill pill-ok" style="font-size:10px;text-decoration:none;" href="${esc(it.publicUrl || `${hubBase}/patch/${it.cfId}`)}" target="_blank" rel="noopener">Public ↗</a>` : `<span class="pill pill-neutral" style="font-size:10px;">local</span>`}
+                            `,
+                              )
+                              .join("")}
+                            ${multiItems.length > 8 ? `<span class="dim" style="font-size:11px;">+${multiItems.length - 8} more</span>` : ""}
+                          </div>`
+                        : ""
+                    }
                     ${j.error ? `<div style="color:var(--danger);font-size:11px;">${esc(j.error)}</div>` : ""}
                   </td>
                   <td class="mono" style="font-size:11.5px;">${esc(j.backend)}${j.model ? ` · ${esc(j.model)}` : ""}</td>
                   <td>${jobStatusPill(j.status)}</td>
                   <td class="muted" style="font-size:11.5px;">${esc(j.created_at.slice(0, 19).replace("T", " "))}</td>
                   <td>
-                    <div class="inline-row">
+                    <div class="inline-row" style="flex-wrap:wrap;gap:4px;">
+                      ${primaryCfId > 0 ? `<button type="button" class="btn btn-primary btn-sm" data-open-cf="${primaryCfId}">Open CF ${primaryCfId}</button>` : ""}
+                      ${primaryCfId > 0 ? `<a class="btn btn-ghost btn-sm" href="${esc(`${hubBase}/patch/${primaryCfId}`)}" target="_blank" rel="noopener" title="View on Public App">Public ↗</a>` : ""}
                       <button class="btn btn-secondary btn-sm" data-view-job="${esc(j.id)}">Stream Log</button>
                       ${
                         j.status === "running" || j.status === "queued"
@@ -3365,8 +3419,8 @@ function renderJobsView(): string {
                     </div>
                   </td>
                 </tr>
-              `,
-                  )
+              `;
+                  })
                   .join("")
           }
         </tbody>
@@ -5090,7 +5144,23 @@ function bindViewEvents(): void {
     syncBulkAndRender();
   });
   document.getElementById("bulk-backend")?.addEventListener("change", (ev) => {
-    state.bulkRoast.backend = (ev.target as HTMLSelectElement).value as AppState["bulkRoast"]["backend"];
+    const nextB = (ev.target as HTMLSelectElement).value as AppState["bulkRoast"]["backend"];
+    state.bulkRoast.backend = nextB;
+    if (nextB === "codex" && (!state.bulkRoast.model || state.bulkRoast.model === "opus")) {
+      state.bulkRoast.model = "gpt-6.2-astra";
+      state.bulkRoast.effort = "xhigh";
+    } else if (nextB === "claude" && state.bulkRoast.model.startsWith("gpt-")) {
+      state.bulkRoast.model = "opus";
+      state.bulkRoast.effort = "";
+    }
+    syncBulkAndRender();
+  });
+  document.getElementById("bulk-model")?.addEventListener("change", (ev) => {
+    state.bulkRoast.model = (ev.target as HTMLInputElement).value.trim();
+    syncBulkAndRender();
+  });
+  document.getElementById("bulk-effort")?.addEventListener("change", (ev) => {
+    state.bulkRoast.effort = (ev.target as HTMLSelectElement).value;
     syncBulkAndRender();
   });
   document.getElementById("bulk-strategy")?.addEventListener("change", (ev) => {
@@ -5133,6 +5203,8 @@ function bindViewEvents(): void {
         body: JSON.stringify({
           mode: b.mode,
           backend: b.backend,
+          model: b.model,
+          effort: b.effort,
           strategy: b.strategy,
           flavour: b.flavour,
           roastLevel: b.level,
@@ -5385,13 +5457,17 @@ function bindViewEvents(): void {
   document.getElementById("contrib-run-once-btn")?.addEventListener("click", async () => {
     try {
       const cfg = state.contributeData?.config;
-      const preferred =
-        cfg?.backends.claude.enabled ? "claude" : cfg?.backends.codex.enabled ? "codex" : cfg?.backends.agy.enabled ? "agy" : "claude";
+      const enCodex = (document.getElementById("contrib-en-codex") as HTMLInputElement | null)?.checked ?? cfg?.backends.codex.enabled;
+      const enClaude = (document.getElementById("contrib-en-claude") as HTMLInputElement | null)?.checked ?? cfg?.backends.claude.enabled;
+      const enAgy = (document.getElementById("contrib-en-agy") as HTMLInputElement | null)?.checked ?? cfg?.backends.agy.enabled;
+      const liveAutoPublish =
+        (document.getElementById("contrib-autopublish") as HTMLInputElement | null)?.checked ?? Boolean(cfg?.autoPublish);
+      const preferred = enCodex ? "codex" : enClaude ? "claude" : enAgy ? "agy" : "claude";
       const res = await api<{ job: JobRecord }>("/api/contribute/run", {
         method: "POST",
-        body: JSON.stringify({ mode: "once", backend: preferred, publish: Boolean(cfg?.autoPublish) }),
+        body: JSON.stringify({ mode: "once", backend: preferred, publish: liveAutoPublish }),
       });
-      toast(`Started Quota Auto-Contribute run (${preferred})`, "ok");
+      toast(`Started Quota Auto-Contribute run (${preferred}${liveAutoPublish ? " · auto-publish" : ""})`, "ok");
       openJobStream(res.job);
       await refreshJobsList();
     } catch (err) {

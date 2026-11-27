@@ -1456,6 +1456,7 @@ export async function createWebHandler(opts?: {
           roast_level?: string;
           roast_flavour?: string;
           models?: Record<string, string> | string;
+          models_json?: Record<string, string> | string;
           verdict?: string;
           confidence?: string;
           summary?: string;
@@ -1481,7 +1482,7 @@ export async function createWebHandler(opts?: {
           backend: (body.backend || "ai-harness").slice(0, 60),
           roast_level: body.roast_level || "medium",
           roast_flavour: body.roast_flavour || "default",
-          models: body.models,
+          models: body.models ?? body.models_json,
           verdict: body.verdict.trim(),
           confidence: body.confidence || "medium",
           summary: body.summary || "",

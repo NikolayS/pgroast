@@ -1,5 +1,20 @@
 # Changelog
 
+## v0.3.0-alpha.14 (2026-11-26)
+
+This release adds explicit model version & reasoning-effort tracking in standard `provider/model:effort` format (such as `openai/gpt-6.2-astra:xhigh` and `anthropic/claude-opus-5-5`) across the CLI, Personal Backoffice, and Public App, fixes `models` persistence on opinion publish, and makes every Backoffice Jobs row clickable to both the local Workbench entry and its public opinion page.
+
+### Changes
+
+- **Explicit Model Version & Reasoning Effort (`src/roast/llm.ts`, `src/contribute.ts`, `src/publish.ts`):**
+  - Added `model:effort` parsing (`PGROAST_CODEX_MODEL=gpt-6.2-astra:xhigh` or `--model <model> --effort <effort>`) and wired `-m <model>` + `-c model_reasoning_effort="<effort>"` into `codexArgs()` so reasoning effort is explicitly passed even with `--ignore-user-config`.
+  - Standardized published model labels to `provider/model:effort` (e.g. `openai/gpt-6.2-astra:xhigh`, `anthropic/claude-opus-5-5`, `google/gemini-4-neon:xhigh`) and fixed the `models` vs `models_json` payload mismatch between `src/publish.ts` and `apps/web/src/server.ts`.
+- **Public App Model Spec Display (`apps/web`):**
+  - Displayed the full `provider/model:effort` spec on every `/patch/<id>` opinion card, every row of the **Opinions** tab, and **Recent Contributions** on the **Contribute** page.
+- **Clickable Backoffice Jobs & Live Auto-Publish Checkbox (`apps/local`):**
+  - Automatically parsed finished `contribute` and `bulk_roast` logs to populate `cf_id`, patch title, verdict, model spec, and public link, and auto-imported finished roasts into the local Backoffice database.
+  - Added **Open CF #** and **Public ↗** action buttons plus verdict/published pills to every Jobs table row, added **Model** and **Reasoning Effort** pickers to the Bulk Roast card, and fixed **Run 1 Patch Now** to honor the live Auto-Publish checkbox immediately.
+
 ## v0.3.0-alpha.13 (2026-11-26)
 
 This release adds a **Bulk Roast & Quota Burn** launcher directly inside the Personal Backoffice UI and adds copyable `npx pgroast ...` CLI equivalent bars across both the Backoffice and the Front Office.

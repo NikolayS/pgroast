@@ -27,6 +27,7 @@ export interface CommunityCoverageData {
     backend: string;
     roast_level: string;
     roast_flavour: string;
+    models_json?: string;
     verdict: string;
     created_at: string;
   }>;
@@ -293,15 +294,23 @@ export function renderContributeTab(params: {
                 : `<div class="lb-list">
                     ${cov.recentContributions
                       .slice(0, 6)
-                      .map(
-                        (r) => `
+                      .map((r) => {
+                        let modelLabel = r.backend;
+                        try {
+                          const m = JSON.parse(r.models_json || "{}") as Record<string, string>;
+                          if (m.spec) modelLabel = m.spec;
+                          else if (m.critic || m.roaster) modelLabel = m.critic || m.roaster || r.backend;
+                        } catch {
+                          // fallback to backend
+                        }
+                        return `
                       <button type="button" class="lb-row" data-open-patch="${r.cf_id}">
                         <span class="mono" style="color:var(--accent-t);font-size:11.5px;min-width:54px;">CF ${r.cf_id}</span>
                         <span class="lb-name">${esc(r.title)}</span>
-                        <span class="tag-micro mono">${esc(r.backend)}</span>
+                        <span class="tag-micro mono">${esc(modelLabel)}</span>
                       </button>
-                    `,
-                      )
+                    `;
+                      })
                       .join("")}
                   </div>`
             }

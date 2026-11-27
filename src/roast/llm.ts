@@ -77,10 +77,29 @@ export function dualCriticBackend(env: Env = process.env): "agy" | "claude" {
  * agy: PGROAST_AGY_MODEL (default gemini-4-neon-high) / PGROAST_AGY_CRITIC_MODEL (defaults to PGROAST_AGY_MODEL).
  * dual: cross-family (Claude + agy); roasters alternate across families, Critic and Synthesis run on opposite families.
  */
+export function splitModelAndEffort(raw: string, fallbackEffort = ""): { model: string; effort: string } {
+  const trimmed = raw.trim();
+  const m = trimmed.match(/^(.+?):(low|medium|high|xhigh|max|ultra)$/i);
+  if (m?.[1] && m[2]) {
+    return { model: m[1].trim(), effort: m[2].toLowerCase() };
+  }
+  return { model: trimmed, effort: fallbackEffort.trim().toLowerCase() };
+}
+
 export function modelsFromEnv(env: Env = process.env, backend: BackendName = "claude"): Models {
   if (backend === "codex") {
-    const m = env.PGROAST_CODEX_MODEL?.trim() || CODEX_DEFAULT;
-    return { roaster: m, critic: m, synth: m, brief: m };
+    const rawModel = env.PGROAST_CODEX_MODEL?.trim() || CODEX_DEFAULT;
+    const rawEffort = env.PGROAST_CODEX_EFFORT?.trim().toLowerCase() || "";
+    const parsed = splitModelAndEffort(rawModel, rawEffort);
+    const full =
+      parsed.model && parsed.model !== CODEX_DEFAULT
+        ? parsed.effort
+          ? `${parsed.model}:${parsed.effort}`
+          : parsed.model
+        : parsed.effort
+          ? `${CODEX_DEFAULT}:${parsed.effort}`
+          : CODEX_DEFAULT;
+    return { roaster: full, critic: full, synth: full, brief: full };
   }
   if (backend === "agy") {
     const roaster = assertAllowedAgyModel(env.PGROAST_AGY_MODEL?.trim() || DEFAULT_AGY_MODEL);
@@ -421,7 +440,8 @@ export const CODEX_DISABLED_FEATURES = [
  *   -s read-only           and an empty working directory: nothing to read, no network, no writes
  * and then the event stream is checked: any item that is not a message or reasoning fails the call.
  */
-export function codexArgs(model: string, cwd: string): string[] {
+export function codexArgs(model: string, cwd: string, effortOverride?: string): string[] {
+  const { model: baseModel, effort } = splitModelAndEffort(model, effortOverride || process.env.PGROAST_CODEX_EFFORT || "");
   return [
     "exec",
     "--json",
@@ -435,8 +455,9 @@ export function codexArgs(model: string, cwd: string): string[] {
     cwd,
     "-c",
     'web_search="disabled"',
+    ...(effort ? ["-c", `model_reasoning_effort="${effort}"`] : []),
     ...CODEX_DISABLED_FEATURES.flatMap((f) => ["--disable", f]),
-    ...(model && model !== CODEX_DEFAULT ? ["-m", model] : []),
+    ...(baseModel && baseModel !== CODEX_DEFAULT ? ["-m", baseModel] : []),
     "-", // the prompt comes from stdin
   ];
 }

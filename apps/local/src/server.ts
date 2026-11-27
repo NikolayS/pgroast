@@ -1096,6 +1096,8 @@ export async function createAppHandler(opts?: {
           const body = await readBody<{
             mode?: "queue" | "batch";
             backend?: "claude" | "codex" | "agy" | "dual";
+            model?: string;
+            effort?: string;
             strategy?: "unroasted-first" | "ready-for-committer" | "cross-model-second-opinion";
             flavour?: string;
             roastLevel?: "light" | "medium" | "dark";
@@ -1109,6 +1111,8 @@ export async function createAppHandler(opts?: {
           const job = await jobs.startBulkRoastJob({
             mode: body.mode === "batch" ? "batch" : "queue",
             backend: body.backend,
+            model: body.model,
+            effort: body.effort,
             strategy: body.strategy,
             flavour: body.flavour,
             roastLevel: body.roastLevel,

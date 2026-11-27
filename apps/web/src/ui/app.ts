@@ -1052,12 +1052,36 @@ function formatOpinionProfile(o: OpinionItem): string {
   return fl === "default" ? `${lvLabel} · ${flLabel}` : `${lvLabel} · ${flLabel} (AI persona)`;
 }
 
+function formatOpinionModelSpec(backend: string, modelsJson: string): string {
+  const b = (backend || "ai").toLowerCase().trim();
+  if (modelsJson && modelsJson !== "{}") {
+    try {
+      const obj = JSON.parse(modelsJson) as Record<string, string>;
+      if (obj.spec && obj.spec.trim()) return obj.spec.trim();
+      const raw = (obj.critic || obj.synth || obj.roaster || "").trim();
+      if (raw && raw !== "codex-default") {
+        if (raw.includes("/")) return raw;
+        const norm = raw.replace(/-(xhigh|high|medium|low|max|ultra)$/i, ":$1");
+        if (/^(?:gpt-|o[134]|codex)/i.test(norm) || b === "codex") return `openai/${norm}`;
+        if (/^(?:claude|opus|fable|mythos)/i.test(norm) || b === "claude") {
+          return `anthropic/${norm.toLowerCase() === "opus" ? "claude-opus" : norm}`;
+        }
+        if (/^gemini/i.test(norm) || b === "agy") return `google/${norm}`;
+        return `${b}/${norm}`;
+      }
+    } catch {
+      // fallback below
+    }
+  }
+  return b;
+}
+
 function formatModelsLabel(modelsJson: string): string {
   if (!modelsJson || modelsJson === "{}") return "";
   try {
     const obj = JSON.parse(modelsJson) as Record<string, string>;
     const vals = Object.entries(obj)
-      .filter(([, v]) => Boolean(v))
+      .filter(([k, v]) => k !== "spec" && Boolean(v))
       .map(([k, v]) => `${k}: ${v}`);
     return vals.join(" · ");
   } catch {
@@ -1702,8 +1726,8 @@ function renderPatchPage(): string {
                       <div class="opinion-sub">@${esc(o.contributor_handle)} · ${esc(o.contributor_provider)} · ${esc(o.created_at.slice(0, 10))}</div>
                     </div>
                   </div>
-                  <div class="row" style="gap:6px;">
-                    <span class="opinion-model-badge mono">${esc(o.backend)}</span>
+                  <div class="row" style="gap:6px;flex-wrap:wrap;">
+                    <span class="opinion-model-badge mono">${esc(formatOpinionModelSpec(o.backend, o.models_json))}</span>
                     <span class="opinion-model-badge">${esc(formatOpinionProfile(o))}</span>
                     ${verdictPill(o.verdict)}
                   </div>
@@ -2822,7 +2846,7 @@ function renderOpinionsTab(): string {
             <div class="issue-meta">
               ${verdictPill(o.verdict)}
               <span class="tag-micro">${esc(o.contributor_name)} (@${esc(o.contributor_handle)})</span>
-              <span class="tag-micro mono">${esc(o.backend)}</span>
+              <span class="tag-micro mono">${esc(formatOpinionModelSpec(o.backend, o.models_json))}</span>
               <span class="tag-micro">${esc(formatOpinionProfile(o))}</span>
             </div>
           </button>

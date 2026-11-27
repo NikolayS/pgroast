@@ -767,9 +767,76 @@ echo "=== Build & test complete (PGPORT=${pgPort}) ==="
     return job;
   }
 
+  private async finalizeContributeMetadata(jobId: string, logPath: string, backend: string): Promise<Record<string, unknown>> {
+    const out: Record<string, unknown> = {};
+    if (!existsSync(logPath)) return out;
+    const text = readFileSync(logPath, "utf8");
+    const cfMatches = Array.from(text.matchAll(/claimed CF (\d+)\s+"([^"]+)"/g));
+    const pubMatches = Array.from(text.matchAll(/\[(\d+)\] published sanitized opinion -> (https?:\/\/\S+)/g));
+    const pubMap = new Map<number, string>(pubMatches.map((m) => [Number(m[1]), m[2]!]));
+
+    const cfIds: number[] = [];
+    const items: Array<{ cfId: number; title: string; verdict: string; published: boolean; publicUrl?: string; modelSpec?: string }> = [];
+    const outRoot = join(homedir(), ".pgroast", "contribute-out", backend);
+
+    for (const m of cfMatches) {
+      const cfId = Number(m[1]);
+      if (!cfId || cfIds.includes(cfId)) continue;
+      cfIds.push(cfId);
+      let verdict = "";
+      let modelSpec = "";
+      const jsonPath = join(outRoot, `cf-${cfId}`, "roast.json");
+      if (existsSync(jsonPath)) {
+        try {
+          const parsed = JSON.parse(readFileSync(jsonPath, "utf8")) as RoastJson;
+          verdict = parsed.verdict || "";
+          const ms = parsed.models as Record<string, string> | undefined;
+          modelSpec = ms?.critic || ms?.synth || ms?.roaster || "";
+        } catch {
+          // ignore
+        }
+      }
+      items.push({
+        cfId,
+        title: m[2] || `CF ${cfId}`,
+        verdict,
+        published: pubMap.has(cfId),
+        publicUrl: pubMap.get(cfId),
+        modelSpec,
+      });
+    }
+
+    if (existsSync(outRoot)) {
+      try {
+        await this.db.importRoastBatch(outRoot);
+      } catch {
+        // best-effort local import
+      }
+    }
+
+    if (items.length === 1) {
+      const it = items[0]!;
+      const suffix = it.published ? "published" : "local only";
+      await this.db.updateJob(jobId, {
+        cf_id: it.cfId,
+        title: `CF ${it.cfId}: ${it.title.slice(0, 72)}${it.verdict ? ` · ${it.verdict}` : ""} (${suffix})`,
+        model: it.modelSpec || undefined,
+      });
+    } else if (items.length > 1) {
+      const pubCnt = items.filter((i) => i.published).length;
+      await this.db.updateJob(jobId, {
+        cf_id: items[0]!.cfId,
+        title: `Bulk Roast (${items.length} done · ${pubCnt} published · ${backend})`,
+      });
+    }
+    return { cfIds, items, publishedCount: items.filter((i) => i.published).length };
+  }
+
   async startContributeJob(params: {
     mode: "once" | "auto" | "dry-run";
     backend?: "claude" | "codex" | "agy";
+    model?: string;
+    effort?: string;
     publish?: boolean;
   }): Promise<JobRecord> {
     const settings = await this.db.getSettings();
@@ -781,6 +848,8 @@ echo "=== Build & test complete (PGPORT=${pgPort}) ==="
     const modeFlag = params.mode === "dry-run" ? "--dry-run" : params.mode === "auto" ? "--auto" : "--once";
     const args = ["run", cliPath, "contribute", modeFlag];
     if (params.backend) args.push("--backend", params.backend);
+    if (params.model) args.push("--model", params.model);
+    if (params.effort) args.push("--effort", params.effort);
     if (params.publish === true) args.push("--publish");
     else if (params.publish === false) args.push("--no-publish");
     if (settings.publicHubUrl) args.push("--hub", settings.publicHubUrl);
@@ -788,22 +857,26 @@ echo "=== Build & test complete (PGPORT=${pgPort}) ==="
     const token = await this.db.getHubTokenDecrypted();
     const id = makeJobId("contribute");
     const logPath = join(LOGS_DIR, `${id}.log`);
+    const modelLabel = params.model ? `${params.model}${params.effort ? `:${params.effort}` : ""}` : params.mode;
     const job = await this.db.createJob({
       id,
       kind: "contribute",
-      title: `Quota Auto-Contribute (${params.mode}${params.backend ? ` · ${params.backend}` : ""})`,
+      title: `Quota Auto-Contribute (${params.mode}${params.backend ? ` · ${params.backend}` : ""}${params.publish ? " · publish" : ""})`,
       backend: params.backend || "auto",
-      model: params.mode,
+      model: modelLabel,
       log_path: logPath,
     });
 
     const extraEnv: Record<string, string> = {};
     if (token) extraEnv.PGROAST_PUBLISH_TOKEN = token;
     if (settings.publicHubUrl) extraEnv.PGROAST_PUBLIC_HUB_URL = settings.publicHubUrl;
+    if (params.backend === "codex" && params.model) extraEnv.PGROAST_CODEX_MODEL = params.model;
+    if (params.effort) extraEnv.PGROAST_CODEX_EFFORT = params.effort;
 
     this.spawnShellJob(job, resolveBunBin(), args, {
       cwd: repoDir,
       env: buildChildEnv(settings, { stripApiKeys: true, extra: extraEnv }),
+      onSuccess: () => this.finalizeContributeMetadata(job.id, logPath, params.backend || "claude"),
     });
     return job;
   }
@@ -811,6 +884,8 @@ echo "=== Build & test complete (PGPORT=${pgPort}) ==="
   async startBulkRoastJob(params: {
     mode: "queue" | "batch";
     backend?: "claude" | "codex" | "agy" | "dual";
+    model?: string;
+    effort?: string;
     strategy?: "unroasted-first" | "ready-for-committer" | "cross-model-second-opinion";
     flavour?: string;
     roastLevel?: "light" | "medium" | "dark";
@@ -832,6 +907,8 @@ echo "=== Build & test complete (PGPORT=${pgPort}) ==="
     const backend = resolveEffectiveBackend(params.backend, settings);
     const level = params.roastLevel === "light" || params.roastLevel === "dark" ? params.roastLevel : "medium";
     const flavour = (params.flavour || "default").trim() || "default";
+    const model = (params.model || "").trim();
+    const effort = (params.effort || "").trim().toLowerCase();
     const count = Math.min(Math.max(Math.trunc(params.count ?? 20), 1), 300);
     const workers = Math.min(Math.max(Math.trunc(params.workers ?? 2), 1), 4);
     const bunBin = resolveBunBin();
@@ -842,6 +919,18 @@ echo "=== Build & test complete (PGPORT=${pgPort}) ==="
     };
     if (token) extraEnv.PGROAST_PUBLISH_TOKEN = token;
     if (settings.publicHubUrl) extraEnv.PGROAST_PUBLIC_HUB_URL = settings.publicHubUrl;
+    if (backend === "codex" && model) extraEnv.PGROAST_CODEX_MODEL = model;
+    if (backend === "codex" && effort) extraEnv.PGROAST_CODEX_EFFORT = effort;
+    if (backend === "claude" && model) {
+      extraEnv.PGROAST_ROASTER_MODEL = model;
+      extraEnv.PGROAST_CRITIC_MODEL = model;
+    }
+    if (backend === "agy" && model) {
+      extraEnv.PGROAST_AGY_MODEL = model;
+      extraEnv.PGROAST_AGY_CRITIC_MODEL = model;
+    }
+
+    const modelSpecLabel = model ? `${backend === "codex" ? "openai" : backend === "claude" ? "anthropic" : backend === "agy" ? "google" : backend}/${model}${effort ? `:${effort}` : ""}` : `${flavour}/${level}`;
 
     const id = makeJobId("bulk_roast");
     const logPath = join(LOGS_DIR, `${id}.log`);
@@ -874,9 +963,9 @@ echo "=== Build & test complete (PGPORT=${pgPort}) ==="
       const job = await this.db.createJob({
         id,
         kind: "bulk_roast",
-        title: `Bulk Batch CF #${cfNum} (${count} × ${backend} · ${batchFlavour} · ${level}, ${workers}w)`,
+        title: `Bulk Batch CF #${cfNum} (${count} × ${modelSpecLabel} · ${batchFlavour}/${level}, ${workers}w)`,
         backend,
-        model: `${batchFlavour}/${level}`,
+        model: modelSpecLabel,
         log_path: logPath,
       });
       this.spawnShellJob(job, bunBin, args, {
@@ -901,7 +990,6 @@ echo "=== Build & test complete (PGPORT=${pgPort}) ==="
     const topicsArg =
       params.topics && params.topics.length > 0 ? params.topics.map((t) => t.replace(/[^a-zA-Z0-9._,-]/g, "")).filter(Boolean).join(",") : "";
 
-    // Build an inline Bun worker runner so there is zero shell-quoting risk and Cancel kills the entire group cleanly
     const workerScript = `
 import { spawn } from "node:child_process";
 const workers = Number(process.env.BULK_WORKERS || 2);
@@ -954,14 +1042,16 @@ console.log(\`[bulk] Finished: \${done} patch(es) processed across \${workers} w
       "--hub",
       hubUrl,
     ];
+    if (model) baseArgs.push("--model", model);
+    if (effort) baseArgs.push("--effort", effort);
     if (topicsArg) baseArgs.push("--topics", topicsArg);
 
     const job = await this.db.createJob({
       id,
       kind: "bulk_roast",
-      title: `Bulk Queue Roast (${count} × ${queueBackend} · ${flavour} · ${level}, ${workers}w${params.publish ? ", auto-publish" : ""})`,
+      title: `Bulk Queue Roast (${count} × ${modelSpecLabel} · ${flavour}/${level}, ${workers}w${params.publish ? ", auto-publish" : ""})`,
       backend: queueBackend,
-      model: `${flavour}/${level}`,
+      model: modelSpecLabel,
       log_path: logPath,
     });
 
@@ -974,6 +1064,7 @@ console.log(\`[bulk] Finished: \${done} patch(es) processed across \${workers} w
     this.spawnShellJob(job, bunBin, ["-e", workerScript], {
       cwd: repoDir,
       env: buildChildEnv(settings, { stripApiKeys: true, extra: extraEnv }),
+      onSuccess: () => this.finalizeContributeMetadata(job.id, logPath, queueBackend),
     });
     return job;
   }

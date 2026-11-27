@@ -1139,6 +1139,9 @@ export class AppDatabase {
   async updateJob(
     id: string,
     patch: Partial<{
+      cf_id: number | null;
+      title: string;
+      model: string;
       status: JobStatus;
       pid: number | null;
       pgid: number | null;

@@ -18,8 +18,39 @@ const SECRET_AND_PATH_RULES: Array<{ name: string; re: RegExp }> = [
   { name: "session/CSRF cookie", re: /\b(?:sessionid|csrftoken)\s*=\s*[^\s;]{8,}/i },
   { name: "private key header", re: /-----BEGIN [A-Z ]*PRIVATE KEY-----/ },
   { name: "local filesystem path", re: /(?:^|[\s"'`(])\/(?:Users|home)\/[A-Za-z0-9._-]+\// },
-  { name: "internal model codename", re: /\b(?:mythos|fable|neon|astra|daybreak)\b/i },
 ];
+
+export function formatCanonicalModelSpec(backend: string, models?: Record<string, string>): string {
+  const b = (backend || "claude").toLowerCase().trim();
+  const primary = (models?.critic || models?.synth || models?.roaster || "").trim();
+  if (!primary || primary === "codex-default") {
+    return b === "codex" ? "openai/codex-default" : b === "agy" ? "google/gemini" : b;
+  }
+  const normalizeSingle = (raw: string, fallbackBackend: string): string => {
+    const s = raw.trim();
+    if (!s) return fallbackBackend;
+    if (s.includes("/")) return s;
+    const low = s.toLowerCase();
+    // Convert trailing -xhigh/-high/-medium/-low on Gemini/agy slugs into standard :effort suffix
+    const normalized = s.replace(/-(xhigh|high|medium|low|max|ultra)$/i, ":$1");
+    if (low.startsWith("gpt-") || low.startsWith("o1") || low.startsWith("o3") || low.startsWith("o4") || low.includes("codex") || fallbackBackend === "codex") {
+      return `openai/${normalized}`;
+    }
+    if (low.startsWith("claude") || low === "opus" || low.includes("fable") || low.includes("mythos") || fallbackBackend === "claude") {
+      const mName = low === "opus" ? "claude-opus" : normalized;
+      return `anthropic/${mName}`;
+    }
+    if (low.startsWith("gemini") || fallbackBackend === "agy") {
+      return `google/${normalized}`;
+    }
+    return `${fallbackBackend}/${normalized}`;
+  };
+  if (b === "dual" && models?.roaster?.includes("+")) {
+    const parts = models.roaster.split("+").map((p) => p.trim()).filter(Boolean);
+    return parts.map((p) => normalizeSingle(p, p.toLowerCase().includes("gemini") ? "agy" : "claude")).join(" + ");
+  }
+  return normalizeSingle(primary, b);
+}
 
 export function checkPublishConfidentiality(text: string): { ok: true } | { ok: false; reasons: string[] } {
   const reasons: string[] = [];
@@ -45,6 +76,7 @@ export interface PublishOpinionPayload {
   backend: string;
   roast_level: string;
   roast_flavour: string;
+  models: Record<string, string>;
   models_json: string;
   verdict: string;
   confidence: string;
@@ -80,7 +112,7 @@ export function buildOpinionPayloadFromRoast(
   }
   const summary = summaryParts.join("\n\n").slice(0, 3500).trim();
 
-  // Sanitize models object: keep only non-internal model identifiers
+  // Build structured models metadata including canonical provider/model:effort spec
   const cleanModels: Record<string, string> = {};
   if (roast.models && typeof roast.models === "object") {
     for (const [k, v] of Object.entries(roast.models)) {
@@ -89,6 +121,8 @@ export function buildOpinionPayloadFromRoast(
       }
     }
   }
+  const spec = formatCanonicalModelSpec(backend, cleanModels);
+  if (spec) cleanModels.spec = spec;
 
   const cf = roast.input?.cf as
     | { id: number; title?: string; status?: string | null; authors?: string; reviewers?: string; committer?: string }
@@ -111,6 +145,7 @@ export function buildOpinionPayloadFromRoast(
     backend,
     roast_level: level,
     roast_flavour: flavour,
+    models: cleanModels,
     models_json: JSON.stringify(cleanModels),
     verdict: roast.verdict,
     confidence: roast.confidence || "medium",

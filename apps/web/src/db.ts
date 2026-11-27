@@ -957,12 +957,12 @@ export class WebDatabase {
       ) as Promise<Array<{ handle: string; name: string; count: number; backends: string[] }>>,
       this.sql.unsafe(
         `SELECT o.cf_id, COALESCE(e.title, 'CF ' || o.cf_id) AS title, o.contributor_handle, o.contributor_name,
-                o.backend, o.roast_level, o.roast_flavour, o.verdict, o.created_at
+                o.backend, o.roast_level, o.roast_flavour, o.models_json, o.verdict, o.created_at
          FROM ${this.t("public_opinions")} o
          LEFT JOIN ${this.t("public_entries")} e ON e.cf_id = o.cf_id
          ORDER BY o.created_at DESC
          LIMIT 12`,
-      ) as Promise<Array<{ cf_id: number; title: string; contributor_handle: string; contributor_name: string; backend: string; roast_level: string; roast_flavour: string; verdict: string; created_at: string }>>,
+      ) as Promise<Array<{ cf_id: number; title: string; contributor_handle: string; contributor_name: string; backend: string; roast_level: string; roast_flavour: string; models_json: string; verdict: string; created_at: string }>>,
     ]);
 
     const t = totalsRows[0] ?? {};
@@ -1000,6 +1000,7 @@ export class WebDatabase {
         backend: String(r.backend || ""),
         roast_level: String(r.roast_level || "medium"),
         roast_flavour: String(r.roast_flavour || "default"),
+        models_json: String(r.models_json || "{}"),
         verdict: String(r.verdict || ""),
         created_at: String(r.created_at || ""),
       })),
