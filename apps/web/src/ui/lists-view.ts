@@ -268,7 +268,7 @@ export function renderListsTab(params: {
             .slice(0, 10)
             .map(
               (th) => `
-            <a class="lb-row" href="https://www.postgresql.org/message-id/flat/${encodeURIComponent(th.messageId)}" target="_blank" rel="noopener" style="text-decoration:none;color:inherit;">
+            <a class="lb-row" href="https://www.postgresql.org/message-id/${encodeURIComponent(th.messageId)}" target="_blank" rel="noopener" style="text-decoration:none;color:inherit;">
               <span class="tag-micro mono" style="flex-shrink:0;">${esc(th.listName)}</span>
               <span class="lb-name">${th.hasAttachment ? "📎 " : ""}${esc(th.subject)}</span>
               <span class="mono dim" style="font-size:11.5px;flex-shrink:0;">${th.messages} msgs · ${th.participants} people ↗</span>

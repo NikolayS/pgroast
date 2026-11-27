@@ -979,7 +979,7 @@ export function renderThreadHeatScatterSvg(
     .map((t) => {
       const cx = xOf(t.messages);
       const cy = yOf(t.participants);
-      const url = `https://www.postgresql.org/message-id/flat/${encodeURIComponent(t.messageId)}`;
+      const url = `https://www.postgresql.org/message-id/${encodeURIComponent(t.messageId)}`;
       return `
         <a href="${esc(url)}" target="_blank" rel="noopener">
           <circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="5.5" fill="${t.hasAttachment ? "var(--viz-2)" : "var(--surface)"}" stroke="${t.hasAttachment ? "var(--surface)" : "var(--viz-1)"}" stroke-width="2" class="viz-hoverable" data-tip-title="${esc(t.subject)}" data-tip-body="${t.messages} messages · ${t.participants} participants · ${esc(t.listName)}" data-tip-sub="${t.hasAttachment ? "📎 Includes patch/attachment · Click to read thread" : "Text discussion · Click to read thread"}" />

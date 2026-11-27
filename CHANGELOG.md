@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.3.0-alpha.28 (2026-11-27)
+
+This release switches outbound Postgres mailing list links from `/message-id/flat/<id>` to canonical `/message-id/<id>` permalinks so links keep working while `postgresql.org`'s `/flat/` view returns HTTP 500.
+
+### Changes
+
+- **Canonical Mailing List Permalinks (`apps/web/src/lists-queries.ts`, `ui/lists-view.ts`, `ui/viz-charts.ts`):**
+  - Updated Mailing Lists Archive rows, active thread links, and thread scatter chart links to use `https://www.postgresql.org/message-id/<id>` (HTTP 200) instead of `/message-id/flat/<id>` (currently returning HTTP 500 on `postgresql.org`).
+
 ## v0.3.0-alpha.27 (2026-11-27)
 
 This release fixes mobile viewport clipping on the `/docs` step-by-step tutorial Copy buttons and hardens narrow-screen (`375px`) CSS grids and patch MR tabs across the site.

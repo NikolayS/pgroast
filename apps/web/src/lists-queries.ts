@@ -208,7 +208,7 @@ export async function searchMailingListMessages(
     hasAttachment: Boolean(r.has_attachment),
     bodyExcerpt: r.body_excerpt || "",
     personSlug: r.person_slug || "",
-    archiveUrl: `https://www.postgresql.org/message-id/flat/${encodeURIComponent(r.message_id)}`,
+    archiveUrl: `https://www.postgresql.org/message-id/${encodeURIComponent(r.message_id)}`,
   }));
 }
 
@@ -243,7 +243,7 @@ export async function getHackerMailingListStats(db: WebDatabase, personId: numbe
       subject: r.subject,
       sentAt: r.sent_at,
       hasAttachment: Boolean(r.has_attachment),
-      archiveUrl: `https://www.postgresql.org/message-id/flat/${encodeURIComponent(r.message_id)}`,
+      archiveUrl: `https://www.postgresql.org/message-id/${encodeURIComponent(r.message_id)}`,
     })),
   };
 }
