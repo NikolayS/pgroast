@@ -253,6 +253,7 @@ export interface RoastRunRecord {
 
 export type JobKind =
   | "roast"
+  | "bulk_roast"
   | "pushback"
   | "build_test"
   | "ai_review"

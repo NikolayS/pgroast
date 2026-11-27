@@ -186,6 +186,19 @@ interface AppState {
     };
   } | null;
 
+  bulkRoast: {
+    mode: "queue" | "batch";
+    backend: "codex" | "claude" | "agy" | "dual";
+    strategy: "unroasted-first" | "ready-for-committer" | "cross-model-second-opinion";
+    flavour: string;
+    level: "light" | "medium" | "dark";
+    count: number;
+    workers: number;
+    publish: boolean;
+    cfNumber: number;
+    status: string;
+  };
+
   loading: {
     shortlist: boolean;
     stats: boolean;
@@ -276,6 +289,18 @@ const state: AppState = {
   onboardingSkillsMode: "builtin",
   contributeData: null,
   contributePreview: null,
+  bulkRoast: {
+    mode: "queue",
+    backend: "codex",
+    strategy: "unroasted-first",
+    flavour: "default",
+    level: "medium",
+    count: 50,
+    workers: 3,
+    publish: true,
+    cfNumber: 62,
+    status: "open",
+  },
 
   loading: {
     shortlist: true,
@@ -2351,6 +2376,16 @@ function renderWorkbenchView(): string {
             </div>
           </div>
         </div>
+
+        <div style="margin-top:10px;border-top:1px solid var(--border);padding-top:10px;">
+          <div class="dim" style="font-size:11px;font-weight:600;margin-bottom:4px;">Run the same from CLI (<code>npx pgroast</code>):</div>
+          ${renderCmdSnippet(
+            `npx pgroast ${state.detail.entry.cf_id}${defBackend && defBackend !== "auto" ? ` --backend ${defBackend}` : ""} --roast-level ${state.roastLevel} --flavour ${currentFlavourId}`,
+          )}
+          <div style="margin-top:6px;">
+            ${renderCmdSnippet(`npx pgroast pushback ${state.detail.entry.cf_id}`)}
+          </div>
+        </div>
       </div>
 
       ${
@@ -3015,6 +3050,9 @@ function renderBugsView(): string {
       <button class="btn btn-primary" id="bugs-scan-btn">Scan Recent pgsql-bugs (14d)</button>
       <button class="btn btn-secondary" id="bugs-add-manual-btn">+ Classify Pasted Report</button>
     </div>
+    <div style="margin-bottom:10px;">
+      ${renderCmdSnippet("npx pgroast bugs --days 14 --limit 30")}
+    </div>
 
     <div class="table-wrap">
       <table>
@@ -3147,10 +3185,143 @@ function renderWorkItemsView(): string {
   `;
 }
 
+function buildBulkRoastCliSnippet(): string {
+  const b = state.bulkRoast;
+  if (b.mode === "batch") {
+    const fl = b.flavour === "auto-by-subsystem" ? "default" : b.flavour;
+    const statusArg = b.status.includes(" ") ? `"${b.status}"` : b.status;
+    return `npx pgroast batch ${b.cfNumber} --out ./out/cf${b.cfNumber} --status ${statusArg} --limit ${b.count} --concurrency ${b.workers} --backend ${b.backend} --roast-level ${b.level} --flavour ${fl}`;
+  }
+  const qb = b.backend === "dual" ? "claude" : b.backend;
+  const pubFlag = b.publish ? " --publish" : "";
+  if (b.workers > 1) {
+    return `for w in $(seq 1 ${b.workers}); do (for i in $(seq 1 ${Math.ceil(b.count / b.workers)}); do npx pgroast contribute --once --backend ${qb} --strategy ${b.strategy} --flavour ${b.flavour} --level ${b.level}${pubFlag} || break; done) & done; wait`;
+  }
+  return `for i in $(seq 1 ${b.count}); do npx pgroast contribute --once --backend ${qb} --strategy ${b.strategy} --flavour ${b.flavour} --level ${b.level}${pubFlag} || break; done`;
+}
+
 function renderJobsView(): string {
+  const b = state.bulkRoast;
+  const archetypes: Array<[string, string]> = [
+    ["default", "House Blend (default)"],
+    ["auto-by-subsystem", "Auto by subsystem"],
+    ["edge-case-hunter", "The Edge-Case Hunter"],
+    ["spec-lawyer", "The Spec Lawyer"],
+    ["systems-architect", "The Systems Architect"],
+    ["perf-hawk", "The Perf Hawk"],
+    ["storage-skeptic", "The Storage Skeptic"],
+    ["index-specialist", "The Index Specialist"],
+    ["production-dba", "The Production DBA"],
+  ];
+  const bulkCli = buildBulkRoastCliSnippet();
+
   return `
+    <div class="card" id="bulk-roast-card" style="margin-bottom:14px;">
+      <div class="card-header">
+        <div>
+          <h3 style="margin:0;">Bulk Roast &amp; Quota Burn</h3>
+          <div class="dim" style="font-size:11.5px;margin-top:2px;">
+            Roast dozens of CommitFest patches in parallel right from the Backoffice. Uses soft leases in Queue mode (zero duplicates), stops cleanly on usage limits, and streams live logs below.
+          </div>
+        </div>
+        <span class="pill ${b.publish ? "pill-ok" : "pill-neutral"}">${b.publish ? "Auto-publish ON" : "Local-only"}</span>
+      </div>
+
+      <div class="form-grid" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px;">
+        <div class="form-field">
+          <label>Bulk Mode</label>
+          <select id="bulk-mode">
+            <option value="queue" ${b.mode === "queue" ? "selected" : ""}>Community Queue (soft-leased)</option>
+            <option value="batch" ${b.mode === "batch" ? "selected" : ""}>CommitFest Batch (local folder)</option>
+          </select>
+        </div>
+        <div class="form-field">
+          <label>Backend</label>
+          <select id="bulk-backend">
+            <option value="codex" ${b.backend === "codex" ? "selected" : ""}>codex (OpenAI Codex CLI)</option>
+            <option value="claude" ${b.backend === "claude" ? "selected" : ""}>claude (Claude Code CLI)</option>
+            <option value="agy" ${b.backend === "agy" ? "selected" : ""}>agy (Antigravity CLI)</option>
+            ${b.mode === "batch" ? `<option value="dual" ${b.backend === "dual" ? "selected" : ""}>dual (Claude + agy)</option>` : ""}
+          </select>
+        </div>
+        ${
+          b.mode === "queue"
+            ? `
+          <div class="form-field">
+            <label>Queue Strategy</label>
+            <select id="bulk-strategy">
+              <option value="unroasted-first" ${b.strategy === "unroasted-first" ? "selected" : ""}>Unroasted patches first</option>
+              <option value="ready-for-committer" ${b.strategy === "ready-for-committer" ? "selected" : ""}>Ready for Committer queue</option>
+              <option value="cross-model-second-opinion" ${b.strategy === "cross-model-second-opinion" ? "selected" : ""}>Cross-model second opinion</option>
+            </select>
+          </div>
+        `
+            : `
+          <div class="form-field">
+            <label>CommitFest #</label>
+            <input type="number" id="bulk-cf-num" min="1" max="999" value="${b.cfNumber}" />
+          </div>
+          <div class="form-field">
+            <label>Status filter</label>
+            <select id="bulk-cf-status">
+              <option value="open" ${b.status === "open" ? "selected" : ""}>All open</option>
+              <option value="Ready for Committer" ${b.status === "Ready for Committer" ? "selected" : ""}>Ready for Committer</option>
+              <option value="Needs review" ${b.status === "Needs review" ? "selected" : ""}>Needs review</option>
+              <option value="Waiting on Author" ${b.status === "Waiting on Author" ? "selected" : ""}>Waiting on Author</option>
+            </select>
+          </div>
+        `
+        }
+        <div class="form-field">
+          <label>Reviewer Archetype</label>
+          <select id="bulk-flavour">
+            ${archetypes.map(([id, label]) => `<option value="${id}" ${b.flavour === id ? "selected" : ""}>${esc(label)}</option>`).join("")}
+          </select>
+        </div>
+        <div class="form-field">
+          <label>Roast Level</label>
+          <select id="bulk-level">
+            <option value="light" ${b.level === "light" ? "selected" : ""}>Light</option>
+            <option value="medium" ${b.level === "medium" ? "selected" : ""}>Medium</option>
+            <option value="dark" ${b.level === "dark" ? "selected" : ""}>Dark</option>
+          </select>
+        </div>
+        <div class="form-field">
+          <label>Max Patches</label>
+          <input type="number" id="bulk-count" min="1" max="300" value="${b.count}" />
+        </div>
+        <div class="form-field">
+          <label>Parallel Workers</label>
+          <select id="bulk-workers">
+            ${[1, 2, 3, 4].map((n) => `<option value="${n}" ${b.workers === n ? "selected" : ""}>${n} worker${n === 1 ? "" : "s"}</option>`).join("")}
+          </select>
+        </div>
+      </div>
+
+      ${
+        b.mode === "queue"
+          ? `
+        <label class="inline-row" style="cursor:pointer;margin:8px 0 10px;font-size:12px;">
+          <input type="checkbox" id="bulk-publish" ${b.publish ? "checked" : ""} />
+          <span>Auto-publish sanitized opinions to <code>${esc(state.hubStatus?.url || state.settings?.publicHubUrl || "https://pgroast.postgres.ai")}</code> (uses your saved Backoffice publish token; confidentiality gate enforced)</span>
+        </label>
+      `
+          : `<div class="muted" style="font-size:11.5px;margin:6px 0 10px;">Saves local files under your Roast Data Dir and auto-imports finished entries into this Backoffice database when done.</div>`
+      }
+
+      <div class="inline-row" style="gap:8px;flex-wrap:wrap;margin-bottom:10px;">
+        <button type="button" class="btn btn-primary" id="bulk-start-btn">▶ Start Bulk Roast (${b.count} × ${esc(b.backend)})</button>
+        <span class="dim" style="font-size:11.5px;">Click <strong>Cancel</strong> on the running job row below anytime to stop all workers cleanly.</span>
+      </div>
+
+      <div style="border-top:1px solid var(--border);padding-top:8px;">
+        <div class="dim" style="font-size:11px;font-weight:600;margin-bottom:4px;">CLI equivalent (<code>npx pgroast</code>):</div>
+        ${renderCmdSnippet(bulkCli)}
+      </div>
+    </div>
+
     <div class="toolbar" style="justify-content:space-between;">
-      <span class="muted" style="font-size:12px;">Background CLI runs (roasts, meson builds, AI reviews, Hetzner). Logs also stream in the bottom console drawer.</span>
+      <span class="muted" style="font-size:12px;">Background CLI runs (bulk roasts, single roasts, meson builds, AI reviews, Hetzner). Logs also stream in the bottom console drawer.</span>
       <button class="btn btn-secondary btn-sm" id="jobs-refresh-btn">Refresh</button>
     </div>
     <div class="table-wrap">
@@ -3489,7 +3660,7 @@ function renderSettingsView(): string {
                     <span class="dim">UTC · Window</span>
                     <input type="number" id="contrib-win-${b}" min="1" max="168" value="${sc.windowHoursBeforeReset}" style="width:54px;padding:3px 6px;" title="Hours before reset" />
                     <span class="dim">h · Cap</span>
-                    <input type="number" id="contrib-cap-${b}" min="1" max="50" value="${sc.maxPatchesPerWindow}" style="width:54px;padding:3px 6px;" title="Max patches per weekly window" />
+                    <input type="number" id="contrib-cap-${b}" min="1" max="300" value="${sc.maxPatchesPerWindow}" style="width:62px;padding:3px 6px;" title="Max patches per weekly window" />
                   </div>
                 </div>
               `;
@@ -3504,7 +3675,12 @@ function renderSettingsView(): string {
               <button type="button" class="btn btn-primary btn-sm" id="contrib-save-btn">Save Schedule</button>
               <button type="button" class="btn btn-secondary btn-sm" id="contrib-preview-btn">Preview Next Patch</button>
               <button type="button" class="btn btn-ok btn-sm" id="contrib-run-once-btn">Run 1 Patch Now</button>
+              <button type="button" class="btn btn-secondary btn-sm" id="contrib-open-bulk-btn">Bulk Roast Many →</button>
               <button type="button" class="btn btn-ghost btn-sm" id="contrib-copy-cron-btn">Copy Hourly Cron</button>
+            </div>
+            <div style="margin-top:10px;border-top:1px solid var(--border);padding-top:8px;">
+              <div class="dim" style="font-size:11px;font-weight:600;margin-bottom:4px;">CLI equivalents (<code>npx pgroast</code>):</div>
+              ${renderCmdSnippet(`npx pgroast contribute --status && npx pgroast contribute --once --flavour ${cfg.roastFlavour} --level ${cfg.roastLevel}${cfg.autoPublish ? " --publish" : ""}`)}
             </div>
             ${
               state.contributePreview
@@ -4905,6 +5081,76 @@ function bindViewEvents(): void {
     await refreshJobsList();
     render();
   });
+
+  // Bulk Roast controls (Jobs view)
+  const syncBulkAndRender = () => render();
+  document.getElementById("bulk-mode")?.addEventListener("change", (ev) => {
+    state.bulkRoast.mode = ((ev.target as HTMLSelectElement).value === "batch" ? "batch" : "queue");
+    if (state.bulkRoast.mode === "queue" && state.bulkRoast.backend === "dual") state.bulkRoast.backend = "codex";
+    syncBulkAndRender();
+  });
+  document.getElementById("bulk-backend")?.addEventListener("change", (ev) => {
+    state.bulkRoast.backend = (ev.target as HTMLSelectElement).value as AppState["bulkRoast"]["backend"];
+    syncBulkAndRender();
+  });
+  document.getElementById("bulk-strategy")?.addEventListener("change", (ev) => {
+    state.bulkRoast.strategy = (ev.target as HTMLSelectElement).value as AppState["bulkRoast"]["strategy"];
+    syncBulkAndRender();
+  });
+  document.getElementById("bulk-cf-num")?.addEventListener("change", (ev) => {
+    state.bulkRoast.cfNumber = Math.max(1, Number((ev.target as HTMLInputElement).value || 62));
+    syncBulkAndRender();
+  });
+  document.getElementById("bulk-cf-status")?.addEventListener("change", (ev) => {
+    state.bulkRoast.status = (ev.target as HTMLSelectElement).value || "open";
+    syncBulkAndRender();
+  });
+  document.getElementById("bulk-flavour")?.addEventListener("change", (ev) => {
+    state.bulkRoast.flavour = (ev.target as HTMLSelectElement).value || "default";
+    syncBulkAndRender();
+  });
+  document.getElementById("bulk-level")?.addEventListener("change", (ev) => {
+    state.bulkRoast.level = (ev.target as HTMLSelectElement).value as AppState["bulkRoast"]["level"];
+    syncBulkAndRender();
+  });
+  document.getElementById("bulk-count")?.addEventListener("change", (ev) => {
+    state.bulkRoast.count = Math.min(300, Math.max(1, Number((ev.target as HTMLInputElement).value || 20)));
+    syncBulkAndRender();
+  });
+  document.getElementById("bulk-workers")?.addEventListener("change", (ev) => {
+    state.bulkRoast.workers = Math.min(4, Math.max(1, Number((ev.target as HTMLSelectElement).value || 2)));
+    syncBulkAndRender();
+  });
+  document.getElementById("bulk-publish")?.addEventListener("change", (ev) => {
+    state.bulkRoast.publish = (ev.target as HTMLInputElement).checked;
+    syncBulkAndRender();
+  });
+  document.getElementById("bulk-start-btn")?.addEventListener("click", async () => {
+    try {
+      const b = state.bulkRoast;
+      const res = await api<{ job: JobRecord }>("/api/roast/bulk", {
+        method: "POST",
+        body: JSON.stringify({
+          mode: b.mode,
+          backend: b.backend,
+          strategy: b.strategy,
+          flavour: b.flavour,
+          roastLevel: b.level,
+          count: b.count,
+          workers: b.workers,
+          publish: b.publish,
+          cfNumber: b.cfNumber,
+          status: b.status,
+        }),
+      });
+      toast(`Started Bulk Roast (${b.count} × ${b.backend}, ${b.workers} worker${b.workers === 1 ? "" : "s"})`, "ok");
+      openJobStream(res.job);
+      await refreshJobsList();
+      render();
+    } catch (err) {
+      toastError(err, "Failed to start Bulk Roast");
+    }
+  });
   document.getElementById("wi-new-btn")?.addEventListener("click", () => {
     showConfirmModal({
       title: "New Local Work Item",
@@ -5152,9 +5398,27 @@ function bindViewEvents(): void {
       toastError(err, "Failed to start Auto-Contribute run");
     }
   });
+  document.getElementById("contrib-open-bulk-btn")?.addEventListener("click", () => {
+    const cfg = state.contributeData?.config;
+    if (cfg) {
+      state.bulkRoast.mode = "queue";
+      state.bulkRoast.strategy =
+        cfg.strategy === "ready-for-committer" || cfg.strategy === "cross-model-second-opinion"
+          ? cfg.strategy
+          : "unroasted-first";
+      state.bulkRoast.flavour = cfg.roastFlavour;
+      state.bulkRoast.level =
+        cfg.roastLevel === "light" || cfg.roastLevel === "dark" ? cfg.roastLevel : "medium";
+      state.bulkRoast.publish = cfg.autoPublish;
+      if (cfg.backends.codex.enabled) state.bulkRoast.backend = "codex";
+      else if (cfg.backends.claude.enabled) state.bulkRoast.backend = "claude";
+      else if (cfg.backends.agy.enabled) state.bulkRoast.backend = "agy";
+    }
+    state.jobsTab = "jobs";
+    void switchView("jobs");
+  });
   document.getElementById("contrib-copy-cron-btn")?.addEventListener("click", () => {
-    const repo = state.settings?.pgroastRepo || "~/pgroast";
-    const line = `0 * * * * cd ${repo} && bun run src/cli.ts contribute --auto >> ~/.pgroast/contribute.log 2>&1`;
+    const line = `0 * * * * npx pgroast contribute --auto >> ~/.pgroast/contribute.log 2>&1`;
     void navigator.clipboard?.writeText(line).then(() => toast("Copied hourly cron line to clipboard", "ok"));
   });
   document.getElementById("settings-open-onboarding-btn")?.addEventListener("click", () => void openOnboarding(1));

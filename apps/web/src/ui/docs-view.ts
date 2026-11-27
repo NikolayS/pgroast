@@ -115,7 +115,7 @@ const ALL_FEATURES: FeatureDocItem[] = [
     status: "live",
     actionLabel: "Open Contribute →",
     actionTab: "contribute",
-    cliSnippet: "pgroast contribute --dry-run",
+    cliSnippet: "npx pgroast contribute --dry-run",
   },
   {
     id: "quota-window",
@@ -126,7 +126,7 @@ const ALL_FEATURES: FeatureDocItem[] = [
     status: "live",
     actionLabel: "Open Contribute →",
     actionTab: "contribute",
-    cliSnippet: "pgroast contribute --init",
+    cliSnippet: "npx pgroast contribute --init",
   },
   {
     id: "quota-archetype",
@@ -137,7 +137,7 @@ const ALL_FEATURES: FeatureDocItem[] = [
     status: "live",
     actionLabel: "Try Live Preview →",
     actionTab: "contribute",
-    cliSnippet: "pgroast contribute --once --flavour auto-by-subsystem",
+    cliSnippet: "npx pgroast contribute --once --flavour auto-by-subsystem",
   },
   {
     id: "quota-progress",
@@ -148,7 +148,7 @@ const ALL_FEATURES: FeatureDocItem[] = [
     status: "live",
     actionLabel: "Track Progress →",
     actionTab: "contribute",
-    cliSnippet: "pgroast contribute --status",
+    cliSnippet: "npx pgroast contribute --status",
   },
 
   // Personal Backoffice
@@ -196,49 +196,50 @@ const ALL_FEATURES: FeatureDocItem[] = [
     id: "bo-quota-ui",
     category: "backoffice",
     categoryLabel: "Personal Backoffice",
-    title: "Backoffice Auto-Contribute Card & Live Log Stream",
-    summary: "Configure weekly reset schedules, preview the next queued patch, trigger a single quota run with live streaming logs in the bottom console drawer, and inspect your local auto-contribute history.",
+    title: "Backoffice Bulk Roast, Quota Burn & Live Log Stream",
+    summary: "Launch parallel Bulk Roasts (1–4 workers, up to 300 patches) directly from the Backoffice Jobs view in either soft-leased Queue mode or CommitFest Batch mode, configure weekly reset schedules, and inspect live streaming logs.",
     status: "live",
     actionLabel: "Set up Backoffice →",
     actionTab: "connect",
+    cliSnippet: "npx pgroast batch 62 --out ./out/cf62 --status open --concurrency 3",
   },
 
   // CLI
   {
     id: "cli-roast",
     category: "cli",
-    categoryLabel: "CLI (pgroast)",
+    categoryLabel: "CLI (npx pgroast)",
     title: "Single-Patch & Self-Roast Pre-Review",
     summary: "Roast any CommitFest ID, URL, or message-id against 2,547 historical rejected attempts and reverts. Authors can run --self --proposal FILE --patch FILE to check their own draft before posting to -hackers.",
     status: "live",
-    cliSnippet: "pgroast 5879 --level medium --flavour edge-case-hunter",
+    cliSnippet: "npx pgroast 5879 --level medium --flavour edge-case-hunter",
   },
   {
     id: "cli-batch-shortlist",
     category: "cli",
-    categoryLabel: "CLI (pgroast)",
+    categoryLabel: "CLI (npx pgroast)",
     title: "Batch CommitFest Roaster, Shortlist & Bugs Triage",
     summary: "Resumably roast a full CommitFest (`batch`), rank shortlisted and closing candidates with git-log subsystem expert routing (`shortlist`), extract stuck-thread blockers (`pushback`), or triage recent `pgsql-bugs` (`bugs`).",
     status: "live",
-    cliSnippet: "pgroast batch 62 --out ./out/cf62 --status open --limit 10",
+    cliSnippet: "npx pgroast batch 62 --out ./out/cf62 --status open --limit 10",
   },
   {
     id: "cli-publish-contribute",
     category: "cli",
-    categoryLabel: "CLI (pgroast)",
+    categoryLabel: "CLI (npx pgroast)",
     title: "CLI Publish & Weekly Quota Auto-Contribute",
-    summary: "Publish any local `roast.json` directly to the Public App (`pgroast publish`) or automate weekly quota remainder roasting (`pgroast contribute --init|--status|--dry-run|--once|--auto`).",
+    summary: "Publish any local `roast.json` directly to the Public App (`npx pgroast publish`) or automate weekly quota remainder roasting (`npx pgroast contribute --init|--status|--dry-run|--once|--auto`).",
     status: "live",
-    cliSnippet: "pgroast publish ./out/cf-5879/roast.json",
+    cliSnippet: "npx pgroast publish ./out/cf-5879/roast.json",
   },
   {
     id: "cli-doctor-db",
     category: "cli",
-    categoryLabel: "CLI (pgroast)",
+    categoryLabel: "CLI (npx pgroast)",
     title: "Environment Doctor, Precedent DB Loader & Static HTML Cards",
     summary: "Check installed AI CLIs and subscription logins (`doctor`), load the 2,547-row precedent index into local Postgres (`init-db`), and render standalone HTML cards (`page`).",
     status: "live",
-    cliSnippet: "pgroast doctor && pgroast init-db",
+    cliSnippet: "npx pgroast doctor && npx pgroast init-db",
   },
 
   // Privacy & Safety
@@ -285,21 +286,21 @@ export function renderDocsTab(params: {
   ];
 
   const cliCommands: Array<{ cmd: string; desc: string }> = [
-    { cmd: "pgroast 5879 --level medium --flavour edge-case-hunter", desc: "Roast one CommitFest entry with a specific level and reviewer archetype" },
-    { cmd: "pgroast --self --proposal draft.txt --patch 0001.patch", desc: "Pre-check your own draft proposal before posting to pgsql-hackers" },
-    { cmd: "pgroast pushback 5879", desc: "Read an entire long-stuck thread and extract blocking objections with quotes" },
-    { cmd: "pgroast batch 62 --out ./out/cf62 --status open --limit 10", desc: "Resumably roast open entries of CommitFest #62; stops cleanly on quota limit" },
-    { cmd: "pgroast shortlist ./out/cf62 --pg-repo ~/postgres", desc: "Rank shortlisted and closing candidates with git-log subsystem expert routing" },
-    { cmd: "pgroast bugs --days 14 --limit 30", desc: "Triage recent pgsql-bugs threads (production hits vs synthetic hunts)" },
-    { cmd: "pgroast page ./out/cf-5879/roast.json", desc: "Render a self-contained HTML report card locally (no LLM call)" },
-    { cmd: "pgroast publish ./out/cf-5879/roast.json", desc: "Run the confidentiality gate and publish a sanitized opinion to the Public App" },
-    { cmd: "pgroast contribute --init", desc: "Create ~/.pgroast/contribute.json with weekly reset schedules for installed CLIs" },
-    { cmd: "pgroast contribute --status", desc: "Show live CommitFest coverage progress and your weekly reset countdowns" },
-    { cmd: "pgroast contribute --dry-run", desc: "Preview the next queued patch and auto-selected archetype (zero LLM calls)" },
-    { cmd: "pgroast contribute --once --publish", desc: "Claim, roast, and publish 1 CommitFest patch right now" },
-    { cmd: "pgroast contribute --auto", desc: "Run from hourly cron: spends leftover weekly quota only inside your pre-reset window" },
-    { cmd: "pgroast doctor", desc: "Verify installed AI CLIs (claude, codex, agy) and subscription logins" },
-    { cmd: "pgroast init-db", desc: "Create local pgroast Postgres DB and load the 2,547-row precedent index" },
+    { cmd: "npx pgroast 5879 --level medium --flavour edge-case-hunter", desc: "Roast one CommitFest entry with a specific level and reviewer archetype" },
+    { cmd: "npx pgroast --self --proposal draft.txt --patch 0001.patch", desc: "Pre-check your own draft proposal before posting to pgsql-hackers" },
+    { cmd: "npx pgroast pushback 5879", desc: "Read an entire long-stuck thread and extract blocking objections with quotes" },
+    { cmd: "npx pgroast batch 62 --out ./out/cf62 --status open --limit 10 --concurrency 3", desc: "Resumably roast open entries of CommitFest #62 in parallel; stops cleanly on quota limit" },
+    { cmd: "npx pgroast shortlist ./out/cf62 --pg-repo ~/postgres", desc: "Rank shortlisted and closing candidates with git-log subsystem expert routing" },
+    { cmd: "npx pgroast bugs --days 14 --limit 30", desc: "Triage recent pgsql-bugs threads (production hits vs synthetic hunts)" },
+    { cmd: "npx pgroast page ./out/cf-5879/roast.json", desc: "Render a self-contained HTML report card locally (no LLM call)" },
+    { cmd: "npx pgroast publish ./out/cf-5879/roast.json", desc: "Run the confidentiality gate and publish a sanitized opinion to the Public App" },
+    { cmd: "npx pgroast contribute --init", desc: "Create ~/.pgroast/contribute.json with weekly reset schedules for installed CLIs" },
+    { cmd: "npx pgroast contribute --status", desc: "Show live CommitFest coverage progress and your weekly reset countdowns" },
+    { cmd: "npx pgroast contribute --dry-run", desc: "Preview the next queued patch and auto-selected archetype (zero LLM calls)" },
+    { cmd: "npx pgroast contribute --once --backend codex --flavour default --level medium --publish", desc: "Claim, roast, and publish 1 CommitFest patch right now" },
+    { cmd: "npx pgroast contribute --auto", desc: "Run from hourly cron: spends leftover weekly quota only inside your pre-reset window" },
+    { cmd: "npx pgroast doctor", desc: "Verify installed AI CLIs (claude, codex, agy) and subscription logins" },
+    { cmd: "npx pgroast init-db", desc: "Create local pgroast Postgres DB and load the 2,547-row precedent index" },
   ];
 
   return `
@@ -376,8 +377,8 @@ export function renderDocsTab(params: {
     <section class="card" id="cli-reference">
       <div class="card-head">
         <div>
-          <h2>CLI Command Reference (<code class="mono">pgroast</code>)</h2>
-          <div class="dim" style="font-size:12px;">Works with <code class="mono">bun run src/cli.ts …</code> or globally installed <code class="mono">pgroast …</code> (Bun / npm)</div>
+          <h2>CLI Command Reference (<code class="mono">npx pgroast</code>)</h2>
+          <div class="dim" style="font-size:12px;">Run directly with <code class="mono">npx pgroast …</code> (or <code class="mono">bunx pgroast …</code> / globally installed <code class="mono">pgroast …</code>)</div>
         </div>
       </div>
       <div class="docs-cli-list">

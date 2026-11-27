@@ -807,4 +807,174 @@ echo "=== Build & test complete (PGPORT=${pgPort}) ==="
     });
     return job;
   }
+
+  async startBulkRoastJob(params: {
+    mode: "queue" | "batch";
+    backend?: "claude" | "codex" | "agy" | "dual";
+    strategy?: "unroasted-first" | "ready-for-committer" | "cross-model-second-opinion";
+    flavour?: string;
+    roastLevel?: "light" | "medium" | "dark";
+    count?: number;
+    workers?: number;
+    publish?: boolean;
+    cfNumber?: number;
+    status?: string;
+    topics?: string[];
+  }): Promise<JobRecord> {
+    const settings = await this.db.getSettings();
+    const repoDir = expandHome(settings.pgroastRepo);
+    const cliPath = join(repoDir, "src", "cli.ts");
+    if (!existsSync(cliPath)) {
+      throw new Error(`pgroast CLI not found at ${cliPath}`);
+    }
+
+    const mode = params.mode === "batch" ? "batch" : "queue";
+    const backend = resolveEffectiveBackend(params.backend, settings);
+    const level = params.roastLevel === "light" || params.roastLevel === "dark" ? params.roastLevel : "medium";
+    const flavour = (params.flavour || "default").trim() || "default";
+    const count = Math.min(Math.max(Math.trunc(params.count ?? 20), 1), 300);
+    const workers = Math.min(Math.max(Math.trunc(params.workers ?? 2), 1), 4);
+    const bunBin = resolveBunBin();
+    const token = await this.db.getHubTokenDecrypted();
+
+    const extraEnv: Record<string, string> = {
+      PGROAST_CONCURRENCY: "4",
+    };
+    if (token) extraEnv.PGROAST_PUBLISH_TOKEN = token;
+    if (settings.publicHubUrl) extraEnv.PGROAST_PUBLIC_HUB_URL = settings.publicHubUrl;
+
+    const id = makeJobId("bulk_roast");
+    const logPath = join(LOGS_DIR, `${id}.log`);
+
+    if (mode === "batch") {
+      const cfNum = Math.max(1, Math.trunc(params.cfNumber ?? 62));
+      const status = (params.status || "open").trim() || "open";
+      const outDir = resolve(expandHome(settings.roastDataDir || join(repoDir, "out")), `cf${cfNum}-${backend}-${level}`);
+      const batchFlavour = flavour === "auto-by-subsystem" ? "default" : flavour;
+      const args = [
+        "run",
+        cliPath,
+        "batch",
+        String(cfNum),
+        "--out",
+        outDir,
+        "--status",
+        status,
+        "--limit",
+        String(count),
+        "--concurrency",
+        String(workers),
+        "--backend",
+        backend,
+        "--roast-level",
+        level,
+        "--flavour",
+        batchFlavour,
+      ];
+      const job = await this.db.createJob({
+        id,
+        kind: "bulk_roast",
+        title: `Bulk Batch CF #${cfNum} (${count} × ${backend} · ${batchFlavour} · ${level}, ${workers}w)`,
+        backend,
+        model: `${batchFlavour}/${level}`,
+        log_path: logPath,
+      });
+      this.spawnShellJob(job, bunBin, args, {
+        cwd: repoDir,
+        env: buildChildEnv(settings, { stripApiKeys: true, extra: extraEnv }),
+        onSuccess: async () => {
+          const imported = await this.db.importRoastBatch(outDir);
+          return { outDir, imported };
+        },
+      });
+      return job;
+    }
+
+    // Queue mode: parallel soft-leased workers calling `contribute --once`
+    const queueBackend = backend === "dual" ? "claude" : backend;
+    const strategy =
+      params.strategy === "ready-for-committer" || params.strategy === "cross-model-second-opinion"
+        ? params.strategy
+        : "unroasted-first";
+    const pubFlag = params.publish ? "--publish" : "--no-publish";
+    const hubUrl = (settings.publicHubUrl || "https://pgroast.postgres.ai").trim();
+    const topicsArg =
+      params.topics && params.topics.length > 0 ? params.topics.map((t) => t.replace(/[^a-zA-Z0-9._,-]/g, "")).filter(Boolean).join(",") : "";
+
+    // Build an inline Bun worker runner so there is zero shell-quoting risk and Cancel kills the entire group cleanly
+    const workerScript = `
+import { spawn } from "node:child_process";
+const workers = Number(process.env.BULK_WORKERS || 2);
+const totalTarget = Number(process.env.BULK_COUNT || 20);
+const bunBin = process.env.BULK_BUN_BIN || "bun";
+const cliPath = process.env.BULK_CLI_PATH;
+const baseArgs = JSON.parse(process.env.BULK_ARGS_JSON || "[]");
+let claimed = 0;
+let done = 0;
+let stop = false;
+process.on("SIGTERM", () => { stop = true; });
+process.on("SIGINT", () => { stop = true; });
+
+async function runWorker(wid) {
+  while (!stop) {
+    if (claimed >= totalTarget) break;
+    const seq = ++claimed;
+    console.log(\`[bulk w\${wid}] Starting patch #\${seq}/\${totalTarget}...\`);
+    const code = await new Promise((res) => {
+      const p = spawn(bunBin, ["run", cliPath, ...baseArgs], { stdio: "inherit", env: process.env });
+      p.on("close", (c) => res(c ?? 1));
+      p.on("error", () => res(1));
+    });
+    if (code !== 0) {
+      console.log(\`[bulk w\${wid}] Worker stopped (exit \${code} — queue empty or usage limit).\`);
+      stop = true;
+      break;
+    }
+    done++;
+    console.log(\`[bulk w\${wid}] Completed \${done}/\${totalTarget} patches.\`);
+  }
+}
+
+await Promise.all(Array.from({ length: workers }, (_, i) => runWorker(i + 1)));
+console.log(\`[bulk] Finished: \${done} patch(es) processed across \${workers} worker(s).\`);
+`;
+
+    const baseArgs = [
+      "contribute",
+      "--once",
+      "--backend",
+      queueBackend,
+      "--strategy",
+      strategy,
+      "--flavour",
+      flavour,
+      "--level",
+      level,
+      pubFlag,
+      "--hub",
+      hubUrl,
+    ];
+    if (topicsArg) baseArgs.push("--topics", topicsArg);
+
+    const job = await this.db.createJob({
+      id,
+      kind: "bulk_roast",
+      title: `Bulk Queue Roast (${count} × ${queueBackend} · ${flavour} · ${level}, ${workers}w${params.publish ? ", auto-publish" : ""})`,
+      backend: queueBackend,
+      model: `${flavour}/${level}`,
+      log_path: logPath,
+    });
+
+    extraEnv.BULK_WORKERS = String(workers);
+    extraEnv.BULK_COUNT = String(count);
+    extraEnv.BULK_BUN_BIN = bunBin;
+    extraEnv.BULK_CLI_PATH = cliPath;
+    extraEnv.BULK_ARGS_JSON = JSON.stringify(baseArgs);
+
+    this.spawnShellJob(job, bunBin, ["-e", workerScript], {
+      cwd: repoDir,
+      env: buildChildEnv(settings, { stripApiKeys: true, extra: extraEnv }),
+    });
+    return job;
+  }
 }

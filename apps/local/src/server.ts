@@ -1092,6 +1092,36 @@ export async function createAppHandler(opts?: {
           return json({ ok: true, job }, 201);
         }
 
+        if (method === "POST" && path === "/api/roast/bulk") {
+          const body = await readBody<{
+            mode?: "queue" | "batch";
+            backend?: "claude" | "codex" | "agy" | "dual";
+            strategy?: "unroasted-first" | "ready-for-committer" | "cross-model-second-opinion";
+            flavour?: string;
+            roastLevel?: "light" | "medium" | "dark";
+            count?: number;
+            workers?: number;
+            publish?: boolean;
+            cfNumber?: number;
+            status?: string;
+            topics?: string[];
+          }>(req);
+          const job = await jobs.startBulkRoastJob({
+            mode: body.mode === "batch" ? "batch" : "queue",
+            backend: body.backend,
+            strategy: body.strategy,
+            flavour: body.flavour,
+            roastLevel: body.roastLevel,
+            count: body.count,
+            workers: body.workers,
+            publish: Boolean(body.publish),
+            cfNumber: body.cfNumber,
+            status: body.status,
+            topics: Array.isArray(body.topics) ? body.topics.map(String).filter(Boolean) : undefined,
+          });
+          return json({ ok: true, job }, 201);
+        }
+
         // ---- Experimental Patch Diff & Inline Review ----
         const diffMatch = path.match(/^\/api\/entries\/(\d+)\/diff$/);
         if (method === "GET" && diffMatch) {

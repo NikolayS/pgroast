@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.3.0-alpha.13 (2026-11-26)
+
+This release adds a **Bulk Roast & Quota Burn** launcher directly inside the Personal Backoffice UI and adds copyable `npx pgroast ...` CLI equivalent bars across both the Backoffice and the Front Office.
+
+### Changes
+
+- **Personal Backoffice Bulk Roast UI (`apps/local`):**
+  - Added `POST /api/roast/bulk` and `JobRunner.startBulkRoastJob` supporting two modes: **Community Queue** (1–4 parallel soft-leased workers calling `contribute --once`, up to 300 patches, using your saved encrypted publish token and stopping cleanly on quota limits or Cancel) and **CommitFest Batch** (parallel local CommitFest sweep with automatic DB import on finish).
+  - Added a **Bulk Roast & Quota Burn** card at the top of the Backoffice **Jobs** view plus a **Bulk Roast Many →** shortcut in the **Settings → Weekly Quota Auto-Contribute** card (and raised the per-window cap input to 300).
+- **Copyable `npx pgroast` CLI Equivalents Across Both Apps (`apps/local`, `apps/web`):**
+  - Added live-updating, one-click copyable `npx pgroast ...` CLI bars in Backoffice **Bulk Roast**, **Roast Studio** (single roast + pushback), **Bugs Triage**, and **Settings → Auto-Contribute**.
+  - Added copyable `npx pgroast ...` CLI bars in Front Office **Patch pages** (`/patch/<id>` — roast, pushback, publish), **Contribute** (`/contribute` — live Queue Previewer command + parallel bulk-burn setup), **Brief**, **Entries**, and **Docs** (`/docs` — all 15 CLI commands updated to `npx pgroast`).
+
 ## v0.3.0-alpha.12 (2026-11-26)
 
 This release separates the Front Office into dedicated **Contribute**, **Docs**, and **Stats / Hackers / Lists** sections, replaces the basic SVG charts with editorial-grade interactive visualizations across every stats view, upgrades contributor identity resolution to merge obfuscated emails, transliteration variants, and handles, and fixes mobile leaderboard overflow.

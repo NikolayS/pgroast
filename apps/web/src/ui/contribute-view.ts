@@ -386,6 +386,12 @@ export function renderContributeTab(params: {
           </label>
         </div>
 
+        <div class="cli-bar" style="margin-top:10px;">
+          <span class="cli-bar-label">CLI</span>
+          <code class="mono cli-bar-cmd">npx pgroast contribute --once --backend ${esc(previewBackend)} --strategy ${esc(previewStrategy)} --flavour ${esc(previewFlavour)} --level ${esc(previewLevel)} --publish</code>
+          <button type="button" class="btn btn-ghost btn-sm" data-copy-cli="npx pgroast contribute --once --backend ${esc(previewBackend)} --strategy ${esc(previewStrategy)} --flavour ${esc(previewFlavour)} --level ${esc(previewLevel)} --publish">Copy</button>
+        </div>
+
         ${
           previewError
             ? `<div class="sheet-callout sheet-callout-warn" style="margin-top:10px;">${esc(previewError)}</div>`
@@ -432,20 +438,22 @@ export function renderContributeTab(params: {
         </div>
         <div>
           <div class="row" style="justify-content:space-between;margin-bottom:6px;">
-            <strong style="font-size:13px;">Option B: 3-command CLI setup</strong>
+            <strong style="font-size:13px;">Option B: 3-command CLI setup (<code class="mono">npx pgroast</code>)</strong>
             <button type="button" class="btn btn-ghost btn-sm" id="contrib-goto-docs-btn">Full CLI docs →</button>
           </div>
           <pre class="agent-prompt-pre mono"># 1. Generate ~/.pgroast/contribute.json for installed CLIs
-bun run src/cli.ts contribute --init --hub ${esc(origin)}
+npx pgroast contribute --init --hub ${esc(origin)}
 
 # 2. Check live CommitFest progress + reset countdown
-bun run src/cli.ts contribute --status
-bun run src/cli.ts contribute --dry-run
+npx pgroast contribute --status
+npx pgroast contribute --dry-run
 
-# 3. Run 1 patch now or add hourly cron for pre-reset window
-bun run src/cli.ts contribute --once --publish
-# crontab -e:
-0 * * * * cd ~/pgroast && bun run src/cli.ts contribute --auto</pre>
+# 3. Run 1 patch now, or burn leftover quota in bulk (3 parallel workers)
+npx pgroast contribute --once --backend ${esc(previewBackend)} --flavour ${esc(previewFlavour)} --level ${esc(previewLevel)} --publish
+for w in 1 2 3; do (while npx pgroast contribute --once --backend ${esc(previewBackend)} --flavour ${esc(previewFlavour)} --level ${esc(previewLevel)} --publish; do sleep 2; done) & done
+
+# Optional hourly cron (only runs inside your pre-reset window):
+0 * * * * npx pgroast contribute --auto</pre>
         </div>
       </div>
     </section>

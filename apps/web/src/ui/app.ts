@@ -1844,6 +1844,25 @@ function renderPatchPage(): string {
             : ""
         }
 
+        <div class="card" style="margin-bottom:0;">
+          <div class="sheet-section-label" style="margin-bottom:8px;">Run via CLI (<code class="mono">npx pgroast</code>)</div>
+          <div class="cli-bar" style="margin-bottom:6px;">
+            <span class="cli-bar-label">Roast</span>
+            <code class="mono cli-bar-cmd">npx pgroast ${cfId} --roast-level medium --flavour default</code>
+            <button type="button" class="btn btn-ghost btn-sm" data-copy-cli="npx pgroast ${cfId} --roast-level medium --flavour default">Copy</button>
+          </div>
+          <div class="cli-bar" style="margin-bottom:6px;">
+            <span class="cli-bar-label">Thread</span>
+            <code class="mono cli-bar-cmd">npx pgroast pushback ${cfId}</code>
+            <button type="button" class="btn btn-ghost btn-sm" data-copy-cli="npx pgroast pushback ${cfId}">Copy</button>
+          </div>
+          <div class="cli-bar">
+            <span class="cli-bar-label">Publish</span>
+            <code class="mono cli-bar-cmd">npx pgroast publish ./out/cf-${cfId}/roast.json</code>
+            <button type="button" class="btn btn-ghost btn-sm" data-copy-cli="npx pgroast publish ./out/cf-${cfId}/roast.json">Copy</button>
+          </div>
+        </div>
+
         <div class="space-handoff-box">
           <div class="space-card-head">
             <span class="space-card-title" style="font-size:13px;"><span class="space-dot" style="background:var(--warn)"></span>Personal Backoffice</span>
@@ -2479,6 +2498,12 @@ function renderBriefTab(): string {
 
     ${renderIntroCard()}
 
+    <div class="cli-bar" style="margin-bottom:14px;">
+      <span class="cli-bar-label">CLI</span>
+      <code class="mono cli-bar-cmd">npx pgroast batch 62 --out ./out/cf62 --status open --concurrency 3 &amp;&amp; npx pgroast shortlist ./out/cf62</code>
+      <button type="button" class="btn btn-ghost btn-sm" data-copy-cli="npx pgroast batch 62 --out ./out/cf62 --status open --concurrency 3 && npx pgroast shortlist ./out/cf62">Copy</button>
+    </div>
+
     <div class="kpis">
       <button type="button" class="kpi" data-jump-verdict="all">
         <div class="kpi-l">Roasted / Total</div>
@@ -2744,6 +2769,12 @@ function renderEntriesTab(): string {
       </div>
     </div>
 
+    <div class="cli-bar" style="margin-bottom:10px;">
+      <span class="cli-bar-label">Bulk CLI</span>
+      <code class="mono cli-bar-cmd">npx pgroast batch 62 --out ./out/cf62 --status ${esc(state.entryStatus === "all" ? "open" : state.entryStatus.includes(" ") ? `"${state.entryStatus}"` : state.entryStatus)} --backend codex --roast-level medium --flavour default --concurrency 3</code>
+      <button type="button" class="btn btn-ghost btn-sm" data-copy-cli='npx pgroast batch 62 --out ./out/cf62 --status ${esc(state.entryStatus === "all" ? "open" : state.entryStatus.includes(" ") ? `"${state.entryStatus}"` : state.entryStatus)} --backend codex --roast-level medium --flavour default --concurrency 3'>Copy</button>
+    </div>
+
     <div class="issue-list" id="entries-list-mount">
       ${renderEntriesRowsHtml(filtered)}
     </div>
@@ -3007,6 +3038,15 @@ function bindPatchRowClicks(container: HTMLElement | Document): void {
   });
 }
 
+function bindCliCopyButtons(container: HTMLElement | Document): void {
+  container.querySelectorAll<HTMLButtonElement>("[data-copy-cli]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const cmd = btn.getAttribute("data-copy-cli") || "";
+      if (cmd) copyTextWithFeedback(btn, cmd, btn.textContent || "Copy");
+    });
+  });
+}
+
 function bindHackerClicks(container: HTMLElement | Document): void {
   container.querySelectorAll<Element>("[data-open-hacker]").forEach((el) => {
     const activate = () => {
@@ -3109,6 +3149,7 @@ function render(): void {
     document.getElementById("patch-copy-local-side")?.addEventListener("click", (ev) => {
       copyTextWithFeedback(ev.currentTarget as HTMLElement, backofficeHref, "Copy");
     });
+    bindCliCopyButtons(root);
     document.querySelectorAll<HTMLElement>("[data-goto-connect]").forEach((el) => {
       el.addEventListener("click", () => navigateToTab("connect"));
     });
@@ -3306,6 +3347,8 @@ function render(): void {
     });
   } else root.innerHTML = renderConnectTab();
 
+  bindCliCopyButtons(root);
+
   // Contribute tab events
   if (state.tab === "contribute") {
     bindPatchRowClicks(root);
@@ -3326,15 +3369,19 @@ function render(): void {
     });
     document.getElementById("qp-backend")?.addEventListener("change", (ev) => {
       state.quotaPreviewBackend = (ev.target as HTMLSelectElement).value || "claude";
+      render();
     });
     document.getElementById("qp-strategy")?.addEventListener("change", (ev) => {
       state.quotaPreviewStrategy = (ev.target as HTMLSelectElement).value || "unroasted-first";
+      render();
     });
     document.getElementById("qp-flavour")?.addEventListener("change", (ev) => {
       state.quotaPreviewFlavour = (ev.target as HTMLSelectElement).value || "auto-by-subsystem";
+      render();
     });
     document.getElementById("qp-level")?.addEventListener("change", (ev) => {
       state.quotaPreviewLevel = (ev.target as HTMLSelectElement).value || "medium";
+      render();
     });
     document.getElementById("quota-preview-btn")?.addEventListener("click", () => {
       void runQuotaPreview();
