@@ -1007,7 +1007,40 @@ export class WebDatabase {
     };
   }
 
+  private claimChain: Promise<unknown> = Promise.resolve();
+
   async claimNextContributePatch(opts: {
+    backend: string;
+    strategy?: "unroasted-first" | "cross-model-second-opinion" | "ready-for-committer";
+    topics?: string[];
+    flavour?: string;
+    roastLevel?: string;
+    contributorHandle?: string;
+    excludeCfIds?: number[];
+    dryRun?: boolean;
+    leaseMinutes?: number;
+  }): Promise<{
+    patch: PublicEntryRecord | null;
+    suggestedFlavour: string;
+    suggestedLevel: string;
+    reason: string;
+    leaseExpiresAt: string | null;
+  }> {
+    if (opts.dryRun) {
+      return this.claimNextContributePatchUnlocked(opts);
+    }
+    const run = this.claimChain.then(
+      () => this.claimNextContributePatchUnlocked(opts),
+      () => this.claimNextContributePatchUnlocked(opts),
+    );
+    this.claimChain = run.then(
+      () => undefined,
+      () => undefined,
+    );
+    return run;
+  }
+
+  private async claimNextContributePatchUnlocked(opts: {
     backend: string;
     strategy?: "unroasted-first" | "cross-model-second-opinion" | "ready-for-committer";
     topics?: string[];

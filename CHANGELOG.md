@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.3.0-alpha.17 (2026-11-26)
+
+This release hardens parallel Dark/Medium bulk roasting after live multi-worker verification: serializes soft-lease claims on `/api/v1/contribute/next`, staggers parallel worker startups, fixes atomic cache writes, and ensures `meson test` always runs PostgreSQL's `setup` suite before targeted regression/TAP suites.
+
+### Changes
+
+- **Atomic Multi-Worker Queue Claiming (`apps/web/src/db.ts`, `apps/local/src/services/jobs.ts`, `src/thread/fetch.ts`):**
+  - Serialized `claimNextContributePatch()` writes in `WebDatabase` so simultaneous parallel workers never claim the same `cf_id`.
+  - Staggered parallel Bulk Roast worker startups (`2s` per worker) and added unique PID/random suffixes to thread-cache `.tmp` files so concurrent fetches never collide on rename.
+- **PostgreSQL Meson Test Setup Suite (`src/roast/verify.ts`):**
+  - Discovered available suites via `meson test --list`, validated targeted suites against them (falling back to `regress`), and always prepended `--suite setup` (`tmp_install`, `install_test_files`, `initdb_cache`) so regression and contrib tests run against the freshly compiled patched binaries.
+
 ## v0.3.0-alpha.16 (2026-11-26)
 
 This release defines Light, Medium, and Dark roasts by actual verification depth rather than prompt tone. Medium and Dark roasts now read C/H/SQL diffs, apply patches against a local `postgres.git` worktree pool, compile PostgreSQL with `-Dcassert=true`, run targeted `meson test` suites, and—on Dark—boot an isolated patched PostgreSQL cluster to run adversarial SQL stress tests. Published opinions now include the full structured findings and a verification evidence strip.

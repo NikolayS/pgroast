@@ -157,8 +157,9 @@ async function fetchUncached(url: string, p: string, opts: FetchOptions): Promis
         return null;
       }
       mkdirSync(dirname(p), { recursive: true });
-      writeFileSync(p + ".tmp", body);
-      renameSync(p + ".tmp", p);
+      const tmp = `${p}.${process.pid}.${Math.random().toString(36).slice(2, 7)}.tmp`;
+      writeFileSync(tmp, body);
+      renameSync(tmp, p);
       stats.fetched++;
       return body;
     } catch (e) {

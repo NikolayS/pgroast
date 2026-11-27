@@ -1004,6 +1004,7 @@ process.on("SIGTERM", () => { stop = true; });
 process.on("SIGINT", () => { stop = true; });
 
 async function runWorker(wid) {
+  if (wid > 1) await new Promise((r) => setTimeout(r, (wid - 1) * 2000));
   while (!stop) {
     if (claimed >= totalTarget) break;
     const seq = ++claimed;
