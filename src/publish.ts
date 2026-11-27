@@ -337,7 +337,7 @@ export async function publishRoastOpinion(opts: {
 
 const PUBLISH_USAGE = `Usage: pgroast publish <roast.json|dir> [options]
 
-  Publishes a sanitized opinion from a local roast.json to the pgroast Public App.
+  Publishes a sanitized roast from a local roast.json to the pgroast Public App.
   Runs the Public-Confidentiality Hard Gate locally before sending anything.
 
 Options:
@@ -412,7 +412,7 @@ export async function publishMain(argv: string[]): Promise<number> {
     console.log(JSON.stringify(res.payload, null, 2));
     return 0;
   }
-  console.log(`Published opinion for CF ${res.cfId} (${res.payload.verdict}, ${res.payload.backend} / ${res.payload.roast_level} / ${res.payload.roast_flavour})`);
+  console.log(`Published roast for CF ${res.cfId} (${res.payload.verdict}, ${res.payload.backend} / ${res.payload.roast_level} / ${res.payload.roast_flavour})`);
   console.log(`View patch page: ${res.patchUrl}`);
   return 0;
 }
@@ -433,7 +433,7 @@ export async function loginMain(argv: string[], mode: "login" | "whoami" = "logi
     const r = resolvePublishToken();
     if (!r.token) {
       console.log("Not logged in to a pgroast Public App hub.");
-      console.log(`Local roasting needs no login. To publish opinions, mint a token at ${DEFAULT_HUB_URL}/?tab=connect and run:`);
+      console.log(`Local roasting needs no login. To publish roasts, mint a token at ${DEFAULT_HUB_URL}/?tab=connect and run:`);
       console.log("  npx pgroast@next login --token <pgroast_pub_...>");
       return 0;
     }

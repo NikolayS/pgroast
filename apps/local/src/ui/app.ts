@@ -1151,7 +1151,7 @@ function updateLocalSpaceSwitcher(): void {
     const cleanHost = getPublicAppUrl().replace(/^https?:\/\//, "").replace(/\/$/, "");
     desc.textContent = cfId
       ? `Jump to CF #${cfId} in the Public App (${cleanHost}) to browse or share.`
-      : `Browse or share public CommitFest briefs & team opinions at ${cleanHost}.`;
+      : `Browse or share public CommitFest briefs & team roasts at ${cleanHost}.`;
   }
 }
 
@@ -2167,9 +2167,9 @@ function renderWorkbenchView(): string {
   const opinionAgreement =
     opinionsList.length >= 2
       ? uniqueOpinionVerdicts.length === 1
-        ? `<span class="pill pill-ok">Models agree (${opinionsList.length} opinions)</span>`
+        ? `<span class="pill pill-ok">Models agree (${opinionsList.length} roasts)</span>`
         : `<span class="pill pill-warn">Models disagree (${uniqueOpinionVerdicts.length} verdicts across ${opinionsList.length} runs)</span>`
-      : `<span class="pill pill-neutral">${opinionsList.length} opinion recorded</span>`;
+      : `<span class="pill pill-neutral">${opinionsList.length} roast recorded</span>`;
 
   const renderContribCell = (op: (typeof opinionsList)[number]) => {
     const label = op.contributorName || op.contributorHandle || "Local user";
@@ -2274,7 +2274,7 @@ function renderWorkbenchView(): string {
         <div class="card-header">
           <div>
             <h3>Roast Studio</h3>
-            <div class="muted" style="font-size:12px;">Dial in roast intensity and reviewer archetype — every report &amp; published opinion remembers your choice.</div>
+            <div class="muted" style="font-size:12px;">Dial in roast intensity and reviewer archetype — every report &amp; published roast remembers your choice.</div>
           </div>
           <span class="pill pill-purple">Local CLI · Zero API Key</span>
         </div>
@@ -2838,19 +2838,19 @@ function renderWorkbenchView(): string {
       <div>
         <div class="card">
           <div class="card-header">
-            <h3>Model Opinions &amp; Agreement</h3>
+            <h3>Model Roasts &amp; Agreement</h3>
             <div class="inline-row">
               ${opinionAgreement}
-              <button type="button" class="btn btn-secondary btn-sm" id="wb-hub-publish-op-btn" title="Publish sanitized opinion to Public App">Publish…</button>
-              <button type="button" class="btn btn-ghost btn-sm" id="wb-hub-pull-op-btn" title="Pull teammates' attributed opinions from Public Companion">Pull Team</button>
-              <button type="button" class="btn btn-secondary btn-sm" id="wb-record-opinion-btn" title="Record or import a teammate's model opinion (e.g. Kirk, Andrey)">+ Record / Import</button>
-              <button type="button" class="btn btn-ghost btn-sm" id="wb-export-opinions-btn" title="Export opinions as JSON to share with teammates">Export JSON</button>
-              <button type="button" class="btn btn-ghost btn-sm" id="wb-second-opinion-btn" title="Jump to Roast tab to run another model opinion">Run New</button>
+              <button type="button" class="btn btn-secondary btn-sm" id="wb-hub-publish-op-btn" title="Publish sanitized roast to Public App">Publish…</button>
+              <button type="button" class="btn btn-ghost btn-sm" id="wb-hub-pull-op-btn" title="Pull teammates' attributed roasts from Public Companion">Pull Team</button>
+              <button type="button" class="btn btn-secondary btn-sm" id="wb-record-opinion-btn" title="Record or import a teammate's roast (e.g. Kirk, Andrey)">+ Record / Import</button>
+              <button type="button" class="btn btn-ghost btn-sm" id="wb-export-opinions-btn" title="Export roasts as JSON to share with teammates">Export JSON</button>
+              <button type="button" class="btn btn-ghost btn-sm" id="wb-second-opinion-btn" title="Jump to Roast tab to run another model roast">Run New</button>
             </div>
           </div>
           ${
             opinionsList.length === 0
-              ? `<div class="muted" style="font-size:12px;">No roast opinions recorded yet. Run pgroast on the right or import a teammate's opinion JSON.</div>`
+              ? `<div class="muted" style="font-size:12px;">No roasts recorded yet. Run pgroast on the right or import a teammate's roast JSON.</div>`
               : `
             <div class="table-wrap" style="border:none;">
               <table>
@@ -3275,7 +3275,7 @@ function renderJobsView(): string {
             <select id="bulk-strategy">
               <option value="unroasted-first" ${b.strategy === "unroasted-first" ? "selected" : ""}>Unroasted patches first</option>
               <option value="ready-for-committer" ${b.strategy === "ready-for-committer" ? "selected" : ""}>Ready for Committer queue</option>
-              <option value="cross-model-second-opinion" ${b.strategy === "cross-model-second-opinion" ? "selected" : ""}>Cross-model second opinion</option>
+              <option value="cross-model-second-opinion" ${b.strategy === "cross-model-second-opinion" ? "selected" : ""}>Cross-model second roast</option>
             </select>
           </div>
         `
@@ -3326,7 +3326,7 @@ function renderJobsView(): string {
           ? `
         <label class="inline-row" style="cursor:pointer;margin:8px 0 10px;font-size:12px;">
           <input type="checkbox" id="bulk-publish" ${b.publish ? "checked" : ""} />
-          <span>Auto-publish sanitized opinions to <code>${esc(state.hubStatus?.url || state.settings?.publicHubUrl || "https://pgroast.postgres.ai")}</code> (uses your saved Backoffice publish token; confidentiality gate enforced)</span>
+          <span>Auto-publish sanitized roasts to <code>${esc(state.hubStatus?.url || state.settings?.publicHubUrl || "https://pgroast.postgres.ai")}</code> (uses your saved Backoffice publish token; confidentiality gate enforced)</span>
         </label>
       `
           : `<div class="muted" style="font-size:11.5px;margin:6px 0 10px;">Saves local files under your Roast Data Dir and auto-imports finished entries into this Backoffice database when done.</div>`
@@ -3563,7 +3563,7 @@ function renderSettingsView(): string {
             </span>
           </div>
           <p class="muted" style="margin-top:0;font-size:12px;">
-            Recorded on every model opinion you run (so when teammates like Kirk or Andrey share opinions, everyone sees <strong>who</strong> ran which model) and powers the 1-click <strong>My Work</strong> filter. Uses your local <code>gh</code> or <code>gws</code> CLI session — zero passwords stored.
+            Recorded on every roast you run (so when teammates like Kirk or Andrey share roasts, everyone sees <strong>who</strong> ran which model) and powers the 1-click <strong>My Work</strong> filter. Uses your local <code>gh</code> or <code>gws</code> CLI session — zero passwords stored.
           </p>
           ${
             state.identity?.signedIn
@@ -3595,7 +3595,7 @@ function renderSettingsView(): string {
             </span>
           </div>
           <p class="muted" style="margin-top:0;font-size:12px;">
-            Trust flows strictly <strong>local → public</strong>: push sanitized opinions or interactive CommitFest briefs to your Public App (e.g. <code>https://pgroast.postgres.ai</code>), and pull teammates' opinions. Your local Work Items, cookies, and skills never leave this machine.
+            Trust flows strictly <strong>local → public</strong>: push sanitized roasts or interactive CommitFest briefs to your Public App (e.g. <code>https://pgroast.postgres.ai</code>), and pull teammates' roasts. Your local Work Items, cookies, and skills never leave this machine.
           </p>
           <div class="form-field">
             <label>Public Companion URL</label>
@@ -3647,7 +3647,7 @@ function renderSettingsView(): string {
             <div class="ob-card" style="margin-bottom:10px;">
               <div class="inline-row" style="justify-content:space-between;font-size:11.5px;margin-bottom:4px;">
                 <strong>Community CommitFest Progress</strong>
-                <span class="mono">${cov.baselineRoastedOpen}/${cov.totalOpen} baseline (${basePct}%) · ${cov.opinionsTotal} opinions (${covPct}% open) · ${cov.activeLeases?.length || 0} active leases</span>
+                <span class="mono">${cov.baselineRoastedOpen}/${cov.totalOpen} baseline (${basePct}%) · ${cov.opinionsTotal} roasts (${covPct}% open) · ${cov.activeLeases?.length || 0} active leases</span>
               </div>
               <div style="height:6px;border-radius:99px;background:var(--border);overflow:hidden;">
                 <div style="height:100%;width:${Math.max(basePct, 2)}%;background:var(--accent);"></div>
@@ -3664,7 +3664,7 @@ function renderSettingsView(): string {
                 <label>Queue Strategy</label>
                 <select id="contrib-strategy">
                   <option value="unroasted-first" ${cfg.strategy === "unroasted-first" ? "selected" : ""}>Unroasted patches first</option>
-                  <option value="cross-model-second-opinion" ${cfg.strategy === "cross-model-second-opinion" ? "selected" : ""}>Cross-model second opinion</option>
+                  <option value="cross-model-second-opinion" ${cfg.strategy === "cross-model-second-opinion" ? "selected" : ""}>Cross-model second roast</option>
                   <option value="ready-for-committer" ${cfg.strategy === "ready-for-committer" ? "selected" : ""}>Ready for Committer queue</option>
                 </select>
               </div>
@@ -3723,7 +3723,7 @@ function renderSettingsView(): string {
             </div>
             <label class="inline-row" style="cursor:pointer;margin-bottom:10px;font-size:12px;">
               <input type="checkbox" id="contrib-autopublish" ${cfg.autoPublish ? "checked" : ""} />
-              <span>Auto-publish sanitized opinions to Public App (requires Publish-Only Token above; Public-Confidentiality Hard Gate always enforced)</span>
+              <span>Auto-publish sanitized roasts to Public App (requires Publish-Only Token above; Public-Confidentiality Hard Gate always enforced)</span>
             </label>
             <div class="inline-row" style="flex-wrap:wrap;gap:6px;">
               <button type="button" class="btn btn-primary btn-sm" id="contrib-save-btn">Save Schedule</button>
@@ -4061,10 +4061,10 @@ function bindViewEvents(): void {
         method: "POST",
         body: JSON.stringify({ cfId }),
       });
-      toast(`Pulled ${res.imported} new teammate opinion(s) (${res.totalRemote} total on ${res.hubUrl})`, "ok");
+      toast(`Pulled ${res.imported} new teammate roast(s) (${res.totalRemote} total on ${res.hubUrl})`, "ok");
       await loadEntryDetail(cfId);
     } catch (err) {
-      toastError(err, "Failed to pull opinions from Companion");
+      toastError(err, "Failed to pull roasts from Companion");
     }
   });
 
@@ -4088,7 +4088,7 @@ function bindViewEvents(): void {
     const defaultFlavour = legacyMap[rawFlavour] || rawFlavour;
     const hubUrl = state.hubStatus?.url || state.settings?.publicHubUrl || "https://pgroast.postgres.ai";
     showConfirmModal({
-      title: `Publish Sanitized Opinion for CF #${entry.cf_id} to ${hubUrl}`,
+      title: `Publish Sanitized Roast for CF #${entry.cf_id} to ${hubUrl}`,
       bodyHtml: `
         <p class="muted" style="margin-top:0;font-size:12px;">Runs the Public-Confidentiality Hard Gate locally and server-side before posting. No internal model codenames, local paths, or private notes allowed.</p>
         <div class="form-grid">
@@ -4126,7 +4126,7 @@ function bindViewEvents(): void {
         </div>
         <div class="form-field"><label>Public Summary (sanitized)</label><textarea id="hub-op-summary" rows="3">${esc((roast?.verdict_reasoning || "").slice(0, 500))}</textarea></div>
       `,
-      confirmLabel: "Confirm & Publish Opinion",
+      confirmLabel: "Confirm & Publish Roast",
       onConfirm: async () => {
         await api("/api/hub/publish-opinion", {
           method: "POST",
@@ -4141,7 +4141,7 @@ function bindViewEvents(): void {
             confirm: true,
           }),
         });
-        toast(`Published sanitized opinion for CF #${entry.cf_id} to ${hubUrl}`, "ok");
+        toast(`Published sanitized roast for CF #${entry.cf_id} to ${hubUrl}`, "ok");
       },
     });
   });
@@ -4182,9 +4182,9 @@ function bindViewEvents(): void {
       a.download = `cf-${cfId}-opinions.json`;
       a.click();
       URL.revokeObjectURL(url);
-      toast(`Exported ${payload.opinions.length} opinion(s) for CF #${cfId}`, "ok");
+      toast(`Exported ${payload.opinions.length} roast(s) for CF #${cfId}`, "ok");
     } catch (err) {
-      toastError(err, "Failed to export opinions");
+      toastError(err, "Failed to export roasts");
     }
   });
 
@@ -4193,14 +4193,14 @@ function bindViewEvents(): void {
     const cfId = state.detail.entry.cf_id;
     const cur = state.identity;
     showConfirmModal({
-      title: `Record or Import Opinion for CF #${cfId}`,
+      title: `Record or Import Roast for CF #${cfId}`,
       bodyHtml: `
-        <p class="muted" style="margin-top:0;font-size:12px;">Record a model opinion manually or paste an exported <code>cf-${cfId}-opinions.json</code> shared by a teammate (e.g., Kirk or Andrey).</p>
+        <p class="muted" style="margin-top:0;font-size:12px;">Record a roast manually or paste an exported <code>cf-${cfId}-opinions.json</code> shared by a teammate (e.g., Kirk or Andrey).</p>
         <div class="form-field">
-          <label>Quick Import JSON (optional — paste exported JSON to auto-import all opinions inside)</label>
+          <label>Quick Import JSON (optional — paste exported JSON to auto-import all roasts inside)</label>
           <textarea id="op-import-json" rows="3" class="mono" placeholder='{"opinions":[{"contributorName":"Kirk","contributorHandle":"kirk","contributorProvider":"github","backend":"claude","models":{"critic":"opus"},"verdict":"NEEDS-COMMITTER-EYES","confidence":"high"}]}'></textarea>
         </div>
-        <div class="section-label">Or enter a single opinion manually</div>
+        <div class="section-label">Or enter a single roast manually</div>
         <div class="form-grid">
           <div class="form-field"><label>Contributor Name</label><input type="text" id="op-contrib-name" value="${esc(cur?.name || "")}" placeholder="e.g. Kirk Wolak" /></div>
           <div class="form-field"><label>Handle / Email</label><input type="text" id="op-contrib-handle" value="${esc(cur?.handle || "")}" placeholder="e.g. kwolak" /></div>
@@ -4237,7 +4237,7 @@ function bindViewEvents(): void {
         </div>
         <div class="form-field"><label>Short Summary (optional)</label><textarea id="op-summary" rows="2" placeholder="Key takeaway or model note…"></textarea></div>
       `,
-      confirmLabel: "Save Opinion(s)",
+      confirmLabel: "Save Roast(s)",
       onConfirm: async () => {
         const rawJson = (document.getElementById("op-import-json") as HTMLTextAreaElement).value.trim();
         if (rawJson) {
@@ -4256,7 +4256,7 @@ function bindViewEvents(): void {
             });
             count++;
           }
-          toast(`Imported ${count} attributed opinion(s) for CF #${cfId}`, "ok");
+          toast(`Imported ${count} attributed roast(s) for CF #${cfId}`, "ok");
         } else {
           await api(`/api/entries/${cfId}/opinions`, {
             method: "POST",
@@ -4270,7 +4270,7 @@ function bindViewEvents(): void {
               summaryTxt: (document.getElementById("op-summary") as HTMLTextAreaElement).value.trim(),
             }),
           });
-          toast(`Recorded opinion for CF #${cfId}`, "ok");
+          toast(`Recorded roast for CF #${cfId}`, "ok");
         }
         await loadEntryDetail(cfId);
       },
@@ -5665,7 +5665,7 @@ function renderOnboarding(): void {
       </p>
       <div class="ob-card">
         <div class="inline-row" style="justify-content:space-between;">
-          <strong>Quick Sign-In (records who ran each model opinion)</strong>
+          <strong>Quick Sign-In (records who ran each roast)</strong>
           <span class="pill ${state.identity?.signedIn ? "pill-ok" : "pill-neutral"}">
             ${state.identity?.signedIn ? `${esc(state.identity.name)} (${esc(state.identity.provider)})` : "Optional"}
           </span>
@@ -6479,8 +6479,8 @@ function initGlobalControls(): void {
           <p>Inspect fast-scan objections, <strong>PG Light Roast</strong> (friendly author pre-flight checklist), isolated worktree Build &amp; Test, and <strong>Reply Studio</strong> (threaded Gmail drafts with 4 safety gates — never auto-sends).</p>
         </div>
         <div class="guide-card">
-          <h4>👥 Model Opinions &amp; GitHub/Google Sign-In</h4>
-          <p>Sign in via GitHub (<code>gh</code>) or Google (<code>gws</code>) in Settings so every roast run records <strong>who</strong> ran which model. Use <strong>Record / Import</strong> and <strong>Export JSON</strong> in Model Opinions to compare opinions across teammates (e.g. Nikolay, Kirk, Andrey).</p>
+          <h4>👥 Model Roasts &amp; GitHub/Google Sign-In</h4>
+          <p>Sign in via GitHub (<code>gh</code>) or Google (<code>gws</code>) in Settings so every roast run records <strong>who</strong> ran which model. Use <strong>Record / Import</strong> and <strong>Export JSON</strong> in Model Roasts to compare roasts across teammates (e.g. Nikolay, Kirk, Andrey).</p>
         </div>
         <div class="guide-card">
           <h4>◻ Local Work Items <kbd>6</kbd></h4>

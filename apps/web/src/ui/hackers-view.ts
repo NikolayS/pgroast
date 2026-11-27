@@ -964,7 +964,7 @@ export function renderHackerProfilePage(params: {
       `;
     }
     if (profile.opinions.length === 0) {
-      return `<div class="empty-state">No published pgroast AI opinions attributed to ${esc(p.name)} yet.</div>`;
+      return `<div class="empty-state">No published pgroast roasts attributed to ${esc(p.name)} yet.</div>`;
     }
     return `
       <div class="issue-list">
@@ -979,7 +979,7 @@ export function renderHackerProfilePage(params: {
                 <span class="issue-status">${esc(o.created_at.slice(0, 10))}</span>
               </div>
             </div>
-            <div class="issue-title">${esc(o.summary || "View patch opinion")}</div>
+            <div class="issue-title">${esc(o.summary || "View patch roast")}</div>
           </button>
         `,
           )
@@ -1212,7 +1212,7 @@ export function renderHackerProfilePage(params: {
         <span class="mr-tab-count">${profile.mailingLists?.totalMessages ?? 0}</span>
       </button>
       <button type="button" class="mr-tab ${activeTab === "opinions" ? "active" : ""}" data-hacker-tab="opinions">
-        <span>pgroast Opinions</span>
+        <span>pgroast Roasts</span>
         <span class="mr-tab-count">${profile.opinions.length}</span>
       </button>
     </div>

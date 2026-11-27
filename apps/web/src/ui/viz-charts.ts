@@ -1541,7 +1541,7 @@ export function renderQueueUnitChartSvg(
       const subLine = [
         u.status,
         verdictHumanShort(u.verdict),
-        u.isDark ? `Dark (${u.evidenceShort || "verified"})` : u.hasCommunityOpinion ? "Light opinion" : "",
+        u.isDark ? `Dark (${u.evidenceShort || "verified"})` : u.hasCommunityOpinion ? "Light roast" : "",
       ]
         .filter(Boolean)
         .join(" · ");

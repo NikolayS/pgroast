@@ -90,7 +90,7 @@ export function buildQuotaAgentPrompt(origin: string): string {
     "3. Ask me for:",
     "   - Which AI CLIs to enable (claude, codex, agy) and each subscription's weekly reset day/hour (UTC)",
     "   - How many hours before reset to start (default: 18) and max patches per window (default: 5)",
-    "   - Whether to auto-publish sanitized opinions to the Public App (requires a publish-only token from the Backoffice tab; default is local-only)",
+    "   - Whether to auto-publish sanitized roasts to the Public App (requires a publish-only token from the Backoffice tab; default is local-only)",
     "4. Run `bun run src/cli.ts contribute --status` and `bun run src/cli.ts contribute --dry-run` so I can verify the next queued patch and reviewer archetype.",
     "5. Show me how to either run it via hourly cron (`0 * * * * bun run src/cli.ts contribute --auto`) or trigger it from the Personal Backoffice Settings card.",
   ].join("\n");
@@ -105,7 +105,7 @@ function renderCoverageGaugeSvg(cov: CommunityCoverageData): string {
 
   const items = [
     { label: "2+ models (consensus)", count: seg2, color: "var(--viz-2, #10b981)" },
-    { label: "1 community opinion", count: seg1, color: "var(--viz-1, #5e6ad2)" },
+    { label: "1 community roast", count: seg1, color: "var(--viz-1, #5e6ad2)" },
     { label: "Baseline brief roast", count: segBase, color: "var(--viz-4, #38bdf8)" },
     { label: "Unroasted open", count: segUn, color: "var(--viz-muted, rgba(128,128,128,0.28))" },
   ];
@@ -197,7 +197,7 @@ export function renderContributeTab(params: {
       <div class="card-head">
         <div>
           <h2>CommitFest Multi-Model Coverage Goal</h2>
-          <div class="dim" style="font-size:12px;">Live pipeline from unroasted patches → baseline brief → 1 community opinion → 2+ cross-model consensus.</div>
+          <div class="dim" style="font-size:12px;">Live pipeline from unroasted patches → baseline brief → 1 community roast → 2+ cross-model consensus.</div>
         </div>
         <span class="pill p-ok">Live Queue</span>
       </div>
@@ -219,7 +219,7 @@ export function renderContributeTab(params: {
             <div class="kpi-sub">${fmtNum(cov.baselineRoastedOpen)} of ${fmtNum(cov.totalOpen)} open</div>
           </div>
           <div class="kpi" style="cursor:default;">
-            <div class="kpi-l"><span class="dot" style="background:var(--viz-2, #10b981)"></span>Community opinions</div>
+            <div class="kpi-l"><span class="dot" style="background:var(--viz-2, #10b981)"></span>Community roasts</div>
             <div class="kpi-v mono" style="color:var(--ok)">${fmtNum(cov.opinionsTotal)}</div>
             <div class="kpi-sub">${fmtNum(cov.openWith1PlusOpinion)} open 1+ · ${fmtNum(cov.openWith2PlusOpinions)} cross-model 2+</div>
           </div>
@@ -231,7 +231,7 @@ export function renderContributeTab(params: {
           <div class="kpi" style="cursor:default;">
             <div class="kpi-l">Ready for Committer</div>
             <div class="kpi-v mono">${rfcPct}%</div>
-            <div class="kpi-sub">${fmtNum(cov.readyForCommitterWithOpinion)} of ${fmtNum(cov.readyForCommitterOpen)} have opinion</div>
+            <div class="kpi-sub">${fmtNum(cov.readyForCommitterWithOpinion)} of ${fmtNum(cov.readyForCommitterOpen)} roasted</div>
           </div>
           <div class="kpi" style="cursor:default;">
             <div class="kpi-l">Active soft leases</div>
@@ -244,11 +244,11 @@ export function renderContributeTab(params: {
 
         <div class="grid2" style="margin-top:16px;">
           <div>
-            <div class="sheet-section-label" style="margin-bottom:8px;">Opinions by AI Backend &amp; Top Contributors</div>
+            <div class="sheet-section-label" style="margin-bottom:8px;">Roasts by AI Backend &amp; Top Contributors</div>
             <div class="row" style="gap:6px;flex-wrap:wrap;margin-bottom:10px;">
               ${
                 cov.byBackend.length === 0
-                  ? `<span class="dim" style="font-size:12px;">No community opinions published yet.</span>`
+                  ? `<span class="dim" style="font-size:12px;">No community roasts published yet.</span>`
                   : cov.byBackend.map((b) => `<span class="pill p-info mono">${esc(b.backend)}: ${b.count}</span>`).join("")
               }
             </div>
@@ -292,7 +292,7 @@ export function renderContributeTab(params: {
             }
             ${
               cov.recentContributions.length === 0
-                ? `<div class="muted" style="font-size:12.5px;">No published opinions yet. Run <code class="mono">pgroast contribute --once --publish</code> to add the first one.</div>`
+                ? `<div class="muted" style="font-size:12.5px;">No published roasts yet. Run <code class="mono">pgroast contribute --once --publish</code> to add the first one.</div>`
                 : `<div class="lb-list">
                     ${cov.recentContributions
                       .slice(0, 6)
@@ -347,7 +347,7 @@ export function renderContributeTab(params: {
           <p>Runs locally on Claude, Codex, or Antigravity via subscription login (API keys stripped). Stops cleanly on the first usage or rate limit.</p>
         </div>
         <div class="intro-step">
-          <div class="intro-step-head"><span class="intro-num">4</span><strong>Publish sanitized opinion</strong></div>
+          <div class="intro-step-head"><span class="intro-num">4</span><strong>Publish sanitized roast</strong></div>
           <p>If you opt in (<code class="mono">autoPublish: true</code>), the Public-Confidentiality Hard Gate validates the summary and publishes it here for human reviewers.</p>
         </div>
       </div>
@@ -375,7 +375,7 @@ export function renderContributeTab(params: {
             <span class="dim" style="font-size:11px;display:block;margin-bottom:3px;">Queue Strategy</span>
             <select id="qp-strategy">
               <option value="unroasted-first" ${previewStrategy === "unroasted-first" ? "selected" : ""}>Unroasted patches first</option>
-              <option value="cross-model-second-opinion" ${previewStrategy === "cross-model-second-opinion" ? "selected" : ""}>Cross-model second opinion</option>
+              <option value="cross-model-second-opinion" ${previewStrategy === "cross-model-second-opinion" ? "selected" : ""}>Cross-model second roast</option>
               <option value="ready-for-committer" ${previewStrategy === "ready-for-committer" ? "selected" : ""}>Ready for Committer queue</option>
             </select>
           </label>
@@ -403,7 +403,7 @@ export function renderContributeTab(params: {
           <button type="button" class="btn btn-ghost btn-sm" data-copy-cli="PGROAST_PUBLISH_TOKEN=pgroast_pub_YOUR_TOKEN npx pgroast@next contribute --once --backend ${esc(previewBackend)} --strategy ${esc(previewStrategy)} --flavour ${esc(previewFlavour)} --level ${esc(previewLevel)} --publish">Copy</button>
         </div>
         <div class="dim" style="font-size:11.5px;margin-top:4px;">
-          How identity works: <code class="mono">PGROAST_PUBLISH_TOKEN</code> (minted via GitHub/Google on <strong>Setup Backoffice</strong>) links published opinions to your handle. Without <code class="mono">--publish</code>, roasts stay 100% local.
+          How identity works: <code class="mono">PGROAST_PUBLISH_TOKEN</code> (minted via GitHub/Google on <strong>Setup Backoffice</strong>) links published roasts to your handle. Without <code class="mono">--publish</code>, roasts stay 100% local.
         </div>
 
         ${

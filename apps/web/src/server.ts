@@ -143,7 +143,7 @@ function renderOAuthResultHtml(opts: {
         <a class="btn primary" href="${escAttr(opts.localWorkbenchUrl)}/" target="_blank" rel="noopener">Open Personal Backoffice ↗</a>
         <a class="btn" href="/">Back to Public App</a>
       </div>
-      <p class="hint">This token can only publish sanitized opinions, briefs, and coordination claims. It cannot read private data or control your local machine.</p>
+      <p class="hint">This token can only publish sanitized roasts, briefs, and coordination claims. It cannot read private data or control your local machine.</p>
     `
     : `
       <div class="badge err">${escAttr(opts.provider.toUpperCase())} sign-in error</div>
@@ -241,8 +241,8 @@ function computePatchConsensus(
       uniqueModels: 0,
       breakdown: counts,
       headline: baselineVerdict && baselineVerdict !== "UNROASTED"
-        ? `Baseline brief pass: ${humanVerdictLabel(baselineVerdict)}. Waiting for additional reviewer AI opinions to build consensus.`
-        : "No reviewer AI opinions published yet for this patch.",
+        ? `Baseline brief pass: ${humanVerdictLabel(baselineVerdict)}. Waiting for additional reviewer roasts to build consensus.`
+        : "No reviewer roasts published yet for this patch.",
     };
   }
   const [topVerdict, topCount] = ranked[0]!;
@@ -254,7 +254,7 @@ function computePatchConsensus(
       uniqueReviewers: reviewers.size,
       uniqueModels: models.size,
       breakdown: counts,
-      headline: `1 reviewer opinion (${reviewers.size} reviewer): ${humanVerdictLabel(topVerdict)}. Add another run to compare perspectives.`,
+      headline: `1 roast (${reviewers.size} reviewer): ${humanVerdictLabel(topVerdict)}. Add another run to compare perspectives.`,
     };
   }
   const pct = Math.round((topCount / total) * 100);
@@ -266,7 +266,7 @@ function computePatchConsensus(
       uniqueReviewers: reviewers.size,
       uniqueModels: models.size,
       breakdown: counts,
-      headline: `Unanimous across ${total} opinions (${reviewers.size} reviewer${reviewers.size === 1 ? "" : "s"}): ${humanVerdictLabel(topVerdict)}.`,
+      headline: `Unanimous across ${total} roasts (${reviewers.size} reviewer${reviewers.size === 1 ? "" : "s"}): ${humanVerdictLabel(topVerdict)}.`,
     };
   }
   if (pct >= 60) {
@@ -277,7 +277,7 @@ function computePatchConsensus(
       uniqueReviewers: reviewers.size,
       uniqueModels: models.size,
       breakdown: counts,
-      headline: `Majority (${topCount}/${total}) lean ${humanVerdictLabel(topVerdict)}, with ${total - topCount} differing opinion${total - topCount === 1 ? "" : "s"}.`,
+      headline: `Majority (${topCount}/${total}) lean ${humanVerdictLabel(topVerdict)}, with ${total - topCount} differing roast${total - topCount === 1 ? "" : "s"}.`,
     };
   }
   return {
@@ -287,7 +287,7 @@ function computePatchConsensus(
     uniqueReviewers: reviewers.size,
     uniqueModels: models.size,
     breakdown: counts,
-    headline: `Split opinions across ${total} runs (${reviewers.size} reviewer${reviewers.size === 1 ? "" : "s"}): compare arguments below to find common ground.`,
+    headline: `Split roasts across ${total} runs (${reviewers.size} reviewer${reviewers.size === 1 ? "" : "s"}): compare arguments below to find common ground.`,
   };
 }
 
@@ -584,14 +584,14 @@ export async function createWebHandler(opts?: {
           info: {
             title: "pgroast Public Companion API",
             version: ROOT_PKG_VERSION,
-            description: "Read-only CommitFest intelligence, multi-model roast opinions, PostgreSQL Hacking Observatory, Mailing Lists Archive, and Weekly Quota Auto-Contribute queue.",
+            description: "Read-only CommitFest intelligence, multi-model roasts, Postgres Hacking Observatory, Mailing Lists Archive, and Weekly Quota Auto-Contribute queue.",
           },
           servers: [{ url: origin }],
           paths: {
             "/api/v1/health": { get: { summary: "Service health, version, and DB counts" } },
             "/api/v1/entries": { get: { summary: "List indexed CommitFest entries", parameters: [{ name: "limit", in: "query", schema: { type: "integer" } }] } },
-            "/api/v1/entries/{cf_id}": { get: { summary: "Get patch consensus, opinions, and claims", parameters: [{ name: "cf_id", in: "path", required: true, schema: { type: "integer" } }] } },
-            "/api/v1/opinions": { get: { summary: "List recent attributed community AI opinions" } },
+            "/api/v1/entries/{cf_id}": { get: { summary: "Get patch consensus, roasts, and claims", parameters: [{ name: "cf_id", in: "path", required: true, schema: { type: "integer" } }] } },
+            "/api/v1/opinions": { get: { summary: "List recent attributed community roasts" } },
             "/api/v1/stats/overview": { get: { summary: "Live CommitFest intelligence, build/SQL verification pipeline, subsystem readiness, and unified author telemetry" } },
             "/api/v1/hackers/overview": { get: { summary: "PostgreSQL Hacking Observatory overview & charts", parameters: [{ name: "window", in: "query", schema: { type: "string" } }] } },
             "/api/v1/hackers": { get: { summary: "Search unified PostgreSQL contributors", parameters: [{ name: "search", in: "query", schema: { type: "string" } }] } },
@@ -648,7 +648,7 @@ export async function createWebHandler(opts?: {
           { loc: `${origin}/lists`, lastmod: latestDate, changefreq: "hourly", priority: "0.9" },
           { loc: `${origin}/?tab=stats`, lastmod: latestDate, changefreq: "daily", priority: "0.8" },
           { loc: `${origin}/?tab=entries`, lastmod: latestDate, changefreq: "daily", priority: "0.8" },
-          { loc: `${origin}/?tab=opinions`, lastmod: latestDate, changefreq: "hourly", priority: "0.8" },
+          { loc: `${origin}/roasts`, lastmod: latestDate, changefreq: "hourly", priority: "0.8" },
           { loc: `${origin}/?tab=coordination`, lastmod: latestDate, changefreq: "daily", priority: "0.6" },
           { loc: `${origin}/?tab=connect`, lastmod: latestDate, changefreq: "weekly", priority: "0.6" },
           { loc: `${origin}/contribute`, lastmod: latestDate, changefreq: "daily", priority: "0.9" },
@@ -705,13 +705,13 @@ export async function createWebHandler(opts?: {
         const lines: string[] = [
           "# pgroast",
           "",
-          "> Open-source PostgreSQL CommitFest collaboration hub where human reviewers and AI assistants perform adversarial design pre-reviews (\"roasts\") of PostgreSQL patches, compare multi-model opinions, and hand off verified reviews to pgsql-hackers.",
+          "> Open-source Postgres CommitFest collaboration hub where human reviewers and AI assistants run adversarial design pre-reviews (\"roasts\") of Postgres patches, compare multi-model roasts, and hand off verified reviews to pgsql-hackers.",
           "",
           "## How pgroast works",
           "",
-          "- **Humans + AIs together:** Reviewers run a private local Backoffice (`apps/local`) with their own AI CLIs (Claude, Codex, Gemini/agy, or cross-family dual mode) to pre-review CommitFest entries or their own draft patches (`pgroast --self`), then explicitly publish sanitized opinions to this public hub.",
-          "- **Roast levels (Verification Depth):** `light` (idea, thread, and 2,547 historical precedents only; no code read, no compile), `medium` (reads C/H/SQL diffs + surrounding postgres.git context, runs `git apply`, incremental `meson compile -Dcassert=true`, and targeted `meson test`), `dark` (everything in `medium` plus boots a throwaway patched PostgreSQL cluster over Unix socket, runs adversarial pure-SQL stress tests and `EXPLAIN (ANALYZE, BUFFERS)` checks via `psql`, inspects `postgres.log` for crashes/TRAP/PANIC, and runs a reflection pass).",
-          "- **Reviewer archetypes:** `default` (House Blend), `edge-case-hunter` (The Edge-Case Hunter), `spec-lawyer` (The Spec Lawyer), `systems-architect` (The Systems Architect), `perf-hawk` (The Perf Hawk), `storage-skeptic` (The Storage Skeptic), `index-specialist` (The Index Specialist), `production-dba` (The Production DBA). Fictional engineering focus personas — never human committers (AI makes mistakes all the time). Every report and opinion records its roast level and archetype.",
+          "- **Humans + AIs together:** Reviewers run a private local Backoffice (`apps/local`) with their own AI CLIs (Claude, Codex, Gemini/agy, or cross-family dual mode) to pre-review CommitFest entries or their own draft patches (`pgroast --self`), then explicitly publish sanitized roasts to this public hub.",
+          "- **Roast levels (Verification Depth):** `light` (idea, thread, and 2,547 historical precedents only; no code read, no compile), `medium` (reads C/H/SQL diffs + surrounding postgres.git context, runs `git apply`, incremental `meson compile -Dcassert=true`, and targeted `meson test`), `dark` (everything in `medium` plus boots a throwaway patched Postgres cluster over Unix socket, runs adversarial pure-SQL stress tests and `EXPLAIN (ANALYZE, BUFFERS)` checks via `psql`, inspects `postgres.log` for crashes/TRAP/PANIC, and runs a reflection pass).",
+          "- **Reviewer archetypes:** `default` (House Blend), `edge-case-hunter` (The Edge-Case Hunter), `spec-lawyer` (The Spec Lawyer), `systems-architect` (The Systems Architect), `perf-hawk` (The Perf Hawk), `storage-skeptic` (The Storage Skeptic), `index-specialist` (The Index Specialist), `production-dba` (The Production DBA). Fictional engineering focus personas — never human committers (AI makes mistakes all the time). Every report and roast records its roast level and archetype.",
           "- **Human ownership:** AI roasts are never final committer verdicts and nothing is auto-posted. A human reviewer takes ownership of a patch, verifies the code and thread, and sends their own review to `pgsql-hackers`.",
           "",
           "## Live CommitFest Snapshot",
@@ -719,25 +719,25 @@ export async function createWebHandler(opts?: {
           `- Public hub: ${origin}/`,
           `- Source code (Apache-2.0): https://github.com/NikolayS/pgroast`,
           `- Indexed CommitFest entries: ${entries.length}`,
-          `- Published reviewer/AI opinions: ${opinions.length}`,
+          `- Published roasts: ${opinions.length}`,
           `- Published CommitFest briefs: ${briefs.length}${latestBrief ? ` (latest: ${latestBrief.title}, ${latestBrief.commitfest_label})` : ""}`,
           "",
           "## Key Pages",
           "",
           `- [CommitFest Brief & Shortlist](${origin}/): Triage summary, verdict breakdown, shortlist, and closing/rethinking candidates.`,
-          `- [PostgreSQL Hacking Observatory](${origin}/?tab=hackers): Interactive infographics, velocity charts, 7x24 UTC heatmap, bus factor, multi-email unified leaderboards, and personal contributor profiles (\`/hacker/<slug>\`).`,
+          `- [Postgres Hacking Observatory](${origin}/?tab=hackers): Interactive infographics, velocity charts, 7x24 UTC heatmap, bus factor, multi-email unified leaderboards, and personal contributor profiles (\`/hacker/<slug>\`).`,
           `- [CommitFest Stats & Leaderboards](${origin}/?tab=stats): Verdict heatmap, subsystem health, and clickable top authors, reviewers, and committers.`,
           `- [All CommitFest Entries](${origin}/?tab=entries): Searchable directory of ${entries.length} patches with status and verdict filters.`,
-          `- [Community AI Opinions](${origin}/?tab=opinions): Attributed multi-model, multi-flavour review opinions.`,
-          `- [Personal Backoffice Setup](${origin}/?tab=connect): How to run your own local workbench and publish opinions.`,
-          `- [About pgroast — What Roasting Means](${origin}/about): Why we roast PostgreSQL patches, why idea and design scrutiny is the foundation of all roast levels (Light, Medium, Dark), and how the 7-angle + Critic pipeline works.`,
+          `- [Community Roasts](${origin}/roasts): Attributed multi-model, multi-flavour roasts.`,
+          `- [Personal Backoffice Setup](${origin}/?tab=connect): How to run your own local workbench and publish roasts.`,
+          `- [About pgroast — What Roasting Means](${origin}/about): Why we roast Postgres patches, why idea and design scrutiny is the foundation of all roast levels (Light, Medium, Dark), and how the 7-angle + Critic pipeline works.`,
           `- [Docs, All Features & Weekly Quota Auto-Contribute](${origin}/docs): Complete feature directory, CLI reference, live CommitFest coverage progress, and weekly OAuth quota donation setup.`,
           `- [XML Sitemap](${origin}/sitemap.xml): Complete index of all patch collaboration pages.`,
-          `- [Full LLM Digest](${origin}/llms-full.txt): Expanded Markdown with live opinions and full shortlist.`,
+          `- [Full LLM Digest](${origin}/llms-full.txt): Expanded Markdown with live roasts and full shortlist.`,
           "",
         ];
         if (opinions.length > 0) {
-          lines.push("## Recent Community Opinions", "");
+          lines.push("## Recent Community Roasts", "");
           for (const op of opinions.slice(0, isFull ? 100 : 15)) {
             const entry = entries.find((e) => e.cf_id === op.cf_id);
             const title = entry ? entry.title : `CF ${op.cf_id}`;
@@ -771,7 +771,7 @@ export async function createWebHandler(opts?: {
           "",
           `- Health & counts: \`GET ${origin}/api/v1/health\``,
           `- Entries list: \`GET ${origin}/api/v1/entries?limit=300\``,
-          `- Patch consensus & opinions: \`GET ${origin}/api/v1/entries/<cf_id>\``,
+          `- Patch consensus & roasts: \`GET ${origin}/api/v1/entries/<cf_id>\``,
           `- Parsed pgsql-hackers thread: \`GET ${origin}/api/v1/entries/<cf_id>/thread\``,
           `- Live CFBot unified diff: \`GET ${origin}/api/v1/entries/<cf_id>/diff\``,
           `- Hacking Observatory overview: \`GET ${origin}/api/v1/hackers/overview?window=1y\``,
@@ -798,7 +798,8 @@ export async function createWebHandler(opts?: {
       const isContributePage = path === "/contribute" || path === "/contribute/";
       const isListsPage = path === "/lists" || path === "/lists/";
       const isAboutPage = path === "/about" || path === "/about/";
-      if (method === "GET" && (path === "/" || path === "/index.html" || patchPageMatch || hackerPageMatch || isDocsPage || isContributePage || isListsPage || isAboutPage)) {
+      const isRoastsPage = path === "/roasts" || path === "/roasts/";
+      if (method === "GET" && (path === "/" || path === "/index.html" || patchPageMatch || hackerPageMatch || isDocsPage || isContributePage || isListsPage || isAboutPage || isRoastsPage)) {
         await refreshUiAssetsIfChanged();
         const origin = resolveRequestOrigin(req, cfg);
         const cfId = parsePositivePgInt(patchPageMatch?.[1] || url.searchParams.get("cf")) ?? 0;
@@ -827,8 +828,12 @@ export async function createWebHandler(opts?: {
           desc = "Continuously synced archive across 51 PostgreSQL public mailing lists with full-text search, active threads, and unified /hacker/<slug> contributor profiles.";
         } else if (isAboutPage) {
           canonical = `${origin}/about`;
-          title = "About pgroast — What Roasting PostgreSQL Patches Means";
-          desc = "How pgroast uses AI to review and scrutinize PostgreSQL CommitFest patches — starting with the idea itself across Light, Medium, and Dark roast levels.";
+          title = "About pgroast — What Roasting Postgres Patches Means";
+          desc = "How pgroast uses AI to review and scrutinize Postgres CommitFest patches — starting with the idea itself across Light, Medium, and Dark roast levels.";
+        } else if (isRoastsPage) {
+          canonical = `${origin}/roasts`;
+          title = "Community Roasts — pgroast";
+          desc = "Browse attributed multi-model Postgres patch roasts across Light, Medium, and Dark verification depths.";
         } else if (hackerSlug) {
           canonical = `${origin}/hacker/${encodeURIComponent(hackerSlug)}`;
           const profile = await getHackerProfileBySlug(db, hackerSlug).catch(() => null);

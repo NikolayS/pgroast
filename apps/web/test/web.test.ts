@@ -174,7 +174,7 @@ describe("pgroast-web public companion API & security gates", () => {
 
     const llmsFullRes = await req("/llms-full.txt");
     expect(llmsFullRes.status).toBe(200);
-    expect(await llmsFullRes.text()).toContain("Recent Community Opinions");
+    expect(await llmsFullRes.text()).toContain("Recent Community Roasts");
 
     expect(patchHtml).toContain('rel="canonical"');
     expect(patchHtml).toContain("application/ld+json");
@@ -891,7 +891,9 @@ describe("pgroast-web public companion API & security gates", () => {
     const contributeHtml = await (await req("/contribute")).text();
     expect(contributeHtml).toContain("Weekly Quota Auto-Contribute &amp; Live CommitFest Coverage — pgroast");
     const aboutHtml = await (await req("/about")).text();
-    expect(aboutHtml).toContain("About pgroast — What Roasting PostgreSQL Patches Means");
+    expect(aboutHtml).toContain("About pgroast — What Roasting Postgres Patches Means");
+    const roastsHtml = await (await req("/roasts")).text();
+    expect(roastsHtml).toContain("Community Roasts — pgroast");
   });
 
   test("Mailing Lists Archive: catalog/since/mbox parsers, unified hacker linking, APIs, and /lists SSR", async () => {

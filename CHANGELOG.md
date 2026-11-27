@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.3.0-alpha.32 (2026-11-27)
+
+This release renames user-facing "opinion" / "Opinions" labels to **roast** / **Roasts** across the Public App, Personal Backoffice, CLI help/output, and `README.md` so the product uses one consistent term everywhere. Existing API paths (`/api/v1/opinions`, `/api/v1/publish/opinion`) and JSON keys stay unchanged for backwards compatibility, and `/roasts` now works as the canonical route alongside `/?tab=opinions`.
+
+### Changes
+
+- **Public App UI & SSR (`apps/web/src/ui/*`, `apps/web/src/server.ts`):**
+  - Renamed the topbar and mobile bottom-bar **Opinions** tab to **Roasts** (canonical URL `/roasts`; `/?tab=opinions` and `/?tab=roasts` still work).
+  - Updated all page titles, patch consensus headings (`Single Roast`, `Published Roasts`, `1 roast`, `Split roasts`), footer counter (`... roasts`), Hacker Profile tab (`pgroast Roasts`), Stats provenance (`Roast Provenance`), Contribute coverage copy, Docs/API descriptions, and `/llms.txt` to say **roast(s)** instead of **opinion(s)**.
+- **Personal Backoffice, CLI & README (`apps/local/src/ui/*`, `src/cli.ts`, `src/publish.ts`, `src/contribute.ts`, `README.md`):**
+  - Renamed `Model Opinions & Agreement`, publish/record/import modals, toasts, CLI help/logs, and `README.md` descriptions to **roast(s)**.
+
 ## v0.3.0-alpha.31 (2026-11-27)
 
 This release fixes roasting and Discussion tab loading when `postgresql.org`'s `/message-id/flat/<id>` view returns HTTP 500. Both the CLI roaster and the web Discussion viewer now try `/flat/` first and fall back to individual `/message-id/<id>` pages, with a circuit breaker that stops hammering `/flat/` after 2 consecutive failures.

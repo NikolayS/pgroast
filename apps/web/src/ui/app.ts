@@ -558,7 +558,11 @@ function parseRouteFromLocation(): { patchId: number | null; hackerSlug: string 
   if (/^\/about\/?$/i.test(u.pathname)) {
     return { patchId: null, hackerSlug: null, tab: "about", mrTab: "overview", hash: u.hash };
   }
-  const tabParam = u.searchParams.get("tab") as TabId | null;
+  if (/^\/roasts\/?$/i.test(u.pathname)) {
+    return { patchId: null, hackerSlug: null, tab: "opinions", mrTab: "overview", hash: u.hash };
+  }
+  const rawTabParam = u.searchParams.get("tab");
+  const tabParam = (rawTabParam === "roasts" ? "opinions" : rawTabParam) as TabId | null;
   const validTabs: TabId[] = ["brief", "hackers", "lists", "stats", "entries", "opinions", "coordination", "connect", "contribute", "docs", "about"];
   return {
     patchId: null,
@@ -893,8 +897,10 @@ function navigateToTab(tab: TabId, pushHistory = true, hash = ""): void {
           : tab === "docs"
             ? "Docs & Complete Feature Catalog — pgroast"
             : tab === "about"
-              ? "About pgroast — What Roasting PostgreSQL Patches Means"
-              : "pgroast — Public CommitFest App";
+              ? "About pgroast — What Roasting Postgres Patches Means"
+              : tab === "opinions"
+                ? "Community Roasts — pgroast"
+                : "pgroast — Public CommitFest App";
   if (pushHistory) {
     try {
       const targetUrl =
@@ -908,7 +914,9 @@ function navigateToTab(tab: TabId, pushHistory = true, hash = ""): void {
                 ? "/lists"
                 : tab === "about"
                   ? "/about"
-                  : `/?tab=${encodeURIComponent(tab)}`) + hash;
+                  : tab === "opinions"
+                    ? "/roasts"
+                    : `/?tab=${encodeURIComponent(tab)}`) + hash;
       window.history.pushState({ patchId: null, hackerSlug: null, tab }, "", targetUrl);
     } catch {
       // ignore
@@ -1020,7 +1028,7 @@ async function loadAll(): Promise<void> {
         : "";
       const viewTotal = safeInt(views?.total ?? health.views?.total ?? 0);
       const viewsPart = ` · <a class="footer-ver" href="/?tab=stats#site-traffic" id="footer-views-link">${viewTotal} view${viewTotal === 1 ? "" : "s"}</a>`;
-      f.innerHTML = `${verLink}${esc(health.database.version || "PostgreSQL")} · ${safeInt(health.counts.entries)} entries · ${safeInt(health.counts.opinions)} opinions${viewsPart}`;
+      f.innerHTML = `${verLink}${esc(health.database.version || "PostgreSQL")} · ${safeInt(health.counts.entries)} entries · ${safeInt(health.counts.opinions)} roasts${viewsPart}`;
       document.getElementById("footer-views-link")?.addEventListener("click", (ev) => {
         ev.preventDefault();
         navigateToTab("stats", true, "#site-traffic");
@@ -1071,7 +1079,7 @@ function openSpaceSwitcher(): void {
         <span class="space-badge-here">You are here</span>
       </div>
       <p class="space-card-desc">
-        Shared community hub at <code class="mono">${esc(window.location.host)}</code>. Compare multiple reviewers' AI opinions, build common ground on each patch, and share links.
+        Shared community hub at <code class="mono">${esc(window.location.host)}</code>. Compare multiple reviewers' roasts, build common ground on each patch, and share links.
       </p>
     </div>
 
@@ -1081,7 +1089,7 @@ function openSpaceSwitcher(): void {
         <span class="space-badge-local">Private · Local</span>
       </div>
       <p class="space-card-desc">
-        Your private workspace on <code class="mono">${esc(getLocalBackofficeUrl().replace(/\/$/, ""))}</code>: compile Postgres, run your AI models, inspect diffs, keep private Work Items, and push sanitized opinions up here.
+        Your private workspace on <code class="mono">${esc(getLocalBackofficeUrl().replace(/\/$/, ""))}</code>: compile Postgres, run your AI models, inspect diffs, keep private Work Items, and push sanitized roasts up here.
       </p>
       <div class="row" style="gap:8px;margin-top:2px;flex-wrap:wrap;">
         <button type="button" class="btn btn-primary" style="flex:1;" data-copy-bo-prompt="1">Copy AI Agent Install Prompt</button>
@@ -1336,7 +1344,7 @@ function summarizeOpinionPreview(md: string): string {
     .split("\n")
     .map((l) => l.trim())
     .filter((l) => l && !l.startsWith("#") && !l.startsWith("**Verification:**"));
-  const first = (lines[0] || "View patch consensus & full opinion")
+  const first = (lines[0] || "View patch consensus & full roast")
     .replace(/\*\*([^*]+)\*\*/g, "$1")
     .replace(/`([^`]+)`/g, "$1")
     .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
@@ -1804,7 +1812,7 @@ function renderPatchPage(): string {
     state.returnTab === "entries"
       ? "Entries"
       : state.returnTab === "opinions"
-        ? "Opinions"
+        ? "Roasts"
         : state.returnTab === "stats"
           ? "Stats"
           : state.returnTab === "coordination"
@@ -1824,12 +1832,12 @@ function renderPatchPage(): string {
   const consensusBadge = !consensus || consensus.status === "baseline_only"
     ? `<span class="pill">Baseline brief pass</span>`
     : consensus.status === "single_opinion"
-      ? `<span class="pill p-info">1 opinion</span>`
+      ? `<span class="pill p-info">1 roast</span>`
       : consensus.status === "unanimous"
         ? `<span class="pill p-ok">Unanimous agreement</span>`
         : consensus.status === "majority"
           ? `<span class="pill p-info">Majority consensus</span>`
-          : `<span class="pill p-warn">Split opinions</span>`;
+          : `<span class="pill p-warn">Split roasts</span>`;
 
   const hasBaselineCard =
     verdict !== "UNROASTED" || reasons.length > 0 || Boolean(workaround) || Boolean(failingSummary) || Boolean(nextStep);
@@ -1938,7 +1946,7 @@ function renderPatchPage(): string {
               ? renderPatchOverviewSkeleton()
               : `
           <div class="card-head" style="margin-bottom:6px;">
-            <h2>${opinions.length >= 2 ? "Common Ground &amp; Consensus" : opinions.length === 1 ? "Single AI Opinion" : "Baseline Triage Summary (Automated)"}</h2>
+            <h2>${opinions.length >= 2 ? "Common Ground &amp; Consensus" : opinions.length === 1 ? "Single Roast" : "Baseline Triage Summary (Automated)"}</h2>
             ${consensusBadge}
           </div>
           <p class="consensus-headline">
@@ -1978,10 +1986,10 @@ function renderPatchPage(): string {
           }
         </section>
 
-        <!-- 2. Reviewer & AI Opinions Feed -->
+        <!-- 2. Published Roasts Feed -->
         <section>
           <div class="card-head" style="margin-bottom:10px;">
-            <h2>Reviewer &amp; AI Opinions (${totalShownOpinions})</h2>
+            <h2>Published Roasts (${totalShownOpinions})</h2>
             <div class="row" style="gap:10px;align-items:center;flex-wrap:wrap;">
               <span class="dim" style="font-size:12px;">${esc(opinionsSubLabel)}</span>
               <button type="button" class="about-link-inline" data-open-about="#roast-levels">What is a roast?</button>
@@ -2752,7 +2760,7 @@ function getFilteredOpinions(): OpinionItem[] {
 
 function renderOpinionsRowsHtml(filtered: OpinionItem[]): string {
   if (filtered.length === 0) {
-    return `<div class="empty-state">No opinions match your current search or filter.</div>`;
+    return `<div class="empty-state">No roasts match your current search or filter.</div>`;
   }
   const pageSize = Math.max(10, state.opPageSize);
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
@@ -2798,7 +2806,7 @@ function renderOpinionsRowsHtml(filtered: OpinionItem[]): string {
   const pagerHtml =
     totalPages > 1 || filtered.length > 25
       ? `
-    <div class="op-pagination" aria-label="Opinions pagination">
+    <div class="op-pagination" aria-label="Roasts pagination">
       <div class="dim mono" style="font-size:12px;">
         Showing ${start + 1}–${Math.min(start + slice.length, filtered.length)} of ${filtered.length}
       </div>
@@ -2854,7 +2862,7 @@ function updateOpinionsListOnly(): void {
 
 function renderOpinionsTab(): string {
   if (state.bootLoading && state.opinions.length === 0) {
-    return renderListPageSkeleton("Loading community opinions");
+    return renderListPageSkeleton("Loading community roasts");
   }
   const filtered = getFilteredOpinions();
   const darkCnt = state.opinions.filter((o) => (o.roast_level || "light").toLowerCase() === "dark").length;
@@ -2873,7 +2881,7 @@ function renderOpinionsTab(): string {
   return `
     <div class="page-head">
       <div class="page-head-main">
-        <h1 class="page-title">Community Model Opinions <span class="dim mono" id="opinions-count-badge" style="font-size:15px;font-weight:500;">${filtered.length} of ${state.opinions.length}</span></h1>
+        <h1 class="page-title">Community Roasts <span class="dim mono" id="opinions-count-badge" style="font-size:15px;font-weight:500;">${filtered.length} of ${state.opinions.length}</span></h1>
         <div class="page-sub">Search, filter by roast depth, verdict, or model, and sort — tap any row to open full verification logs · <button type="button" class="about-link-inline" data-open-about="#roast-levels">What do Light / Medium / Dark mean?</button></div>
       </div>
       <button type="button" class="btn btn-secondary btn-sm" id="opinions-goto-team-btn">Team claims (${state.coordination.length}) →</button>
@@ -2883,9 +2891,9 @@ function renderOpinionsTab(): string {
         ? `
       <div class="card">
         <div class="empty-state">
-          <div style="font-weight:600;color:var(--text);margin-bottom:6px;">No individual reviewer opinions published yet</div>
+          <div style="font-weight:600;color:var(--text);margin-bottom:6px;">No reviewer roasts published yet</div>
           <p class="muted" style="max-width:520px;margin:0 auto 12px;">
-            Each reviewer installs their own local Personal Backoffice from <a href="https://github.com/NikolayS/pgroast" target="_blank" rel="noopener">github.com/NikolayS/pgroast</a>, runs their AI models locally on a patch, and clicks <strong>Publish Opinion</strong> to compare findings here and derive common ground.
+            Each reviewer installs their own local Personal Backoffice from <a href="https://github.com/NikolayS/pgroast" target="_blank" rel="noopener">github.com/NikolayS/pgroast</a>, runs their AI models locally on a patch, and clicks <strong>Publish Roast</strong> to compare findings here and derive common ground.
           </p>
           <button type="button" class="btn btn-primary" id="goto-connect-btn">How to connect your Backoffice →</button>
         </div>
@@ -2896,14 +2904,14 @@ function renderOpinionsTab(): string {
         <div class="op-controls">
           <div class="search-box" style="flex:1;margin-bottom:0;">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-            <input id="op-search-input" type="search" autocomplete="off" value="${esc(state.opSearch)}" placeholder="Search CF #, patch title, author, model, or review text…" />
+            <input id="op-search-input" type="search" autocomplete="off" value="${esc(state.opSearch)}" placeholder="Search CF #, patch title, author, model, or roast text…" />
             <button type="button" class="search-clear" id="op-search-clear-btn" aria-label="Clear search" ${state.opSearch ? "" : "hidden"}>×</button>
           </div>
           <select id="op-model-select" aria-label="Filter by AI model">
             <option value="all" ${state.opModel === "all" ? "selected" : ""}>All models (${modelSpecs.length})</option>
             ${modelSpecs.map((sp) => `<option value="${esc(sp)}" ${state.opModel === sp ? "selected" : ""}>${esc(sp)}</option>`).join("")}
           </select>
-          <select id="op-sort-select" aria-label="Sort opinions">
+          <select id="op-sort-select" aria-label="Sort roasts">
             <option value="newest" ${state.opSort === "newest" ? "selected" : ""}>Sort: Newest first</option>
             <option value="depth" ${state.opSort === "depth" ? "selected" : ""}>Sort: Deepest (Dark → Light)</option>
             <option value="critical" ${state.opSort === "critical" ? "selected" : ""}>Sort: Most critical first</option>
@@ -3030,7 +3038,7 @@ function renderConnectTab(): string {
           Hosted at <code class="mono">${esc(window.location.host)}</code>. Safe to share patch links (<code class="mono">/patch/5879</code>) with committers, authors, and teammates.
         </p>
         <ul class="muted" style="padding-left:18px;margin:0;font-size:12.5px;display:flex;flex-direction:column;gap:5px;">
-          <li>Per-patch pages showing all reviewers' AI opinions &amp; build logs</li>
+          <li>Per-patch pages showing all reviewers' roasts &amp; build logs</li>
           <li>CommitFest briefs &amp; offline HTML/MD/JSON downloads</li>
           <li>Shared team claims so reviewers avoid duplicate effort</li>
         </ul>
@@ -3047,7 +3055,7 @@ function renderConnectTab(): string {
         <ul class="muted" style="padding-left:18px;margin:0;font-size:12.5px;display:flex;flex-direction:column;gap:5px;">
           <li>Compile Postgres, apply patches, inspect diffs, and run your AI models</li>
           <li>Private Work Items, CommitFest cookies, and Gmail drafts</li>
-          <li>Explicitly publish sanitized opinions &amp; briefs up to this Public App</li>
+          <li>Explicitly publish sanitized roasts &amp; briefs up to this Public App</li>
         </ul>
       </div>
     </div>
@@ -3201,7 +3209,7 @@ function openMoreSheet(): void {
     { tab: "contribute", title: "Auto-Contribute Quota", sub: "Donate leftover weekly AI quota to roast patches" },
     { tab: "docs", title: "Docs, CLI & API Explorer", sub: "Stripe-style OpenAPI docs + CLI playground" },
     { tab: "coordination", title: "Team Coordination", sub: "Opt-in reviewer claims", badge: String(state.coordination.length) },
-    { tab: "connect", title: "Setup Personal Backoffice", sub: "Run local builds, diffs & publish opinions" },
+    { tab: "connect", title: "Setup Personal Backoffice", sub: "Run local builds, diffs & publish roasts" },
   ];
 
   body.innerHTML = `

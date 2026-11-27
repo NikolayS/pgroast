@@ -461,7 +461,7 @@ export async function runContributeCycle(opts: {
             });
             published = true;
             summary.published++;
-            log(`  [${cfId}] published sanitized opinion -> ${pub.patchUrl}`);
+            log(`  [${cfId}] published sanitized roast -> ${pub.patchUrl}`);
           }
         } else {
           log(`  [${cfId}] saved locally to ${patchOutDir} (pass --publish or set autoPublish: true to share)`);
@@ -527,7 +527,7 @@ Options:
   --topics a,b       Comma-separated subsystem keywords to focus on
   --hub URL          Public App URL (default: ${DEFAULT_HUB_URL})
   --token TOK        Publish-only token (default: $PGROAST_PUBLISH_TOKEN)
-  --publish          Publish sanitized opinion after roasting (overrides autoPublish)
+  --publish          Publish sanitized roast after roasting (overrides autoPublish)
   --no-publish       Keep results local only
   --force            Ignore pre-reset window check during --auto
   --config PATH      Custom config file path (default: ~/.pgroast/contribute.json)
@@ -675,7 +675,7 @@ export async function contributeMain(argv: string[]): Promise<number> {
         const opPct = cov.totalOpen > 0 ? Math.round((cov.openWith1PlusOpinion / cov.totalOpen) * 100) : 0;
         console.log("Community CommitFest Coverage:");
         console.log(`  Baseline roasted:   ${formatCoverageProgressBar(basePct)}  (${cov.baselineRoastedOpen}/${cov.totalOpen} open)`);
-        console.log(`  Community opinions: ${formatCoverageProgressBar(opPct)}  (${cov.openWith1PlusOpinion}/${cov.totalOpen} open · ${cov.opinionsTotal} total · ${cov.openWith2PlusOpinions} with 2+ models)`);
+        console.log(`  Community roasts: ${formatCoverageProgressBar(opPct)}  (${cov.openWith1PlusOpinion}/${cov.totalOpen} open · ${cov.opinionsTotal} total · ${cov.openWith2PlusOpinions} with 2+ models)`);
         console.log(`  Unroasted open:     ${cov.unroastedOpen}  · Active soft leases: ${cov.activeLeases.length}`);
         console.log("");
       }

@@ -47,14 +47,14 @@ export const API_ENDPOINTS: ApiEndpointDef[] = [
     pathTemplate: "/api/v1/health",
     title: "Service health & version",
     auth: "public",
-    summary: "Returns the live pgroast version, PostgreSQL server version, indexed entry/opinion/brief counts, and privacy-friendly view totals.",
+    summary: "Returns the live pgroast version, Postgres server version, indexed entry/roast/brief counts, and privacy-friendly view totals.",
     params: [],
     cliExample: "npx pgroast@next doctor",
     responseFields: [
-      { name: "ok", type: "boolean", description: "Always true when PostgreSQL is reachable." },
+      { name: "ok", type: "boolean", description: "Always true when Postgres is reachable." },
       { name: "version", type: "string", description: "Running package version (e.g. 0.3.0-alpha.15)." },
-      { name: "database.version", type: "string", description: "PostgreSQL server version string." },
-      { name: "counts", type: "object", description: "Total entries, published opinions, briefs, and active claims." },
+      { name: "database.version", type: "string", description: "Postgres server version string." },
+      { name: "counts", type: "object", description: "Total entries, published roasts, briefs, and active claims." },
     ],
   },
   {
@@ -64,7 +64,7 @@ export const API_ENDPOINTS: ApiEndpointDef[] = [
     pathTemplate: "/api/v1/stats/overview",
     title: "Live CommitFest intelligence & build pipeline",
     auth: "public",
-    summary: "Returns live PostgreSQL aggregation across all CommitFest entries and opinions: Dark/Medium verification pipeline funnel (git apply, meson compile, meson test, live PG SQL stress), live merged Status × Verdict matrix, subsystem readiness, model mix, unified author profiles, and hourly traffic.",
+    summary: "Returns live Postgres aggregation across all CommitFest entries and roasts: Dark/Medium verification pipeline funnel (git apply, meson compile, meson test, live PG SQL stress), live merged Status × Verdict matrix, subsystem readiness, model mix, unified author profiles, and hourly traffic.",
     params: [],
     responseFields: [
       { name: "totals", type: "object", description: "Live open/closed counts, roast coverage, Dark-verified patches, bug fixes, and production hits." },
@@ -98,9 +98,9 @@ export const API_ENDPOINTS: ApiEndpointDef[] = [
     group: "CommitFest & Patches",
     method: "GET",
     pathTemplate: "/api/v1/entries/{cf_id}",
-    title: "Get patch consensus & opinions",
+    title: "Get patch consensus & roasts",
     auth: "public",
-    summary: "Returns full CommitFest entry metadata, multi-model consensus status, attributed community AI opinions (with provider/model:effort), and active team claims.",
+    summary: "Returns full CommitFest entry metadata, multi-model consensus status, attributed community roasts (with provider/model:effort), and active team claims.",
     params: [
       { name: "cf_id", in: "path", type: "integer", required: true, defaultValue: "7508", description: "CommitFest patch ID." },
     ],
@@ -108,7 +108,7 @@ export const API_ENDPOINTS: ApiEndpointDef[] = [
     responseFields: [
       { name: "entry", type: "Entry", description: "Patch title, status, topic, authors, and thread URL." },
       { name: "consensus", type: "object", description: "Agreement status (unanimous, majority, split, single_opinion)." },
-      { name: "opinions", type: "Opinion[]", description: "Published community opinions with models_json (spec), roast_level, and roast_flavour." },
+      { name: "opinions", type: "Roast[]", description: "Published community roasts (JSON key kept as opinions for API compatibility) with models_json (spec), roast_level, and roast_flavour." },
     ],
   },
   {
@@ -147,14 +147,14 @@ export const API_ENDPOINTS: ApiEndpointDef[] = [
   },
   {
     id: "opinions-list",
-    group: "Opinions & Publish",
+    group: "Roasts & Publish",
     method: "GET",
     pathTemplate: "/api/v1/opinions",
-    title: "Recent community AI opinions",
+    title: "Recent community roasts",
     auth: "public",
-    summary: "Lists recent attributed opinions published from reviewers' local CLIs and Backoffice workbenches, including exact provider/model:effort specs.",
+    summary: "Lists recent attributed roasts published from reviewers' local CLIs and Backoffice workbenches, including exact provider/model:effort specs.",
     params: [
-      { name: "limit", in: "query", type: "integer", defaultValue: "15", description: "Max opinions to return (default 100)." },
+      { name: "limit", in: "query", type: "integer", defaultValue: "15", description: "Max roasts to return (default 100)." },
       { name: "cf_id", in: "query", type: "integer", defaultValue: "", description: "Optional filter for a single CommitFest patch ID." },
     ],
     responseFields: [
@@ -166,12 +166,12 @@ export const API_ENDPOINTS: ApiEndpointDef[] = [
   },
   {
     id: "publish-opinion",
-    group: "Opinions & Publish",
+    group: "Roasts & Publish",
     method: "POST",
     pathTemplate: "/api/v1/publish/opinion",
-    title: "Publish a sanitized opinion",
+    title: "Publish a sanitized roast",
     auth: "bearer",
-    summary: "Publishes a sanitized roast opinion from your local CLI or Personal Backoffice. Protected by a Bearer publish-only token and the server-side Public-Confidentiality Hard Gate (blocks secrets, cookies, and local paths with HTTP 422).",
+    summary: "Publishes a sanitized roast from your local CLI or Personal Backoffice. Protected by a Bearer publish-only token and the server-side Public-Confidentiality Hard Gate (blocks secrets, cookies, and local paths with HTTP 422).",
     params: [],
     cliExample: "PGROAST_PUBLISH_TOKEN=pgroast_pub_YOUR_TOKEN npx pgroast@next publish ./out/cf-7508/roast.json",
     samplePostBody: {
@@ -185,7 +185,7 @@ export const API_ENDPOINTS: ApiEndpointDef[] = [
       summary: "Concise sanitized summary of the roast findings.",
     },
     responseFields: [
-      { name: "opinion", type: "Opinion", description: "Saved opinion row attributed to the token's GitHub/Google identity." },
+      { name: "opinion", type: "Roast", description: "Saved roast row attributed to the token's GitHub/Google identity." },
     ],
   },
   {
@@ -285,7 +285,7 @@ export const API_ENDPOINTS: ApiEndpointDef[] = [
     pathTemplate: "/api/v1/contribute/status",
     title: "Live CommitFest roast coverage & leases",
     auth: "public",
-    summary: "Returns real-time community coverage progress (unroasted, baseline, 1+ opinion, 2+ cross-model consensus), active 45-minute soft leases, backend breakdown, and top contributors.",
+    summary: "Returns real-time community coverage progress (unroasted, baseline, 1+ roast, 2+ cross-model consensus), active 45-minute soft leases, backend breakdown, and top contributors.",
     params: [],
     cliExample: "npx pgroast@next contribute --status",
     responseFields: [

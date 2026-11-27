@@ -482,12 +482,12 @@ export function renderStatsObservatory(params: {
 
         <div style="border-top:1px solid var(--border);padding-top:12px;">
           <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:6px;">
-            <strong style="font-size:12.5px;">Opinion Provenance (Model × Roast Depth)</strong>
-            <span class="dim mono" style="font-size:11px;">${fmtNum(t.totalOpinions)} attributed opinions</span>
+            <strong style="font-size:12.5px;">Roast Provenance (Model × Depth)</strong>
+            <span class="dim mono" style="font-size:11px;">${fmtNum(t.totalOpinions)} attributed roasts</span>
           </div>
           ${
             v.byModel.length === 0
-              ? `<div class="muted" style="font-size:12px;">No attributed community opinions yet.</div>`
+              ? `<div class="muted" style="font-size:12px;">No attributed community roasts yet.</div>`
               : `
             <div class="table-scroll">
               <table class="dm-table">

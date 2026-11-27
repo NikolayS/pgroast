@@ -92,7 +92,7 @@ bugs: fetches recent pgsql-bugs threads and prioritizes real production user hit
 synthetic/AI bug-hunt reports, writing bugs-triage.md and bugs-triage.json.
 
 publish: runs the Public-Confidentiality Hard Gate on a finished roast.json and publishes
-a sanitized opinion to the pgroast Public App (never posts to pgsql-hackers or CommitFest).
+a sanitized roast to the pgroast Public App (never posts to pgsql-hackers or CommitFest).
 
 contribute: spends leftover weekly OAuth subscription quota (claude, codex, agy) right before
 your weekly reset to pre-review uncovered CommitFest patches from the shared soft-lease queue.

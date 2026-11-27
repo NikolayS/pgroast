@@ -38,7 +38,7 @@ Live public hub: **[https://pgroast.postgres.ai](https://pgroast.postgres.ai)** 
 
 Given a `pgsql-hackers` thread or CommitFest entry, `pgroast` checks earlier rejected attempts and reverts, raises the strongest objections with concrete failure scenarios, and checks 15 Postgres touch points. A Critic pass then tries to refute every objection so only solid findings survive.
 
-Status: alpha (`v0.3.0-alpha.*`). The CLI writes local files only unless you explicitly run `pgroast publish` or opt-in `pgroast contribute --publish`. The Personal Backoffice (`apps/local`) adds explicit-confirmation CommitFest actions, local Gmail drafts, and opt-in publishing of sanitized opinions to the Public App (`apps/web`).
+Status: alpha (`v0.3.0-alpha.*`). The CLI writes local files only unless you explicitly run `pgroast publish` or opt-in `pgroast contribute --publish`. The Personal Backoffice (`apps/local`) adds explicit-confirmation CommitFest actions, local Gmail drafts, and opt-in publishing of sanitized roasts to the Public App (`apps/web`).
 
 ## What you get
 
@@ -115,8 +115,8 @@ Full design: [docs/design.md](docs/design.md).
 
 PG Roast splits into two web apps plus the CLI engine:
 
-- **`src/` (CLI):** adversarial design pre-review (`bun run src/cli.ts 5879`), batch runner, CommitFest shortlist (`pgroast shortlist`), `pgsql-bugs` triage (`pgroast bugs`), sanitized opinion publishing (`pgroast publish`), and weekly OAuth quota auto-contributing (`pgroast contribute`).
-- **`apps/local` (Personal Backoffice — `bun run app:local`, `http://127.0.0.1:3432`):** your private workspace on your own machine. Compile Postgres, run your AI CLIs (`claude`, `codex`, `agy`, or `--backend dual`), inspect patch diffs in `Diff & Review`, track private Work Items, keep CommitFest cookies and Gmail drafts local, configure weekly quota auto-contribute, and explicitly publish sanitized opinions or briefs to the Public App.
+- **`src/` (CLI):** adversarial design pre-review (`bun run src/cli.ts 5879`), batch runner, CommitFest shortlist (`pgroast shortlist`), `pgsql-bugs` triage (`pgroast bugs`), sanitized roast publishing (`pgroast publish`), and weekly OAuth quota auto-contributing (`pgroast contribute`).
+- **`apps/local` (Personal Backoffice — `bun run app:local`, `http://127.0.0.1:3432`):** your private workspace on your own machine. Compile Postgres, run your AI CLIs (`claude`, `codex`, `agy`, or `--backend dual`), inspect patch diffs in `Diff & Review`, track private Work Items, keep CommitFest cookies and Gmail drafts local, configure weekly quota auto-contribute, and explicitly publish sanitized roasts or briefs to the Public App.
 - **`apps/web` (Public App — `bun run app:web`, `http://127.0.0.1:3433`):** shared community hub with CommitFest briefs, the **PostgreSQL Hacking Observatory** (`/hackers` and multi-email `/hacker/<slug>` profiles), a complete **Docs & All Features** hub (`/docs`) with live CommitFest quota coverage progress, **Stats & Leaderboards**, and GitLab MR-style patch pages (`/patch/<cf-id>`). Trust flows strictly `local → public`; the public site never controls `127.0.0.1`.
 
 ### Install and run your Personal Backoffice (2 minutes)
