@@ -932,6 +932,9 @@ async function loadAll(): Promise<void> {
 
     // Immediately paint static pages (/about, /docs) or route-matched grayscale skeleton rectangles
     if (!route.patchId && !route.hackerSlug) {
+      if (route.tab === "about" || route.tab === "docs") {
+        document.body.classList.remove("is-booting");
+      }
       render();
     }
 
@@ -1013,6 +1016,7 @@ async function loadAll(): Promise<void> {
     syncTopBackofficeLink();
 
     state.bootLoading = false;
+    document.body.classList.remove("is-booting");
     if (patchPromise) {
       await patchPromise;
       render();
@@ -1028,6 +1032,7 @@ async function loadAll(): Promise<void> {
     }
   } catch (err) {
     state.bootLoading = false;
+    document.body.classList.remove("is-booting");
     const root = document.getElementById("web-main");
     if (root) {
       root.innerHTML = `<div class="card"><div class="empty-state">Failed to load companion data: ${esc(err instanceof Error ? err.message : String(err))}</div></div>`;
@@ -2269,7 +2274,7 @@ function renderIntroCard(): string {
       <div class="intro-collapsed">
         <div class="intro-collapsed-text">
           <span class="intro-bean" aria-hidden="true">☕</span>
-          <span><strong>pgroast:</strong> AI-assisted PostgreSQL patch scrutiny — idea &amp; design first at every roast level. <button type="button" class="about-link-inline" data-open-about="">What is a roast?</button></span>
+          <span>Idea &amp; design scrutiny first at every roast level. <button type="button" class="about-link-inline" data-open-about="">What is a roast?</button></span>
         </div>
         <button type="button" class="btn btn-secondary btn-sm" id="intro-toggle-btn">Show intro ▾</button>
       </div>
@@ -2280,11 +2285,8 @@ function renderIntroCard(): string {
     <section class="home-welcome" aria-label="About pgroast">
       <div class="home-welcome-top">
         <div style="flex:1;min-width:240px;">
-          <div style="font-size:14.5px;font-weight:650;color:var(--text);margin-bottom:4px;">
-            AI-assisted pre-review ("roasting") for PostgreSQL CommitFest patches
-          </div>
           <div class="muted" style="font-size:13px;line-height:1.5;">
-            We scrutinize patches early to surface design blockers, past <code class="mono">pgsql-hackers</code> history, and build/SQL bugs before committers spend hours reviewing. Nothing auto-posts to <code class="mono">pgsql-hackers</code> — humans verify every finding.
+            We scrutinize CommitFest patches early with AI to catch design blockers and build bugs before committers spend hours reviewing. Humans check every finding before anything goes to <code class="mono">pgsql-hackers</code>.
           </div>
         </div>
         <div class="row" style="gap:6px;flex-wrap:wrap;align-items:center;">
@@ -2294,10 +2296,10 @@ function renderIntroCard(): string {
         </div>
       </div>
       <div class="home-depth-strip">
-        <strong style="color:var(--text);">Every level starts with the idea &amp; design:</strong>
+        <strong style="color:var(--text);">Every level starts with the idea:</strong>
         <span><span class="pill p-warn" style="font-size:10.5px;padding:1px 7px;">Light</span> idea, thread &amp; 2,547 precedents</span>
-        <span><span class="pill p-info" style="font-size:10.5px;padding:1px 7px;">Medium</span> + C/SQL diff, compile &amp; tests</span>
-        <span><span class="pill p-danger" style="font-size:10.5px;padding:1px 7px;">Dark</span> + live patched PG SQL stress</span>
+        <span><span class="pill p-info" style="font-size:10.5px;padding:1px 7px;">Medium</span> + code, compile &amp; tests</span>
+        <span><span class="pill p-danger" style="font-size:10.5px;padding:1px 7px;">Dark</span> + live patched Postgres SQL</span>
       </div>
     </section>
   `;
@@ -2347,10 +2349,9 @@ function renderBriefTab(): string {
   return `
     <div class="page-head">
       <div class="page-head-main">
-        <h1 class="page-title">${esc(brief.title)}</h1>
+        <h1 class="page-title">Let's roast Postgres patches!</h1>
         <div class="page-sub">
-          ${esc(brief.commitfest_label)} · ${esc(brief.created_at.slice(0, 10))}
-          ${brief.published_by_handle ? `· @${esc(brief.published_by_handle)}` : ""}
+          Humans and their AIs reviewing patches together · ${esc(brief.commitfest_label)} (${esc(brief.created_at.slice(0, 10))})
         </div>
       </div>
       <div class="row" style="gap:6px;">
@@ -4305,6 +4306,10 @@ try {
   }
 } catch {
   applyWebTheme("system", false);
+}
+
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("/sw.js").catch(() => {});
 }
 
 initVizInteractions();

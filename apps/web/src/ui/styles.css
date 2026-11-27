@@ -4082,3 +4082,22 @@ html, body {
   padding: 14px;
   background: var(--surface);
 }
+
+/* ---- Hide footer while skeleton preloaders are visible ---- */
+body.is-booting .footer,
+body:has(#web-main > .skel-page) .footer {
+  display: none;
+}
+
+/* ---- Standalone Home-Screen App polish (iOS Safari & Android PWA) ---- */
+@media all and (display-mode: standalone) {
+  body {
+    overscroll-behavior-y: none;
+  }
+  .topbar {
+    padding-top: env(safe-area-inset-top);
+  }
+  .bottom-nav {
+    padding-bottom: max(6px, env(safe-area-inset-bottom));
+  }
+}

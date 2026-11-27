@@ -192,14 +192,14 @@ export function renderAboutTab(): string {
     <div class="page-head">
       <div class="page-head-main">
         <div class="viz-kicker">About pgroast</div>
-        <h1 class="page-title">What "Roasting" Means Here</h1>
+        <h1 class="page-title">Let's roast Postgres patches!</h1>
         <div class="page-sub">
-          Reviewing and scrutinizing PostgreSQL CommitFest patches with AI — starting with the idea itself, then testing the code and live database behavior.
+          Humans and their AIs reviewing CommitFest patches together, starting with the idea itself.
         </div>
       </div>
       <div class="row" style="gap:6px;flex-wrap:wrap;">
         <button type="button" class="btn btn-primary btn-sm" data-about-nav="brief">Open CommitFest Brief</button>
-        <button type="button" class="btn btn-secondary btn-sm" data-about-nav="contribute">Auto-Contribute Quota</button>
+        <button type="button" class="btn btn-secondary btn-sm" data-about-nav="docs">5-Min CLI Tutorial</button>
       </div>
     </div>
 
@@ -209,16 +209,16 @@ export function renderAboutTab(): string {
         <div class="about-story">
           <h2 style="margin-top:0;">Why coffee? Why roast patches?</h2>
           <p>
-            On this site, to <strong>roast</strong> a PostgreSQL patch means to review and scrutinize it carefully using AI. We use the coffee meaning of the word, not mockery or trolling.
+            On this site, to <strong>roast</strong> a Postgres patch means to review and scrutinize it carefully with AI. We mean roasting coffee beans, not mocking people.
           </p>
           <p>
-            Raw green coffee beans do not make a good cup on their own. Careful roasting applies steady heat to bring out what is strong in a bean and expose defects early, before you spend time brewing it.
+            Raw green beans do not make good coffee on their own. Careful roasting brings out what is strong in a bean and exposes defects early, before you brew a pot.
           </p>
           <p>
-            PostgreSQL patches work the same way. Every CommitFest carries hundreds of open proposals, while committer review time stays scarce. Early, honest scrutiny helps everyone: patch authors catch design blockers and past <code class="mono">pgsql-hackers</code> history before investing months, and committers see which patches are clean and ready for human review.
+            Postgres patches work the same way. Every CommitFest has hundreds of open patches while committer time stays scarce. Early scrutiny helps authors catch design blockers and past <code class="mono">pgsql-hackers</code> history before spending months on code, and helps committers spot clean patches ready for human review.
           </p>
           <p style="margin-bottom:0;">
-            Every AI roast on <code class="mono">pgroast</code> is a devil's advocate prep sheet, never an automated vote. Humans check the findings and write actual reviews on <code class="mono">pgsql-hackers</code>.
+            Every AI roast is a devil's advocate prep sheet, never an automated vote. Humans check the findings and write real reviews on <code class="mono">pgsql-hackers</code>.
           </p>
         </div>
         <div class="about-hero-art">
@@ -232,9 +232,9 @@ export function renderAboutTab(): string {
       <div class="card-head">
         <div>
           <div class="viz-kicker">The Core Principle</div>
-          <h2 class="viz-headline">Scrutinizing the idea comes first — in every roast level</h2>
-          <div class="dim" style="font-size:12.5px;margin-top:4px;max-width:780px;line-height:1.5;">
-            Clean C code that solves the wrong problem or fights PostgreSQL's architecture still gets rejected after months of review. That is why we always check the idea, desirability, and design fit first. Medium and Dark roasts keep that entire foundation and add real code reading, compilation, tests, and live SQL checks on top.
+          <h2 class="viz-headline">Scrutinizing the idea comes first in every roast level</h2>
+          <div class="dim" style="font-size:12.5px;margin-top:4px;max-width:760px;line-height:1.5;">
+            Clean C code that solves the wrong problem still gets rejected after months of review. We check the idea, desirability, and architecture fit first in Light, Medium, and Dark alike. Medium and Dark keep that base and layer real code review, compilation, tests, and live Postgres SQL checks on top.
           </div>
         </div>
       </div>
@@ -248,27 +248,27 @@ export function renderAboutTab(): string {
             <strong style="font-size:13.5px;">Idea, Thread &amp; Precedents</strong>
           </div>
           <p class="muted" style="font-size:12.5px;margin:0;line-height:1.5;">
-            Reads the proposal, mailing list discussion, and doc hunks, then checks them against 2,547 historical <code class="mono">pgsql-hackers</code> precedents and reverts. Useful for fast triage of an entire CommitFest or early design checks before writing code.
+            Checks the idea, thread, and doc hunks against 2,547 past <code class="mono">pgsql-hackers</code> rejections and reverts. Fast triage with no Postgres checkout needed.
           </p>
         </div>
 
         <div class="about-level-box">
           <div class="row" style="gap:8px;align-items:center;margin-bottom:6px;">
             <span class="pill p-info">Medium</span>
-            <strong style="font-size:13.5px;">Idea + Code, Apply, Compile &amp; Tests</strong>
+            <strong style="font-size:13.5px;">Idea + Code, Build &amp; Tests</strong>
           </div>
           <p class="muted" style="font-size:12.5px;margin:0;line-height:1.5;">
-            Runs the full Light idea check, then reads the actual C/H/SQL patch diffs, applies the patch to PostgreSQL <code class="mono">master</code>, compiles with <code class="mono">meson</code>, and runs targeted regression suites. Flags bitrot, build errors, and code-level edge cases.
+            Runs the full Light check, reads C/H/SQL diffs, applies the patch to Postgres <code class="mono">master</code>, builds with <code class="mono">meson</code>, and runs targeted regression suites.
           </p>
         </div>
 
         <div class="about-level-box">
           <div class="row" style="gap:8px;align-items:center;margin-bottom:6px;">
             <span class="pill p-danger">Dark</span>
-            <strong style="font-size:13.5px;">Idea + Build + Live Patched PG SQL</strong>
+            <strong style="font-size:13.5px;">Idea + Build + Live Patched Postgres</strong>
           </div>
           <p class="muted" style="font-size:12.5px;margin:0;line-height:1.5;">
-            Runs everything in Medium with <code class="mono">-Dcassert=true</code>, starts an isolated patched PostgreSQL cluster, runs adversarial SQL stress tests and <code class="mono">explain</code> plans, and adds a second reflection pass to catch missed corner cases.
+            Builds with <code class="mono">-Dcassert=true</code>, starts an isolated patched Postgres cluster, runs SQL stress tests and <code class="mono">explain</code> checks, and adds a second reflection pass.
           </p>
         </div>
       </div>
@@ -279,9 +279,9 @@ export function renderAboutTab(): string {
       <div class="card-head">
         <div>
           <div class="viz-kicker">Inside the Pipeline</div>
-          <h2 class="viz-headline">Multi-angle review with a built-in Critic to drop bad objections</h2>
-          <div class="dim" style="font-size:12.5px;margin-top:4px;max-width:780px;line-height:1.5;">
-            A single prompt often invents nitpicks or misses real history. We split review into seven focused angles, then run a separate Critic pass whose only job is to disprove weak or inaccurate objections.
+          <h2 class="viz-headline">Seven review angles plus a Critic that drops weak objections</h2>
+          <div class="dim" style="font-size:12.5px;margin-top:4px;max-width:760px;line-height:1.5;">
+            One prompt often invents nitpicks or misses history. We split review into seven angles, then run a Critic pass whose job is to disprove weak or wrong objections.
           </div>
         </div>
       </div>
@@ -290,22 +290,22 @@ export function renderAboutTab(): string {
 
       <div class="grid2" style="margin-top:14px;">
         <div class="about-subbox">
-          <h3 style="margin:0 0 8px;font-size:14px;">Four Clear Verdicts</h3>
+          <h3 style="margin:0 0 8px;font-size:14px;">Four Verdicts</h3>
           <ul class="about-list">
-            <li><span class="pill p-ok">No objection</span> — No fatal design objection survived the Critic check. Good candidate for human review.</li>
-            <li><span class="pill p-info">Committer eyes</span> — Sound direction with specific trade-offs or edge cases a committer should weigh.</li>
-            <li><span class="pill p-warn">Design disc.</span> — Open architecture, syntax, or scope questions to settle on <code class="mono">pgsql-hackers</code> first.</li>
-            <li><span class="pill p-danger">Likely reject</span> — Strong precedent conflict, fundamental architectural clash, or unaddressed core flaw.</li>
+            <li><span class="pill p-ok">No objection</span> No fatal design objection survived. Good candidate for human review.</li>
+            <li><span class="pill p-info">Committer eyes</span> Sound direction with specific trade-offs for a committer to weigh.</li>
+            <li><span class="pill p-warn">Design disc.</span> Open architecture, syntax, or scope questions to settle on <code class="mono">pgsql-hackers</code>.</li>
+            <li><span class="pill p-danger">Likely reject</span> Strong precedent conflict or fundamental architectural clash.</li>
           </ul>
         </div>
 
         <div class="about-subbox">
-          <h3 style="margin:0 0 8px;font-size:14px;">Review Flavours (Engineering Lenses)</h3>
+          <h3 style="margin:0 0 8px;font-size:14px;">Review Flavours</h3>
           <p class="muted" style="font-size:12.5px;margin:0 0 8px;line-height:1.5;">
-            Alongside roast depth, contributors can run different engineering lenses — <code class="mono">House Blend</code> (balanced), <code class="mono">The Storage Skeptic</code> (WAL and crash recovery), <code class="mono">The Edge-Case Hunter</code> (planner and catalog invariants), <code class="mono">The Index Specialist</code>, <code class="mono">The Perf Hawk</code>, <code class="mono">The Spec Lawyer</code>, <code class="mono">The Systems Architect</code>, and <code class="mono">The Production DBA</code>.
+            Pick an engineering lens: <code class="mono">House Blend</code>, <code class="mono">The Storage Skeptic</code>, <code class="mono">The Edge-Case Hunter</code>, <code class="mono">The Index Specialist</code>, <code class="mono">The Perf Hawk</code>, <code class="mono">The Spec Lawyer</code>, <code class="mono">The Systems Architect</code>, or <code class="mono">The Production DBA</code>.
           </p>
           <p class="dim" style="font-size:12px;margin:0;line-height:1.45;">
-            Multiple reviewers can publish opinions from different models and flavours on the same patch so we can compare notes and spot real consensus.
+            Multiple reviewers can publish runs from different models and flavours on the same patch so we can compare notes.
           </p>
         </div>
       </div>
@@ -316,30 +316,30 @@ export function renderAboutTab(): string {
       <div class="card-head">
         <div>
           <div class="viz-kicker">Put It to Work</div>
-          <h2>How PostgreSQL contributors use pgroast</h2>
+          <h2>How Postgres contributors use pgroast</h2>
         </div>
       </div>
       <div class="about-levels-grid">
         <div class="about-level-box">
-          <strong style="font-size:13.5px;display:block;margin-bottom:6px;">For patch authors</strong>
+          <strong style="font-size:13.5px;display:block;margin-bottom:6px;">Patch authors</strong>
           <p class="muted" style="font-size:12.5px;margin:0 0 10px;line-height:1.5;">
-            Run <code class="mono">pgroast --self</code> locally on your own patch before posting to <code class="mono">pgsql-hackers</code>. Catch prior attempts, missing <code class="mono">pg_upgrade</code> checks, and bitrot privately first.
+            Run <code class="mono">pgroast --self</code> on your draft before posting to <code class="mono">pgsql-hackers</code>. Catch prior rejections and bitrot privately first.
           </p>
-          <button type="button" class="btn btn-secondary btn-sm" data-about-nav="docs">Open CLI &amp; Docs →</button>
+          <button type="button" class="btn btn-secondary btn-sm" data-about-nav="docs">Open CLI &amp; Tutorial →</button>
         </div>
 
         <div class="about-level-box">
-          <strong style="font-size:13.5px;display:block;margin-bottom:6px;">For reviewers &amp; committers</strong>
+          <strong style="font-size:13.5px;display:block;margin-bottom:6px;">Reviewers &amp; committers</strong>
           <p class="muted" style="font-size:12.5px;margin:0 0 10px;line-height:1.5;">
-            Scan the CommitFest queue, inspect Dark build and SQL evidence, and jump straight to Ready-for-Committer warnings or clean Needs-review pickups.
+            Scan the CommitFest queue, check Dark build and SQL logs, and jump straight to RFC warnings or clean pickups.
           </p>
-          <button type="button" class="btn btn-secondary btn-sm" data-about-nav="stats">Explore CommitFest Stats →</button>
+          <button type="button" class="btn btn-secondary btn-sm" data-about-nav="stats">Open CommitFest Stats →</button>
         </div>
 
         <div class="about-level-box">
-          <strong style="font-size:13.5px;display:block;margin-bottom:6px;">For community contributors</strong>
+          <strong style="font-size:13.5px;display:block;margin-bottom:6px;">Community contributors</strong>
           <p class="muted" style="font-size:12.5px;margin:0 0 10px;line-height:1.5;">
-            Have unused weekly AI quota before your reset? Run one command to roast unroasted CommitFest patches locally and publish verified opinions here.
+            Spend leftover weekly AI quota before your reset to roast unroasted CommitFest patches and share findings here.
           </p>
           <button type="button" class="btn btn-secondary btn-sm" data-about-nav="contribute">Auto-Contribute Quota →</button>
         </div>

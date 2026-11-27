@@ -398,6 +398,9 @@ export async function createWebHandler(opts?: {
   const vizEnginePath = join(WEB_ROOT, "src", "ui", "viz-engine.ts");
   const faviconPath = join(WEB_ROOT, "src", "ui", "favicon.svg");
   const touchIconPath = join(WEB_ROOT, "src", "ui", "apple-touch-icon.png");
+  const icon192Path = join(WEB_ROOT, "src", "ui", "icon-192.png");
+  const icon512Path = join(WEB_ROOT, "src", "ui", "icon-512.png");
+  const swPath = join(WEB_ROOT, "src", "ui", "sw.js");
   const manifestPath = join(WEB_ROOT, "src", "ui", "manifest.webmanifest");
 
   let appMtime =
@@ -535,6 +538,28 @@ export async function createWebHandler(opts?: {
           headers: {
             "Content-Type": "image/png",
             "Cache-Control": cache,
+            "X-Content-Type-Options": "nosniff",
+          },
+        });
+      }
+      if (method === "GET" && (path === "/icon-192.png" || path === "/icon-512.png")) {
+        const filePath = path === "/icon-192.png" ? icon192Path : icon512Path;
+        if (existsSync(filePath)) {
+          return new Response(readFileSync(filePath), {
+            headers: {
+              "Content-Type": "image/png",
+              "Cache-Control": "public, max-age=86400",
+              "X-Content-Type-Options": "nosniff",
+            },
+          });
+        }
+      }
+      if (method === "GET" && path === "/sw.js" && existsSync(swPath)) {
+        return new Response(readFileSync(swPath, "utf8"), {
+          headers: {
+            "Content-Type": "application/javascript; charset=utf-8",
+            "Cache-Control": "no-cache",
+            "Service-Worker-Allowed": "/",
             "X-Content-Type-Options": "nosniff",
           },
         });

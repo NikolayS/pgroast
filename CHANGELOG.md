@@ -1,5 +1,19 @@
 # Changelog
 
+## v0.3.0-alpha.25 (2026-11-27)
+
+This release updates Home to open with **"Let's roast Postgres patches!"**, adds full iOS Safari and Android Home Screen standalone app support, hides the footer while skeletons are preloading, and tightens copy across Home, About, Docs, and Stats in `nik-voice` with **Postgres** preferred over PostgreSQL.
+
+### Changes
+
+- **Home Hero & Tighter `nik-voice` Copy (`apps/web/src/ui/app.ts`, `about-view.ts`, `docs-view.ts`, `stats-view.ts`):**
+  - Updated Home to open directly with **"Let's roast Postgres patches!"** and the subtitle **"Humans and their AIs reviewing patches together."**
+  - Trimmed copy across Home, About, and Docs for faster scanning and switched headings and prose to prefer **Postgres** over PostgreSQL.
+- **Hide Footer During Preloading (`apps/web/src/ui/index.html`, `styles.css`, `app.ts`):**
+  - Added `body.is-booting` and `body:has(#web-main > .skel-page)` CSS rules so the footer never floats underneath animated grayscale skeleton preloaders.
+- **iOS Safari & Android Home Screen App Mode (`apps/web/src/ui/index.html`, `manifest.webmanifest`, `sw.js`, `icon-192.png`, `icon-512.png`, `apple-touch-icon.png`, `server.ts`, `styles.css`):**
+  - Added `apple-mobile-web-app-title`, `mobile-web-app-capable`, full-bleed `180×180`, `192×192`, and `512×512` PNG app icons, a network-first `/sw.js` service worker, and `display-mode: standalone` safe-area CSS so adding `pgroast.postgres.ai` to an iOS or Android Home Screen opens like a standalone app.
+
 ## v0.3.0-alpha.24 (2026-11-27)
 
 This release applies Fable's newcomer UX audit across Home, Docs, Patch Detail, and CLI onboarding, and replaces every tiny spinner and missing preloader with layout-matched animated grayscale shimmer rectangles.

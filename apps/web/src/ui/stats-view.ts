@@ -287,7 +287,7 @@ export function renderStatsObservatory(params: {
     <section class="card viz-card" id="stats-verification-pipeline">
       <div class="card-head">
         <div>
-          <div class="viz-kicker">3. Real PostgreSQL 20devel Dark Evidence Matrix</div>
+          <div class="viz-kicker">3. Real Postgres 20devel Dark Evidence Matrix</div>
           <h2 class="viz-headline">
             ${fmtNum(v.gitApplyClean)}/${fmtNum(v.codeRead)} applied to master · ${fmtNum(v.compilePass)}/${fmtNum(v.compilePass + v.compileFail)} compiled (-Dcassert, median ${v.medianCompileSec}s) · ${fmtNum(v.testPass)}/${fmtNum(v.testPass + v.testFail)} passed meson test · ${fmtNum(v.totalSqlCases)} live SQL cases
           </h2>
@@ -308,7 +308,7 @@ export function renderStatsObservatory(params: {
     <section class="card viz-card">
       <div class="card-head">
         <div>
-          <div class="viz-kicker">4. Structural Bottlenecks — CommitFest Queue × PostgreSQL Git Capacity</div>
+          <div class="viz-kicker">4. Structural Bottlenecks — CommitFest Queue × Postgres Git Capacity</div>
           <h2 class="viz-headline">
             ${
               topBottle && topBottle.openPerCommitter != null

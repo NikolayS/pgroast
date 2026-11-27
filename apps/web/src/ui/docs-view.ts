@@ -100,8 +100,8 @@ const ALL_FEATURES: FeatureDocItem[] = [
     id: "themes-seo",
     category: "front-office",
     categoryLabel: "Front Office",
-    title: "System Day/Night Themes, About Page & AI/SEO Endpoints",
-    summary: "Configurable System (Auto Day / Night) defaulting to Warm Paper by day and Espresso by night across 8 themes, dedicated /about explainer, mobile More sheet, SSR OpenGraph/JSON-LD, /sitemap.xml, and /llms.txt.",
+    title: "Day/Night Themes, iOS Home Screen App & SEO",
+    summary: "Auto Day/Night themes (Warm Paper by day, Espresso by night across 8 themes), standalone iOS Safari / Android Add-to-Home-Screen app mode, About page, /sitemap.xml, and /llms.txt.",
     status: "live",
     actionLabel: "Open About →",
     actionTab: "about",
@@ -349,10 +349,10 @@ export function renderDocsTab(params: {
     <section class="card" id="quickstart">
       <div class="card-head">
         <div>
-          <div class="viz-kicker">Step-by-Step Beginner Tutorial</div>
-          <h2>Roast One PostgreSQL Patch in 5 Minutes</h2>
+          <div class="viz-kicker">Step-by-Step Tutorial</div>
+          <h2>Roast One Postgres Patch in 5 Minutes</h2>
           <div class="dim" style="font-size:12.5px;margin-top:3px;">
-            <strong>No Personal Backoffice, no pgroast account, and nothing leaves your machine.</strong> You only need <strong>Bun &ge; 1.3.5</strong> (<code class="mono">bun</code> on <code class="mono">PATH</code>) and one logged-in AI CLI (<code class="mono">claude</code>, <code class="mono">codex</code>, or <code class="mono">agy</code>). Both <code class="mono">npx pgroast@next</code> and <code class="mono">bunx pgroast@next</code> run with zero installation.
+            <strong>No Backoffice, no account, and nothing leaves your machine.</strong> You need <strong>Bun &ge; 1.3.5</strong> on <code class="mono">PATH</code> and one logged-in AI CLI (<code class="mono">claude</code>, <code class="mono">codex</code>, or <code class="mono">agy</code>). Run directly with <code class="mono">npx pgroast@next</code> or <code class="mono">bunx pgroast@next</code>.
           </div>
         </div>
         <span class="pill p-ok">Uses your Claude / Codex login · Zero API keys</span>
@@ -365,7 +365,7 @@ export function renderDocsTab(params: {
             <strong>Check your local AI CLI</strong>
           </div>
           <p class="muted" style="font-size:12.5px;margin:0;line-height:1.5;">
-            Verify that Bun and at least one AI CLI (<code class="mono">claude</code>, <code class="mono">codex</code>, or <code class="mono">agy</code>) are logged in. <code class="mono">pgroast</code> strips API key env vars and uses your normal CLI login.
+            Confirm Bun and at least one AI CLI are logged in. <code class="mono">pgroast</code> removes API key env vars and uses your regular CLI login.
           </p>
           <div class="qs-cmd">
             <code class="mono">npx pgroast@next doctor</code>
@@ -376,10 +376,10 @@ export function renderDocsTab(params: {
         <div class="qs-step">
           <div class="qs-step-head">
             <span class="intro-num">2</span>
-            <strong>Roast one patch (Light — idea first)</strong>
+            <strong>Roast one patch (Light, idea first)</strong>
           </div>
           <p class="muted" style="font-size:12.5px;margin:0;line-height:1.5;">
-            Every roast starts by scrutinizing the <strong>idea and design</strong> against CommitFest history and 2,547 precedents. Light needs no PostgreSQL source checkout and writes local files to <code class="mono">./out/cf-7388/</code>.
+            Every roast checks the <strong>idea and design</strong> against 2,547 past Postgres precedents first. Light needs no Postgres checkout and writes to <code class="mono">./out/cf-7388/</code>.
           </p>
           <div class="qs-cmd">
             <code class="mono">npx pgroast@next 7388 --level light</code>
@@ -393,7 +393,7 @@ export function renderDocsTab(params: {
             <strong>Read locally (or test real code)</strong>
           </div>
           <p class="muted" style="font-size:12.5px;margin:0;line-height:1.5;">
-            Open <code class="mono">./out/cf-7388/roast.md</code> or render an HTML card. When you have a local <code class="mono">postgres</code> git checkout, switch to <code class="mono">--level medium</code> (compile + tests) or <code class="mono">--level dark</code> (+ live PG SQL).
+            Open <code class="mono">./out/cf-7388/roast.md</code> or build an HTML report. With a local <code class="mono">postgres</code> repo, run <code class="mono">--level medium</code> (compile + tests) or <code class="mono">--level dark</code> (+ live Postgres SQL).
           </p>
           <div class="qs-cmd">
             <code class="mono">npx pgroast@next page ./out/cf-7388/roast.json</code>
@@ -407,14 +407,14 @@ export function renderDocsTab(params: {
             <strong>Optional: publish under your name</strong>
           </div>
           <p class="muted" style="font-size:12.5px;margin:0;line-height:1.5;">
-            <strong>How <code class="mono">npx pgroast</code> recognizes you:</strong> your AI CLI login stays local. To publish opinions here, mint a publish-only token via GitHub/Google once on <button type="button" class="about-link-inline" data-docs-nav="connect">Sign in / Setup</button> and save it to <code class="mono">~/.pgroast/auth.json</code> (mode <code class="mono">0600</code>):
+            Your AI login stays local. To publish here, mint a publish-only token on <button type="button" class="about-link-inline" data-docs-nav="connect">Sign in / Setup</button> and save it once in <code class="mono">~/.pgroast/auth.json</code> (mode <code class="mono">0600</code>):
           </p>
           <div class="qs-cmd">
             <code class="mono">npx pgroast@next login --token pgroast_pub_…</code>
             <button type="button" class="btn btn-ghost btn-sm" data-copy-snippet="npx pgroast@next login --token pgroast_pub_YOUR_TOKEN">Copy</button>
           </div>
           <div class="dim" style="font-size:11.5px;">
-            After saving once, <code class="mono">npx pgroast@next publish ./out/cf-7388/roast.json</code> knows who you are automatically. Check anytime with <code class="mono">npx pgroast@next whoami</code>.
+            Future <code class="mono">npx pgroast@next publish</code> runs recognize you automatically. Check with <code class="mono">npx pgroast@next whoami</code>.
           </div>
         </div>
       </div>
