@@ -4,6 +4,13 @@ import { join } from "node:path";
 import { BRIEF_SCRIPT_SHA256, renderBriefMarkdown, renderInteractiveBriefHtml } from "./brief.ts";
 import { loadWebConfig, WEB_ROOT, type WebConfig } from "./config.ts";
 import { WebDatabase, type PublicEntryRecord } from "./db.ts";
+import {
+  getHackerProfileBySlug,
+  getHackersOverview,
+  getTopHackerSlugsForSitemap,
+  resolvePersonSlugByName,
+  searchHackers,
+} from "./hackers-queries.ts";
 import { fetchMrDiffForCf, fetchMrDiscussionForCf, matchThreadToDiff } from "./mr.ts";
 import { checkPublicPayloadSafe, safeHttpUrl, securityHeaders } from "./security.ts";
 
@@ -377,11 +384,14 @@ export async function createWebHandler(opts?: {
   const htmlPath = join(WEB_ROOT, "src", "ui", "index.html");
   const cssPath = join(WEB_ROOT, "src", "ui", "styles.css");
   const appTsPath = join(WEB_ROOT, "src", "ui", "app.ts");
+  const hackersViewPath = join(WEB_ROOT, "src", "ui", "hackers-view.ts");
   const faviconPath = join(WEB_ROOT, "src", "ui", "favicon.svg");
   const touchIconPath = join(WEB_ROOT, "src", "ui", "apple-touch-icon.png");
   const manifestPath = join(WEB_ROOT, "src", "ui", "manifest.webmanifest");
 
-  let appMtime = existsSync(appTsPath) ? statSync(appTsPath).mtimeMs : 0;
+  let appMtime =
+    (existsSync(appTsPath) ? statSync(appTsPath).mtimeMs : 0) +
+    (existsSync(hackersViewPath) ? statSync(hackersViewPath).mtimeMs : 0);
   let cssMtime = existsSync(cssPath) ? statSync(cssPath).mtimeMs : 0;
   let favMtime = existsSync(faviconPath) ? statSync(faviconPath).mtimeMs : 0;
   let cssHash = createHash("sha256").update(readFileSync(cssPath, "utf8")).digest("hex").slice(0, 8);
@@ -394,7 +404,9 @@ export async function createWebHandler(opts?: {
   // Seamless zero-downtime UI asset reload whenever UI files change on disk
   async function refreshUiAssetsIfChanged(): Promise<void> {
     try {
-      const curAppMtime = existsSync(appTsPath) ? statSync(appTsPath).mtimeMs : 0;
+      const curAppMtime =
+        (existsSync(appTsPath) ? statSync(appTsPath).mtimeMs : 0) +
+        (existsSync(hackersViewPath) ? statSync(hackersViewPath).mtimeMs : 0);
       if (curAppMtime !== appMtime) {
         bundleJs = await buildUiJs();
         jsHash = createHash("sha256").update(bundleJs).digest("hex").slice(0, 8);
@@ -535,10 +547,15 @@ export async function createWebHandler(opts?: {
       }
       if (method === "GET" && path === "/sitemap.xml") {
         const origin = resolveRequestOrigin(req, cfg);
-        const [entries, briefs] = await Promise.all([db.listEntries({ limit: 1000 }), db.listBriefs()]);
+        const [entries, briefs, topHackers] = await Promise.all([
+          db.listEntries({ limit: 1000 }),
+          db.listBriefs(),
+          getTopHackerSlugsForSitemap(db, 150).catch(() => []),
+        ]);
         const latestDate = (briefs[0]?.created_at || new Date().toISOString()).slice(0, 10);
         const staticUrls: Array<{ loc: string; lastmod: string; changefreq: string; priority: string }> = [
           { loc: `${origin}/`, lastmod: latestDate, changefreq: "daily", priority: "1.0" },
+          { loc: `${origin}/?tab=hackers`, lastmod: latestDate, changefreq: "daily", priority: "0.9" },
           { loc: `${origin}/?tab=stats`, lastmod: latestDate, changefreq: "daily", priority: "0.8" },
           { loc: `${origin}/?tab=entries`, lastmod: latestDate, changefreq: "daily", priority: "0.8" },
           { loc: `${origin}/?tab=opinions`, lastmod: latestDate, changefreq: "hourly", priority: "0.8" },
@@ -552,10 +569,16 @@ export async function createWebHandler(opts?: {
           changefreq: "weekly",
           priority: e.verdict && e.verdict !== "UNROASTED" ? "0.7" : "0.5",
         }));
+        const hackerUrls = topHackers.map((h) => ({
+          loc: `${origin}/hacker/${encodeURIComponent(h.slug)}`,
+          lastmod: (h.last_seen_at || latestDate).slice(0, 10),
+          changefreq: "weekly",
+          priority: "0.6",
+        }));
         const xml =
           `<?xml version="1.0" encoding="UTF-8"?>\n` +
           `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n` +
-          [...staticUrls, ...entryUrls]
+          [...staticUrls, ...entryUrls, ...hackerUrls]
             .map(
               (u) =>
                 `  <url><loc>${escXml(u.loc)}</loc><lastmod>${escXml(u.lastmod)}</lastmod><changefreq>${u.changefreq}</changefreq><priority>${u.priority}</priority></url>`,
@@ -609,6 +632,7 @@ export async function createWebHandler(opts?: {
           "## Key Pages",
           "",
           `- [CommitFest Brief & Shortlist](${origin}/): Triage summary, verdict breakdown, shortlist, and closing/rethinking candidates.`,
+          `- [PostgreSQL Hacking Observatory](${origin}/?tab=hackers): Interactive infographics, velocity charts, 7x24 UTC heatmap, bus factor, multi-email unified leaderboards, and personal contributor profiles (\`/hacker/<slug>\`).`,
           `- [CommitFest Stats & Leaderboards](${origin}/?tab=stats): Verdict heatmap, subsystem health, and clickable top authors, reviewers, and committers.`,
           `- [All CommitFest Entries](${origin}/?tab=entries): Searchable directory of ${entries.length} patches with status and verdict filters.`,
           `- [Community AI Opinions](${origin}/?tab=opinions): Attributed multi-model, multi-flavour review opinions.`,
@@ -655,6 +679,9 @@ export async function createWebHandler(opts?: {
           `- Patch consensus & opinions: \`GET ${origin}/api/v1/entries/<cf_id>\``,
           `- Parsed pgsql-hackers thread: \`GET ${origin}/api/v1/entries/<cf_id>/thread\``,
           `- Live CFBot unified diff: \`GET ${origin}/api/v1/entries/<cf_id>/diff\``,
+          `- Hacking Observatory overview: \`GET ${origin}/api/v1/hackers/overview?window=1y\``,
+          `- Contributor directory: \`GET ${origin}/api/v1/hackers?search=<q>&role=<role>&sort=activity\``,
+          `- Individual contributor profile: \`GET ${origin}/api/v1/hackers/<slug>\` (web page: \`${origin}/hacker/<slug>\`)`,
           `- Latest brief (Markdown): \`GET ${origin}/briefs/latest/download.md\``,
           `- Latest brief (JSON): \`GET ${origin}/briefs/latest/download.json\``,
           "",
@@ -669,12 +696,14 @@ export async function createWebHandler(opts?: {
         });
       }
       const patchPageMatch = path.match(/^\/patch\/(\d+)\/?$/);
-      if (method === "GET" && (path === "/" || path === "/index.html" || patchPageMatch)) {
+      const hackerPageMatch = path.match(/^\/hacker\/([a-z0-9-]+)\/?$/i);
+      if (method === "GET" && (path === "/" || path === "/index.html" || patchPageMatch || hackerPageMatch)) {
         await refreshUiAssetsIfChanged();
         const origin = resolveRequestOrigin(req, cfg);
         const cfId = parsePositivePgInt(patchPageMatch?.[1] || url.searchParams.get("cf")) ?? 0;
-        let title = "pgroast — PostgreSQL CommitFest Collaboration & AI Pre-Review";
-        let desc = "Review PostgreSQL CommitFest patches together with humans and AIs: light/medium/dark roasts, hacker flavours, GitLab-style -hackers threads, live diffs, and common-ground consensus.";
+        const hackerSlug = hackerPageMatch?.[1]?.toLowerCase() || "";
+        let title = "pgroast — PostgreSQL CommitFest Collaboration & Hacking Observatory";
+        let desc = "Explore PostgreSQL hacking activity, contributor profiles, CommitFest patches, -hackers discussions, live diffs, and multi-model AI pre-reviews.";
         let canonical = `${origin}/`;
         let jsonLd: Record<string, unknown> = {
           "@context": "https://schema.org",
@@ -683,7 +712,25 @@ export async function createWebHandler(opts?: {
           url: `${origin}/`,
           description: desc,
         };
-        if (cfId > 0) {
+        if (hackerSlug) {
+          canonical = `${origin}/hacker/${encodeURIComponent(hackerSlug)}`;
+          const profile = await getHackerProfileBySlug(db, hackerSlug).catch(() => null);
+          if (profile) {
+            const p = profile.person;
+            title = `${p.name} (${p.role}) — PostgreSQL Hacking Profile · pgroast`;
+            desc = `${p.commitsAuthored} commits authored · ${p.reviewsGiven} reviews credited · ${p.bugsReported} bugs reported · ${p.commitsCommitted} commits landed`;
+            jsonLd = {
+              "@context": "https://schema.org",
+              "@type": "Person",
+              name: p.name,
+              jobTitle: `PostgreSQL ${p.role}`,
+              url: canonical,
+              description: desc,
+            };
+          } else {
+            title = `${hackerSlug} — PostgreSQL Hacker Profile · pgroast`;
+          }
+        } else if (cfId > 0) {
           canonical = `${origin}/patch/${cfId}`;
           const entry = await db.getEntry(cfId);
           if (entry) {
@@ -732,7 +779,7 @@ export async function createWebHandler(opts?: {
         const ua = req.headers.get("user-agent") || "";
         if (!BOT_UA_RE.test(ua)) {
           void db.recordPageView({
-            path: cfId > 0 ? `/patch/${cfId}` : "/",
+            path: hackerSlug ? `/hacker/${hackerSlug}` : cfId > 0 ? `/patch/${cfId}` : "/",
             cfId: cfId > 0 ? cfId : null,
             refHost: extractReferrerHost(req, origin),
           });
@@ -770,6 +817,41 @@ export async function createWebHandler(opts?: {
       // ---- Health & Privacy-Friendly View Counts ----
       if (method === "GET" && path === "/api/v1/views") {
         return json(await db.getPageViewSummary(), 200, req);
+      }
+
+      // ---- Hacking Observatory & Unified Personal Profiles ----
+      if (method === "GET" && path === "/api/v1/hackers/overview") {
+        const overview = await getHackersOverview(db, url.searchParams.get("window"));
+        return json(overview, 200, req);
+      }
+
+      if (method === "GET" && path === "/api/v1/hackers/resolve") {
+        const slug = await resolvePersonSlugByName(db, url.searchParams.get("name") || "");
+        return json({ slug }, 200, req);
+      }
+
+      if (method === "GET" && path === "/api/v1/hackers") {
+        const hackers = await searchHackers(db, {
+          search: url.searchParams.get("search") || undefined,
+          role: url.searchParams.get("role") || undefined,
+          sort: url.searchParams.get("sort") || undefined,
+          limit: Number(url.searchParams.get("limit") || 60),
+        });
+        return json({ hackers }, 200, req);
+      }
+
+      const hackerDetailMatch = path.match(/^\/api\/v1\/hackers\/([a-z0-9-]+)$/i);
+      if (method === "GET" && hackerDetailMatch) {
+        const slug = hackerDetailMatch[1]!.toLowerCase();
+        const yearParam = url.searchParams.get("year");
+        const year = yearParam && /^\d{4}$/.test(yearParam) ? Number(yearParam) : null;
+        const profile = await getHackerProfileBySlug(db, slug, year);
+        if (!profile) return errJson("Hacker profile not found", 404);
+        const ua = req.headers.get("user-agent") || "";
+        if (req.headers.get("x-pgroast-view") === "1" && !BOT_UA_RE.test(ua)) {
+          void db.recordPageView({ path: `/hacker/${slug}`, cfId: null, refHost: "" });
+        }
+        return json(profile, 200, req);
       }
 
       if (method === "GET" && path === "/api/v1/health") {

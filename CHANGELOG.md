@@ -1,5 +1,23 @@
 # Changelog
 
+## v0.3.0-alpha.9 (2026-11-26)
+
+This release adds the PostgreSQL Hacking Observatory and individual `/hacker/<slug>` contributor profiles to the Public App (`apps/web`), backed by a multi-email identity resolution engine across the full `postgres.git` commit history and recognized PostgreSQL contributors.
+
+### Changes
+
+- **Multi-email identity resolution & git sync (`apps/web/src/hackers.ts`, `sync-hackers.ts`, `db.ts`):**
+  - Added `people`, `person_identities`, `pg_commits`, `commit_credits`, and `hacker_sync_state` tables in PostgreSQL.
+  - Built a Union-Find `IdentityResolver` that merges multiple email addresses, `.mailmap` aliases, diacritics (`Álvaro` / `Alvaro`), `"Last, First"` variants, known `@postgresql.org` handles, and parenthetical `(Company)` affiliations into one canonical person per contributor.
+  - Added `bun run web:sync-hackers --fetch` to ingest `postgres.git` first-parent history, `Author:`, `Co-authored-by:`, `Reviewed-by:`, `Reported-by:`, `Suggested-by:`, `Tested-by:`, `Analyzed-by:`, `Discussion:`, and backpatch/revert markers, plus `postgresql.org/community/contributors/` roles.
+  - Public APIs and pages never expose raw harvestable email addresses; they display only unified address counts and email domains.
+- **PostgreSQL Hacking Observatory (`apps/web` — `Hackers` tab):**
+  - Added interactive SVG velocity and review timelines, a 7x24 UTC hacking rhythm heatmap, subsystem activity with thin-bench ("bus factor") indicators, switchable time windows (`30d`, `90d`, `1y`, `PG20`, `PG19`, `PG18`, `5y`, `all`), and leaderboards for Committers (showing `% committed for others`), Authors, Reviewers, Bug Hunters, and Rising Stars.
+  - Added a searchable contributor directory filterable by name, alias, company, domain, and PostgreSQL role.
+- **Personal hacker profile pages (`/hacker/<slug>`):**
+  - Added shareable `/hacker/<slug>` pages with SSR `<title>`, OpenGraph tags, `Person` JSON-LD, sitemap entries, a 52-week contribution heatmap with year switcher, career trajectory chart, subsystem DNA, UTC hour and day-of-week rhythm, longest streak, 3-way collaboration network ("Works Most With"), and recent commits, reviews, CommitFest entries, and pgroast opinions.
+  - Clicking any contributor name on the `Stats` tab now resolves directly to their `/hacker/<slug>` profile (falling back to Entries search if not in git history).
+
 ## v0.3.0-alpha.8 (2026-11-26)
 
 This release replaces living PostgreSQL committer names in the flavour picker with fictional reviewer archetypes, closes the cross-provider brief authorization edge case for Google OAuth, and scrubs the remaining internal model codename strings from CLI help and Backoffice defaults.

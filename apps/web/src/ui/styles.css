@@ -2468,3 +2468,290 @@ details.diff-file[open] > summary {
 .agent-manual-fold > summary:hover {
   color: var(--text);
 }
+
+/* ---- Hacking Observatory & Personal Hacker Profiles ---- */
+.obs-chart-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+.obs-chart-legend {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.obs-chart-legend > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.rhythm-grid-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  overflow-x: auto;
+}
+.rhythm-hours-head,
+.rhythm-row {
+  display: grid;
+  grid-template-columns: 30px repeat(24, minmax(10px, 1fr));
+  gap: 3px;
+  align-items: center;
+}
+.rhythm-hours-head span {
+  font-size: 9.5px;
+  color: var(--dim);
+  text-align: center;
+}
+.rhythm-day {
+  font-size: 10.5px;
+  color: var(--dim);
+}
+.rhythm-cell {
+  height: 15px;
+  border-radius: 3px;
+  display: block;
+}
+.obs-lb-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.obs-lb-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 7px 8px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: inherit;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 110ms ease, border-color 110ms ease;
+}
+.obs-lb-row:hover {
+  background: var(--hover);
+  border-color: var(--border);
+}
+.obs-lb-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.obs-lb-top {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  font-size: 12.5px;
+}
+.obs-lb-bar-wrap {
+  height: 5px;
+  border-radius: 99px;
+  overflow: hidden;
+  display: flex;
+  background: var(--hover);
+}
+.obs-lb-bar-others {
+  background: var(--ok);
+}
+.obs-lb-bar-own {
+  background: var(--accent);
+}
+.obs-lb-num {
+  text-align: right;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  flex-shrink: 0;
+  font-size: 12.5px;
+}
+.obs-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.obs-avatar-sm {
+  width: 22px;
+  height: 22px;
+  font-size: 9.5px;
+}
+.obs-avatar-lg {
+  width: 52px;
+  height: 52px;
+  font-size: 18px;
+}
+.obs-dir-controls {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.obs-dir-controls select {
+  height: 36px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border-s);
+  background: var(--bg);
+  color: var(--text);
+  font: 12.5px inherit;
+}
+.obs-dir-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 9px;
+}
+.obs-person-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 11px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: inherit;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 120ms ease, background 120ms ease;
+}
+.obs-person-card:hover {
+  border-color: var(--border-s);
+  background: var(--hover);
+}
+.obs-person-head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.obs-person-name {
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.obs-person-stats {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.obs-person-stats strong {
+  color: var(--text);
+}
+.obs-person-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.obs-profile-hero {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: 12px;
+  padding: 16px 18px;
+  margin-bottom: 14px;
+}
+.obs-profile-id {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+.obs-profile-name {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+.obs-identity-strip {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-top: 9px;
+}
+.hm-scroll {
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+.hm-lvl-0 { fill: var(--hover); }
+.hm-lvl-1 { fill: color-mix(in srgb, var(--ok) 30%, var(--surface-2)); }
+.hm-lvl-2 { fill: color-mix(in srgb, var(--ok) 55%, var(--surface-2)); }
+.hm-lvl-3 { fill: color-mix(in srgb, var(--ok) 78%, var(--surface-2)); }
+.hm-lvl-4 { fill: var(--ok); }
+.mini-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  height: 82px;
+  padding-top: 6px;
+}
+.mini-bar-col {
+  flex: 1;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 4px;
+}
+.mini-bar-fill {
+  width: 100%;
+  min-height: 2px;
+  border-radius: 3px 3px 0 0;
+  background: var(--accent);
+}
+.mini-bar-col span {
+  font-size: 9.5px;
+  color: var(--dim);
+  height: 12px;
+}
+.obs-collab-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+.obs-commit-row {
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.obs-commit-row:last-child {
+  border-bottom: none;
+}
+.obs-commit-subj {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+}
+@media (max-width: 767px) {
+  .bottom-nav {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+  .obs-collab-grid {
+    grid-template-columns: 1fr;
+  }
+  .obs-profile-id {
+    flex-direction: column;
+  }
+}

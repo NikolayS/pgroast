@@ -1,5 +1,17 @@
+import { execFileSync } from "node:child_process";
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { WebDatabase } from "../src/db.ts";
+import {
+  classifySubsystem,
+  IdentityResolver,
+  parseCommitTrailers,
+  parseContributorsHtml,
+  parsePersonRef,
+  syncHackersToDb,
+} from "../src/hackers.ts";
 import { matchThreadToDiff, parseMrUnifiedDiff, splitBodyIntoBlocks } from "../src/mr.ts";
 import { createWebHandler } from "../src/server.ts";
 
@@ -594,5 +606,171 @@ describe("pgroast-web public companion API & security gates", () => {
     await new Promise((r) => setTimeout(r, 80));
     const afterViews = ((await (await req("/api/v1/views")).json()) as { total: number }).total;
     expect(afterViews).toBeGreaterThan(beforeViews);
+  });
+
+  test("Hacking Observatory: multi-email identity resolution, git sync, APIs, SSR /hacker/:slug, and zero raw email exposure", async () => {
+    // 1. Unit tests for IdentityResolver, trailers, subsystems, contributors HTML
+    const resolver = new IdentityResolver();
+    const r1 = parsePersonRef("David Rowley <drowley@postgresql.org>")!;
+    const r2 = parsePersonRef("David Rowley <dgrowleyml@gmail.com>")!;
+    const r3 = parsePersonRef("Hayato Kuroda (Fujitsu) <kuroda.hayato@fujitsu.com>")!;
+    const r4 = parsePersonRef("Álvaro Herrera <alvherre@alvh.no-ip.org>")!;
+    const r5 = parsePersonRef("Alvaro Herrera <alvherre@postgresql.org>")!;
+    resolver.observe(r1, "git_committer");
+    resolver.observe(r2, "git_author");
+    resolver.observe(r3, "trailer");
+    resolver.observe(r4, "git_author");
+    resolver.observe(r5, "git_committer");
+    const mat = resolver.materialize();
+    expect(mat.people.length).toBe(3);
+    const david = mat.people.find((p) => p.slug === "david-rowley");
+    expect(david?.emailCount).toBe(2);
+    expect(david?.emailDomains).toContain("postgresql.org");
+    expect(david?.emailDomains).toContain("gmail.com");
+    const hayato = mat.people.find((p) => p.slug === "hayato-kuroda");
+    expect(hayato?.affiliations).toContain("Fujitsu");
+    const alvaro = mat.people.find((p) => p.slug === "alvaro-herrera");
+    expect(alvaro?.emailCount).toBe(2);
+
+    const trailers = parseCommitTrailers(
+      "Fix planner costing edge case.\n\nAuthor: Hayato Kuroda (Fujitsu) <kuroda.hayato@fujitsu.com>\nReviewed-by: David Rowley <dgrowleyml@gmail.com>, Álvaro Herrera <alvherre@alvh.no-ip.org>\nReported-by: Jane Tester <jane@example.org>\nDiscussion: https://postgr.es/m/test-123\nBackpatch-through: 17\n",
+    );
+    expect(trailers.isBackpatch).toBe(true);
+    expect(trailers.discussionUrls).toEqual(["https://postgr.es/m/test-123"]);
+    expect(trailers.trailers.filter((t) => t.kind === "reviewer").length).toBe(2);
+    expect(trailers.trailers.find((t) => t.kind === "reporter")?.person.name).toBe("Jane Tester");
+
+    expect(classifySubsystem("src/backend/optimizer/path/costsize.c")).toBe("Optimizer / Planner");
+    expect(classifySubsystem("src/backend/storage/smgr/md.c")).toBe("Storage & WAL");
+    expect(classifySubsystem("src/backend/replication/walsender.c")).toBe("Replication");
+
+    const seeds = parseContributorsHtml(
+      `<h2>Core Team</h2><table><tr><td>Tom Lane</td><td>Crunchy Data</td><td>Core</td></tr></table><h2>Major Contributors</h2><table><tr><td>David Rowley</td><td>Microsoft</td><td>Planner</td></tr></table>`,
+    );
+    expect(seeds.length).toBe(2);
+    expect(seeds[0]?.role).toBe("Core Team");
+    expect(seeds[1]?.role).toBe("Major Contributor");
+
+    // 2. Real mini git repo sync + API + SSR + privacy check
+    const tmpRepo = mkdtempSync(join(tmpdir(), "pgroast-git-test-"));
+    try {
+      const git = (args: string[], envExtra?: Record<string, string>) =>
+        execFileSync("git", args, {
+          cwd: tmpRepo,
+          env: { ...process.env, ...envExtra },
+          stdio: "pipe",
+        });
+
+      git(["init", "-b", "master"]);
+      git(["config", "user.name", "David Rowley"]);
+      git(["config", "user.email", "drowley@postgresql.org"]);
+
+      mkdirSync(join(tmpRepo, "src/backend/optimizer/path"), { recursive: true });
+      writeFileSync(join(tmpRepo, "src/backend/optimizer/path/costsize.c"), "/* v1 */\nint cost_seqscan(void) { return 1; }\n");
+      git(["add", "."]);
+      git(
+        [
+          "commit",
+          "-m",
+          "Optimize seqscan path costing\n\nAuthor: David Rowley <dgrowleyml@gmail.com>\nReviewed-by: Hayato Kuroda (Fujitsu) <kuroda.hayato@fujitsu.com>\nReported-by: Jane Tester <jane.secret@example.org>\nDiscussion: https://postgr.es/m/seqscan-1\n",
+        ],
+        {
+          GIT_AUTHOR_NAME: "David Rowley",
+          GIT_AUTHOR_EMAIL: "dgrowleyml@gmail.com",
+          GIT_AUTHOR_DATE: "2026-10-15T14:00:00Z",
+          GIT_COMMITTER_NAME: "David Rowley",
+          GIT_COMMITTER_EMAIL: "drowley@postgresql.org",
+          GIT_COMMITTER_DATE: "2026-10-15T14:00:00Z",
+        },
+      );
+
+      mkdirSync(join(tmpRepo, "src/backend/replication"), { recursive: true });
+      writeFileSync(join(tmpRepo, "src/backend/replication/walsender.c"), "/* v1 */\nvoid WalSndLoop(void) {}\n");
+      git(["add", "."]);
+      git(
+        [
+          "commit",
+          "-m",
+          "Fix logical walsender shutdown race\n\nAuthor: Hayato Kuroda (Fujitsu) <kuroda.hayato@fujitsu.com>\nReviewed-by: David Rowley <drowley@postgresql.org>\nBackpatch-through: 17\n",
+        ],
+        {
+          GIT_AUTHOR_NAME: "Hayato Kuroda",
+          GIT_AUTHOR_EMAIL: "kuroda.hayato@fujitsu.com",
+          GIT_AUTHOR_DATE: "2026-11-10T09:30:00Z",
+          GIT_COMMITTER_NAME: "David Rowley",
+          GIT_COMMITTER_EMAIL: "drowley@postgresql.org",
+          GIT_COMMITTER_DATE: "2026-11-10T09:30:00Z",
+        },
+      );
+
+      const syncStats = await syncHackersToDb(db, {
+        repoPath: tmpRepo,
+        ref: "HEAD",
+        fetchContributors: false,
+        log: () => {},
+      });
+      expect(syncStats.commitsCount).toBe(2);
+      expect(syncStats.multiEmailPeople).toBeGreaterThanOrEqual(1);
+
+      // Overview API
+      const ovRes = await req("/api/v1/hackers/overview?window=all");
+      expect(ovRes.status).toBe(200);
+      const ovText = await ovRes.text();
+      expect(ovText).not.toContain("dgrowleyml@gmail.com");
+      expect(ovText).not.toContain("kuroda.hayato@fujitsu.com");
+      expect(ovText).not.toContain("jane.secret@example.org");
+      const ov = JSON.parse(ovText) as {
+        synced: boolean;
+        totals: { commits: number; committedForOthers: number; reviewsGiven: number; bugsReported: number; backpatches: number };
+        syncMeta: { multiEmailPeople: number };
+      };
+      expect(ov.synced).toBe(true);
+      expect(ov.totals.commits).toBe(2);
+      expect(ov.totals.committedForOthers).toBe(1);
+      expect(ov.totals.reviewsGiven).toBe(2);
+      expect(ov.totals.bugsReported).toBe(1);
+      expect(ov.totals.backpatches).toBe(1);
+      expect(ov.syncMeta.multiEmailPeople).toBeGreaterThanOrEqual(1);
+
+      // Directory search by affiliation ("fujitsu")
+      const dirRes = await req("/api/v1/hackers?search=fujitsu");
+      expect(dirRes.status).toBe(200);
+      const dirText = await dirRes.text();
+      expect(dirText).not.toContain("kuroda.hayato@fujitsu.com");
+      const dirJson = JSON.parse(dirText) as { hackers: Array<{ slug: string; affiliations: string[] }> };
+      expect(dirJson.hackers.some((h) => h.slug === "hayato-kuroda")).toBe(true);
+
+      // Resolve by name
+      const resolveRes = await req("/api/v1/hackers/resolve?name=David%20Rowley");
+      expect(resolveRes.status).toBe(200);
+      expect(((await resolveRes.json()) as { slug: string | null }).slug).toBe("david-rowley");
+
+      // Individual profile API + privacy check
+      const profRes = await req("/api/v1/hackers/david-rowley");
+      expect(profRes.status).toBe(200);
+      const profText = await profRes.text();
+      expect(profText).not.toContain("dgrowleyml@gmail.com");
+      expect(profText).not.toContain("drowley@postgresql.org");
+      const prof = JSON.parse(profText) as {
+        person: { slug: string; emailCount: number; emailDomains: string[]; commitsCommitted: number; commitsCommittedForOthers: number; reviewsGiven: number };
+        collaborators: { helpedAuthors: Array<{ slug: string }> };
+      };
+      expect(prof.person.slug).toBe("david-rowley");
+      expect(prof.person.emailCount).toBe(2);
+      expect(prof.person.emailDomains).toContain("gmail.com");
+      expect(prof.person.emailDomains).toContain("postgresql.org");
+      expect(prof.person.commitsCommitted).toBe(2);
+      expect(prof.person.commitsCommittedForOthers).toBe(1);
+      expect(prof.person.reviewsGiven).toBe(1);
+      expect(prof.collaborators.helpedAuthors.some((c) => c.slug === "hayato-kuroda")).toBe(true);
+
+      // SSR /hacker/:slug page metadata + JSON-LD + zero raw emails
+      const ssrHacker = await (await req("/hacker/david-rowley")).text();
+      expect(ssrHacker).toContain("David Rowley (Contributor) — PostgreSQL Hacking Profile · pgroast");
+      expect(ssrHacker).toContain('"@type":"Person"');
+      expect(ssrHacker).not.toContain("dgrowleyml@gmail.com");
+    } finally {
+      rmSync(tmpRepo, { recursive: true, force: true });
+    }
   });
 });

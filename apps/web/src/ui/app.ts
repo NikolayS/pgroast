@@ -1,4 +1,16 @@
-type TabId = "brief" | "stats" | "entries" | "opinions" | "coordination" | "connect";
+import {
+  renderHackerDirectoryCards,
+  renderHackerProfilePage,
+  renderHackersTab,
+  type HackerLbKind,
+  type HackerListItem,
+  type HackerProfileData,
+  type HackerProfileTab,
+  type HackersOverviewData,
+  type HackerWindow,
+} from "./hackers-view.ts";
+
+type TabId = "brief" | "hackers" | "stats" | "entries" | "opinions" | "coordination" | "connect";
 type MrTabId = "overview" | "discussion" | "changes";
 
 interface MrBodyBlock {
@@ -245,6 +257,20 @@ const state = {
   tab: "brief" as TabId,
   returnTab: "brief" as TabId,
   activePatchId: null as number | null,
+  activeHackerSlug: null as string | null,
+  hackerProfile: null as HackerProfileData | null,
+  hackerProfileLoading: false,
+  hackerProfileError: "",
+  hackerProfileTab: "commits" as HackerProfileTab,
+  hackersOverview: null as HackersOverviewData | null,
+  hackersLoading: false,
+  hackersError: "",
+  hackersWindow: "1y" as HackerWindow,
+  hackersLbTab: "committers" as HackerLbKind,
+  hackersDirectory: [] as HackerListItem[],
+  hackersDirSearch: "",
+  hackersDirRole: "all",
+  hackersDirSort: "activity",
   mrTab: "overview" as MrTabId,
   patchLoading: false,
   patchData: null as PatchPageData | null,
@@ -408,16 +434,26 @@ function copyTextWithFeedback(btn: HTMLElement, text: string, defaultLabel: stri
   );
 }
 
-function parseRouteFromLocation(): { patchId: number | null; tab: TabId; mrTab: MrTabId; hash: string } {
+function parseRouteFromLocation(): { patchId: number | null; hackerSlug: string | null; tab: TabId; mrTab: MrTabId; hash: string } {
   const u = new URL(window.location.href);
   const pathMatch = u.pathname.match(/^\/patch\/(\d+)\/?$/);
   const cfParam = Number(pathMatch?.[1] || u.searchParams.get("cf") || 0);
   const viewParam = u.searchParams.get("view");
   const mrTab: MrTabId = viewParam === "discussion" || viewParam === "changes" ? viewParam : "overview";
-  if (cfParam > 0) return { patchId: cfParam, tab: state.tab, mrTab, hash: u.hash };
+  if (cfParam > 0) return { patchId: cfParam, hackerSlug: null, tab: state.tab, mrTab, hash: u.hash };
+  const hackerMatch = u.pathname.match(/^\/hacker\/([a-z0-9-]+)\/?$/i);
+  if (hackerMatch?.[1]) {
+    return { patchId: null, hackerSlug: hackerMatch[1].toLowerCase(), tab: "hackers", mrTab: "overview", hash: u.hash };
+  }
   const tabParam = u.searchParams.get("tab") as TabId | null;
-  const validTabs: TabId[] = ["brief", "stats", "entries", "opinions", "coordination", "connect"];
-  return { patchId: null, tab: tabParam && validTabs.includes(tabParam) ? tabParam : "brief", mrTab: "overview", hash: u.hash };
+  const validTabs: TabId[] = ["brief", "hackers", "stats", "entries", "opinions", "coordination", "connect"];
+  return {
+    patchId: null,
+    hackerSlug: null,
+    tab: tabParam && validTabs.includes(tabParam) ? tabParam : "brief",
+    mrTab: "overview",
+    hash: u.hash,
+  };
 }
 
 async function loadMrDiscussion(cfId: number): Promise<void> {
@@ -469,7 +505,10 @@ async function loadMrDiff(cfId: number): Promise<void> {
 }
 
 async function openPatchPage(cfId: number, pushHistory = true, initialMrTab: MrTabId = "overview"): Promise<void> {
-  if (!state.activePatchId) state.returnTab = state.tab;
+  if (!state.activePatchId && !state.activeHackerSlug) state.returnTab = state.tab;
+  state.activeHackerSlug = null;
+  state.hackerProfile = null;
+  state.hackerProfileLoading = false;
   state.activePatchId = cfId;
   state.mrTab = initialMrTab;
   state.patchLoading = true;
@@ -518,22 +557,137 @@ async function openPatchPage(cfId: number, pushHistory = true, initialMrTab: MrT
   }
 }
 
-function navigateToTab(tab: TabId, pushHistory = true, hash = ""): void {
+let hackerDirTimer: ReturnType<typeof setTimeout> | null = null;
+
+async function loadHackersOverview(win?: HackerWindow): Promise<void> {
+  if (win) state.hackersWindow = win;
+  const reqWin = state.hackersWindow;
+  state.hackersLoading = true;
+  state.hackersError = "";
+  render();
+  try {
+    const data = await api<HackersOverviewData>(`/api/v1/hackers/overview?window=${encodeURIComponent(reqWin)}`);
+    if (state.hackersWindow !== reqWin) return;
+    state.hackersOverview = data;
+    state.hackersLoading = false;
+    render();
+  } catch (err) {
+    if (state.hackersWindow !== reqWin) return;
+    state.hackersLoading = false;
+    state.hackersError = err instanceof Error ? err.message : String(err);
+    render();
+  }
+}
+
+async function loadHackersDirectory(updateDomOnly = false): Promise<void> {
+  const qs = new URLSearchParams();
+  if (state.hackersDirSearch.trim()) qs.set("search", state.hackersDirSearch.trim());
+  if (state.hackersDirRole && state.hackersDirRole !== "all") qs.set("role", state.hackersDirRole);
+  if (state.hackersDirSort) qs.set("sort", state.hackersDirSort);
+  qs.set("limit", "60");
+  try {
+    const data = await api<{ hackers: HackerListItem[] }>(`/api/v1/hackers?${qs.toString()}`);
+    state.hackersDirectory = data.hackers;
+    if (updateDomOnly) {
+      const mount = document.getElementById("hacker-dir-mount");
+      if (mount) {
+        mount.innerHTML = renderHackerDirectoryCards(state.hackersDirectory);
+        bindHackerClicks(mount);
+        return;
+      }
+    }
+    if (state.tab === "hackers" && !state.activeHackerSlug && !state.activePatchId) {
+      render();
+    }
+  } catch {
+    // keep previous directory list on transient error
+  }
+}
+
+async function openHackerProfile(slug: string, pushHistory = true, year?: number): Promise<void> {
+  const cleanSlug = slug.trim().toLowerCase();
+  if (!cleanSlug) return;
+  const switchingPerson = state.activeHackerSlug !== cleanSlug;
+  if (!state.activeHackerSlug && !state.activePatchId) state.returnTab = state.tab;
   state.activePatchId = null;
   state.patchData = null;
-  state.patchLoading = false;
-  state.tab = tab;
-  syncTopBackofficeLink();
-  document.title = "pgroast — Public CommitFest App";
-  if (pushHistory) {
+  state.activeHackerSlug = cleanSlug;
+  state.hackerProfileLoading = true;
+  state.hackerProfileError = "";
+  if (switchingPerson) {
+    state.hackerProfile = null;
+    state.hackerProfileTab = "commits";
+  }
+
+  if (pushHistory && switchingPerson) {
     try {
-      const targetUrl = (tab === "brief" ? "/" : `/?tab=${encodeURIComponent(tab)}`) + hash;
-      window.history.pushState({ patchId: null, tab }, "", targetUrl);
+      window.history.pushState({ hackerSlug: cleanSlug, tab: state.returnTab }, "", `/hacker/${encodeURIComponent(cleanSlug)}`);
     } catch {
       // ignore
     }
   }
   render();
+  if (switchingPerson) window.scrollTo({ top: 0 });
+
+  try {
+    const qs = year ? `?year=${encodeURIComponent(String(year))}` : "";
+    const data = await api<HackerProfileData>(`/api/v1/hackers/${encodeURIComponent(cleanSlug)}${qs}`, {
+      headers: pushHistory && switchingPerson ? { "X-PgRoast-View": "1" } : undefined,
+    });
+    if (state.activeHackerSlug !== cleanSlug) return;
+    state.hackerProfile = data;
+    state.hackerProfileLoading = false;
+    document.title = `${data.person.name} — PostgreSQL Hacker Profile | pgroast`;
+    render();
+  } catch (err) {
+    if (state.activeHackerSlug !== cleanSlug) return;
+    state.hackerProfileLoading = false;
+    state.hackerProfileError = err instanceof Error ? err.message : String(err);
+    render();
+  }
+}
+
+async function openHackerByName(name: string): Promise<void> {
+  const trimmed = name.trim();
+  if (!trimmed) return;
+  try {
+    const res = await api<{ slug: string | null }>(`/api/v1/hackers/resolve?name=${encodeURIComponent(trimmed)}`);
+    if (res.slug) {
+      await openHackerProfile(res.slug, true);
+      return;
+    }
+  } catch {
+    // fallback to entries search below
+  }
+  jumpToEntries({ search: trimmed, verdict: "all", status: "all" });
+}
+
+function navigateToTab(tab: TabId, pushHistory = true, hash = ""): void {
+  state.activePatchId = null;
+  state.patchData = null;
+  state.patchLoading = false;
+  state.activeHackerSlug = null;
+  state.hackerProfile = null;
+  state.hackerProfileLoading = false;
+  state.tab = tab;
+  syncTopBackofficeLink();
+  document.title =
+    tab === "hackers"
+      ? "PostgreSQL Hacking Observatory — pgroast"
+      : "pgroast — Public CommitFest App";
+  if (pushHistory) {
+    try {
+      const targetUrl = (tab === "brief" ? "/" : `/?tab=${encodeURIComponent(tab)}`) + hash;
+      window.history.pushState({ patchId: null, hackerSlug: null, tab }, "", targetUrl);
+    } catch {
+      // ignore
+    }
+  }
+  render();
+  if (tab === "hackers") {
+    if (!state.hackersOverview && !state.hackersLoading) void loadHackersOverview();
+    if (state.hackersDirectory.length === 0) void loadHackersDirectory();
+  }
   if (hash) {
     const id = hash.replace(/^#/, "");
     setTimeout(() => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
@@ -555,8 +709,13 @@ async function loadAll(): Promise<void> {
     const route = parseRouteFromLocation();
     state.tab = route.tab;
 
-    // On direct /patch/:id visits, start fetching patch details immediately in parallel so first paint is instant!
+    // On direct /patch/:id or /hacker/:slug visits, start fetching details immediately in parallel so first paint is instant!
     const patchPromise = route.patchId ? openPatchPage(route.patchId, false, route.mrTab) : null;
+    const hackerPromise = route.hackerSlug ? openHackerProfile(route.hackerSlug, false) : null;
+    if (!route.patchId && !route.hackerSlug && route.tab === "hackers") {
+      void loadHackersOverview();
+      void loadHackersDirectory();
+    }
 
     const [health, views, bRes, oRes, cRes] = await Promise.all([
       api<HealthInfo>("/api/v1/health"),
@@ -604,6 +763,9 @@ async function loadAll(): Promise<void> {
 
     if (patchPromise) {
       await patchPromise;
+      render();
+    } else if (hackerPromise) {
+      await hackerPromise;
       render();
     } else {
       render();
@@ -2661,6 +2823,15 @@ function bindPatchRowClicks(container: HTMLElement | Document): void {
   });
 }
 
+function bindHackerClicks(container: HTMLElement | Document): void {
+  container.querySelectorAll<HTMLElement>("[data-open-hacker]").forEach((el) => {
+    el.addEventListener("click", () => {
+      const slug = el.dataset.openHacker || "";
+      if (slug) void openHackerProfile(slug, true);
+    });
+  });
+}
+
 function bindBriefListEvents(): void {
   const brief = state.briefDetail;
   if (!brief) return;
@@ -2682,10 +2853,50 @@ function bindBriefListEvents(): void {
 
 function render(): void {
   document.querySelectorAll<HTMLButtonElement>("#web-nav .nav-link, #web-bottom-nav .btab").forEach((btn) => {
-    btn.classList.toggle("active", !state.activePatchId && btn.dataset.tab === state.tab);
+    btn.classList.toggle("active", !state.activePatchId && !state.activeHackerSlug && btn.dataset.tab === state.tab);
   });
 
   const root = document.getElementById("web-main")!;
+  if (state.activeHackerSlug) {
+    const backLabel =
+      state.returnTab === "stats"
+        ? "Stats"
+        : state.returnTab === "entries"
+          ? "Entries"
+          : state.returnTab === "brief"
+            ? "Brief"
+            : "Hackers";
+    root.innerHTML = renderHackerProfilePage({
+      profile: state.hackerProfile,
+      loading: state.hackerProfileLoading,
+      error: state.hackerProfileError,
+      activeTab: state.hackerProfileTab,
+      backLabel,
+    });
+    const slug = state.activeHackerSlug;
+    document.getElementById("hacker-back-btn")?.addEventListener("click", () => {
+      navigateToTab(state.returnTab === "hackers" ? "hackers" : state.returnTab);
+    });
+    document.getElementById("hacker-copy-url-btn")?.addEventListener("click", (ev) => {
+      copyTextWithFeedback(ev.currentTarget as HTMLElement, `${window.location.origin}/hacker/${encodeURIComponent(slug)}`, "Copy profile link");
+    });
+    document.querySelectorAll<HTMLButtonElement>("[data-hacker-year]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const yr = Number(btn.dataset.hackerYear);
+        if (yr > 1990) void openHackerProfile(slug, false, yr);
+      });
+    });
+    document.querySelectorAll<HTMLButtonElement>("[data-hacker-tab]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        state.hackerProfileTab = (btn.dataset.hackerTab as HackerProfileTab) || "commits";
+        render();
+      });
+    });
+    bindHackerClicks(root);
+    bindPatchRowClicks(root);
+    return;
+  }
+
   if (state.activePatchId) {
     root.innerHTML = renderPatchPage();
     const cfId = state.activePatchId;
@@ -2855,11 +3066,56 @@ function render(): void {
   }
 
   if (state.tab === "brief") root.innerHTML = renderBriefTab();
-  else if (state.tab === "stats") root.innerHTML = renderStatsTab();
+  else if (state.tab === "hackers") {
+    root.innerHTML = renderHackersTab({
+      overview: state.hackersOverview,
+      loading: state.hackersLoading,
+      error: state.hackersError,
+      window: state.hackersWindow,
+      lbTab: state.hackersLbTab,
+      directory: state.hackersDirectory,
+      dirSearch: state.hackersDirSearch,
+      dirRole: state.hackersDirRole,
+      dirSort: state.hackersDirSort,
+    });
+  } else if (state.tab === "stats") root.innerHTML = renderStatsTab();
   else if (state.tab === "entries") root.innerHTML = renderEntriesTab();
   else if (state.tab === "opinions") root.innerHTML = renderOpinionsTab();
   else if (state.tab === "coordination") root.innerHTML = renderCoordinationTab();
   else root.innerHTML = renderConnectTab();
+
+  // Hackers Observatory tab events
+  if (state.tab === "hackers") {
+    bindHackerClicks(root);
+    document.querySelectorAll<HTMLButtonElement>("[data-hacker-window]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const nextWin = (btn.dataset.hackerWindow as HackerWindow) || "1y";
+        void loadHackersOverview(nextWin);
+      });
+    });
+    document.querySelectorAll<HTMLButtonElement>("[data-hacker-lb]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        state.hackersLbTab = (btn.dataset.hackerLb as HackerLbKind) || "committers";
+        render();
+      });
+    });
+    const dirInput = document.getElementById("hacker-dir-search") as HTMLInputElement | null;
+    dirInput?.addEventListener("input", () => {
+      state.hackersDirSearch = dirInput.value;
+      if (hackerDirTimer) clearTimeout(hackerDirTimer);
+      hackerDirTimer = setTimeout(() => {
+        void loadHackersDirectory(true);
+      }, 200);
+    });
+    document.getElementById("hacker-dir-role")?.addEventListener("change", (ev) => {
+      state.hackersDirRole = (ev.target as HTMLSelectElement).value || "all";
+      void loadHackersDirectory(true);
+    });
+    document.getElementById("hacker-dir-sort")?.addEventListener("change", (ev) => {
+      state.hackersDirSort = (ev.target as HTMLSelectElement).value || "activity";
+      void loadHackersDirectory(true);
+    });
+  }
 
   // Stats tab events
   if (state.tab === "stats") {
@@ -2877,7 +3133,7 @@ function render(): void {
     });
     document.querySelectorAll<HTMLElement>("[data-stats-person]").forEach((el) => {
       el.addEventListener("click", () => {
-        jumpToEntries({ search: el.dataset.statsPerson || "", verdict: "all", status: "all" });
+        void openHackerByName(el.dataset.statsPerson || "");
       });
     });
     document.querySelectorAll<HTMLButtonElement>("[data-lb-tab]").forEach((btn) => {
@@ -3164,13 +3420,24 @@ window.addEventListener("popstate", () => {
   const route = parseRouteFromLocation();
   if (route.patchId) {
     void openPatchPage(route.patchId, false, route.mrTab);
+  } else if (route.hackerSlug) {
+    void openHackerProfile(route.hackerSlug, false);
   } else {
     state.activePatchId = null;
     state.patchData = null;
+    state.activeHackerSlug = null;
+    state.hackerProfile = null;
     state.tab = route.tab;
     syncTopBackofficeLink();
-    document.title = "pgroast — Public CommitFest App";
+    document.title =
+      route.tab === "hackers"
+        ? "PostgreSQL Hacking Observatory — pgroast"
+        : "pgroast — Public CommitFest App";
     render();
+    if (route.tab === "hackers") {
+      if (!state.hackersOverview && !state.hackersLoading) void loadHackersOverview();
+      if (state.hackersDirectory.length === 0) void loadHackersDirectory();
+    }
   }
 });
 
