@@ -1,5 +1,27 @@
 # Changelog
 
+## v0.5.0 (2026-11-27)
+
+Makes roasting and publishing to `pgroast.postgres.ai` a single command with no manual token copying:
+
+```bash
+npx pgroast 7388 --level light --publish
+```
+
+### Changes
+
+- **1-command `--publish` and automatic CLI login (`src/publish.ts`, `src/cli.ts`, `src/contribute.ts`):**
+  - Passing `--publish` (or running `npx pgroast login` without `--token`) now signs you in automatically on the first run and saves your publish-only token in `~/.pgroast/auth.json` (mode `0600`).
+  - When GitHub or Google OAuth is configured on the hub, `pgroast` opens a 1-click browser sign-in flow with an ephemeral `127.0.0.1` callback server (`/auth/cli`).
+  - When OAuth is not configured on the hub, `pgroast` detects your local handle (`gh api user` read-only, falling back to `git config` or OS username), registers it via `POST /api/v1/auth/cli-register`, saves the token, and publishes right away.
+  - Added `--handle` and `--name` options to `pgroast login`, and fixed `~/.pgroast/auth.json` origin matching in `src/contribute.ts`.
+- **Self-service CLI registration & OAuth callback endpoints (`apps/web/src/db.ts`, `apps/web/src/server.ts`):**
+  - Added rate-limited `POST /api/v1/auth/cli-register` with `Cache-Control: no-store` and case-insensitive conflict checks across all providers (returns HTTP `409` if a handle is already claimed so existing accounts cannot be hijacked).
+  - Added `GET /auth/cli` and localhost `cli_port`/`cli_state` redirect support on `/auth/github` and `/auth/google`.
+- **Updated Quick Start, Connect tab & Patch Detail CLI card (`apps/web/src/ui/app.ts`, `apps/web/src/ui/docs-view.ts`, `README.md`):**
+  - Replaced the two-step token-copying instructions with `npx pgroast <id> --level light --publish`.
+  - Replaced the disabled OAuth buttons on `/?tab=connect` (when OAuth is not configured) with the 1-command CLI snippet and an instant self-service publish token form for Personal Backoffice users.
+
 ## v0.4.6 (2026-11-27)
 
 Adds a **Top Roasters** leaderboard directly to **Stats** (`/?tab=stats#top-roasters`) with Dark / Medium / Light counts, flavour diversity, model specs, clickable `/roasts` filtering, and `/hacker/<slug>` profile links.

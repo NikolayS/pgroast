@@ -381,7 +381,11 @@ export async function createWebHandler(opts?: {
   const oauthFetch = opts?.oauthFetch ?? fetch;
   const rateLimit = createSlidingRateLimiter(cfg.rateLimitPerMinute);
   const mrRateLimit = createSlidingRateLimiter(Math.max(15, Math.min(cfg.rateLimitPerMinute, 30)));
-  const oauthStates = new Map<string, { provider: "github" | "google"; expiresAt: number }>();
+  const cliRegRateLimit = createSlidingRateLimiter(6);
+  const oauthStates = new Map<
+    string,
+    { provider: "github" | "google"; expiresAt: number; cliPort?: number; cliState?: string }
+  >();
   let bundleJs = await buildUiJs();
 
   const htmlPath = join(WEB_ROOT, "src", "ui", "index.html");
@@ -463,7 +467,19 @@ export async function createWebHandler(opts?: {
     }
   }
 
-  function issueOAuthState(provider: "github" | "google"): { state: string; cookie: string } {
+  function parseCliCallbackParams(u: URL): { cliPort?: number; cliState?: string } {
+    const portRaw = u.searchParams.get("cli_port") || u.searchParams.get("port") || "";
+    const stateRaw = (u.searchParams.get("cli_state") || u.searchParams.get("state") || "").trim();
+    const port = Number(portRaw);
+    if (!Number.isInteger(port) || port < 1024 || port > 65535) return {};
+    if (!/^[a-f0-9]{16,128}$/i.test(stateRaw)) return {};
+    return { cliPort: port, cliState: stateRaw };
+  }
+
+  function issueOAuthState(
+    provider: "github" | "google",
+    cli?: { cliPort?: number; cliState?: string },
+  ): { state: string; cookie: string } {
     const now = Date.now();
     for (const [k, v] of oauthStates) {
       if (v.expiresAt < now) oauthStates.delete(k);
@@ -474,7 +490,11 @@ export async function createWebHandler(opts?: {
       oauthStates.delete(oldest);
     }
     const state = randomBytes(16).toString("hex");
-    oauthStates.set(state, { provider, expiresAt: now + 10 * 60_000 });
+    oauthStates.set(state, {
+      provider,
+      expiresAt: now + 10 * 60_000,
+      ...(cli?.cliPort && cli?.cliState ? { cliPort: cli.cliPort, cliState: cli.cliState } : {}),
+    });
     const secure = cfg.publicOrigin.startsWith("https://") ? "; Secure" : "";
     return {
       state,
@@ -482,15 +502,32 @@ export async function createWebHandler(opts?: {
     };
   }
 
-  function consumeOAuthState(req: Request, provider: "github" | "google", stateParam: string): boolean {
-    if (!stateParam) return false;
+  function consumeOAuthState(
+    req: Request,
+    provider: "github" | "google",
+    stateParam: string,
+  ): { ok: true; cliPort?: number; cliState?: string } | { ok: false } {
+    if (!stateParam) return { ok: false };
     const cookies = parseCookies(req);
     const cookieState = cookies["pgroast_oauth_state"] || "";
     const entry = oauthStates.get(stateParam);
     oauthStates.delete(stateParam);
-    if (!entry || entry.provider !== provider || entry.expiresAt < Date.now()) return false;
-    if (!cookieState || cookieState !== stateParam) return false;
-    return true;
+    if (!entry || entry.provider !== provider || entry.expiresAt < Date.now()) return { ok: false };
+    if (!cookieState || cookieState !== stateParam) return { ok: false };
+    return { ok: true, cliPort: entry.cliPort, cliState: entry.cliState };
+  }
+
+  function oauthCliRedirect(cliPort: number, cliState: string, token: string, handle: string): Response {
+    const secure = cfg.publicOrigin.startsWith("https://") ? "; Secure" : "";
+    const qs = new URLSearchParams({ token, state: cliState, handle });
+    return new Response(null, {
+      status: 302,
+      headers: {
+        Location: `http://127.0.0.1:${cliPort}/callback?${qs.toString()}`,
+        "Cache-Control": "no-store",
+        "Set-Cookie": `pgroast_oauth_state=; HttpOnly; SameSite=Lax; Path=/auth; Max-Age=0${secure}`,
+      },
+    });
   }
 
   function oauthHtmlResponse(html: string, status = 200): Response {
@@ -1080,6 +1117,57 @@ export async function createWebHandler(opts?: {
         }, 200, req);
       }
 
+      // ---- 1-command CLI browser login & zero-friction CLI registration ----
+      if (method === "GET" && path === "/auth/cli") {
+        const cli = parseCliCallbackParams(url);
+        const ghOk = Boolean(cfg.githubClientId && cfg.githubClientSecret);
+        const goOk = Boolean(cfg.googleClientId && cfg.googleClientSecret);
+        const qs = cli.cliPort && cli.cliState ? `?cli_port=${cli.cliPort}&cli_state=${encodeURIComponent(cli.cliState)}` : "";
+        const html = `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1" /><title>Sign in to pgroast CLI</title><style>body{margin:0;background:#0b0c0e;color:#e7e9ee;font-family:-apple-system,BlinkMacSystemFont,Inter,Segoe UI,sans-serif;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;}.card{max-width:420px;width:100%;background:#13151b;border:1px solid #262a35;border-radius:14px;padding:24px;}h1{font-size:19px;margin:0 0 8px;}p{color:#9ca3b5;font-size:13.5px;line-height:1.5;margin:0 0 18px;}.btns{display:flex;flex-direction:column;gap:10px;}.btn{display:flex;align-items:center;justify-content:center;padding:11px 16px;border-radius:9px;font-size:14px;font-weight:600;text-decoration:none;border:1px solid #2d3240;background:#1a1d26;color:#e7e9ee;}.btn.primary{background:#5e6ad2;border-color:#5e6ad2;color:#fff;}</style></head><body><main class="card"><h1>Sign in to pgroast CLI</h1><p>Issues a publish-only token for your local CLI (~/.pgroast/auth.json). Nothing is ever posted to pgsql-hackers or CommitFest.</p><div class="btns">${ghOk ? `<a class="btn primary" href="/auth/github${qs}">Continue with GitHub</a>` : ""}${goOk ? `<a class="btn${ghOk ? "" : " primary"}" href="/auth/google${qs}">Continue with Google</a>` : ""}${!ghOk && !goOk ? `<p>OAuth is not configured on this server. Run <code>npx pgroast login</code> in your terminal for automatic CLI registration.</p>` : ""}</div></main></body></html>`;
+        return new Response(html, {
+          headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store", ...securityHeaders("app") },
+        });
+      }
+
+      if (method === "POST" && path === "/api/v1/auth/cli-register") {
+        const rl = enforceRateLimit(`cli-reg:${getClientIp(req)}`, cliRegRateLimit);
+        if (rl) return rl;
+        const body = await readJson<{ handle?: string; name?: string; avatarUrl?: string }>(req, 16 * 1024);
+        const handle = String(body.handle || "").trim();
+        const name = String(body.name || handle).trim().slice(0, 80);
+        const avatarUrl = String(body.avatarUrl || "").trim();
+        if (!/^[a-zA-Z0-9][a-zA-Z0-9._-]{1,38}$/.test(handle)) {
+          return errJson("Handle must be 2–39 characters (letters, digits, '.', '_', '-').", 400);
+        }
+        const gate = checkPublicPayloadSafe(`${handle} ${name}`);
+        if (!gate.safe) {
+          return errJson(`Blocked by Public-Confidentiality Gate: ${gate.reasons.join("; ")}`, 422);
+        }
+        const registered = await db.registerCliContributor({ handle, name, avatarUrl });
+        if ("conflict" in registered) {
+          return errJson(`Handle "@${handle}" is already claimed. Pick another handle with --handle.`, 409);
+        }
+        return new Response(
+          JSON.stringify({
+            contributor: {
+              handle: registered.contributor.handle,
+              name: registered.contributor.name,
+              provider: registered.contributor.provider,
+            },
+            prefix: registered.prefix,
+            token: registered.token,
+          }),
+          {
+            status: 201,
+            headers: {
+              "Content-Type": "application/json; charset=utf-8",
+              "Cache-Control": "no-store",
+              ...securityHeaders("json"),
+            },
+          },
+        );
+      }
+
       // ---- Identity-only OAuth entrypoints & callbacks (GitHub / Google) ----
       if (method === "GET" && path === "/auth/github") {
         const rl = enforceRateLimit(`oauth:${getClientIp(req)}`);
@@ -1087,7 +1175,8 @@ export async function createWebHandler(opts?: {
         if (!cfg.githubClientId || !cfg.githubClientSecret) {
           return errJson("GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET are not configured on this server. Set GitHub OAuth env vars or issue a team token via `bun run web:mint-token`.", 501);
         }
-        const { state, cookie } = issueOAuthState("github");
+        const cli = parseCliCallbackParams(url);
+        const { state, cookie } = issueOAuthState("github", cli);
         const redirectUri = `${cfg.publicOrigin}/auth/github/callback`;
         const ghUrl = `https://github.com/login/oauth/authorize?client_id=${encodeURIComponent(cfg.githubClientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=read:user&state=${encodeURIComponent(state)}`;
         return new Response(null, {
@@ -1126,7 +1215,8 @@ export async function createWebHandler(opts?: {
         }
         const code = (url.searchParams.get("code") || "").trim();
         const stateParam = (url.searchParams.get("state") || "").trim();
-        if (!code || !consumeOAuthState(req, "github", stateParam)) {
+        const stateCheck = consumeOAuthState(req, "github", stateParam);
+        if (!code || !stateCheck.ok) {
           return oauthHtmlResponse(
             renderOAuthResultHtml({
               ok: false,
@@ -1189,6 +1279,9 @@ export async function createWebHandler(opts?: {
           avatarUrl: userJson.avatar_url || "",
         });
         const minted = await db.mintPublishToken(contributor.id, "github-oauth");
+        if (stateCheck.cliPort && stateCheck.cliState) {
+          return oauthCliRedirect(stateCheck.cliPort, stateCheck.cliState, minted.token, contributor.handle);
+        }
         return oauthHtmlResponse(
           renderOAuthResultHtml({
             ok: true,
@@ -1208,7 +1301,8 @@ export async function createWebHandler(opts?: {
         if (!cfg.googleClientId || !cfg.googleClientSecret) {
           return errJson("GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET are not configured on this server. Set Google OAuth env vars or issue a team token via `bun run web:mint-token`.", 501);
         }
-        const { state, cookie } = issueOAuthState("google");
+        const cli = parseCliCallbackParams(url);
+        const { state, cookie } = issueOAuthState("google", cli);
         const redirectUri = `${cfg.publicOrigin}/auth/google/callback`;
         const gUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(cfg.googleClientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent("openid profile email")}&state=${encodeURIComponent(state)}`;
         return new Response(null, {
@@ -1247,7 +1341,8 @@ export async function createWebHandler(opts?: {
         }
         const code = (url.searchParams.get("code") || "").trim();
         const stateParam = (url.searchParams.get("state") || "").trim();
-        if (!code || !consumeOAuthState(req, "google", stateParam)) {
+        const stateCheck = consumeOAuthState(req, "google", stateParam);
+        if (!code || !stateCheck.ok) {
           return oauthHtmlResponse(
             renderOAuthResultHtml({
               ok: false,
@@ -1321,6 +1416,9 @@ export async function createWebHandler(opts?: {
           avatarUrl: userJson.picture || "",
         });
         const minted = await db.mintPublishToken(contributor.id, "google-oauth");
+        if (stateCheck.cliPort && stateCheck.cliState) {
+          return oauthCliRedirect(stateCheck.cliPort, stateCheck.cliState, minted.token, contributor.handle);
+        }
         return oauthHtmlResponse(
           renderOAuthResultHtml({
             ok: true,

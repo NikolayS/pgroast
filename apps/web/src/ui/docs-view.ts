@@ -406,17 +406,17 @@ export function renderDocsTab(params: {
         <div class="qs-step" id="identity-auth">
           <div class="qs-step-head">
             <span class="intro-num">4</span>
-            <strong>Optional: publish under your name</strong>
+            <strong>Publish in one command</strong>
           </div>
           <p class="muted" style="font-size:12.5px;margin:0;line-height:1.5;">
-            Your AI login stays local. To publish here, mint a publish-only token on <button type="button" class="about-link-inline" data-docs-nav="connect">Sign in / Setup</button> and save it once in <code class="mono">~/.pgroast/auth.json</code> (mode <code class="mono">0600</code>):
+            Add <code class="mono">--publish</code> to any roast. On your first run, <code class="mono">pgroast</code> signs you in automatically and saves your publish-only token in <code class="mono">~/.pgroast/auth.json</code> (mode <code class="mono">0600</code>) — zero manual token copying:
           </p>
           <div class="qs-cmd">
-            <code class="mono">npx pgroast login --token pgroast_pub_…</code>
-            <button type="button" class="btn btn-ghost btn-sm" data-copy-snippet="npx pgroast login --token pgroast_pub_YOUR_TOKEN">Copy</button>
+            <code class="mono">npx pgroast 7388 --level light --publish</code>
+            <button type="button" class="btn btn-ghost btn-sm" data-copy-snippet="npx pgroast 7388 --level light --publish">Copy</button>
           </div>
           <div class="dim" style="font-size:11.5px;">
-            Future <code class="mono">npx pgroast publish</code> runs recognize you automatically. Check with <code class="mono">npx pgroast whoami</code>.
+            Check your saved handle with <code class="mono">npx pgroast whoami</code>, or change it with <code class="mono">npx pgroast login --handle &lt;name&gt;</code>.
           </div>
         </div>
       </div>

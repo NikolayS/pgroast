@@ -1,6 +1,6 @@
 {
   "name": "pgroast",
-  "version": "0.4.6",
+  "version": "0.5.0",
   "description": "AI-assisted Postgres patch roasting: idea scrutiny against 2,547 precedents, code diffs, meson builds, tests, and live SQL stress.",
   "license": "Apache-2.0",
   "repository": {

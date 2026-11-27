@@ -1418,4 +1418,76 @@ describe("v2 CLI publish & weekly quota auto-contribute", () => {
     });
     expect(seenAuth).toBeNull();
   });
+
+  test("ensurePublishAuth auto-registers with suffix retry on 409, saves token, and enforces hub origin", async () => {
+    const { ensurePublishAuth, loadSavedAuth } = await import("../src/publish.ts");
+    const tmpDir = mkdtempSync(join(tmpdir(), "pgroast-auth-test-"));
+    const authFile = join(tmpDir, "auth.json");
+    const seenHandles: string[] = [];
+    let regCalls = 0;
+
+    const mockFetch = (async (url: string | URL, init?: RequestInit) => {
+      const u = String(url);
+      if (u.endsWith("/api/v1/health")) {
+        return new Response(JSON.stringify({ ok: true, oauth: { githubConfigured: false, googleConfigured: false } }), { status: 200 });
+      }
+      if (u.endsWith("/api/v1/auth/cli-register")) {
+        regCalls++;
+        const body = JSON.parse(String(init?.body || "{}")) as { handle: string; name: string };
+        seenHandles.push(body.handle);
+        if (regCalls === 1) {
+          return new Response(JSON.stringify({ error: "Handle already claimed" }), { status: 409 });
+        }
+        return new Response(
+          JSON.stringify({
+            token: "pgroast_pub_auto1234567890abcdef",
+            contributor: { handle: body.handle, name: body.name, provider: "cli" },
+          }),
+          { status: 201 },
+        );
+      }
+      return new Response("not found", { status: 404 });
+    }) as unknown as typeof fetch;
+
+    // First call: gets 409 on base handle, retries with hex suffix, saves to temp authFile
+    const a1 = await ensurePublishAuth({
+      hubUrl: "https://hub-a.example",
+      authFilePath: authFile,
+      fetchFn: mockFetch,
+      log: () => undefined,
+    });
+    expect(a1.newlyLoggedIn).toBe(true);
+    expect(a1.token).toBe("pgroast_pub_auto1234567890abcdef");
+    expect(seenHandles.length).toBe(2);
+    expect(seenHandles[1]).not.toBe(seenHandles[0]);
+    expect(loadSavedAuth(authFile)?.token).toBe("pgroast_pub_auto1234567890abcdef");
+
+    // Second call for the same hub reuses saved token with zero network calls
+    const beforeCalls = regCalls;
+    const a2 = await ensurePublishAuth({
+      hubUrl: "https://hub-a.example",
+      authFilePath: authFile,
+      fetchFn: mockFetch,
+      log: () => undefined,
+    });
+    expect(a2.newlyLoggedIn).toBe(false);
+    expect(a2.token).toBe("pgroast_pub_auto1234567890abcdef");
+    expect(regCalls).toBe(beforeCalls);
+
+    // Explicit --handle override must NOT silently append a suffix on 409
+    await expect(
+      ensurePublishAuth({
+        hubUrl: "https://hub-b.example",
+        handleOverride: "taken_name",
+        authFilePath: authFile,
+        fetchFn: (async (url: string | URL) => {
+          if (String(url).endsWith("/api/v1/health")) {
+            return new Response(JSON.stringify({ ok: true, oauth: { githubConfigured: false, googleConfigured: false } }), { status: 200 });
+          }
+          return new Response(JSON.stringify({ error: "Handle already claimed" }), { status: 409 });
+        }) as unknown as typeof fetch,
+        log: () => undefined,
+      }),
+    ).rejects.toThrow(/HTTP 409/);
+  });
 });

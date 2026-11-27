@@ -997,4 +997,78 @@ describe("pgroast-web public companion API & security gates", () => {
     expect(Array.isArray(data.contributors.authors)).toBe(true);
     expect(typeof data.traffic.total).toBe("number");
   });
+
+  test("1-command CLI registration (/api/v1/auth/cli-register & /auth/cli) mints tokens, blocks conflicts, and publishes", async () => {
+    // 1. /auth/cli renders HTML sign-in helper
+    const cliPage = await req("/auth/cli?port=54321&state=0123456789abcdef0123456789abcdef");
+    expect(cliPage.status).toBe(200);
+    expect(await cliPage.text()).toContain("Sign in to pgroast CLI");
+
+    // 2. Reject invalid handles (400) and secrets/paths (422)
+    const badHandle = await req("/api/v1/auth/cli-register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Forwarded-For": "10.0.0.11" },
+      body: JSON.stringify({ handle: "x" }),
+    });
+    expect(badHandle.status).toBe(400);
+
+    const leakName = await req("/api/v1/auth/cli-register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Forwarded-For": "10.0.0.12" },
+      body: JSON.stringify({ handle: "dmor_leak", name: "/Users/dmor/secret" }),
+    });
+    expect(leakName.status).toBe(422);
+
+    // 3. Fresh handle registers and mints a publish-only token with Cache-Control: no-store
+    const reg = await req("/api/v1/auth/cli-register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Forwarded-For": "10.0.0.13" },
+      body: JSON.stringify({ handle: "dmor_test", name: "Denis Morozov" }),
+    });
+    expect(reg.status).toBe(201);
+    expect(reg.headers.get("cache-control")).toBe("no-store");
+    const regJson = (await reg.json()) as {
+      token: string;
+      prefix: string;
+      contributor: { handle: string; name: string; provider: string };
+    };
+    expect(regJson.token.startsWith("pgroast_pub_")).toBe(true);
+    expect(regJson.contributor).toEqual({ handle: "dmor_test", name: "Denis Morozov", provider: "cli" });
+
+    // 4. Re-claiming the same handle (even different case) is blocked with 409
+    const dup = await req("/api/v1/auth/cli-register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Forwarded-For": "10.0.0.14" },
+      body: JSON.stringify({ handle: "DMOR_TEST", name: "Impostor" }),
+    });
+    expect(dup.status).toBe(409);
+
+    // 5. Claiming an already-existing GitHub contributor handle (case-insensitive) is blocked with 409
+    await db.upsertContributor({ provider: "github", handle: "NikolayS", name: "Nikolay Samokhvalov" });
+    const hijack = await req("/api/v1/auth/cli-register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Forwarded-For": "10.0.0.15" },
+      body: JSON.stringify({ handle: "nikolays", name: "Impostor" }),
+    });
+    expect(hijack.status).toBe(409);
+
+    // 6. Minted token works immediately to publish a sanitized roast
+    const pub = await req("/api/v1/publish/opinion", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${regJson.token}`,
+      },
+      body: JSON.stringify({
+        cf_id: 9101,
+        backend: "claude",
+        roast_level: "light",
+        roast_flavour: "default",
+        verdict: "NEEDS-DESIGN-DISCUSSION",
+        confidence: "medium",
+        summary: "Light idea roast from 1-command CLI registration test.",
+      }),
+    });
+    expect(pub.status).toBe(201);
+  });
 });

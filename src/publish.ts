@@ -4,8 +4,10 @@
 // (e.g. https://pgroast.postgres.ai). Runs the Public-Confidentiality Hard Gate locally
 // before sending anything over HTTP. Never posts to pgsql-hackers or CommitFest.
 
+import { spawn, spawnSync } from "node:child_process";
+import { randomBytes } from "node:crypto";
 import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
-import { homedir } from "node:os";
+import { homedir, userInfo } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { normalizeRoastFlavour, normalizeRoastLevel } from "./roast/flavours.ts";
 import type { Roast } from "./roast/schema.ts";
@@ -16,17 +18,21 @@ export const AUTH_FILE_PATH = join(homedir(), ".pgroast", "auth.json");
 export interface SavedAuth {
   hubUrl: string;
   token: string;
+  handle?: string;
+  name?: string;
   savedAt: string;
 }
 
-export function loadSavedAuth(): SavedAuth | null {
+export function loadSavedAuth(authFilePath: string = AUTH_FILE_PATH): SavedAuth | null {
   try {
-    if (!existsSync(AUTH_FILE_PATH)) return null;
-    const raw = JSON.parse(readFileSync(AUTH_FILE_PATH, "utf8")) as Partial<SavedAuth>;
+    if (!existsSync(authFilePath)) return null;
+    const raw = JSON.parse(readFileSync(authFilePath, "utf8")) as Partial<SavedAuth>;
     if (!raw.token || typeof raw.token !== "string") return null;
     return {
       hubUrl: typeof raw.hubUrl === "string" && raw.hubUrl.trim() ? raw.hubUrl.trim() : DEFAULT_HUB_URL,
       token: raw.token.trim(),
+      handle: typeof raw.handle === "string" && raw.handle.trim() ? raw.handle.trim() : undefined,
+      name: typeof raw.name === "string" && raw.name.trim() ? raw.name.trim() : undefined,
       savedAt: typeof raw.savedAt === "string" ? raw.savedAt : "",
     };
   } catch {
@@ -34,40 +40,50 @@ export function loadSavedAuth(): SavedAuth | null {
   }
 }
 
-export function saveAuth(auth: { hubUrl: string; token: string }): void {
-  const dir = dirname(AUTH_FILE_PATH);
+export function saveAuth(
+  auth: { hubUrl: string; token: string; handle?: string; name?: string },
+  authFilePath: string = AUTH_FILE_PATH,
+): void {
+  const dir = dirname(authFilePath);
   mkdirSync(dir, { recursive: true });
   const data: SavedAuth = {
     hubUrl: auth.hubUrl.trim().replace(/\/$/, "") || DEFAULT_HUB_URL,
     token: auth.token.trim(),
+    ...(auth.handle?.trim() ? { handle: auth.handle.trim() } : {}),
+    ...(auth.name?.trim() ? { name: auth.name.trim() } : {}),
     savedAt: new Date().toISOString(),
   };
-  writeFileSync(AUTH_FILE_PATH, JSON.stringify(data, null, 2) + "\n", { mode: 0o600 });
+  writeFileSync(authFilePath, JSON.stringify(data, null, 2) + "\n", { mode: 0o600 });
   try {
-    chmodSync(AUTH_FILE_PATH, 0o600);
+    chmodSync(authFilePath, 0o600);
   } catch {
     // ignore on non-POSIX
   }
 }
 
-export function resolvePublishToken(explicitToken?: string): { token: string; source: string; hubUrl?: string } {
+export function resolvePublishToken(
+  explicitToken?: string,
+  authFilePath: string = AUTH_FILE_PATH,
+): { token: string; source: string; hubUrl?: string } {
   if (explicitToken && explicitToken.trim()) return { token: explicitToken.trim(), source: "--token" };
-  if (process.env.PGROAST_PUBLISH_TOKEN?.trim()) {
+  if (authFilePath === AUTH_FILE_PATH && process.env.PGROAST_PUBLISH_TOKEN?.trim()) {
     return { token: process.env.PGROAST_PUBLISH_TOKEN.trim(), source: "PGROAST_PUBLISH_TOKEN" };
   }
-  const saved = loadSavedAuth();
-  if (saved?.token) return { token: saved.token, source: AUTH_FILE_PATH, hubUrl: saved.hubUrl };
-  // Fallback to contribute.json if user already configured it there
-  try {
-    const contribPath = join(homedir(), ".pgroast", "contribute.json");
-    if (existsSync(contribPath)) {
-      const cfg = JSON.parse(readFileSync(contribPath, "utf8")) as { publishToken?: string; hubUrl?: string };
-      if (cfg.publishToken?.trim()) {
-        return { token: cfg.publishToken.trim(), source: contribPath, hubUrl: cfg.hubUrl };
+  const saved = loadSavedAuth(authFilePath);
+  if (saved?.token) return { token: saved.token, source: authFilePath, hubUrl: saved.hubUrl };
+  if (authFilePath === AUTH_FILE_PATH) {
+    // Fallback to contribute.json if user already configured it there
+    try {
+      const contribPath = join(homedir(), ".pgroast", "contribute.json");
+      if (existsSync(contribPath)) {
+        const cfg = JSON.parse(readFileSync(contribPath, "utf8")) as { publishToken?: string; hubUrl?: string };
+        if (cfg.publishToken?.trim()) {
+          return { token: cfg.publishToken.trim(), source: contribPath, hubUrl: cfg.hubUrl };
+        }
       }
+    } catch {
+      // ignore
     }
-  } catch {
-    // ignore
   }
   return { token: "", source: "none" };
 }
@@ -308,7 +324,7 @@ export async function publishRoastOpinion(opts: {
   }
   if (!opts.token.trim()) {
     throw new Error(
-      `Missing publish token. Mint a publish-only token at ${hubBase}/?tab=connect and save it once with:\n  npx pgroast login --token <pgroast_pub_...>`,
+      `Missing publish token for ${hubBase}. Run \`npx pgroast login\` (or pass \`--publish\` directly) to sign in automatically.`,
     );
   }
 
@@ -333,6 +349,222 @@ export async function publishRoastOpinion(opts: {
     throw new Error(parsed.error || `Public App returned HTTP ${res.status}: ${text.slice(0, 160)}`);
   }
   return { ok: true, cfId: payload.cf_id, patchUrl, payload, dryRun: false };
+}
+
+function sanitizeHandle(raw: string): string {
+  const cleaned = raw
+    .trim()
+    .replace(/^@+/, "")
+    .replace(/[^a-zA-Z0-9._-]+/g, "-")
+    .replace(/^[^a-zA-Z0-9]+/, "")
+    .replace(/[-._]+$/, "")
+    .slice(0, 39);
+  if (cleaned.length >= 2) return cleaned;
+  return `roaster-${randomBytes(2).toString("hex")}`;
+}
+
+/** Auto-detect the local developer's handle and display name (read-only; never reads or sends secrets). */
+export function detectLocalIdentity(): { handle: string; name: string; avatarUrl: string } {
+  // 1. Try authenticated GitHub CLI profile (public login/name/avatar only)
+  try {
+    const gh = spawnSync("gh", ["api", "user", "--jq", '.login + "\\t" + (.name // "") + "\\t" + (.avatar_url // "")'], {
+      encoding: "utf8",
+      timeout: 3000,
+    });
+    if (gh.status === 0 && gh.stdout.trim()) {
+      const [login, name, avatar] = gh.stdout.trim().split("\t");
+      if (login && /^[a-zA-Z0-9][a-zA-Z0-9._-]{1,38}$/.test(login.trim())) {
+        return {
+          handle: login.trim(),
+          name: (name || "").trim() || login.trim(),
+          avatarUrl: (avatar || "").trim(),
+        };
+      }
+    }
+  } catch {
+    // ignore if gh is absent
+  }
+
+  // 2. Fallback to git config user.name / email local-part / OS username (never sends raw email)
+  let gitName = "";
+  let gitEmailLocal = "";
+  try {
+    const gn = spawnSync("git", ["config", "--get", "user.name"], { encoding: "utf8", timeout: 1500 });
+    if (gn.status === 0) gitName = gn.stdout.trim();
+    const ge = spawnSync("git", ["config", "--get", "user.email"], { encoding: "utf8", timeout: 1500 });
+    if (ge.status === 0 && ge.stdout.includes("@")) {
+      gitEmailLocal = ge.stdout.trim().split("@")[0] || "";
+    }
+  } catch {
+    // ignore
+  }
+  let osUser = "";
+  try {
+    osUser = userInfo().username || "";
+  } catch {
+    // ignore
+  }
+
+  const handle = sanitizeHandle(gitEmailLocal || osUser || gitName);
+  const name = (gitName || handle).slice(0, 80);
+  return { handle, name, avatarUrl: "" };
+}
+
+function openBrowserUrl(url: string): void {
+  try {
+    if (process.platform === "darwin") {
+      spawn("open", [url], { detached: true, stdio: "ignore" }).unref();
+    } else if (process.platform === "win32") {
+      spawn("cmd", ["/c", "start", "", url], { detached: true, stdio: "ignore" }).unref();
+    } else {
+      spawn("xdg-open", [url], { detached: true, stdio: "ignore" }).unref();
+    }
+  } catch {
+    // User can always click the printed URL
+  }
+}
+
+async function runBrowserCliLogin(hubBase: string, log: (m: string) => void): Promise<{ token: string; handle: string }> {
+  const nonce = randomBytes(16).toString("hex");
+  let resolveAuth!: (res: { token: string; handle: string }) => void;
+  let rejectAuth!: (err: Error) => void;
+  const done = new Promise<{ token: string; handle: string }>((res, rej) => {
+    resolveAuth = res;
+    rejectAuth = rej;
+  });
+
+  const server = Bun.serve({
+    hostname: "127.0.0.1",
+    port: 0,
+    fetch(req) {
+      const u = new URL(req.url);
+      if (u.pathname !== "/callback") {
+        return new Response("Not found", { status: 404 });
+      }
+      const st = (u.searchParams.get("state") || "").trim();
+      const tok = (u.searchParams.get("token") || "").trim();
+      const handle = (u.searchParams.get("handle") || "").trim();
+      if (st !== nonce || !tok.startsWith("pgroast_pub_")) {
+        return new Response("Invalid login callback.", { status: 400 });
+      }
+      setTimeout(() => resolveAuth({ token: tok, handle }), 50);
+      return new Response(
+        `<!doctype html><html><body style="font-family:system-ui,sans-serif;background:#0b0c0e;color:#e7e9ee;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;"><div style="text-align:center;max-width:400px;padding:24px;"><h2>Signed in to pgroast${handle ? ` as @${handle.replace(/[<>&"]/g, "")}` : ""}</h2><p style="color:#9ca3b5;">You can close this tab and return to your terminal.</p></div></body></html>`,
+        { headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" } },
+      );
+    },
+  });
+
+  const timer = setTimeout(() => {
+    rejectAuth(new Error("Browser sign-in timed out after 2 minutes."));
+  }, 120_000);
+
+  try {
+    const authUrl = `${hubBase}/auth/cli?port=${server.port}&state=${encodeURIComponent(nonce)}`;
+    log(`Opening browser to sign in: ${authUrl}`);
+    openBrowserUrl(authUrl);
+    return await done;
+  } finally {
+    clearTimeout(timer);
+    server.stop(true);
+  }
+}
+
+/**
+ * Guarantee a valid publish token for `hubUrl` with zero manual copy-pasting:
+ *  1. Uses existing --token / $PGROAST_PUBLISH_TOKEN / ~/.pgroast/auth.json (origin-matched).
+ *  2. If none is saved: uses 1-click browser OAuth when configured on the hub, otherwise
+ *     auto-registers the developer's local handle via POST /api/v1/auth/cli-register.
+ */
+export async function ensurePublishAuth(opts: {
+  hubUrl?: string;
+  explicitToken?: string;
+  handleOverride?: string;
+  nameOverride?: string;
+  forceNew?: boolean;
+  authFilePath?: string;
+  log?: (m: string) => void;
+  fetchFn?: typeof fetch;
+} = {}): Promise<{ token: string; hubUrl: string; handle?: string; newlyLoggedIn: boolean }> {
+  const log = opts.log ?? ((m: string) => console.log(m));
+  const fn = opts.fetchFn ?? fetch;
+  const authPath = opts.authFilePath ?? AUTH_FILE_PATH;
+  const resolved = resolvePublishToken(opts.explicitToken, authPath);
+  const hubBase = (opts.hubUrl || (authPath === AUTH_FILE_PATH ? process.env.PGROAST_PUBLIC_HUB_URL : "") || resolved.hubUrl || DEFAULT_HUB_URL)
+    .trim()
+    .replace(/\/$/, "");
+
+  if (!opts.forceNew && resolved.token) {
+    let originOk = true;
+    if (resolved.source === authPath) {
+      try {
+        originOk = new URL(resolved.hubUrl || DEFAULT_HUB_URL).origin === new URL(hubBase).origin;
+      } catch {
+        originOk = false;
+      }
+    }
+    if (originOk) {
+      const saved = loadSavedAuth(authPath);
+      return { token: resolved.token, hubUrl: hubBase, handle: saved?.handle, newlyLoggedIn: false };
+    }
+  }
+
+  // Probe hub health to check whether browser OAuth is configured.
+  let oauthAvailable = false;
+  try {
+    const hr = await fn(`${hubBase}/api/v1/health`, {
+      headers: { Accept: "application/json" },
+      signal: AbortSignal.timeout(5000),
+    });
+    if (hr.ok) {
+      const h = (await hr.json()) as { oauth?: { githubConfigured?: boolean; googleConfigured?: boolean } };
+      oauthAvailable = Boolean(h.oauth?.githubConfigured || h.oauth?.googleConfigured);
+    }
+  } catch {
+    // continue to cli-register attempt
+  }
+
+  if (oauthAvailable && process.stdout.isTTY && !opts.handleOverride) {
+    const res = await runBrowserCliLogin(hubBase, log);
+    saveAuth({ hubUrl: hubBase, token: res.token, handle: res.handle }, authPath);
+    log(`Signed in as @${res.handle || "contributor"} (saved in ${authPath}).`);
+    return { token: res.token, hubUrl: hubBase, handle: res.handle, newlyLoggedIn: true };
+  }
+
+  // Zero-friction automatic CLI handle registration (no manual token copying!)
+  const detected = detectLocalIdentity();
+  const baseHandle = opts.handleOverride ? sanitizeHandle(opts.handleOverride) : detected.handle;
+  const displayName = (opts.nameOverride || detected.name || baseHandle).trim().slice(0, 80);
+  const avatarUrl = opts.handleOverride ? "" : detected.avatarUrl;
+
+  const tryRegister = async (handle: string) =>
+    fn(`${hubBase}/api/v1/auth/cli-register`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ handle, name: displayName, avatarUrl }),
+      signal: AbortSignal.timeout(15_000),
+    });
+
+  let regRes = await tryRegister(baseHandle);
+  if (regRes.status === 409 && !opts.handleOverride) {
+    const altHandle = sanitizeHandle(`${baseHandle.slice(0, 33)}-${randomBytes(2).toString("hex")}`);
+    regRes = await tryRegister(altHandle);
+  }
+  const regBody = (await regRes.json().catch(() => ({}))) as {
+    token?: string;
+    contributor?: { handle?: string; name?: string };
+    error?: string;
+  };
+  if (!regRes.ok || !regBody.token) {
+    throw new Error(
+      `Could not sign in to ${hubBase} (HTTP ${regRes.status}): ${regBody.error || "registration failed"}. Try: npx pgroast login --handle <your-handle>`,
+    );
+  }
+  const finalHandle = regBody.contributor?.handle || baseHandle;
+  const finalName = regBody.contributor?.name || displayName;
+  saveAuth({ hubUrl: hubBase, token: regBody.token, handle: finalHandle, name: finalName }, authPath);
+  log(`Signed in as @${finalHandle} (${finalName}) — saved in ${authPath}`);
+  return { token: regBody.token, hubUrl: hubBase, handle: finalHandle, newlyLoggedIn: true };
 }
 
 const PUBLISH_USAGE = `Usage: pgroast publish <roast.json|dir> [options]
@@ -400,12 +632,20 @@ export async function publishMain(argv: string[]): Promise<number> {
   const summaryPath = join(dirname(jsonPath), "roast-summary.txt");
   const summaryTxt = existsSync(summaryPath) ? readFileSync(summaryPath, "utf8") : undefined;
 
+  let resolvedHub = hubUrl;
+  let resolvedTok = token;
+  if (!dryRun) {
+    const auth = await ensurePublishAuth({ hubUrl: hubUrl || undefined, explicitToken: token || undefined });
+    resolvedHub = auth.hubUrl;
+    resolvedTok = auth.token;
+  }
+
   const res = await publishRoastOpinion({
     roast,
     summaryTxt,
     cfIdOverride,
-    hubUrl,
-    token,
+    hubUrl: resolvedHub,
+    token: resolvedTok,
     dryRun,
   });
 
@@ -419,27 +659,27 @@ export async function publishMain(argv: string[]): Promise<number> {
   return 0;
 }
 
-const LOGIN_USAGE = `Usage: pgroast login --token <pgroast_pub_...> [--hub URL]
+const LOGIN_USAGE = `Usage: pgroast login [--handle NAME] [--name "Full Name"] [--hub URL]
+       pgroast login --token <pgroast_pub_...> [--hub URL]
        pgroast login --logout
        pgroast whoami
 
-  Saves your publish-only pgroast token locally in ~/.pgroast/auth.json (mode 0600)
-  so \`npx pgroast publish\` and \`npx pgroast contribute --publish\` recognize you
-  without needing a global install or passing --token every time.
-
-  Note: Local roasting (\`npx pgroast 7388 --level light\`) needs NO login at all —
-  it uses your local Claude / Codex / agy CLI login and writes local files only.`;
+  Signs in automatically (browser OAuth when configured on the hub, or instant CLI handle
+  registration) and saves your publish-only token in ~/.pgroast/auth.json (mode 0600).
+  You can also just pass --publish on any roast (\`npx pgroast 7388 --level light --publish\`)
+  and pgroast will sign you in automatically on the first run.`;
 
 export async function loginMain(argv: string[], mode: "login" | "whoami" = "login"): Promise<number> {
   if (mode === "whoami") {
     const r = resolvePublishToken();
+    const saved = loadSavedAuth();
     if (!r.token) {
       console.log("Not logged in to a pgroast Public App hub.");
-      console.log(`Local roasting needs no login. To publish roasts, mint a token at ${DEFAULT_HUB_URL}/?tab=connect and run:`);
-      console.log("  npx pgroast login --token <pgroast_pub_...>");
+      console.log("Run `npx pgroast login` (or add `--publish` to any roast) to sign in automatically.");
       return 0;
     }
     const prefix = r.token.slice(0, 18);
+    if (saved?.handle) console.log(`Signed in as @${saved.handle}${saved.name ? ` (${saved.name})` : ""}`);
     console.log(`Publish token configured (${prefix}…)`);
     console.log(`Source: ${r.source}`);
     console.log(`Hub:    ${process.env.PGROAST_PUBLIC_HUB_URL || r.hubUrl || DEFAULT_HUB_URL}`);
@@ -448,6 +688,8 @@ export async function loginMain(argv: string[], mode: "login" | "whoami" = "logi
 
   let token = "";
   let hubUrl = process.env.PGROAST_PUBLIC_HUB_URL || DEFAULT_HUB_URL;
+  let handleOverride = "";
+  let nameOverride = "";
   let logout = false;
   const rest = [...argv];
   while (rest.length) {
@@ -459,6 +701,10 @@ export async function loginMain(argv: string[], mode: "login" | "whoami" = "logi
       token = rest.shift() || "";
     } else if (tok === "--hub") {
       hubUrl = rest.shift() || DEFAULT_HUB_URL;
+    } else if (tok === "--handle") {
+      handleOverride = rest.shift() || "";
+    } else if (tok === "--name") {
+      nameOverride = rest.shift() || "";
     } else if (tok === "--logout") {
       logout = true;
     } else if (!token && tok.startsWith("pgroast_pub_")) {
@@ -481,12 +727,18 @@ export async function loginMain(argv: string[], mode: "login" | "whoami" = "logi
   }
 
   if (!token.trim()) {
-    console.log(`How pgroast recognizes you when publishing:`);
-    console.log(`  1. Open ${hubUrl.replace(/\/$/, "")}/?tab=connect and mint a publish-only token via GitHub or Google.`);
-    console.log(`  2. Save it once locally (mode 0600 in ~/.pgroast/auth.json):`);
-    console.log(`     npx pgroast login --token <pgroast_pub_...>`);
-    console.log(`\nNote: Local roasting (\`npx pgroast 7388 --level light\`) needs NO pgroast login.`);
-    return 0;
+    try {
+      await ensurePublishAuth({
+        hubUrl,
+        handleOverride: handleOverride || undefined,
+        nameOverride: nameOverride || undefined,
+        forceNew: Boolean(handleOverride || nameOverride),
+      });
+      return 0;
+    } catch (err) {
+      console.error(`pgroast login: ${(err as Error).message}`);
+      return 1;
+    }
   }
 
   if (!token.trim().startsWith("pgroast_pub_")) {
@@ -497,6 +749,6 @@ export async function loginMain(argv: string[], mode: "login" | "whoami" = "logi
   saveAuth({ hubUrl, token });
   console.log(`Saved publish token (${token.trim().slice(0, 18)}…) to ${AUTH_FILE_PATH} (mode 0600).`);
   console.log(`Hub: ${hubUrl.replace(/\/$/, "")}`);
-  console.log(`Future \`npx pgroast publish\` and \`contribute --publish\` runs will recognize you automatically.`);
+  console.log("Future `npx pgroast --publish` and `npx pgroast publish` runs will recognize you automatically.");
   return 0;
 }

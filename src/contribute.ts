@@ -18,7 +18,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { isLimitError } from "./batch.ts";
-import { checkPublishConfidentiality, DEFAULT_HUB_URL, publishRoastOpinion, resolvePublishToken } from "./publish.ts";
+import { AUTH_FILE_PATH, checkPublishConfidentiality, DEFAULT_HUB_URL, publishRoastOpinion, resolvePublishToken } from "./publish.ts";
 import { checkBackend } from "./roast/doctor.ts";
 import {
   isValidRoastFlavour,
@@ -729,7 +729,7 @@ export async function contributeMain(argv: string[]): Promise<number> {
   const explicitTok = tokenOverride || (cfg.publishTokenEnv ? process.env[cfg.publishTokenEnv] : undefined);
   const resolvedAuth = resolvePublishToken(explicitTok);
   let token = resolvedAuth.token;
-  if (token && resolvedAuth.source === "auth-file") {
+  if (token && resolvedAuth.source === AUTH_FILE_PATH) {
     try {
       const savedOrigin = new URL(resolvedAuth.hubUrl || DEFAULT_HUB_URL).origin;
       const targetOrigin = new URL(cfg.hubUrl).origin;

@@ -4,7 +4,7 @@ import { generatePublishToken, hashToken, safeHttpUrl } from "./security.ts";
 
 export interface ContributorRecord {
   id: number;
-  provider: "github" | "google";
+  provider: "github" | "google" | "cli";
   provider_user_id: string;
   handle: string;
   name: string;
@@ -454,6 +454,42 @@ export class WebDatabase {
       [input.provider, cleanHandle, cleanName, cleanAvatar, now],
     )) as ContributorRecord[];
     return rows[0]!;
+  }
+
+  /**
+   * Self-service CLI handle registration (only for unclaimed handles; never overwrites or issues
+   * tokens for an already-registered handle across any provider).
+   */
+  async registerCliContributor(input: {
+    handle: string;
+    name: string;
+    avatarUrl?: string;
+  }): Promise<{ contributor: ContributorRecord; token: string; prefix: string } | { conflict: true }> {
+    const cleanHandle = input.handle.trim();
+    const cleanName = (input.name || "").trim() || cleanHandle;
+    const cleanAvatar = safeHttpUrl(input.avatarUrl || "");
+    const existing = (await this.sql.unsafe(
+      `SELECT id FROM ${this.t("contributors")} WHERE LOWER(handle) = LOWER($1) LIMIT 1`,
+      [cleanHandle],
+    )) as Array<{ id: number }>;
+    if (existing[0]) return { conflict: true };
+
+    const now = new Date().toISOString();
+    try {
+      const rows = (await this.sql.unsafe(
+        `INSERT INTO ${this.t("contributors")} (provider, provider_user_id, handle, name, avatar_url, created_at)
+         VALUES ('cli', '', $1, $2, $3, $4)
+         RETURNING *`,
+        [cleanHandle, cleanName, cleanAvatar, now],
+      )) as ContributorRecord[];
+      const contributor = rows[0]!;
+      const minted = await this.mintPublishToken(contributor.id, "cli-auto");
+      return { contributor, token: minted.token, prefix: minted.prefix };
+    } catch (err) {
+      const code = (err as { code?: string })?.code;
+      if (code === "23505") return { conflict: true };
+      throw err;
+    }
   }
 
   async mintPublishToken(contributorId: number, label = "local-workbench"): Promise<{ token: string; prefix: string }> {

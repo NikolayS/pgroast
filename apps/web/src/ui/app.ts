@@ -2163,26 +2163,21 @@ function renderPatchPage(): string {
           </div>
           <div class="cli-bar" style="margin-bottom:6px;">
             <span class="cli-bar-label">Light</span>
-            <code class="mono cli-bar-cmd">npx pgroast ${cfId} --level light</code>
-            <button type="button" class="btn btn-ghost btn-sm" data-copy-cli="npx pgroast ${cfId} --level light">Copy</button>
+            <code class="mono cli-bar-cmd">npx pgroast ${cfId} --level light --publish</code>
+            <button type="button" class="btn btn-ghost btn-sm" data-copy-cli="npx pgroast ${cfId} --level light --publish">Copy</button>
           </div>
           <div class="cli-bar" style="margin-bottom:6px;">
             <span class="cli-bar-label">Medium</span>
-            <code class="mono cli-bar-cmd">npx pgroast ${cfId} --level medium</code>
-            <button type="button" class="btn btn-ghost btn-sm" data-copy-cli="npx pgroast ${cfId} --level medium">Copy</button>
-          </div>
-          <div class="cli-bar" style="margin-bottom:6px;">
-            <span class="cli-bar-label">Dark</span>
-            <code class="mono cli-bar-cmd">npx pgroast ${cfId} --level dark</code>
-            <button type="button" class="btn btn-ghost btn-sm" data-copy-cli="npx pgroast ${cfId} --level dark">Copy</button>
+            <code class="mono cli-bar-cmd">npx pgroast ${cfId} --level medium --publish</code>
+            <button type="button" class="btn btn-ghost btn-sm" data-copy-cli="npx pgroast ${cfId} --level medium --publish">Copy</button>
           </div>
           <div class="cli-bar">
-            <span class="cli-bar-label">Publish</span>
-            <code class="mono cli-bar-cmd">npx pgroast publish ./pgroast-out/cf-${cfId}/roast.json</code>
-            <button type="button" class="btn btn-ghost btn-sm" data-copy-cli="npx pgroast publish ./pgroast-out/cf-${cfId}/roast.json">Copy</button>
+            <span class="cli-bar-label">Dark</span>
+            <code class="mono cli-bar-cmd">npx pgroast ${cfId} --level dark --publish</code>
+            <button type="button" class="btn btn-ghost btn-sm" data-copy-cli="npx pgroast ${cfId} --level dark --publish">Copy</button>
           </div>
           <div class="dim" style="font-size:11px;margin-top:6px;">
-            Local runs need no account. Add <code class="mono">--publish</code> or run <code class="mono">npx pgroast login</code> once to share here.
+            First <code class="mono">--publish</code> signs you in automatically (saved in <code class="mono">~/.pgroast/auth.json</code>). Omit <code class="mono">--publish</code> to keep results local-only.
           </div>
         </div>
 
@@ -3083,20 +3078,25 @@ function renderConnectTab(): string {
 
       <div class="card">
         <div class="card-head">
-          <h3>Publish-Only Token (Backoffice → Public)</h3>
+          <h3>Publish-Only Token (CLI &amp; Backoffice → Public)</h3>
         </div>
+        <div class="muted" style="font-size:12.5px;margin-bottom:8px;">
+          <strong>From CLI (no manual token needed):</strong> run with <code class="mono">--publish</code> and <code class="mono">pgroast</code> signs you in automatically on first run:
+        </div>
+        <div class="cli-bar" style="margin-bottom:12px;">
+          <code class="mono cli-bar-cmd">npx pgroast 7388 --level light --publish</code>
+          <button type="button" class="btn btn-ghost btn-sm" data-copy-cli="npx pgroast 7388 --level light --publish">Copy</button>
+        </div>
+        ${
+          oauth?.githubConfigured || oauth?.googleConfigured
+            ? `
         <div class="sheet-actions" style="margin-bottom:12px;">
-          ${
-            oauth?.githubConfigured
-              ? `<a class="btn btn-secondary btn-lg" href="/auth/github">Sign in with GitHub</a>`
-              : `<button type="button" class="btn btn-secondary btn-lg" disabled title="GitHub OAuth is not configured on this server">Sign in with GitHub (not configured)</button>`
-          }
-          ${
-            oauth?.googleConfigured
-              ? `<a class="btn btn-secondary btn-lg" href="/auth/google">Sign in with Google</a>`
-              : `<button type="button" class="btn btn-secondary btn-lg" disabled title="Google OAuth is not configured on this server">Sign in with Google (not configured)</button>`
-          }
+          ${oauth?.githubConfigured ? `<a class="btn btn-secondary btn-lg" href="/auth/github">Sign in with GitHub</a>` : ""}
+          ${oauth?.googleConfigured ? `<a class="btn btn-secondary btn-lg" href="/auth/google">Sign in with Google</a>` : ""}
         </div>
+        `
+            : ""
+        }
         ${
           oauth?.devTokenMintEnabled
             ? `
@@ -3124,7 +3124,33 @@ function renderConnectTab(): string {
             }
           </div>
         `
-            : `<div class="muted" style="font-size:12px;border-top:1px solid var(--border);padding-top:10px;">Sign in with GitHub or Google above (when OAuth is configured), or ask the hub admin to issue a team publish token via <code class="mono">bun run web:mint-token --handle &lt;you&gt;</code> and paste it in Backoffice → Settings.</div>`
+            : !oauth?.githubConfigured && !oauth?.googleConfigured
+              ? `
+          <div style="border-top:1px solid var(--border);padding-top:12px;">
+            <div class="muted" style="font-size:12px;margin-bottom:8px;"><strong>Need a token for Personal Backoffice?</strong> Claim an unclaimed handle below (existing handles are protected):</div>
+            <div style="display:flex;flex-direction:column;gap:8px;">
+              <input id="cli-reg-handle" type="text" placeholder="Handle (e.g. your GitHub login)" />
+              <input id="cli-reg-name" type="text" placeholder="Display name (optional)" />
+              <button type="button" class="btn btn-primary btn-lg" id="cli-reg-mint-btn">Create Publish Token</button>
+            </div>
+            ${state.devMintError ? `<div class="sheet-callout sheet-callout-warn" style="margin-top:10px;font-size:12px;">${esc(state.devMintError)}</div>` : ""}
+            ${
+              state.mintedToken
+                ? `
+              <div class="sheet-callout" style="margin-top:10px;">
+                <div class="row" style="justify-content:space-between;margin-bottom:4px;">
+                  <strong style="font-size:12px;">Token for @${esc(state.mintedHandle)}</strong>
+                  <button type="button" class="btn btn-secondary btn-sm" id="dev-copy-token-btn">Copy token</button>
+                </div>
+                <code class="mono" style="word-break:break-all;font-size:12px;">${esc(state.mintedToken)}</code>
+                <div class="dim" style="font-size:11px;margin-top:6px;">Paste in Backoffice → Settings, or save for CLI with <code class="mono">npx pgroast login --token ${esc(state.mintedToken.slice(0, 18))}…</code></div>
+              </div>
+            `
+                : ""
+            }
+          </div>
+        `
+              : `<div class="muted" style="font-size:12px;border-top:1px solid var(--border);padding-top:10px;">Sign in above to mint a publish-only token for Personal Backoffice, or use <code class="mono">npx pgroast login</code> from your terminal.</div>`
         }
       </div>
     </div>
@@ -4082,6 +4108,27 @@ function render(): void {
   });
   document.getElementById("dev-copy-token-btn")?.addEventListener("click", (ev) => {
     copyTextWithFeedback(ev.currentTarget as HTMLElement, state.mintedToken, "Copy token");
+  });
+  document.getElementById("cli-reg-mint-btn")?.addEventListener("click", async () => {
+    const handle = (document.getElementById("cli-reg-handle") as HTMLInputElement | null)?.value.trim() || "";
+    const name = (document.getElementById("cli-reg-name") as HTMLInputElement | null)?.value.trim() || "";
+    if (!handle) {
+      state.devMintError = "Please enter a handle first.";
+      render();
+      return;
+    }
+    state.devMintError = "";
+    try {
+      const res = await api<{ token: string; contributor: { handle: string } }>("/api/v1/auth/cli-register", {
+        method: "POST",
+        body: JSON.stringify({ handle, name: name || handle }),
+      });
+      state.mintedToken = res.token;
+      state.mintedHandle = res.contributor.handle;
+    } catch (err) {
+      state.devMintError = err instanceof Error ? err.message : String(err);
+    }
+    render();
   });
   document.getElementById("dev-mint-btn")?.addEventListener("click", async () => {
     const provider = (document.getElementById("dev-prov") as HTMLSelectElement).value;

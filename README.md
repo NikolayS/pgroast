@@ -23,12 +23,13 @@ Install and configure the pgroast Personal Backoffice on this machine:
 6. Start the local Backoffice with `bun run app:local`, verify http://127.0.0.1:3432 responds, and show me the link plus optional settings (CommitFest login, publish token, local Postgres git clone) I can configure next.
 ```
 
-**Or try roasting one patch from the CLI right now (no install, no Backoffice, no account):**
+**Or roast and publish one patch from the CLI in a single command (no install, no Backoffice, no manual tokens):**
 
 ```bash
-npx pgroast doctor
-npx pgroast 7388 --level light
+npx pgroast 7388 --level light --publish
 ```
+
+On the first `--publish`, `pgroast` signs you in automatically (browser OAuth when configured on the hub, or instant CLI handle registration saved in `~/.pgroast/auth.json`). Omit `--publish` to keep the roast local only.
 
 Live public hub: **[https://pgroast.postgres.ai](https://pgroast.postgres.ai)** · [About roasting](https://pgroast.postgres.ai/about) · [5-Min Tutorial & API Docs](https://pgroast.postgres.ai/docs)
 
@@ -38,7 +39,7 @@ Live public hub: **[https://pgroast.postgres.ai](https://pgroast.postgres.ai)** 
 
 Given a `pgsql-hackers` thread or CommitFest entry, `pgroast` checks earlier rejected attempts and reverts, raises the strongest objections with concrete failure scenarios, and checks 15 Postgres touch points. A Critic pass then tries to refute every objection so only solid findings survive.
 
-Version: `v0.4.1`. The CLI writes local files only unless you explicitly pass `--publish`, run `pgroast publish`, or opt-in to `pgroast contribute --publish`. The Personal Backoffice (`apps/local`) adds explicit-confirmation CommitFest actions, local Gmail drafts, and opt-in publishing of sanitized roasts to the Public App (`apps/web`).
+Version: `v0.5.0`. The CLI writes local files only unless you explicitly pass `--publish`, run `pgroast publish`, or opt-in to `pgroast contribute --publish`. The Personal Backoffice (`apps/local`) adds explicit-confirmation CommitFest actions, local Gmail drafts, and opt-in publishing of sanitized roasts to the Public App (`apps/web`).
 
 ## What you get
 

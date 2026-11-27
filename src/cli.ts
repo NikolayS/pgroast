@@ -491,6 +491,17 @@ async function main(): Promise<number> {
     return 0;
   }
 
+  let publishAuth: { token: string; hubUrl: string } | null = null;
+  if (args.publish && !args.dryRun) {
+    const { ensurePublishAuth } = await import("./publish.ts");
+    const auth = await ensurePublishAuth({
+      hubUrl: args.hubUrl,
+      explicitToken: args.token,
+      log,
+    });
+    publishAuth = { token: auth.token, hubUrl: auth.hubUrl };
+  }
+
   log(`reading ${args.proposal ?? args.input} ...`);
   const includeCode = (args.roastLevel ?? "medium") !== "light";
   const maxCodeChars = (args.roastLevel ?? "medium") === "dark" ? 85_000 : 55_000;
@@ -552,14 +563,13 @@ async function main(): Promise<number> {
   log(`wrote ${join(outDir, "roast.json")}`);
   log(`wrote ${join(outDir, "roast-summary.txt")}`);
 
-  if (args.publish && !args.dryRun) {
-    const { DEFAULT_HUB_URL, publishRoastOpinion, resolvePublishToken } = await import("./publish.ts");
-    const resolved = resolvePublishToken(args.token);
+  if (args.publish && !args.dryRun && publishAuth) {
+    const { publishRoastOpinion } = await import("./publish.ts");
     const pub = await publishRoastOpinion({
       roast,
       summaryTxt: summaryText,
-      hubUrl: args.hubUrl || process.env.PGROAST_PUBLIC_HUB_URL || resolved.hubUrl || DEFAULT_HUB_URL,
-      token: resolved.token,
+      hubUrl: publishAuth.hubUrl,
+      token: publishAuth.token,
     });
     log(`${st.bold(st.green("published:"))} ${pub.patchUrl}`);
   }
