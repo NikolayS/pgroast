@@ -3649,14 +3649,24 @@ html, body {
   color: var(--muted);
   border: 1px solid var(--border-s);
 }
+.filter-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.filter-bar .chips {
+  margin-bottom: 0;
+}
 .op-controls {
   display: flex;
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+  min-width: 0;
 }
 .op-controls select {
-  height: 36px;
+  height: 38px;
   padding: 0 10px;
   border-radius: 9px;
   border: 1px solid var(--border-s);

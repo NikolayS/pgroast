@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.4.2 (2026-11-27)
+
+Fixes a desktop layout glitch on `/roasts` where the search input and filter chips touched with zero vertical gap.
+
+### Changes
+
+- **Roasts Filter Bar Spacing (`apps/web/src/ui/styles.css`):**
+  - Added `.filter-bar` flex-column layout with uniform `10px` vertical spacing between the search/dropdown bar, verification-depth chips, and verdict chips (`14px` bottom margin before the list).
+  - Matched `.op-controls select` height (`38px`) to `.search-box input` for clean horizontal alignment.
+
 ## v0.4.1 (2026-11-27)
 
 This release brings the CLI fully in sync with the Medium/Dark verification pipeline, adds missing flags (`--pg-repo`, `--skip-verify`, `--model`, `--effort`, `--publish`), fixes a bug where `pgroast <id> --level dark` skipped its default reflection round, and expands `pgroast doctor` to check Postgres build tools and publish login status.
