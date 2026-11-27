@@ -798,12 +798,22 @@ export async function getHackerProfileBySlug(db: WebDatabase, slug: string, requ
       }>
     >,
     db.sql.unsafe(
-      `SELECT cf_id, title, status, topic, authors, reviewers, committer, verdict
-       FROM ${db.t("public_entries")}
-       WHERE authors ILIKE $1 OR reviewers ILIKE $1 OR committer ILIKE $1
-       ORDER BY recommended_score DESC, cf_id DESC
-       LIMIT 40`,
-      [`%${p.canonical_name}%`],
+      `WITH pat AS (
+         SELECT DISTINCT '%' || nm || '%' AS p FROM (
+           SELECT $1::text AS nm
+           UNION ALL
+           SELECT display_name FROM ${db.t("person_identities")}
+           WHERE person_id = $2 AND LENGTH(TRIM(display_name)) >= 4
+         ) s WHERE LENGTH(TRIM(nm)) >= 2
+       )
+       SELECT DISTINCT e.cf_id, e.title, e.status, e.topic, e.authors, e.reviewers, e.committer, e.verdict, e.recommended_score
+       FROM ${db.t("public_entries")} e
+       WHERE EXISTS (
+         SELECT 1 FROM pat WHERE e.authors ILIKE pat.p OR e.reviewers ILIKE pat.p OR e.committer ILIKE pat.p
+       )
+       ORDER BY e.recommended_score DESC, e.cf_id DESC
+       LIMIT 200`,
+      [p.canonical_name, pid],
     ) as Promise<
       Array<{
         cf_id: number;

@@ -30,6 +30,7 @@ import {
   renderHackerDirectoryCards,
   renderHackerProfilePage,
   renderHackersTab,
+  type HackerCfRoleFilter,
   type HackerLbKind,
   type HackerListItem,
   type HackerProfileData,
@@ -319,6 +320,7 @@ const state = {
   hackerProfileLoading: false,
   hackerProfileError: "",
   hackerProfileTab: "commits" as HackerProfileTab,
+  hackerCfRoleFilter: "all" as HackerCfRoleFilter,
   hackersOverview: null as HackersOverviewData | null,
   hackersLoading: false,
   hackersError: "",
@@ -734,6 +736,7 @@ async function openHackerProfile(slug: string, pushHistory = true, year?: number
   if (switchingPerson) {
     state.hackerProfile = null;
     state.hackerProfileTab = "commits";
+    state.hackerCfRoleFilter = "all";
   }
 
   if (pushHistory && switchingPerson) {
@@ -3329,6 +3332,7 @@ function render(): void {
       loading: state.hackerProfileLoading,
       error: state.hackerProfileError,
       activeTab: state.hackerProfileTab,
+      cfRoleFilter: state.hackerCfRoleFilter,
       backLabel,
     });
     const slug = state.activeHackerSlug;
@@ -3350,12 +3354,31 @@ function render(): void {
         render();
       });
     });
-    document.querySelectorAll<HTMLButtonElement>("[data-hacker-jump-tab]").forEach((btn) => {
+    document.querySelectorAll<HTMLButtonElement>("[data-hacker-cf-role]").forEach((btn) => {
       btn.addEventListener("click", () => {
-        state.hackerProfileTab = (btn.dataset.hackerJumpTab as HackerProfileTab) || "commits";
+        state.hackerCfRoleFilter = (btn.dataset.hackerCfRole as HackerCfRoleFilter) || "all";
+        render();
+      });
+    });
+    document.querySelectorAll<HTMLElement>("[data-hacker-jump-tab]").forEach((el) => {
+      const jump = (ev?: Event) => {
+        ev?.stopPropagation();
+        state.hackerProfileTab = (el.dataset.hackerJumpTab as HackerProfileTab) || "commits";
+        if (el.dataset.hackerJumpRole) {
+          state.hackerCfRoleFilter = (el.dataset.hackerJumpRole as HackerCfRoleFilter) || "all";
+        }
         render();
         document.getElementById("hacker-activity-feed")?.scrollIntoView({ behavior: "smooth", block: "start" });
-      });
+      };
+      el.addEventListener("click", jump);
+      if (el.tagName.toLowerCase() !== "button") {
+        el.addEventListener("keydown", (ev) => {
+          if (ev.key === "Enter" || ev.key === " ") {
+            ev.preventDefault();
+            jump(ev);
+          }
+        });
+      }
     });
     bindHackerClicks(root);
     bindPatchRowClicks(root);

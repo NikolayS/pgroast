@@ -958,6 +958,16 @@ export async function createWebHandler(opts?: {
           },
         });
       }
+      if (method === "GET" && path === "/theme-init.js") {
+        const initScript = `(function(){try{var v={dark:"#0b0c0e",light:"#ffffff",paper:"#f7f3ea",espresso:"#14100d",nord:"#2e3440",tokyo:"#1a1b26",postgres:"#f6f9fc",contrast:"#000000"};var m=localStorage.getItem("pgroast-web-theme")||"system";var d=localStorage.getItem("pgroast-web-theme-day");var n=localStorage.getItem("pgroast-web-theme-night");if(!v[d])d="paper";if(!v[n])n="espresso";var dark=window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches;var r=m==="system"?(dark?n:d):(v[m]?m:(dark?n:d));document.documentElement.setAttribute("data-theme",r);var meta=document.getElementById("meta-theme-color");if(meta&&v[r])meta.setAttribute("content",v[r]);}catch(e){}})();`;
+        return new Response(initScript, {
+          headers: {
+            "Content-Type": "application/javascript; charset=utf-8",
+            "Cache-Control": "public, max-age=3600",
+            ...securityHeaders("app"),
+          },
+        });
+      }
       if (method === "GET" && path === "/styles.css") {
         const cache = url.searchParams.has("v") ? "public, max-age=31536000, immutable" : "no-store";
         return new Response(readFileSync(cssPath, "utf8"), {

@@ -781,14 +781,18 @@ export function renderHackerDirectoryCards(directory: HackerListItem[]): string 
     .join("");
 }
 
+export type HackerCfRoleFilter = "all" | "author" | "reviewer" | "committer";
+
 export function renderHackerProfilePage(params: {
   profile: HackerProfileData | null;
   loading: boolean;
   error: string;
   activeTab: HackerProfileTab;
+  cfRoleFilter?: HackerCfRoleFilter;
   backLabel: string;
 }): string {
   const { profile, loading, error, activeTab, backLabel } = params;
+  const cfRoleFilter: HackerCfRoleFilter = params.cfRoleFilter ?? "all";
   if (loading && !profile) {
     return renderHackerProfileSkeleton();
   }
@@ -815,6 +819,27 @@ export function renderHackerProfilePage(params: {
     { label: "Reviewed", val: p.reviewsGiven, color: "var(--viz-2)" },
     { label: "Bugs reported", val: p.bugsReported, color: "var(--viz-3)" },
   ].filter((x) => x.val > 0);
+
+  const personNeedles = Array.from(
+    new Set(
+      [p.name, ...(p.aliases || [])]
+        .map((s) => s.trim().toLowerCase())
+        .filter((s) => s.length >= 2),
+    ),
+  );
+  const matchesPersonField = (field: string) => {
+    const low = (field || "").toLowerCase();
+    return Boolean(low && personNeedles.some((n) => low.includes(n)));
+  };
+  const classifiedCfs = profile.commitfestEntries.map((e) => ({
+    ...e,
+    isAuthor: matchesPersonField(e.authors || ""),
+    isReviewer: matchesPersonField(e.reviewers || ""),
+    isCommitter: matchesPersonField(e.committer || ""),
+  }));
+  const cfAuthCount = classifiedCfs.filter((e) => e.isAuthor).length;
+  const cfRevCount = classifiedCfs.filter((e) => e.isReviewer).length;
+  const cfCommCount = classifiedCfs.filter((e) => e.isCommitter).length;
 
   const renderCollabGroup = (title: string, items: Array<{ slug: string; name: string; role: string; count: number }>) => `
     <div class="obs-collab-col">
@@ -900,18 +925,51 @@ export function renderHackerProfilePage(params: {
       `;
     }
     if (activeTab === "commitfest") {
-      if (profile.commitfestEntries.length === 0) return `<div class="empty-state">No matching CommitFest entries indexed.</div>`;
+      if (classifiedCfs.length === 0) return `<div class="empty-state">No matching CommitFest entries indexed.</div>`;
+      const filteredCfs =
+        cfRoleFilter === "author"
+          ? classifiedCfs.filter((e) => e.isAuthor)
+          : cfRoleFilter === "reviewer"
+            ? classifiedCfs.filter((e) => e.isReviewer)
+            : cfRoleFilter === "committer"
+              ? classifiedCfs.filter((e) => e.isCommitter)
+              : classifiedCfs;
+      const verdictBadge = (v: string) => {
+        const up = (v || "").toUpperCase();
+        if (!up || up === "UNROASTED") return "";
+        const cls =
+          up === "LIKELY-REJECT"
+            ? "p-bad"
+            : up === "NO-FUNDAMENTAL-OBJECTION"
+              ? "p-ok"
+              : "p-warn";
+        return `<span class="pill ${cls}" style="font-size:10.5px;">${esc(up)}</span>`;
+      };
       return `
+        <div class="mr-participants-bar" style="margin-bottom:10px;" aria-label="Filter CommitFest entries by role">
+          <button type="button" class="chip ${cfRoleFilter === "all" ? "active" : ""}" data-hacker-cf-role="all">All (${classifiedCfs.length})</button>
+          <button type="button" class="chip ${cfRoleFilter === "author" ? "active" : ""}" data-hacker-cf-role="author">Author (${cfAuthCount})</button>
+          <button type="button" class="chip ${cfRoleFilter === "reviewer" ? "active" : ""}" data-hacker-cf-role="reviewer">Reviewer (${cfRevCount})</button>
+          <button type="button" class="chip ${cfRoleFilter === "committer" ? "active" : ""}" data-hacker-cf-role="committer">Committer (${cfCommCount})</button>
+        </div>
+        ${
+          filteredCfs.length === 0
+            ? `<div class="empty-state">No CommitFest entries as ${esc(cfRoleFilter)}.</div>`
+            : `
         <div class="issue-list">
-          ${profile.commitfestEntries
+          ${filteredCfs
             .map(
               (e) => `
             <button type="button" class="issue-row" data-open-patch="${e.cf_id}">
               <div class="issue-top">
                 <div class="issue-id-group">
                   <span class="mono issue-id">CF ${e.cf_id}</span>
+                  ${e.isAuthor ? `<span class="cf-role-pill cf-role-author">Author</span>` : ""}
+                  ${e.isReviewer ? `<span class="cf-role-pill cf-role-reviewer">Reviewer</span>` : ""}
+                  ${e.isCommitter ? `<span class="cf-role-pill cf-role-committer">Committer</span>` : ""}
                   <span class="issue-status">${esc(e.status || "—")}</span>
                   ${e.topic ? `<span class="tag-micro">${esc(e.topic)}</span>` : ""}
+                  ${verdictBadge(e.verdict)}
                 </div>
               </div>
               <div class="issue-title">${esc(e.title)}</div>
@@ -925,6 +983,8 @@ export function renderHackerProfilePage(params: {
             )
             .join("")}
         </div>
+        `
+        }
       `;
     }
     if (activeTab === "lists") {
@@ -998,11 +1058,6 @@ export function renderHackerProfilePage(params: {
     p.bugsReported > 0 ||
     p.suggestionsGiven > 0 ||
     p.testsGiven > 0;
-  const nameLc = p.name.trim().toLowerCase();
-  const matchesPerson = (field: string) => Boolean(nameLc && field.toLowerCase().includes(nameLc));
-  const cfAuthCount = Math.max(p.cfAuthored, profile.commitfestEntries.filter((e) => matchesPerson(e.authors || "")).length);
-  const cfRevCount = Math.max(p.cfReviewed, profile.commitfestEntries.filter((e) => matchesPerson(e.reviewers || "")).length);
-  const cfCommCount = Math.max(p.cfCommitted, profile.commitfestEntries.filter((e) => matchesPerson(e.committer || "")).length);
 
   return `
     <div class="patch-crumb">
@@ -1094,11 +1149,15 @@ export function renderHackerProfilePage(params: {
         <div class="kpi-v">${fmtNum(p.suggestionsGiven + p.testsGiven)}</div>
         <div class="kpi-sub">${fmtNum(p.suggestionsGiven)} sug · ${fmtNum(p.testsGiven)} test</div>
       </button>
-      <button type="button" class="kpi kpi-clickable ${profile.commitfestEntries.length > 0 ? "kpi-has-data" : ""}" data-hacker-jump-tab="commitfest" title="Jump to CommitFest entries">
+      <div class="kpi kpi-clickable ${profile.commitfestEntries.length > 0 ? "kpi-has-data" : ""}" role="button" tabindex="0" data-hacker-jump-tab="commitfest" data-hacker-jump-role="all" title="Jump to CommitFest entries">
         <div class="kpi-l">CommitFest entries</div>
         <div class="kpi-v">${fmtNum(profile.commitfestEntries.length)}</div>
-        <div class="kpi-sub">${cfAuthCount} auth · ${cfRevCount} rev · ${cfCommCount} comm</div>
-      </button>
+        <div class="kpi-sub">
+          <button type="button" class="kpi-role-chip" data-hacker-jump-tab="commitfest" data-hacker-jump-role="author">${cfAuthCount} auth</button>
+          · <button type="button" class="kpi-role-chip" data-hacker-jump-tab="commitfest" data-hacker-jump-role="reviewer">${cfRevCount} rev</button>
+          · <button type="button" class="kpi-role-chip" data-hacker-jump-tab="commitfest" data-hacker-jump-role="committer">${cfCommCount} comm</button>
+        </div>
+      </div>
     </div>
 
     ${
