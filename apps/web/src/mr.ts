@@ -756,3 +756,75 @@ export async function fetchMrDiffForCf(cfId: number): Promise<MrDiffResult> {
   inflightDiffs.set(cfId, job);
   return job;
 }
+
+import { CF_BASE, finalStatus, parsePatch } from "../../../src/corpus/cf.ts";
+import { flatUrl } from "../../../src/corpus/util.ts";
+
+export interface LiveCommitfestPatchMeta {
+  cf_id: number;
+  title: string;
+  status: string;
+  authors: string;
+  reviewers: string;
+  committer: string;
+  thread_url: string;
+  kind: string;
+}
+
+const liveCfMissCache = new Map<number, number>();
+const liveCfInflight = new Map<number, Promise<LiveCommitfestPatchMeta | null>>();
+
+/**
+ * Fetch a CommitFest patch page live when it is not yet cached in public_entries
+ * (for example, a newly created patch in PG20-4 or an archived older CF).
+ */
+export async function fetchLiveCommitfestPatch(cfId: number): Promise<LiveCommitfestPatchMeta | null> {
+  if (!Number.isInteger(cfId) || cfId <= 0) return null;
+  const missUntil = liveCfMissCache.get(cfId);
+  if (missUntil && missUntil > Date.now()) return null;
+  const existing = liveCfInflight.get(cfId);
+  if (existing) return existing;
+
+  const job = (async (): Promise<LiveCommitfestPatchMeta | null> => {
+    try {
+      const res = await fetch(`${CF_BASE}/patch/${cfId}/`, {
+        headers: { "User-Agent": "pgroast-web/0.3 (+https://pgroast.postgres.ai)" },
+        signal: AbortSignal.timeout(8_000),
+      });
+      if (!res.ok) {
+        liveCfMissCache.set(cfId, Date.now() + NEGATIVE_CACHE_TTL_MS);
+        return null;
+      }
+      const html = await res.text();
+      const parsed = parsePatch(html);
+      if (!parsed || !parsed.title) {
+        liveCfMissCache.set(cfId, Date.now() + NEGATIVE_CACHE_TTL_MS);
+        return null;
+      }
+      const status = finalStatus(parsed) || "Needs review";
+      const firstThread = parsed.threads[0];
+      const threadUrl = firstThread?.msgid ? flatUrl(firstThread.msgid) : "";
+      const isBug =
+        parsed.tags.some((t) => /bug/i.test(t)) ||
+        /\b(bug\s*#\d+|fix\b|crash|segfault|panic|leak|deadlock|race)\b/i.test(parsed.title);
+      return {
+        cf_id: cfId,
+        title: parsed.title,
+        status,
+        authors: parsed.authors,
+        reviewers: parsed.reviewers,
+        committer: parsed.committer,
+        thread_url: threadUrl,
+        kind: isBug ? "bugfix" : "feature",
+      };
+    } catch {
+      liveCfMissCache.set(cfId, Date.now() + 60_000);
+      return null;
+    } finally {
+      liveCfInflight.delete(cfId);
+    }
+  })();
+
+  liveCfInflight.set(cfId, job);
+  return job;
+}

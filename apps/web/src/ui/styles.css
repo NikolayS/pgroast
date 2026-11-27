@@ -4101,3 +4101,16 @@ body:has(#web-main > .skel-page) .footer {
     padding-bottom: max(6px, env(safe-area-inset-bottom));
   }
 }
+
+/* ---- Clickable contributor links on patch pages ---- */
+.person-profile-link {
+  color: var(--accent-t);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--accent-t) 40%, transparent);
+  text-underline-offset: 2px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.person-profile-link:hover {
+  text-decoration-color: var(--accent-t);
+}

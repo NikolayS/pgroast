@@ -1005,3 +1005,109 @@ export async function resolvePersonSlugByName(db: WebDatabase, rawName: string):
   )) as Array<{ slug: string }>;
   return byId[0]?.slug ?? null;
 }
+
+export interface PersonProfileLink {
+  raw: string;
+  name: string;
+  slug: string | null;
+}
+
+function normalizePersonLookupKey(s: string): string {
+  return (s || "")
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function splitCommitfestPeople(raw: string): Array<{ raw: string; name: string; key: string }> {
+  const out: Array<{ raw: string; name: string; key: string }> = [];
+  for (const part of (raw || "").split(/,\s*/)) {
+    const trimmed = part.trim();
+    if (!trimmed) continue;
+    const stripped = trimmed.replace(/\s*\([^)]*\)\s*/g, " ").replace(/\s+/g, " ").trim();
+    const name = stripped || trimmed;
+    const key = normalizePersonLookupKey(name);
+    if (key) out.push({ raw: trimmed, name, key });
+  }
+  return out;
+}
+
+/**
+ * Resolve CommitFest author / reviewer / committer strings to unified `/hacker/<slug>` profiles.
+ */
+export async function resolvePeopleLinksForEntry(
+  db: WebDatabase,
+  entry: { authors?: string; reviewers?: string; committer?: string } | null | undefined,
+): Promise<{
+  authors: PersonProfileLink[];
+  reviewers: PersonProfileLink[];
+  committer: PersonProfileLink[];
+}> {
+  if (!entry) return { authors: [], reviewers: [], committer: [] };
+  const aParts = splitCommitfestPeople(entry.authors || "");
+  const rParts = splitCommitfestPeople(entry.reviewers || "");
+  const cParts = splitCommitfestPeople(entry.committer || "");
+  const allKeys = Array.from(new Set([...aParts, ...rParts, ...cParts].map((p) => p.key)));
+  if (allKeys.length === 0) return { authors: [], reviewers: [], committer: [] };
+
+  const slugByKey = new Map<string, string>();
+  const placeholders = allKeys.map((_, i) => `$${i + 1}`).join(", ");
+  const [peopleRows, identRows] = await Promise.all([
+    db.sql.unsafe(
+      `SELECT slug, canonical_name, commits_authored + commits_committed + cf_authored AS weight
+       FROM ${db.t("people")}
+       WHERE LOWER(canonical_name) IN (${placeholders})
+       ORDER BY weight DESC`,
+      allKeys,
+    ) as Promise<Array<{ slug: string; canonical_name: string }>>,
+    db.sql.unsafe(
+      `SELECT p.slug, pi.normalized_name, pi.display_name, p.commits_authored + p.commits_committed + p.cf_authored AS weight
+       FROM ${db.t("person_identities")} pi
+       JOIN ${db.t("people")} p ON p.id = pi.person_id
+       WHERE pi.normalized_name IN (${placeholders}) OR LOWER(pi.display_name) IN (${placeholders})
+       ORDER BY weight DESC`,
+      allKeys,
+    ) as Promise<Array<{ slug: string; normalized_name: string; display_name: string }>>,
+  ]);
+
+  for (const r of peopleRows) {
+    const k = normalizePersonLookupKey(r.canonical_name);
+    if (k && !slugByKey.has(k)) slugByKey.set(k, r.slug);
+  }
+  for (const r of identRows) {
+    const k1 = normalizePersonLookupKey(r.normalized_name);
+    const k2 = normalizePersonLookupKey(r.display_name);
+    if (k1 && !slugByKey.has(k1)) slugByKey.set(k1, r.slug);
+    if (k2 && !slugByKey.has(k2)) slugByKey.set(k2, r.slug);
+  }
+
+  // Fallback for diacritics or multi-space canonical names not matched by plain LOWER()
+  const missing = allKeys.filter((k) => !slugByKey.has(k));
+  if (missing.length > 0) {
+    const fuzzy = (await db.sql.unsafe(
+      `SELECT slug, canonical_name FROM ${db.t("people")} ORDER BY (commits_authored + commits_committed + cf_authored) DESC`,
+    )) as Array<{ slug: string; canonical_name: string }>;
+    const missingSet = new Set(missing);
+    for (const r of fuzzy) {
+      const k = normalizePersonLookupKey(r.canonical_name);
+      if (missingSet.has(k) && !slugByKey.has(k)) {
+        slugByKey.set(k, r.slug);
+      }
+    }
+  }
+
+  const mapList = (list: Array<{ raw: string; name: string; key: string }>): PersonProfileLink[] =>
+    list.map((p) => ({
+      raw: p.raw,
+      name: p.name,
+      slug: slugByKey.get(p.key) || null,
+    }));
+
+  return {
+    authors: mapList(aParts),
+    reviewers: mapList(rParts),
+    committer: mapList(cParts),
+  };
+}

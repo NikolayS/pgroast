@@ -8,11 +8,12 @@ import {
   getHackerProfileBySlug,
   getHackersOverview,
   getTopHackerSlugsForSitemap,
+  resolvePeopleLinksForEntry,
   resolvePersonSlugByName,
   searchHackers,
 } from "./hackers-queries.ts";
 import { getMailingListsOverview, searchMailingListMessages } from "./lists-queries.ts";
-import { fetchMrDiffForCf, fetchMrDiscussionForCf, matchThreadToDiff } from "./mr.ts";
+import { fetchLiveCommitfestPatch, fetchMrDiffForCf, fetchMrDiscussionForCf, matchThreadToDiff } from "./mr.ts";
 import { checkPublicPayloadSafe, safeHttpUrl, securityHeaders } from "./security.ts";
 import { getStatsOverview } from "./stats-queries.ts";
 
@@ -845,7 +846,14 @@ export async function createWebHandler(opts?: {
           }
         } else if (cfId > 0) {
           canonical = `${origin}/patch/${cfId}`;
-          const entry = await db.getEntry(cfId);
+          let entry = await db.getEntry(cfId);
+          if (!entry) {
+            const live = await fetchLiveCommitfestPatch(cfId);
+            if (live) {
+              await db.upsertPublicEntry(live);
+              entry = await db.getEntry(cfId);
+            }
+          }
           if (entry) {
             title = `CF ${entry.cf_id}: ${entry.title} — pgroast`;
             const parts = [
@@ -1445,7 +1453,7 @@ export async function createWebHandler(opts?: {
       // ---- Public Entries & Attributed Opinions ----
       if (method === "GET" && path === "/api/v1/entries") {
         const rawLimit = Number(url.searchParams.get("limit") || 300);
-        const limit = Number.isFinite(rawLimit) ? Math.max(1, Math.min(1000, Math.trunc(rawLimit))) : 300;
+        const limit = Number.isFinite(rawLimit) ? Math.max(1, Math.min(2000, Math.trunc(rawLimit))) : 300;
         const entries = await db.listEntries({
           search: url.searchParams.get("search") || undefined,
           verdict: url.searchParams.get("verdict") || undefined,
@@ -1458,17 +1466,29 @@ export async function createWebHandler(opts?: {
       if (method === "GET" && entryDetailMatch) {
         const cfId = parsePositivePgInt(entryDetailMatch[1]);
         if (!cfId) return errJson("Invalid cf_id", 400);
-        const [entry, opinions, coordination] = await Promise.all([
+        let [entry, opinions, coordination] = await Promise.all([
           db.getEntry(cfId),
           db.listOpinions(cfId, 100),
           db.listCoordination(cfId),
         ]);
+        if (!entry) {
+          const live = await fetchLiveCommitfestPatch(cfId);
+          if (live) {
+            await db.upsertPublicEntry(live);
+            entry = await db.getEntry(cfId);
+          }
+        }
+        const peopleLinks = await resolvePeopleLinksForEntry(db, entry).catch(() => ({
+          authors: [],
+          reviewers: [],
+          committer: [],
+        }));
         const consensus = computePatchConsensus(opinions, entry?.verdict);
         const ua = req.headers.get("user-agent") || "";
         if (req.headers.get("x-pgroast-view") === "1" && !BOT_UA_RE.test(ua)) {
           void db.recordPageView({ path: `/patch/${cfId}`, cfId, refHost: "" });
         }
-        return json({ cf_id: cfId, entry, opinions, coordination, consensus }, 200, req);
+        return json({ cf_id: cfId, entry, opinions, coordination, consensus, peopleLinks }, 200, req);
       }
 
       const entryThreadMatch = path.match(/^\/api\/v1\/entries\/(\d+)\/thread$/);

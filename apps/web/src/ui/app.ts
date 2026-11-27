@@ -290,12 +290,23 @@ interface PatchConsensus {
   headline: string;
 }
 
+interface PersonProfileLink {
+  raw: string;
+  name: string;
+  slug: string | null;
+}
+
 interface PatchPageData {
   cf_id: number;
   entry: EntryItem | null;
   opinions: OpinionItem[];
   coordination: CoordItem[];
   consensus: PatchConsensus;
+  peopleLinks?: {
+    authors: PersonProfileLink[];
+    reviewers: PersonProfileLink[];
+    committer: PersonProfileLink[];
+  };
 }
 
 const state = {
@@ -953,12 +964,13 @@ async function loadAll(): Promise<void> {
       void loadStatsOverview();
     }
 
-    const [health, views, bRes, oRes, cRes] = await Promise.all([
+    const [health, views, bRes, oRes, cRes, eRes] = await Promise.all([
       api<HealthInfo>("/api/v1/health"),
       api<PageViewsInfo>("/api/v1/views").catch(() => null),
       api<{ briefs: BriefSummary[] }>("/api/v1/briefs"),
       api<{ opinions: OpinionItem[] }>("/api/v1/opinions?limit=1000"),
       api<{ items: CoordItem[] }>("/api/v1/coordination"),
+      api<{ entries: EntryItem[] }>("/api/v1/entries?limit=2000").catch(() => ({ entries: [] as EntryItem[] })),
     ]);
     state.health = health;
     state.views = views;
@@ -969,16 +981,11 @@ async function loadAll(): Promise<void> {
     if (bRes.briefs[0]) {
       if (state.selectedBriefSlug === "latest") state.selectedBriefSlug = bRes.briefs[0].slug;
       await loadBriefDetail(state.selectedBriefSlug);
-      // Avoid downloading all entries twice: reuse entries already inside the published brief!
-      if (state.briefDetail?.entries?.length) {
-        state.entries = state.briefDetail.entries;
-      } else {
-        const eRes = await api<{ entries: EntryItem[] }>("/api/v1/entries?limit=1000");
-        state.entries = eRes.entries;
-      }
-    } else {
-      const eRes = await api<{ entries: EntryItem[] }>("/api/v1/entries?limit=1000");
+    }
+    if (eRes.entries.length > 0) {
       state.entries = eRes.entries;
+    } else if (state.briefDetail?.entries?.length) {
+      state.entries = state.briefDetail.entries;
     }
 
     // Overlay live community opinion verdicts (Dark > Medium > Light) onto entries so Entries stays in sync with live opinions!
@@ -1837,12 +1844,32 @@ function renderPatchPage(): string {
     return `<span class="opinion-model-badge">${verdictDot(o.verdict)} <strong>${esc(handle)}</strong> <span class="dim">·</span> <span class="mono">${esc(spec)}</span> <span class="dim">·</span> <span>${esc(lv)}</span></span>`;
   });
 
+  const renderLinkedPeople = (links: PersonProfileLink[] | undefined, fallbackText: string, boldFallback = false): string => {
+    if (links && links.length > 0) {
+      return links
+        .map((p) =>
+          p.slug
+            ? `<a class="person-profile-link" href="/hacker/${encodeURIComponent(p.slug)}" data-open-hacker="${esc(p.slug)}" title="View ${esc(p.name)}'s Postgres profile &amp; patches">${esc(p.raw)}</a>`
+            : boldFallback
+              ? `<strong>${esc(p.raw)}</strong>`
+              : esc(p.raw),
+        )
+        .join(", ");
+    }
+    return boldFallback ? `<strong>${esc(fallbackText)}</strong>` : esc(fallbackText);
+  };
+
+  const pLinks = state.patchData?.peopleLinks;
+  const authorsHtml = authors ? renderLinkedPeople(pLinks?.authors, authors, true) : "";
+  const reviewersHtml = reviewers ? renderLinkedPeople(pLinks?.reviewers, reviewers, false) : "";
+  const committerHtml = committer ? renderLinkedPeople(pLinks?.committer, committer, false) : "";
+
   const kvRows: Array<[string, string]> = [];
   if (status) kvRows.push(["CF Status", esc(status)]);
   if (topic) kvRows.push(["Subsystem", esc(topic)]);
-  if (authors) kvRows.push(["Authors", esc(authors)]);
-  if (reviewers) kvRows.push(["Reviewers", esc(reviewers)]);
-  if (committer) kvRows.push(["Committer", esc(committer)]);
+  if (authorsHtml) kvRows.push(["Authors", authorsHtml]);
+  if (reviewersHtml) kvRows.push(["Reviewers", reviewersHtml]);
+  if (committerHtml) kvRows.push(["Committer", committerHtml]);
 
   return `
     <div class="patch-crumb">
@@ -1868,9 +1895,9 @@ function renderPatchPage(): string {
       </div>
       <h1 class="patch-hero-title">${esc(title)}</h1>
       <div class="muted" style="font-size:12.5px;">
-        ${authors ? `Authors: <strong>${esc(authors)}</strong>` : ""}
-        ${reviewers ? ` · Reviewers: ${esc(reviewers)}` : ""}
-        ${committer ? ` · Committer: ${esc(committer)}` : ""}
+        ${authorsHtml ? `Authors: ${authorsHtml}` : ""}
+        ${reviewersHtml ? ` · Reviewers: ${reviewersHtml}` : ""}
+        ${committerHtml ? ` · Committer: ${committerHtml}` : ""}
       </div>
     </div>
 
@@ -3130,11 +3157,16 @@ function bindCliCopyButtons(container: HTMLElement | Document): void {
 
 function bindHackerClicks(container: HTMLElement | Document): void {
   container.querySelectorAll<Element>("[data-open-hacker]").forEach((el) => {
-    const activate = () => {
+    const activate = (ev?: Event) => {
+      if (ev && el.tagName.toLowerCase() === "a") {
+        const me = ev as MouseEvent;
+        if (me.metaKey || me.ctrlKey || me.shiftKey || me.altKey || me.button === 1) return;
+        ev.preventDefault();
+      }
       const slug = el.getAttribute("data-open-hacker") || "";
       if (slug) void openHackerProfile(slug, true);
     };
-    el.addEventListener("click", activate);
+    el.addEventListener("click", (ev) => activate(ev));
     if (el.tagName.toLowerCase() !== "button" && el.tagName.toLowerCase() !== "a") {
       el.addEventListener("keydown", (ev) => {
         const ke = ev as KeyboardEvent;
@@ -3317,6 +3349,7 @@ function render(): void {
     };
 
     // GitLab MR-style tab switching (Overview / Discussion / Changes)
+    bindHackerClicks(root);
     document.querySelectorAll<HTMLButtonElement>("[data-mr-tab]").forEach((btn) => {
       btn.addEventListener("click", () => {
         switchMrTab((btn.dataset.mrTab as MrTabId) || "overview");

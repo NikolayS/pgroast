@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.3.0-alpha.26 (2026-11-27)
+
+This release makes authors, reviewers, and committers on every patch page clickable links to their `/hacker/<slug>` contributor profiles, adds live on-demand fetching from `commitfest.postgresql.org` for any unindexed CommitFest patch, and adds `bun run web:sync-cf` to keep active CommitFests (including PG20-4 `#63`) synced.
+
+### Changes
+
+- **Clickable Contributor Profiles on Patch Pages (`apps/web/src/hackers-queries.ts`, `server.ts`, `ui/app.ts`):**
+  - Added `resolvePeopleLinksForEntry()` in `GET /api/v1/entries/:cfId` to map CommitFest authors, reviewers, and committers to their unified `/hacker/<slug>` profiles.
+  - Rendered clickable profile links in both the Patch Hero and Patch Details sidebar (for example, clicking `SeongJun Shin` on `/patch/6819` opens `/hacker/seongjun-shin` with all his patches and mailing list posts).
+- **Live On-Demand CommitFest Fallback & PG20-4 Sync (`apps/web/src/mr.ts`, `server.ts`, `sync-cf.ts`, `db.ts`, `ui/app.ts`):**
+  - Added `fetchLiveCommitfestPatch()` fallback in `GET /api/v1/entries/:cfId` and SSR `/patch/:cfId` so visiting any valid CommitFest patch ID not yet cached locally (such as `/patch/7726` in PG20-4) fetches, caches, and serves it immediately.
+  - Added `bun run web:sync-cf` to sync active CommitFests (`PG20-3 #62` and `PG20-4 #63`) into `public_entries` while preserving existing AI verdicts, scores, and production flags, and loaded the full live entry list in `Entries`.
+
 ## v0.3.0-alpha.25 (2026-11-27)
 
 This release updates Home to open with **"Let's roast Postgres patches!"**, adds full iOS Safari and Android Home Screen standalone app support, hides the footer while skeletons are preloading, and tightens copy across Home, About, Docs, and Stats in `nik-voice` with **Postgres** preferred over PostgreSQL.
