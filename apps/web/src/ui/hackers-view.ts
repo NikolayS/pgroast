@@ -1,3 +1,15 @@
+import {
+  renderBusFactorQuadrantSvg,
+  renderCollabConstellationSvg,
+  renderCommitterConcentrationSvg,
+  renderRadialUtcClockSvg,
+  renderReleaseCycleRaceSvg,
+  renderSponsorshipTimelineSvg,
+  type ConcentrationYearPoint,
+  type ReleaseCycleSeries,
+  type SubsystemBusFactorItem,
+} from "./viz-charts.ts";
+
 export type HackerWindow = "30d" | "90d" | "1y" | "5y" | "PG20" | "PG19" | "PG18" | "PG17" | "all";
 export type HackerLbKind = "committers" | "authors" | "reviewers" | "reporters" | "rising";
 export type HackerProfileTab = "commits" | "reviews" | "commitfest" | "lists" | "opinions";
@@ -30,9 +42,11 @@ export interface HackersOverviewData {
     linesAdded: number;
     linesDeleted: number;
   } | null;
-  timeline: Array<{ period: string; commits: number; reviews: number; activeHackers: number }>;
+  timeline: Array<{ period: string; commits: number; forOthers?: number; reviews: number; activeHackers: number }>;
+  releaseCycles?: ReleaseCycleSeries[];
+  concentrationByYear?: ConcentrationYearPoint[];
   rhythmHeatmap: number[][];
-  subsystems: Array<{ name: string; commits: number; authors: number; committers: number }>;
+  subsystems: SubsystemBusFactorItem[];
   leaderboards: {
     committers: Array<{ slug: string; name: string; role: string; emailCount: number; total: number; forOthers: number; own: number }>;
     authors: Array<{ slug: string; name: string; role: string; emailCount: number; count: number }>;
@@ -100,7 +114,7 @@ export interface HackerProfileData {
   selectedYear: number;
   heatmap: Array<{ date: string; count: number }>;
   careerByYear: Array<{ year: string; authored: number; committed: number; reviewed: number; reported: number }>;
-  subsystems: Array<{ name: string; count: number; pct: number }>;
+  subsystems: Array<{ name: string; count: number; pct: number; projectPct?: number; overIndex?: number }>;
   rhythm: {
     byHour: number[];
     byDow: number[];
@@ -221,68 +235,6 @@ function personInitials(name: string): string {
   return name.slice(0, 2).toUpperCase() || "?";
 }
 
-function renderActivityTimelineSvg(timeline: Array<{ period: string; commits: number; reviews: number; activeHackers: number }>): string {
-  if (timeline.length === 0) return `<div class="muted" style="font-size:12.5px;">No timeline data in this window.</div>`;
-  const W = 680;
-  const H = 190;
-  const padL = 36;
-  const padR = 12;
-  const padT = 16;
-  const padB = 26;
-  const innerW = W - padL - padR;
-  const innerH = H - padT - padB;
-  const maxVal = Math.max(1, ...timeline.map((t) => Math.max(t.commits, t.reviews)));
-  const maxHackers = Math.max(1, ...timeline.map((t) => t.activeHackers));
-  const step = innerW / Math.max(1, timeline.length);
-  const barW = Math.max(3, Math.min(20, step * 0.36));
-
-  const gridLines = [0, 0.5, 1].map((f) => {
-    const y = padT + innerH * (1 - f);
-    const val = Math.round(maxVal * f);
-    return `
-      <line x1="${padL}" y1="${y.toFixed(1)}" x2="${W - padR}" y2="${y.toFixed(1)}" stroke="var(--border)" stroke-dasharray="${f === 0 ? "" : "3,3"}" />
-      <text x="${padL - 6}" y="${(y + 3).toFixed(1)}" text-anchor="end" fill="var(--dim)" font-size="9.5">${fmtNum(val)}</text>
-    `;
-  });
-
-  const bars = timeline.map((t, i) => {
-    const cx = padL + i * step + step / 2;
-    const hC = (t.commits / maxVal) * innerH;
-    const hR = (t.reviews / maxVal) * innerH;
-    const showLabel = timeline.length <= 14 || i % Math.ceil(timeline.length / 10) === 0 || i === timeline.length - 1;
-    return `
-      <rect x="${(cx - barW - 0.5).toFixed(1)}" y="${(padT + innerH - hC).toFixed(1)}" width="${barW.toFixed(1)}" height="${Math.max(1, hC).toFixed(1)}" rx="2" fill="var(--accent)">
-        <title>${esc(t.period)} · Commits: ${t.commits} · Reviews: ${t.reviews} · Active hackers: ${t.activeHackers}</title>
-      </rect>
-      <rect x="${(cx + 0.5).toFixed(1)}" y="${(padT + innerH - hR).toFixed(1)}" width="${barW.toFixed(1)}" height="${Math.max(1, hR).toFixed(1)}" rx="2" fill="var(--ok)" opacity="0.82">
-        <title>${esc(t.period)} · Reviews: ${t.reviews} · Commits: ${t.commits}</title>
-      </rect>
-      ${showLabel ? `<text x="${cx.toFixed(1)}" y="${H - 7}" text-anchor="middle" fill="var(--dim)" font-size="9.5">${esc(t.period)}</text>` : ""}
-    `;
-  });
-
-  const linePts = timeline
-    .map((t, i) => {
-      const cx = padL + i * step + step / 2;
-      const y = padT + innerH - (t.activeHackers / maxHackers) * innerH * 0.92;
-      return `${cx.toFixed(1)},${y.toFixed(1)}`;
-    })
-    .join(" ");
-
-  return `
-    <svg class="obs-chart-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="Commits, reviews, and active hackers over time">
-      ${gridLines.join("")}
-      ${bars.join("")}
-      ${timeline.length > 1 ? `<polyline fill="none" stroke="var(--warn)" stroke-width="2" stroke-linejoin="round" points="${linePts}" />` : ""}
-    </svg>
-    <div class="obs-chart-legend">
-      <span><span class="dot" style="background:var(--accent);"></span>Commits</span>
-      <span><span class="dot" style="background:var(--ok);"></span>Reviewed-by credits</span>
-      <span><span class="dot" style="background:var(--warn);"></span>Active hackers trend</span>
-    </div>
-  `;
-}
-
 function renderGlobalRhythmHeatmap(matrix: number[][]): string {
   const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
   const maxVal = Math.max(1, ...matrix.flat());
@@ -300,7 +252,8 @@ function renderGlobalRhythmHeatmap(matrix: number[][]): string {
           ${(matrix[d] || Array(24).fill(0))
             .map((val, h) => {
               const alpha = val === 0 ? 0.06 : Math.min(0.95, 0.16 + (val / maxVal) * 0.8);
-              return `<span class="rhythm-cell" style="background:color-mix(in srgb, var(--accent) ${Math.round(alpha * 100)}%, var(--surface-2));" title="${day} ${String(h).padStart(2, "0")}:00 UTC · ${val} commits"></span>`;
+              const hh = String(h).padStart(2, "0");
+              return `<span class="rhythm-cell viz-hoverable" tabindex="0" style="background:color-mix(in oklch, var(--viz-1) ${Math.round(alpha * 100)}%, var(--surface-2));" data-tip-title="${day} · ${hh}:00 UTC" data-tip-body="${fmtNum(val)} commit${val === 1 ? "" : "s"}" data-tip-sub="UTC commit timestamp in selected window"></span>`;
             })
             .join("")}
         </div>
@@ -348,7 +301,7 @@ function renderYearContributionHeatmap(year: number, entries: Array<{ date: stri
       const val = counts.get(iso) || 0;
       const lvl = val === 0 ? 0 : val <= Math.max(1, maxCnt * 0.25) ? 1 : val <= Math.max(2, maxCnt * 0.5) ? 2 : val <= Math.max(4, maxCnt * 0.75) ? 3 : 4;
       rects.push(
-        `<rect class="hm-lvl-${lvl}" x="${padL + w * step}" y="${padT + d * step}" width="${cell}" height="${cell}" rx="2"><title>${iso}: ${val} contribution${val === 1 ? "" : "s"}</title></rect>`,
+        `<rect class="hm-lvl-${lvl} viz-hoverable" tabindex="0" x="${padL + w * step}" y="${padT + d * step}" width="${cell}" height="${cell}" rx="2" data-tip-title="${iso}" data-tip-body="${val} contribution${val === 1 ? "" : "s"}" data-tip-sub="Commits, reviews &amp; bug reports"></rect>`,
       );
     }
   }
@@ -630,26 +583,85 @@ export function renderHackersTab(params: {
       </div>
     </div>
 
-    <!-- Charts Row: Timeline + Rhythm -->
-    <div class="grid2" style="margin-bottom:14px;">
-      <div class="card" style="margin-bottom:0;">
+    <!-- 1. Editorial Hero Graphic: PG17 -> PG20 Release-Cycle Velocity Race -->
+    ${(() => {
+      if (!overview.releaseCycles?.length) return "";
+      const race = renderReleaseCycleRaceSvg(overview.releaseCycles);
+      return `
+      <section class="card viz-card">
         <div class="card-head">
-          <h2>Hacking Velocity &amp; Review Activity</h2>
-          <span class="dim" style="font-size:12px;">Window: ${esc(win)}</span>
+          <div>
+            <div class="viz-kicker">Release-Cycle Velocity Race</div>
+            <h2 class="viz-headline">${esc(race.headline)}</h2>
+            <div class="dim" style="font-size:12px;margin-top:2px;">${esc(race.subline)}</div>
+          </div>
         </div>
-        ${renderActivityTimelineSvg(overview.timeline)}
+        ${race.svg}
+      </section>
+      `;
+    })()}
+
+    <!-- 2. Sponsorship Velocity + 7x24 UTC Rhythm -->
+    <div class="grid2" style="margin-bottom:14px;">
+      <div class="card viz-card" style="margin-bottom:0;">
+        <div class="card-head">
+          <div>
+            <div class="viz-kicker">Sponsorship &amp; Review Throughput</div>
+            <h2>${t.committedForOthersPct}% of commits were landed for other authors</h2>
+            <div class="dim" style="font-size:12px;">Window: ${esc(win)} · Hover any period for breakdown</div>
+          </div>
+        </div>
+        ${renderSponsorshipTimelineSvg(overview.timeline)}
       </div>
 
-      <div class="card" style="margin-bottom:0;">
+      <div class="card viz-card" style="margin-bottom:0;">
         <div class="card-head">
-          <h2>When Does Postgres Hacking Happen?</h2>
-          <span class="dim" style="font-size:12px;">7×24 UTC commit heatmap</span>
+          <div>
+            <div class="viz-kicker">Global Circadian Cadence</div>
+            <h2>When Does Postgres Hacking Happen?</h2>
+            <div class="dim" style="font-size:12px;">7×24 UTC commit heatmap · Hover any cell</div>
+          </div>
         </div>
         ${renderGlobalRhythmHeatmap(overview.rhythmHeatmap)}
       </div>
     </div>
 
-    <!-- Subsystems + Leaderboards -->
+    <!-- 3. Subsystem Bus-Factor Quadrant + Annual Committer Concentration -->
+    <div class="grid2" style="margin-bottom:14px;">
+      ${(() => {
+        const bf = renderBusFactorQuadrantSvg(overview.subsystems);
+        return `
+        <div class="card viz-card" style="margin-bottom:0;">
+          <div class="card-head">
+            <div>
+              <div class="viz-kicker">Subsystem Bus Factor</div>
+              <h2 class="viz-headline">${esc(bf.headline)}</h2>
+              <div class="dim" style="font-size:11.5px;margin-top:2px;">${esc(bf.subline)}</div>
+            </div>
+          </div>
+          ${bf.svg}
+        </div>
+        `;
+      })()}
+      ${(() => {
+        if (!overview.concentrationByYear?.length) return "";
+        const conc = renderCommitterConcentrationSvg(overview.concentrationByYear);
+        return `
+        <div class="card viz-card" style="margin-bottom:0;">
+          <div class="card-head">
+            <div>
+              <div class="viz-kicker">Throughput Concentration (2016–Present)</div>
+              <h2 class="viz-headline">${esc(conc.headline)}</h2>
+              <div class="dim" style="font-size:11.5px;margin-top:2px;">${esc(conc.subline)}</div>
+            </div>
+          </div>
+          ${conc.svg}
+        </div>
+        `;
+      })()}
+    </div>
+
+    <!-- 4. Leaderboards + Subsystem Detail Bars -->
     <div class="grid2" style="margin-bottom:14px;">
       <div class="card" style="margin-bottom:0;">
         <div class="card-head">
@@ -673,19 +685,20 @@ export function renderHackersTab(params: {
       <div class="card" style="margin-bottom:0;">
         <div class="card-head">
           <div>
-            <h2>Subsystem Activity &amp; Bus Factor</h2>
-            <div class="dim" style="font-size:12px;">Commits, unique authors, and active committers per area</div>
+            <h2>Subsystem Breakdown &amp; 50% Bus Factor</h2>
+            <div class="dim" style="font-size:12px;">Minimum committers covering half of each subsystem's commits</div>
           </div>
         </div>
         <div class="subsys-list">
           ${overview.subsystems
             .map((s) => {
               const w = Math.max(5, Math.round((s.commits / maxSubsys) * 100));
-              const lowBusFactor = s.commits >= 20 && s.committers <= 2;
+              const bf = s.busFactor ?? 1;
+              const lowBusFactor = s.commits >= 20 && bf <= 2;
               return `
                 <div class="subsys-row" style="cursor:default;">
                   <div class="subsys-head">
-                    <span class="hbar-label">${esc(s.name)} ${lowBusFactor ? `<span class="tag-micro tag-wa" title="Only ${s.committers} active committer(s)">thin bench</span>` : ""}</span>
+                    <span class="hbar-label">${esc(s.name)} ${lowBusFactor ? `<span class="tag-micro tag-wa" title="Bus factor ${bf}: ${bf} committer(s) landed ${s.bfCommits ?? 0}/${s.commits}">BF=${bf}</span>` : `<span class="tag-micro mono">BF=${bf}</span>`}</span>
                     <span class="mono dim">${fmtNum(s.commits)} · ${s.authors} auth · ${s.committers} comm</span>
                   </div>
                   <div class="hbar-track"><div class="hbar-fill" style="width:${w}%;"></div></div>
@@ -800,9 +813,13 @@ export function renderHackerProfilePage(params: {
 
   const p = profile.person;
   const forOthersPct = p.commitsCommitted > 0 ? Math.round((p.commitsCommittedForOthers / p.commitsCommitted) * 100) : 0;
-  const maxHour = Math.max(1, ...profile.rhythm.byHour);
-  const maxDow = Math.max(1, ...profile.rhythm.byDow);
-  const dowLabels = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const roleTot = Math.max(1, p.commitsAuthored + p.commitsCommittedForOthers + p.reviewsGiven + p.bugsReported);
+  const roleSegs = [
+    { label: "Authored", val: p.commitsAuthored, color: "var(--viz-1)" },
+    { label: "Committed for others", val: p.commitsCommittedForOthers, color: "var(--viz-4)" },
+    { label: "Reviewed", val: p.reviewsGiven, color: "var(--viz-2)" },
+    { label: "Bugs reported", val: p.bugsReported, color: "var(--viz-3)" },
+  ].filter((x) => x.val > 0);
 
   const renderCollabGroup = (title: string, items: Array<{ slug: string; name: string; role: string; count: number }>) => `
     <div class="obs-collab-col">
@@ -1014,6 +1031,27 @@ export function renderHackerProfilePage(params: {
           `
               : ""
           }
+          ${
+            roleSegs.length > 0
+              ? `
+            <div class="viz-role-strip-wrap">
+              <div class="viz-role-bar" role="img" aria-label="Role signature breakdown">
+                ${roleSegs
+                  .map((s) => {
+                    const pct = Math.max(3, Math.round((s.val / roleTot) * 100));
+                    return `<div class="viz-role-seg viz-hoverable" style="width:${pct}%;background:${s.color};" tabindex="0" data-tip-title="${esc(s.label)}" data-tip-body="${fmtNum(s.val)} credits (${Math.round((s.val / roleTot) * 100)}% of role mix)"></div>`;
+                  })
+                  .join("")}
+              </div>
+              <div class="viz-role-legend">
+                ${roleSegs
+                  .map((s) => `<span><span class="dot" style="background:${s.color}"></span>${esc(s.label)} <strong class="mono">${Math.round((s.val / roleTot) * 100)}%</strong></span>`)
+                  .join("")}
+              </div>
+            </div>
+          `
+              : ""
+          }
         </div>
       </div>
     </section>
@@ -1071,81 +1109,86 @@ export function renderHackerProfilePage(params: {
       ${renderYearContributionHeatmap(profile.selectedYear, profile.heatmap)}
     </div>
 
-    <!-- Career Trajectory + Subsystem DNA & Rhythm -->
+    <!-- Career Trajectory + Subsystem Over-Index DNA -->
     <div class="grid2" style="margin-bottom:14px;">
-      <div class="card" style="margin-bottom:0;">
+      <div class="card viz-card" style="margin-bottom:0;">
         <div class="card-head">
-          <h2>Career Trajectory</h2>
-          <span class="dim" style="font-size:12px;">Yearly Postgres contributions</span>
+          <div>
+            <div class="viz-kicker">Career Trajectory</div>
+            <h2>Annual PostgreSQL Credits by Role</h2>
+          </div>
+          <span class="dim" style="font-size:12px;">Authored · Reviewed · Reported</span>
         </div>
         ${renderCareerChartSvg(profile.careerByYear)}
       </div>
 
-      <div class="card" style="margin-bottom:0;">
+      <div class="card viz-card" style="margin-bottom:0;">
         <div class="card-head">
-          <h2>Subsystem DNA</h2>
-          <span class="dim" style="font-size:12px;">Primary PostgreSQL areas touched</span>
+          <div>
+            <div class="viz-kicker">Subsystem Signature (vs PG Average)</div>
+            <h2>Subsystem DNA &amp; Specialization Over-Index</h2>
+          </div>
         </div>
         <div class="subsys-list">
           ${
             profile.subsystems.length === 0
               ? `<div class="muted" style="font-size:12.5px;">No subsystem data recorded yet.</div>`
               : profile.subsystems
-                  .slice(0, 7)
-                  .map(
-                    (s) => `
-              <div class="subsys-row" style="cursor:default;">
+                  .slice(0, 8)
+                  .map((s) => {
+                    const oi = s.overIndex ?? 1;
+                    const oiBadge =
+                      oi >= 1.5
+                        ? `<span class="pill p-ok mono" style="font-size:10px;padding:1px 6px;">${oi.toFixed(1)}× PG avg</span>`
+                        : oi > 0
+                          ? `<span class="dim mono" style="font-size:10.5px;">${oi.toFixed(1)}×</span>`
+                          : "";
+                    return `
+              <div class="subsys-row viz-hoverable" style="cursor:default;" tabindex="0" data-tip-title="${esc(s.name)}" data-tip-body="${fmtNum(s.count)} credits (${s.pct}% of ${esc(p.name)}'s work)" data-tip-sub="PostgreSQL project baseline: ${s.projectPct ?? "—"}% (${oi.toFixed(1)}× specialization)">
                 <div class="subsys-head">
-                  <span class="hbar-label">${esc(s.name)}</span>
+                  <span class="hbar-label">${esc(s.name)} ${oiBadge}</span>
                   <span class="mono dim">${fmtNum(s.count)} (${s.pct}%)</span>
                 </div>
                 <div class="hbar-track"><div class="hbar-fill" style="width:${Math.max(4, s.pct)}%;"></div></div>
               </div>
-            `,
-                  )
+            `;
+                  })
                   .join("")
           }
         </div>
       </div>
     </div>
 
-    <!-- Hacking Rhythm + Collaboration Network -->
-    <div class="card">
-      <div class="card-head">
-        <h2>Hacking Rhythm (UTC)</h2>
-        <span class="dim" style="font-size:12px;">Hour-of-day &amp; day-of-week fingerprint</span>
+    <!-- Radial 24h UTC Circadian Clock + Interactive 3-Sector Collaboration Constellation -->
+    <div class="grid2" style="margin-bottom:14px;">
+      <div class="card viz-card" style="margin-bottom:0;">
+        <div class="card-head">
+          <div>
+            <div class="viz-kicker">Circadian Fingerprint (UTC)</div>
+            <h2>24-Hour Hacking Clock &amp; Day-of-Week Ring</h2>
+            <div class="dim" style="font-size:12px;">Wedge radius ∝ √activity · Outer ring = Sun–Sat UTC</div>
+          </div>
+        </div>
+        ${renderRadialUtcClockSvg(profile.rhythm.byHour, profile.rhythm.byDow, profile.rhythm.activeDays, profile.rhythm.longestStreakDays)}
       </div>
-      <div class="grid2">
-        <div>
-          <div class="sheet-section-label" style="margin-bottom:6px;">By UTC Hour (00–23)</div>
-          <div class="mini-bars">
-            ${profile.rhythm.byHour
-              .map((v, h) => {
-                const pct = Math.max(4, Math.round((v / maxHour) * 100));
-                return `<div class="mini-bar-col" title="${String(h).padStart(2, "0")}:00 UTC · ${v}"><div class="mini-bar-fill" style="height:${pct}%;"></div><span>${h % 4 === 0 ? String(h).padStart(2, "0") : ""}</span></div>`;
-              })
-              .join("")}
+
+      <div class="card viz-card" style="margin-bottom:0;">
+        <div class="card-head">
+          <div>
+            <div class="viz-kicker">Collaboration Constellation</div>
+            <h2>Who ${esc(p.name)} Works Most With</h2>
+            <div class="dim" style="font-size:12px;">3 deterministic 120° sectors · Click any collaborator to jump</div>
           </div>
         </div>
-        <div>
-          <div class="sheet-section-label" style="margin-bottom:6px;">By Day of Week</div>
-          <div class="mini-bars">
-            ${profile.rhythm.byDow
-              .map((v, d) => {
-                const pct = Math.max(4, Math.round((v / maxDow) * 100));
-                return `<div class="mini-bar-col" title="${dowLabels[d]} · ${v}"><div class="mini-bar-fill" style="height:${pct}%;background:var(--ok);"></div><span>${dowLabels[d]}</span></div>`;
-              })
-              .join("")}
-          </div>
-        </div>
+        ${renderCollabConstellationSvg(p.name, profile.collaborators) || `<div class="empty-state">No collaboration links recorded yet.</div>`}
       </div>
     </div>
 
     <div class="card">
       <div class="card-head">
         <div>
-          <h2>Collaboration Network ("Works Most With")</h2>
-          <div class="dim" style="font-size:12px;">Derived from git Author, Committer, and Reviewed-by links — tap anyone to jump to their profile</div>
+          <h2>Collaboration Pairs (Full Breakdown)</h2>
+          <div class="dim" style="font-size:12px;">Derived from git Author, Committer, and Reviewed-by links — tap anyone to open their profile</div>
         </div>
       </div>
       <div class="obs-collab-grid">

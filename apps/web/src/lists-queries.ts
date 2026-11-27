@@ -6,7 +6,7 @@ export async function getMailingListsOverview(db: WebDatabase) {
   const cut7d = new Date(now - 7 * 86_400_000).toISOString();
   const cut30d = new Date(now - 30 * 86_400_000).toISOString();
 
-  const [listsRows, totalsRows, dailyRows, hotThreadsRows, topPostersRows] = await Promise.all([
+  const [listsRows, totalsRows, dailyRows, perListDailyRows, perListLinkedRows, hotThreadsRows, topPostersRows] = await Promise.all([
     db.sql.unsafe(
       `SELECT name, category, message_count, first_sent_at, last_sent_at, last_synced_at, status
        FROM ${db.t("mailing_lists")}
@@ -26,13 +26,29 @@ export async function getMailingListsOverview(db: WebDatabase) {
       [cut24h, cut7d, cut30d],
     ) as Promise<Array<Record<string, number>>>,
     db.sql.unsafe(
-      `SELECT SUBSTRING(sent_at, 1, 10) AS day, COUNT(*)::int AS count
+      `SELECT
+         SUBSTRING(sent_at, 1, 10) AS day,
+         COUNT(*)::int AS count,
+         COUNT(*) FILTER (WHERE person_id IS NOT NULL)::int AS linked
        FROM ${db.t("mailing_list_messages")}
        WHERE sent_at >= $1
        GROUP BY 1
        ORDER BY 1 ASC`,
       [cut30d],
-    ) as Promise<Array<{ day: string; count: number }>>,
+    ) as Promise<Array<{ day: string; count: number; linked: number }>>,
+    db.sql.unsafe(
+      `SELECT list_name, SUBSTRING(sent_at, 1, 10) AS day, COUNT(*)::int AS count
+       FROM ${db.t("mailing_list_messages")}
+       WHERE sent_at >= $1
+       GROUP BY 1, 2
+       ORDER BY 1, 2`,
+      [cut30d],
+    ) as Promise<Array<{ list_name: string; day: string; count: number }>>,
+    db.sql.unsafe(
+      `SELECT list_name, COUNT(*) FILTER (WHERE person_id IS NOT NULL)::int AS linked
+       FROM ${db.t("mailing_list_messages")}
+       GROUP BY 1`,
+    ) as Promise<Array<{ list_name: string; linked: number }>>,
     db.sql.unsafe(
       `SELECT
          list_name,
@@ -69,6 +85,13 @@ export async function getMailingListsOverview(db: WebDatabase) {
 
   const t = totalsRows[0] ?? {};
   const lastSyncedAt = listsRows.reduce((acc, r) => (r.last_synced_at > acc ? r.last_synced_at : acc), "");
+  const linkedByList = new Map(perListLinkedRows.map((r) => [r.list_name, Number(r.linked || 0)]));
+  const allDays = dailyRows.map((d) => d.day);
+  const perListDayMap = new Map<string, Map<string, number>>();
+  for (const r of perListDailyRows) {
+    if (!perListDayMap.has(r.list_name)) perListDayMap.set(r.list_name, new Map());
+    perListDayMap.get(r.list_name)!.set(r.day, Number(r.count || 0));
+  }
 
   return {
     catalogCount: listsRows.length,
@@ -84,16 +107,24 @@ export async function getMailingListsOverview(db: WebDatabase) {
       linkedMessages: Number(t.linked_messages || 0),
       uniqueHackers: Number(t.unique_hackers || 0),
     },
-    lists: listsRows.map((r) => ({
-      name: r.name,
-      category: r.category,
-      messageCount: Number(r.message_count || 0),
-      firstSentAt: r.first_sent_at || "",
-      lastSentAt: r.last_sent_at || "",
-      lastSyncedAt: r.last_synced_at || "",
-      status: r.status,
-    })),
-    daily: dailyRows.map((r) => ({ day: r.day, count: Number(r.count) })),
+    lists: listsRows.map((r) => {
+      const cnt = Number(r.message_count || 0);
+      const lnk = linkedByList.get(r.name) ?? 0;
+      const dmap = perListDayMap.get(r.name);
+      const sparkline = allDays.slice(-14).map((d) => dmap?.get(d) ?? 0);
+      return {
+        name: r.name,
+        category: r.category,
+        messageCount: cnt,
+        linkedPct: cnt > 0 ? Math.round((lnk / cnt) * 100) : 0,
+        sparkline,
+        firstSentAt: r.first_sent_at || "",
+        lastSentAt: r.last_sent_at || "",
+        lastSyncedAt: r.last_synced_at || "",
+        status: r.status,
+      };
+    }),
+    daily: dailyRows.map((r) => ({ day: r.day, count: Number(r.count), linked: Number(r.linked || 0) })),
     hotThreads: hotThreadsRows.map((r) => ({
       listName: r.list_name,
       subject: r.subject,

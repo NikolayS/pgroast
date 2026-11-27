@@ -622,13 +622,31 @@ describe("pgroast-web public companion API & security gates", () => {
     const r3 = parsePersonRef("Hayato Kuroda (Fujitsu) <kuroda.hayato@fujitsu.com>")!;
     const r4 = parsePersonRef("Álvaro Herrera <alvherre@alvh.no-ip.org>")!;
     const r5 = parsePersonRef("Alvaro Herrera <alvherre@postgresql.org>")!;
+    // Identity Resolution v2: obfuscated emails, transliteration variants, and reverse-initial handles
+    const r6 = parsePersonRef("Andrey Borodin")!;
+    const r7 = parsePersonRef("Andrew Borodin")!;
+    const r8 = parsePersonRef("Andrey Borodin (x4mmm at yandex-team.ru)")!;
+    const r9 = parsePersonRef("Kirk Wolak")!;
+    const r10 = parsePersonRef("wolakk")!;
+    const r11 = parsePersonRef("Nikolay Samokhvalov <nik@postgres.ai>")!;
+    const r12 = parsePersonRef("Nik Samokhvalov")!;
     resolver.observe(r1, "git_committer");
     resolver.observe(r2, "git_author");
     resolver.observe(r3, "trailer");
     resolver.observe(r4, "git_author");
     resolver.observe(r5, "git_committer");
+    resolver.observe(r6, "trailer");
+    resolver.observe(r7, "trailer");
+    resolver.observe(r8, "trailer");
+    resolver.observe(r9, "trailer");
+    resolver.observe(r10, "trailer");
+    resolver.observe(r11, "contributors_page", true);
+    resolver.observe(r12, "trailer");
     const mat = resolver.materialize();
-    expect(mat.people.length).toBe(3);
+    expect(mat.people.length).toBe(6);
+    const samMatches = mat.people.filter((p) => p.canonicalName.toLowerCase().includes("samokhvalov"));
+    expect(samMatches.length).toBe(1);
+    expect(samMatches[0]?.slug).toBe("nikolay-samokhvalov");
     const david = mat.people.find((p) => p.slug === "david-rowley");
     expect(david?.emailCount).toBe(2);
     expect(david?.emailDomains).toContain("postgresql.org");
@@ -637,6 +655,13 @@ describe("pgroast-web public companion API & security gates", () => {
     expect(hayato?.affiliations).toContain("Fujitsu");
     const alvaro = mat.people.find((p) => p.slug === "alvaro-herrera");
     expect(alvaro?.emailCount).toBe(2);
+    const borodinMatches = mat.people.filter((p) => p.canonicalName.toLowerCase().includes("borodin"));
+    expect(borodinMatches.length).toBe(1);
+    expect(borodinMatches[0]?.emailCount).toBeGreaterThanOrEqual(1);
+    expect(borodinMatches[0]?.emailDomains).toContain("yandex-team.ru");
+    const wolakMatches = mat.people.filter((p) => p.canonicalName.toLowerCase().includes("wolak") || p.slug.includes("wolak"));
+    expect(wolakMatches.length).toBe(1);
+    expect(wolakMatches[0]?.slug).toBe("kirk-wolak");
 
     const trailers = parseCommitTrailers(
       "Fix planner costing edge case.\n\nAuthor: Hayato Kuroda (Fujitsu) <kuroda.hayato@fujitsu.com>\nReviewed-by: David Rowley <dgrowleyml@gmail.com>, Álvaro Herrera <alvherre@alvh.no-ip.org>\nReported-by: Jane Tester <jane@example.org>\nDiscussion: https://postgr.es/m/test-123\nBackpatch-through: 17\n",
@@ -651,11 +676,23 @@ describe("pgroast-web public companion API & security gates", () => {
     expect(classifySubsystem("src/backend/replication/walsender.c")).toBe("Replication");
 
     const seeds = parseContributorsHtml(
-      `<h2>Core Team</h2><table><tr><td>Tom Lane</td><td>Crunchy Data</td><td>Core</td></tr></table><h2>Major Contributors</h2><table><tr><td>David Rowley</td><td>Microsoft</td><td>Planner</td></tr></table>`,
+      `<h2>Core Team</h2><table><thead><tr><th scope="col">Contributor</th><th scope="col">Contribution</th></tr></thead><tbody><tr><td><a href="/community/people/petere/">Peter Eisentraut</a> (peter.eisentraut at enterprisedb.com)<br/><a href="https://enterprisedb.com/">EDB</a><br/>Dresden, Germany</td><td>Build system and docs</td></tr></tbody></table>` +
+        `<h2>Major Contributors</h2><table><tr><td>David Rowley</td><td>Microsoft</td><td>Planner</td></tr></table>` +
+        `<h2>Significant Contributors</h2><table><tr><td><a href="/community/people/rybalkina/">Elena Rybalkina</a> (rybalkina at example.org)</td><td><a href="/community/people/nikolay/">Nikolay Samokhvalov</a> (nik at postgres.ai)</td></tr></table>` +
+        `<h2>Past Contributors</h2><table><tr><td>Someone Old</td><td>Another Old</td></tr></table>`,
     );
-    expect(seeds.length).toBe(2);
+    expect(seeds.length).toBe(4);
+    expect(seeds[0]?.name).toBe("Peter Eisentraut");
     expect(seeds[0]?.role).toBe("Core Team");
+    expect(seeds[0]?.company).toBe("EDB");
+    expect(seeds[0]?.email).toBe("peter.eisentraut@enterprisedb.com");
     expect(seeds[1]?.role).toBe("Major Contributor");
+    const rybalkina = seeds.find((s) => s.name === "Elena Rybalkina");
+    expect(rybalkina?.role).toBe("Significant Contributor");
+    expect(rybalkina?.company).toBe(""); // NEVER polluted by neighbor cell Nikolay Samokhvalov!
+    const nikolay = seeds.find((s) => s.name === "Nikolay Samokhvalov");
+    expect(nikolay?.role).toBe("Significant Contributor");
+    expect(nikolay?.email).toBe("nik@postgres.ai");
 
     // 2. Real mini git repo sync + API + SSR + privacy check
     const tmpRepo = mkdtempSync(join(tmpdir(), "pgroast-git-test-"));
@@ -729,6 +766,9 @@ describe("pgroast-web public companion API & security gates", () => {
         synced: boolean;
         totals: { commits: number; committedForOthers: number; reviewsGiven: number; bugsReported: number; backpatches: number };
         syncMeta: { multiEmailPeople: number };
+        releaseCycles: Array<{ major: string; totalCommits: number }>;
+        concentrationByYear: Array<{ year: string; total: number; busFactor50: number }>;
+        subsystems: Array<{ name: string; busFactor: number; effectiveCommitters: number }>;
       };
       expect(ov.synced).toBe(true);
       expect(ov.totals.commits).toBe(2);
@@ -737,6 +777,11 @@ describe("pgroast-web public companion API & security gates", () => {
       expect(ov.totals.bugsReported).toBe(1);
       expect(ov.totals.backpatches).toBe(1);
       expect(ov.syncMeta.multiEmailPeople).toBeGreaterThanOrEqual(1);
+      expect(Array.isArray(ov.releaseCycles)).toBe(true);
+      expect(Array.isArray(ov.concentrationByYear)).toBe(true);
+      expect(ov.concentrationByYear.length).toBeGreaterThanOrEqual(1);
+      expect(ov.subsystems[0]?.busFactor).toBeGreaterThanOrEqual(1);
+      expect(ov.subsystems[0]?.effectiveCommitters).toBeGreaterThan(0);
 
       // Directory search by affiliation ("fujitsu")
       const dirRes = await req("/api/v1/hackers?search=fujitsu");
@@ -840,9 +885,11 @@ describe("pgroast-web public companion API & security gates", () => {
     expect(statusJson.totalOpen).toBeGreaterThanOrEqual(2);
     expect(statusJson.activeLeases.length).toBeGreaterThanOrEqual(2);
 
-    // 5. SSR /docs route renders dynamic title and OG metadata
+    // 5. SSR /docs and /contribute routes render separate titles and OG metadata
     const docsHtml = await (await req("/docs")).text();
-    expect(docsHtml).toContain("Docs, All Features &amp; Weekly Quota Auto-Contribute — pgroast");
+    expect(docsHtml).toContain("Docs &amp; Complete Feature Catalog — pgroast");
+    const contributeHtml = await (await req("/contribute")).text();
+    expect(contributeHtml).toContain("Weekly Quota Auto-Contribute &amp; Live CommitFest Coverage — pgroast");
   });
 
   test("Mailing Lists Archive: catalog/since/mbox parsers, unified hacker linking, APIs, and /lists SSR", async () => {

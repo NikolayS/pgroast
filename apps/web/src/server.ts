@@ -387,7 +387,10 @@ export async function createWebHandler(opts?: {
   const appTsPath = join(WEB_ROOT, "src", "ui", "app.ts");
   const hackersViewPath = join(WEB_ROOT, "src", "ui", "hackers-view.ts");
   const docsViewPath = join(WEB_ROOT, "src", "ui", "docs-view.ts");
+  const contributeViewPath = join(WEB_ROOT, "src", "ui", "contribute-view.ts");
   const listsViewPath = join(WEB_ROOT, "src", "ui", "lists-view.ts");
+  const vizChartsPath = join(WEB_ROOT, "src", "ui", "viz-charts.ts");
+  const vizEnginePath = join(WEB_ROOT, "src", "ui", "viz-engine.ts");
   const faviconPath = join(WEB_ROOT, "src", "ui", "favicon.svg");
   const touchIconPath = join(WEB_ROOT, "src", "ui", "apple-touch-icon.png");
   const manifestPath = join(WEB_ROOT, "src", "ui", "manifest.webmanifest");
@@ -396,7 +399,10 @@ export async function createWebHandler(opts?: {
     (existsSync(appTsPath) ? statSync(appTsPath).mtimeMs : 0) +
     (existsSync(hackersViewPath) ? statSync(hackersViewPath).mtimeMs : 0) +
     (existsSync(docsViewPath) ? statSync(docsViewPath).mtimeMs : 0) +
-    (existsSync(listsViewPath) ? statSync(listsViewPath).mtimeMs : 0);
+    (existsSync(contributeViewPath) ? statSync(contributeViewPath).mtimeMs : 0) +
+    (existsSync(listsViewPath) ? statSync(listsViewPath).mtimeMs : 0) +
+    (existsSync(vizChartsPath) ? statSync(vizChartsPath).mtimeMs : 0) +
+    (existsSync(vizEnginePath) ? statSync(vizEnginePath).mtimeMs : 0);
   let cssMtime = existsSync(cssPath) ? statSync(cssPath).mtimeMs : 0;
   let favMtime = existsSync(faviconPath) ? statSync(faviconPath).mtimeMs : 0;
   let cssHash = createHash("sha256").update(readFileSync(cssPath, "utf8")).digest("hex").slice(0, 8);
@@ -413,7 +419,10 @@ export async function createWebHandler(opts?: {
         (existsSync(appTsPath) ? statSync(appTsPath).mtimeMs : 0) +
         (existsSync(hackersViewPath) ? statSync(hackersViewPath).mtimeMs : 0) +
         (existsSync(docsViewPath) ? statSync(docsViewPath).mtimeMs : 0) +
-        (existsSync(listsViewPath) ? statSync(listsViewPath).mtimeMs : 0);
+        (existsSync(contributeViewPath) ? statSync(contributeViewPath).mtimeMs : 0) +
+        (existsSync(listsViewPath) ? statSync(listsViewPath).mtimeMs : 0) +
+        (existsSync(vizChartsPath) ? statSync(vizChartsPath).mtimeMs : 0) +
+        (existsSync(vizEnginePath) ? statSync(vizEnginePath).mtimeMs : 0);
       if (curAppMtime !== appMtime) {
         bundleJs = await buildUiJs();
         jsHash = createHash("sha256").update(bundleJs).digest("hex").slice(0, 8);
@@ -569,6 +578,7 @@ export async function createWebHandler(opts?: {
           { loc: `${origin}/?tab=opinions`, lastmod: latestDate, changefreq: "hourly", priority: "0.8" },
           { loc: `${origin}/?tab=coordination`, lastmod: latestDate, changefreq: "daily", priority: "0.6" },
           { loc: `${origin}/?tab=connect`, lastmod: latestDate, changefreq: "weekly", priority: "0.6" },
+          { loc: `${origin}/contribute`, lastmod: latestDate, changefreq: "daily", priority: "0.9" },
           { loc: `${origin}/docs`, lastmod: latestDate, changefreq: "weekly", priority: "0.8" },
           { loc: `${origin}/llms.txt`, lastmod: latestDate, changefreq: "daily", priority: "0.6" },
         ];
@@ -709,9 +719,10 @@ export async function createWebHandler(opts?: {
       }
       const patchPageMatch = path.match(/^\/patch\/(\d+)\/?$/);
       const hackerPageMatch = path.match(/^\/hacker\/([a-z0-9-]+)\/?$/i);
-      const isDocsPage = path === "/docs" || path === "/docs/" || path === "/contribute" || path === "/contribute/";
+      const isDocsPage = path === "/docs" || path === "/docs/";
+      const isContributePage = path === "/contribute" || path === "/contribute/";
       const isListsPage = path === "/lists" || path === "/lists/";
-      if (method === "GET" && (path === "/" || path === "/index.html" || patchPageMatch || hackerPageMatch || isDocsPage || isListsPage)) {
+      if (method === "GET" && (path === "/" || path === "/index.html" || patchPageMatch || hackerPageMatch || isDocsPage || isContributePage || isListsPage)) {
         await refreshUiAssetsIfChanged();
         const origin = resolveRequestOrigin(req, cfg);
         const cfId = parsePositivePgInt(patchPageMatch?.[1] || url.searchParams.get("cf")) ?? 0;
@@ -728,8 +739,12 @@ export async function createWebHandler(opts?: {
         };
         if (isDocsPage) {
           canonical = `${origin}/docs`;
-          title = "Docs, All Features & Weekly Quota Auto-Contribute — pgroast";
-          desc = "Complete feature directory, CLI reference, live CommitFest multi-model coverage tracker, and weekly OAuth quota auto-roasting setup for Claude, Codex, and Antigravity.";
+          title = "Docs & Complete Feature Catalog — pgroast";
+          desc = "Complete directory of every pgroast feature, architecture overview, CLI command reference, and public APIs.";
+        } else if (isContributePage) {
+          canonical = `${origin}/contribute`;
+          title = "Weekly Quota Auto-Contribute & Live CommitFest Coverage — pgroast";
+          desc = "Donate unused weekly OAuth quota (Claude, Codex, Antigravity) to pre-review open PostgreSQL CommitFest patches, preview the live queue, and track community coverage.";
         } else if (isListsPage) {
           canonical = `${origin}/lists`;
           title = "PostgreSQL Mailing Lists Archive (Continuous Sync) — pgroast";

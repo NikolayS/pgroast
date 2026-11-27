@@ -160,13 +160,16 @@ export async function getHackersOverview(db: WebDatabase, rawWindow?: string | n
       [wf.startIso],
     ) as Promise<Array<{ cnt: number }>>,
     db.sql.unsafe(
-      `SELECT LEFT(committed_at, ${periodLen}) AS period, COUNT(*)::int AS commits
+      `SELECT
+         LEFT(committed_at, ${periodLen}) AS period,
+         COUNT(*)::int AS commits,
+         COUNT(*) FILTER (WHERE author_person_id IS NOT NULL AND author_person_id != committer_person_id)::int AS for_others
        FROM ${db.t("pg_commits")}
        WHERE ${cWhere}
        GROUP BY 1
        ORDER BY 1 ASC`,
       wf.params,
-    ) as Promise<Array<{ period: string; commits: number }>>,
+    ) as Promise<Array<{ period: string; commits: number; for_others: number }>>,
     db.sql.unsafe(
       `SELECT
          LEFT(cc.committed_at, ${periodLen}) AS period,
@@ -295,10 +298,143 @@ export async function getHackersOverview(db: WebDatabase, rawWindow?: string | n
     return {
       period: r.period,
       commits: Number(r.commits || 0),
+      forOthers: Number(r.for_others || 0),
       reviews: Number(c?.reviews || 0),
       activeHackers: Number(c?.active_hackers || 0),
     };
   });
+
+  // Extra world-class Observatory queries (<10ms total on 66k commits):
+  // 1) PG17-PG20 weekly cumulative release-cycle race + credited-review %
+  // 2) Subsystem committer concentration (Bus Factor 50%, Effective Committers 1/HHI, top committer)
+  // 3) Annual committer concentration (top1 / 2-5 / 6-10 / rest + bus factor step line)
+  const cWhereAliased = cWhere.replace(/\bcommitted_at\b/g, "c.committed_at").replace(/\bpg_major\b/g, "c.pg_major");
+  const [cycleRows, subsysBfRows, concYearRows] = await Promise.all([
+    db.sql.unsafe(
+      `WITH cycles(pg_major, start_d) AS (
+         VALUES ('PG17', DATE '2023-06-25'), ('PG18', DATE '2024-06-25'), ('PG19', DATE '2025-06-25'), ('PG20', DATE '2026-06-25')
+       ),
+       reviewed AS (
+         SELECT DISTINCT commit_sha FROM ${db.t("commit_credits")} WHERE credit_kind = 'reviewer' AND pg_major IN ('PG17','PG18','PG19','PG20')
+       )
+       SELECT
+         c.pg_major,
+         LEAST(53, GREATEST(1, 1 + ((LEFT(c.committed_at, 10)::date - cy.start_d) / 7)))::int AS week,
+         COUNT(*)::int AS commits,
+         COUNT(r.commit_sha)::int AS reviewed_commits
+       FROM ${db.t("pg_commits")} c
+       JOIN cycles cy ON cy.pg_major = c.pg_major
+       LEFT JOIN reviewed r ON r.commit_sha = c.sha
+       GROUP BY 1, 2
+       ORDER BY 1, 2`,
+    ) as Promise<Array<{ pg_major: string; week: number; commits: number; reviewed_commits: number }>>,
+    db.sql.unsafe(
+      `WITH by_c AS (
+         SELECT c.primary_subsystem AS subsys, c.committer_person_id AS pid, COUNT(*)::int AS cnt
+         FROM ${db.t("pg_commits")} c
+         WHERE ${cWhereAliased} AND c.committer_person_id IS NOT NULL
+         GROUP BY 1, 2
+       ),
+       ranked AS (
+         SELECT
+           subsys, pid, cnt,
+           SUM(cnt) OVER (PARTITION BY subsys ORDER BY cnt DESC, pid)::int AS run_sum,
+           SUM(cnt) OVER (PARTITION BY subsys)::int AS tot,
+           ROW_NUMBER() OVER (PARTITION BY subsys ORDER BY cnt DESC, pid)::int AS rk
+         FROM by_c
+       )
+       SELECT
+         r.subsys AS name,
+         MAX(r.tot)::int AS commits,
+         COUNT(*)::int AS committers,
+         COALESCE(MIN(r.rk) FILTER (WHERE r.run_sum * 2 >= r.tot), 1)::int AS bus_factor,
+         COALESCE(MIN(r.run_sum) FILTER (WHERE r.run_sum * 2 >= r.tot), MAX(r.tot))::int AS bf_commits,
+         ROUND((1.0 / NULLIF(SUM(POWER(r.cnt::float / NULLIF(r.tot::float, 0), 2)), 0))::numeric, 2)::float AS effective_committers,
+         ROUND((MAX(r.cnt)::float * 100.0 / NULLIF(MAX(r.tot)::float, 0))::numeric, 1)::float AS top1_pct,
+         (ARRAY_AGG(p.canonical_name ORDER BY r.cnt DESC, r.pid))[1] AS top_committer,
+         (ARRAY_AGG(p.slug ORDER BY r.cnt DESC, r.pid))[1] AS top_slug
+       FROM ranked r
+       JOIN ${db.t("people")} p ON p.id = r.pid
+       GROUP BY r.subsys`,
+      wf.params,
+    ) as Promise<
+      Array<{
+        name: string;
+        commits: number;
+        committers: number;
+        bus_factor: number;
+        bf_commits: number;
+        effective_committers: number;
+        top1_pct: number;
+        top_committer: string;
+        top_slug: string;
+      }>
+    >,
+    db.sql.unsafe(
+      `WITH by_yr AS (
+         SELECT LEFT(committed_at, 4) AS yr, committer_person_id AS pid, COUNT(*)::int AS cnt
+         FROM ${db.t("pg_commits")}
+         WHERE committed_at >= '2016-01-01' AND committer_person_id IS NOT NULL
+         GROUP BY 1, 2
+       ),
+       ranked AS (
+         SELECT
+           yr, pid, cnt,
+           SUM(cnt) OVER (PARTITION BY yr ORDER BY cnt DESC, pid)::int AS run_sum,
+           SUM(cnt) OVER (PARTITION BY yr)::int AS tot,
+           ROW_NUMBER() OVER (PARTITION BY yr ORDER BY cnt DESC, pid)::int AS rk
+         FROM by_yr
+       )
+       SELECT
+         yr,
+         MAX(tot)::int AS total,
+         COUNT(*)::int AS committers,
+         COALESCE(MIN(rk) FILTER (WHERE run_sum * 2 >= tot), 1)::int AS bus_factor,
+         COALESCE(SUM(cnt) FILTER (WHERE rk = 1), 0)::int AS top1,
+         COALESCE(SUM(cnt) FILTER (WHERE rk BETWEEN 2 AND 5), 0)::int AS rank2_5,
+         COALESCE(SUM(cnt) FILTER (WHERE rk BETWEEN 6 AND 10), 0)::int AS rank6_10,
+         COALESCE(SUM(cnt) FILTER (WHERE rk > 10), 0)::int AS rest
+       FROM ranked
+       GROUP BY yr
+       ORDER BY yr ASC`,
+    ) as Promise<
+      Array<{
+        yr: string;
+        total: number;
+        committers: number;
+        bus_factor: number;
+        top1: number;
+        rank2_5: number;
+        rank6_10: number;
+        rest: number;
+      }>
+    >,
+  ]);
+
+  // Build cumulative series per PG release cycle
+  const cycleMap = new Map<string, Array<{ week: number; commits: number; cumCommits: number; cumReviewed: number; reviewPct: number }>>();
+  for (const r of cycleRows) {
+    const arr = cycleMap.get(r.pg_major) || [];
+    const prev = arr[arr.length - 1];
+    const cumCommits = (prev?.cumCommits || 0) + Number(r.commits || 0);
+    const cumReviewed = (prev?.cumReviewed || 0) + Number(r.reviewed_commits || 0);
+    arr.push({
+      week: Number(r.week),
+      commits: Number(r.commits || 0),
+      cumCommits,
+      cumReviewed,
+      reviewPct: cumCommits > 0 ? Math.round((cumReviewed / cumCommits) * 1000) / 10 : 0,
+    });
+    cycleMap.set(r.pg_major, arr);
+  }
+  const releaseCycles = ["PG17", "PG18", "PG19", "PG20"]
+    .filter((m) => cycleMap.has(m))
+    .map((m) => ({
+      major: m,
+      points: cycleMap.get(m)!,
+    }));
+
+  const bfMap = new Map(subsysBfRows.map((r) => [r.name, r]));
 
   // 7x24 UTC heatmap
   const rhythmHeatmap = Array.from({ length: 7 }, () => Array<number>(24).fill(0));
@@ -339,13 +475,36 @@ export async function getHackersOverview(db: WebDatabase, rawWindow?: string | n
       linesDeleted: Number(ct.deletions || 0),
     },
     timeline,
+    releaseCycles,
+    concentrationByYear: concYearRows.map((r) => {
+      const tot = Math.max(1, Number(r.total || 0));
+      return {
+        year: r.yr,
+        total: Number(r.total || 0),
+        committers: Number(r.committers || 0),
+        busFactor: Number(r.bus_factor || 1),
+        top1Pct: Math.round((Number(r.top1) / tot) * 1000) / 10,
+        rank2_5Pct: Math.round((Number(r.rank2_5) / tot) * 1000) / 10,
+        rank6_10Pct: Math.round((Number(r.rank6_10) / tot) * 1000) / 10,
+        restPct: Math.round((Number(r.rest) / tot) * 1000) / 10,
+      };
+    }),
     rhythmHeatmap,
-    subsystems: subsysRows.map((s) => ({
-      name: s.name,
-      commits: Number(s.commits || 0),
-      authors: Number(s.authors || 0),
-      committers: Number(s.committers || 0),
-    })),
+    subsystems: subsysRows.map((s) => {
+      const bf = bfMap.get(s.name);
+      return {
+        name: s.name,
+        commits: Number(s.commits || 0),
+        authors: Number(s.authors || 0),
+        committers: Number(s.committers || 0),
+        busFactor: Number(bf?.bus_factor || 1),
+        bfCommits: Number(bf?.bf_commits || 0),
+        effectiveCommitters: Number(bf?.effective_committers || s.committers || 1),
+        top1Pct: Number(bf?.top1_pct || 0),
+        topCommitter: bf?.top_committer || "",
+        topSlug: bf?.top_slug || "",
+      };
+    }),
     leaderboards: {
       committers: topCommittersRows.map((r) => ({
         slug: r.slug,
@@ -764,7 +923,18 @@ export async function getHackerProfileBySlug(db: WebDatabase, slug: string, requ
       reviewed: Number(r.reviewed || 0),
       reported: Number(r.reported || 0),
     })),
-    subsystems,
+    subsystems: await (async () => {
+      const baselineRows = (await db.sql.unsafe(
+        `SELECT primary_subsystem AS name, COUNT(*)::int AS cnt FROM ${db.t("pg_commits")} GROUP BY 1`,
+      )) as Array<{ name: string; cnt: number }>;
+      const baseTot = Math.max(1, baselineRows.reduce((a, r) => a + Number(r.cnt || 0), 0));
+      const basePctMap = new Map(baselineRows.map((r) => [r.name, (Number(r.cnt || 0) / baseTot) * 100]));
+      return subsystems.map((s) => {
+        const projPct = Math.max(0.5, basePctMap.get(s.name) || 5);
+        const overIndex = Math.round((s.pct / projPct) * 10) / 10;
+        return { ...s, projectPct: Math.round(projPct * 10) / 10, overIndex };
+      });
+    })(),
     rhythm: {
       byHour,
       byDow,

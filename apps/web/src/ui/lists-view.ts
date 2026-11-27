@@ -1,3 +1,9 @@
+import {
+  renderInlineSparklineSvg,
+  renderMailingListAreaMaSvg,
+  renderThreadHeatScatterSvg,
+} from "./viz-charts.ts";
+
 export interface MailingListsOverviewData {
   catalogCount: number;
   syncedListsCount: number;
@@ -16,12 +22,14 @@ export interface MailingListsOverviewData {
     name: string;
     category: string;
     messageCount: number;
+    linkedPct?: number;
+    sparkline?: number[];
     firstSentAt: string;
     lastSentAt: string;
     lastSyncedAt: string;
     status: string;
   }>;
-  daily: Array<{ day: string; count: number }>;
+  daily: Array<{ day: string; count: number; linked?: number }>;
   hotThreads: Array<{
     listName: string;
     subject: string;
@@ -63,50 +71,6 @@ function esc(s: unknown): string {
 
 function fmtNum(n: number): string {
   return Number(n || 0).toLocaleString("en-US");
-}
-
-function renderDailyVolumeSvg(daily: Array<{ day: string; count: number }>): string {
-  if (daily.length === 0) return `<div class="empty-state">No daily volume data synced yet.</div>`;
-  const w = 620;
-  const h = 148;
-  const padL = 34;
-  const padR = 10;
-  const padT = 10;
-  const padB = 24;
-  const plotW = w - padL - padR;
-  const plotH = h - padT - padB;
-  const maxVal = Math.max(1, ...daily.map((d) => d.count));
-  const step = plotW / Math.max(1, daily.length);
-  const barW = Math.max(4, Math.min(20, step * 0.7));
-
-  const bars = daily
-    .map((d, i) => {
-      const bh = Math.max(2, (d.count / maxVal) * plotH);
-      const x = padL + i * step + (step - barW) / 2;
-      const y = padT + plotH - bh;
-      return `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barW.toFixed(1)}" height="${bh.toFixed(1)}" rx="2" fill="var(--accent)"><title>${esc(d.day)}: ${fmtNum(d.count)} messages</title></rect>`;
-    })
-    .join("");
-
-  const labelStep = Math.max(1, Math.ceil(daily.length / 6));
-  const labels = daily
-    .map((d, i) => {
-      if (i % labelStep !== 0 && i !== daily.length - 1) return "";
-      const x = padL + i * step + step / 2;
-      return `<text x="${x.toFixed(1)}" y="${h - 6}" text-anchor="middle" fill="var(--dim)" font-size="10">${esc(d.day.slice(5))}</text>`;
-    })
-    .join("");
-
-  return `
-    <svg viewBox="0 0 ${w} ${h}" class="obs-chart-svg" role="img" aria-label="Daily mailing list volume">
-      <line x1="${padL}" y1="${padT}" x2="${w - padR}" y2="${padT}" stroke="var(--border)" stroke-dasharray="3 3" />
-      <line x1="${padL}" y1="${padT + plotH}" x2="${w - padR}" y2="${padT + plotH}" stroke="var(--border)" />
-      <text x="${padL - 5}" y="${padT + 8}" text-anchor="end" fill="var(--dim)" font-size="10">${fmtNum(maxVal)}</text>
-      <text x="${padL - 5}" y="${padT + plotH}" text-anchor="end" fill="var(--dim)" font-size="10">0</text>
-      ${bars}
-      ${labels}
-    </svg>
-  `;
 }
 
 export function renderListMessagesRows(messages: MailingListMessageItem[]): string {
@@ -220,12 +184,50 @@ export function renderListsTab(params: {
     </div>
 
     <div class="grid2" style="margin-bottom:14px;">
+      <div class="card viz-card" style="margin-bottom:0;">
+        <div class="card-head">
+          <div>
+            <div class="viz-kicker">30-Day Mail Velocity</div>
+            <h2>${fmtNum(t.last30d)} messages · ${linkedPct}% from git-linked hackers</h2>
+            <div class="dim" style="font-size:12px;">Stacked daily volume with 7-day trailing average · Hover any day</div>
+          </div>
+        </div>
+        ${renderMailingListAreaMaSvg(overview.daily)}
+      </div>
+
+      <div class="card viz-card" style="margin-bottom:0;">
+        <div class="card-head">
+          <div>
+            <div class="viz-kicker">Thread Depth vs Breadth</div>
+            <h2>Active Discussion Heat (Messages × Participants)</h2>
+            <div class="dim" style="font-size:12px;">Distinguishes long 1-on-1 threads from broad multi-hacker debates · Click any dot</div>
+          </div>
+        </div>
+        ${renderThreadHeatScatterSvg(overview.hotThreads)}
+      </div>
+    </div>
+
+    <div class="grid2" style="margin-bottom:14px;">
       <div class="card" style="margin-bottom:0;">
         <div class="card-head">
-          <h2>Daily Mailing List Volume (30d)</h2>
-          <span class="dim" style="font-size:12px;">${fmtNum(t.last30d)} messages</span>
+          <h2>Ranked Active Lists (14d Sparklines)</h2>
+          <span class="dim" style="font-size:12px;">Tap any list to filter messages below</span>
         </div>
-        ${renderDailyVolumeSvg(overview.daily)}
+        <div class="viz-spark-table">
+          ${activeLists
+            .slice(0, 12)
+            .map(
+              (l) => `
+            <button type="button" class="viz-spark-row ${selectedList === l.name ? "active" : ""}" data-list-filter="${esc(l.name)}">
+              <span class="mono" style="font-weight:600;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(l.name)}</span>
+              ${renderInlineSparklineSvg(l.sparkline || [])}
+              <span class="mono" style="font-weight:600;text-align:right;font-size:12px;">${fmtNum(l.messageCount)}</span>
+              <span class="dim mono" style="font-size:11px;text-align:right;" title="Share of messages linked to unified hacker profiles">${l.linkedPct ?? 0}%</span>
+            </button>
+          `,
+            )
+            .join("")}
+        </div>
       </div>
 
       <div class="card" style="margin-bottom:0;">

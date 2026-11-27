@@ -1,54 +1,5 @@
 export type DocsCategory = "all" | "front-office" | "quota" | "backoffice" | "cli" | "safety";
 
-export interface CommunityCoverageData {
-  totalAll: number;
-  totalOpen: number;
-  baselineRoastedOpen: number;
-  unroastedOpen: number;
-  opinionsTotal: number;
-  openWith1PlusOpinion: number;
-  openWith2PlusOpinions: number;
-  readyForCommitterOpen: number;
-  readyForCommitterWithOpinion: number;
-  activeLeases: Array<{
-    cf_id: number;
-    title: string;
-    backend: string;
-    contributor_handle: string;
-    roast_flavour: string;
-    roast_level: string;
-    expires_at: string;
-  }>;
-  byBackend: Array<{ backend: string; count: number }>;
-  topContributors: Array<{ handle: string; name: string; count: number; backends: string[] }>;
-  recentContributions: Array<{
-    cf_id: number;
-    title: string;
-    contributor_handle: string;
-    contributor_name: string;
-    backend: string;
-    roast_level: string;
-    roast_flavour: string;
-    verdict: string;
-    created_at: string;
-  }>;
-}
-
-export interface QuotaPreviewResult {
-  patch: {
-    cf_id: number;
-    title: string;
-    status: string;
-    topic: string;
-    authors: string;
-    verdict: string;
-  } | null;
-  suggestedFlavour: string;
-  suggestedLevel: string;
-  reason: string;
-  leaseExpiresAt: string | null;
-}
-
 function esc(s: unknown): string {
   return String(s ?? "")
     .replace(/&/g, "&amp;")
@@ -57,27 +8,6 @@ function esc(s: unknown): string {
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
 }
-
-function fmtNum(n: number): string {
-  return Number(n || 0).toLocaleString("en-US");
-}
-
-function pct(part: number, total: number): number {
-  if (!total || total <= 0) return 0;
-  return Math.min(100, Math.round((part / total) * 100));
-}
-
-const ARCHETYPE_LABELS: Record<string, string> = {
-  "auto-by-subsystem": "Auto by subsystem",
-  default: "House Blend",
-  "edge-case-hunter": "The Edge-Case Hunter",
-  "spec-lawyer": "The Spec Lawyer",
-  "systems-architect": "The Systems Architect",
-  "perf-hawk": "The Perf Hawk",
-  "storage-skeptic": "The Storage Skeptic",
-  "index-specialist": "The Index Specialist",
-  "production-dba": "The Production DBA",
-};
 
 interface FeatureDocItem {
   id: string;
@@ -119,7 +49,7 @@ const ALL_FEATURES: FeatureDocItem[] = [
     category: "front-office",
     categoryLabel: "Front Office",
     title: "PostgreSQL Hacking Observatory",
-    summary: "Live analytics across 66,000+ PostgreSQL commits: velocity and review charts, 7×24 UTC hacking rhythm heatmap, subsystem bus-factor indicators, and Committers / Authors / Reviewers / Bug Hunters / Rising Stars leaderboards across selectable time windows (30d, 90d, 1y, PG20, PG19, PG18, 5y, All-time).",
+    summary: "Interactive analytics across 66,000+ PostgreSQL commits: velocity & review timelines, 7×24 UTC hacking rhythm heatmap, subsystem bus-factor quadrant, release-cycle trends, and Committers / Authors / Reviewers / Bug Hunters / Rising Stars leaderboards.",
     status: "live",
     actionLabel: "Open Hackers →",
     actionTab: "hackers",
@@ -129,17 +59,27 @@ const ALL_FEATURES: FeatureDocItem[] = [
     category: "front-office",
     categoryLabel: "Front Office",
     title: "Unified Multi-Email Hacker Profiles (/hacker/<slug>)",
-    summary: "Personal contributor pages that merge multiple email addresses, .mailmap aliases, diacritics, and recognized postgresql.org roles into one identity. Shows 52-week heatmap, career trajectory, subsystem DNA, UTC rhythm, longest streak, collaboration network, and recent commits/reviews without ever exposing raw email addresses.",
+    summary: "Personal contributor pages that merge multiple email addresses, .mailmap aliases, diacritics, and recognized postgresql.org roles into one identity. Includes 52-week heatmap, radial 24h UTC clock, career chart, subsystem DNA, interactive collaboration constellation, commits, reviews, and mailing list activity.",
     status: "live",
     actionLabel: "Explore Profiles →",
     actionTab: "hackers",
   },
   {
+    id: "mailing-lists",
+    category: "front-office",
+    categoryLabel: "Front Office",
+    title: "Full PostgreSQL Mailing Lists Archive (Continuous Sync)",
+    summary: "All 49 PostgreSQL public mailing lists cataloged and continuously synced with incremental /since/ watermarks + optional authenticated .mbox historical backfill, full-text search, active thread tracking, and direct links to /hacker/<slug> profiles.",
+    status: "live",
+    actionLabel: "Open Lists →",
+    actionTab: "lists",
+  },
+  {
     id: "cf-stats",
     category: "front-office",
     categoryLabel: "Front Office",
-    title: "CommitFest Stats, Status × Verdict Heatmap & Traffic",
-    summary: "Click any verdict slice, subsystem bar, status × verdict cell, or contributor row to drill straight into matching patches. Includes a zero-cookie, bot-filtered PostgreSQL page-view counter and top referrers.",
+    title: "CommitFest Intelligence & Flow Visualizations",
+    summary: "Status → Verdict alluvial flow diagram, subsystem readiness scatter plot, interactive Status × Verdict heatmap, clickable leaderboards, and zero-cookie PostgreSQL page-view traffic analytics.",
     status: "live",
     actionLabel: "Open Stats →",
     actionTab: "stats",
@@ -164,16 +104,6 @@ const ALL_FEATURES: FeatureDocItem[] = [
     actionLabel: "Read /llms.txt ↗",
     actionPath: "/llms.txt",
   },
-  {
-    id: "mailing-lists",
-    category: "front-office",
-    categoryLabel: "Front Office",
-    title: "Full PostgreSQL Mailing Lists Archive (Continuous Sync)",
-    summary: "All 51 PostgreSQL public mailing lists cataloged and continuously synced with incremental /since/ watermarks + optional authenticated .mbox historical backfill, full-text search, active thread tracking, and direct links to /hacker/<slug> profiles.",
-    status: "live",
-    actionLabel: "Open Lists →",
-    actionTab: "lists",
-  },
 
   // Weekly Quota Auto-Contribute
   {
@@ -183,6 +113,8 @@ const ALL_FEATURES: FeatureDocItem[] = [
     title: "Soft-Lease Community Work Queue (/api/v1/contribute/next)",
     summary: "Assigns the highest-value open CommitFest patch with a 45-minute soft lease per backend so multiple contributors never waste quota roasting the same patch with the same model.",
     status: "live",
+    actionLabel: "Open Contribute →",
+    actionTab: "contribute",
     cliSnippet: "pgroast contribute --dry-run",
   },
   {
@@ -192,6 +124,8 @@ const ALL_FEATURES: FeatureDocItem[] = [
     title: "Weekly Reset Window Scheduler (Claude, Codex, Antigravity)",
     summary: "Configure each subscription CLI's weekly reset day/hour (UTC), pre-reset window (e.g. 18 hours before reset), and per-window patch cap. Only spends leftover weekly capacity right before it expires, and stops immediately on any usage or rate limit.",
     status: "live",
+    actionLabel: "Open Contribute →",
+    actionTab: "contribute",
     cliSnippet: "pgroast contribute --init",
   },
   {
@@ -199,8 +133,10 @@ const ALL_FEATURES: FeatureDocItem[] = [
     category: "quota",
     categoryLabel: "Auto-Contribute",
     title: "Automatic Subsystem-to-Archetype Routing",
-    summary: "Automatically picks the right reviewer archetype for each patch: WAL/buffer patches go to Storage Skeptic, B-tree/GIN/GiST to Index Specialist, planner/executor to Perf Hawk, SQL/parser to Spec Lawyer, replication/hooks to Systems Architect, and pg_stat/backup to Production DBA.",
+    summary: "Automatically picks the right fictional reviewer archetype for each patch: WAL/buffer patches go to Storage Skeptic, B-tree/GIN/GiST to Index Specialist, planner/executor to Perf Hawk, SQL/parser to Spec Lawyer, replication/hooks to Systems Architect, and pg_stat/backup to Production DBA.",
     status: "live",
+    actionLabel: "Try Live Preview →",
+    actionTab: "contribute",
     cliSnippet: "pgroast contribute --once --flavour auto-by-subsystem",
   },
   {
@@ -208,8 +144,10 @@ const ALL_FEATURES: FeatureDocItem[] = [
     category: "quota",
     categoryLabel: "Auto-Contribute",
     title: "Live Community Coverage & Progress Tracking",
-    summary: "Track overall CommitFest roast coverage (baseline, 1+ community opinion, 2+ cross-model consensus, active leases, backend breakdown, and top contributors) right on this page or from the terminal.",
+    summary: "Track overall CommitFest roast coverage (unroasted, baseline, 1+ community opinion, 2+ cross-model consensus, active leases, backend breakdown, and top contributors) on the Contribute page or in the terminal.",
     status: "live",
+    actionLabel: "Track Progress →",
+    actionTab: "contribute",
     cliSnippet: "pgroast contribute --status",
   },
 
@@ -330,64 +268,12 @@ const ALL_FEATURES: FeatureDocItem[] = [
   },
 ];
 
-export function buildQuotaAgentPrompt(origin: string): string {
-  return [
-    "Set up pgroast Weekly Quota Auto-Contribute on this machine so unused weekly OAuth quota (Claude, Codex, or Antigravity) roasts open PostgreSQL CommitFest patches right before reset:",
-    "",
-    "1. Make sure pgroast is cloned and dependencies are installed (`bun install`), and run `bun run src/cli.ts doctor` to see which AI CLIs are signed in.",
-    `2. Initialize the auto-contribute config pointing at ${origin}:`,
-    `   bun run src/cli.ts contribute --init --hub ${origin}`,
-    "3. Ask me for:",
-    "   - Which AI CLIs to enable (claude, codex, agy) and each subscription's weekly reset day/hour (UTC)",
-    "   - How many hours before reset to start (default: 18) and max patches per window (default: 5)",
-    "   - Whether to auto-publish sanitized opinions to the Public App (requires a publish-only token from the Backoffice tab; default is local-only)",
-    "4. Run `bun run src/cli.ts contribute --status` and `bun run src/cli.ts contribute --dry-run` so I can verify the next queued patch and reviewer archetype.",
-    "5. Show me how to either run it via hourly cron (`0 * * * * bun run src/cli.ts contribute --auto`) or trigger it from the Personal Backoffice Settings card.",
-  ].join("\n");
-}
-
 export function renderDocsTab(params: {
-  origin: string;
-  coverage: CommunityCoverageData | null;
-  coverageLoading: boolean;
   category: DocsCategory;
   search: string;
-  previewBackend: string;
-  previewStrategy: string;
-  previewFlavour: string;
-  previewLevel: string;
-  previewLoading: boolean;
-  previewError: string;
-  previewResult: QuotaPreviewResult | null;
 }): string {
-  const {
-    origin,
-    coverage,
-    coverageLoading,
-    category,
-    search,
-    previewBackend,
-    previewStrategy,
-    previewFlavour,
-    previewLevel,
-    previewLoading,
-    previewError,
-    previewResult,
-  } = params;
-
-  const q = search.trim().toLowerCase();
-  const filteredFeatures = ALL_FEATURES.filter((f) => {
-    const okCat = category === "all" || f.category === category;
-    const okQ = !q || `${f.title} ${f.summary} ${f.categoryLabel} ${f.cliSnippet || ""}`.toLowerCase().includes(q);
-    return okCat && okQ;
-  });
-
-  const cov = coverage;
-  const openTot = cov?.totalOpen ?? 0;
-  const basePct = cov ? pct(cov.baselineRoastedOpen, openTot) : 0;
-  const op1Pct = cov ? pct(cov.openWith1PlusOpinion, openTot) : 0;
-  const op2Pct = cov ? pct(cov.openWith2PlusOpinions, openTot) : 0;
-  const rfcPct = cov ? pct(cov.readyForCommitterWithOpinion, cov.readyForCommitterOpen) : 0;
+  const { category, search } = params;
+  const filteredFeatures = filterDocsFeatures(category, search);
 
   const categories: Array<{ id: DocsCategory; label: string; count: number }> = [
     { id: "all", label: "All features", count: ALL_FEATURES.length },
@@ -397,8 +283,6 @@ export function renderDocsTab(params: {
     { id: "cli", label: "CLI", count: ALL_FEATURES.filter((f) => f.category === "cli").length },
     { id: "safety", label: "Privacy & Safety", count: ALL_FEATURES.filter((f) => f.category === "safety").length },
   ];
-
-  const agentPrompt = buildQuotaAgentPrompt(origin);
 
   const cliCommands: Array<{ cmd: string; desc: string }> = [
     { cmd: "pgroast 5879 --level medium --flavour edge-case-hunter", desc: "Roast one CommitFest entry with a specific level and reviewer archetype" },
@@ -421,295 +305,46 @@ export function renderDocsTab(params: {
   return `
     <div class="page-head">
       <div>
-        <h1 class="page-title">Docs, All Features &amp; Weekly Quota Auto-Contribute</h1>
+        <div class="viz-kicker">Documentation &amp; Reference</div>
+        <h1 class="page-title">pgroast Docs &amp; Complete Feature Catalog</h1>
         <div class="page-sub">
-          Everything pgroast does across the Front Office, Personal Backoffice, CLI, and community weekly-quota roasting — with live coverage progress.
+          Every capability across the Front Office, Personal Backoffice, CLI, Weekly Quota Auto-Contribute, and Safety Gates.
         </div>
       </div>
       <div class="row" style="gap:6px;">
-        <button type="button" class="btn btn-primary btn-sm" id="docs-jump-quota-btn">Set up Auto-Contribute ↓</button>
-        <button type="button" class="btn btn-secondary btn-sm" id="docs-jump-catalog-btn">All ${ALL_FEATURES.length} features ↓</button>
+        <button type="button" class="btn btn-primary btn-sm" data-docs-nav="contribute">Quota Auto-Contribute →</button>
+        <button type="button" class="btn btn-secondary btn-sm" data-docs-nav="connect">Backoffice Setup →</button>
       </div>
     </div>
 
-    <!-- 1. LIVE COMMUNITY COVERAGE PROGRESS TRACKER -->
-    <section class="card docs-quota-hero" id="quota-progress">
+    <!-- Architecture at a Glance -->
+    <section class="card">
       <div class="card-head">
-        <div>
-          <h2>Community CommitFest Goal: Multi-Model Coverage Progress</h2>
-          <div class="dim" style="font-size:12px;">
-            Many contributors donate leftover weekly OAuth quota (Claude, Codex, Antigravity) right before reset so every open CommitFest patch gets deep AI pre-review.
-          </div>
-        </div>
-        <button type="button" class="btn btn-secondary btn-sm" id="docs-refresh-coverage-btn">Refresh</button>
+        <h2>How the Three Pieces Fit Together</h2>
+        <span class="pill p-ok">Local → Public Trust Model</span>
       </div>
-
-      ${
-        coverageLoading && !cov
-          ? `<div class="loading-state" style="padding:24px 0;"><div class="spinner"></div><div class="muted">Loading live CommitFest coverage…</div></div>`
-          : cov
-            ? `
-        <div class="kpis" style="margin-bottom:14px;">
-          <div class="kpi" style="cursor:default;">
-            <div class="kpi-l">Open CommitFest patches</div>
-            <div class="kpi-v">${fmtNum(cov.totalOpen)}</div>
-            <div class="kpi-sub">${fmtNum(cov.totalAll)} total indexed</div>
-          </div>
-          <div class="kpi" style="cursor:default;">
-            <div class="kpi-l"><span class="dot" style="background:var(--accent)"></span>Baseline roasted</div>
-            <div class="kpi-v">${basePct}%</div>
-            <div class="kpi-sub">${fmtNum(cov.baselineRoastedOpen)} of ${fmtNum(cov.totalOpen)} open</div>
-          </div>
-          <div class="kpi" style="cursor:default;">
-            <div class="kpi-l"><span class="dot" style="background:var(--ok)"></span>Community opinions</div>
-            <div class="kpi-v" style="color:var(--ok)">${fmtNum(cov.opinionsTotal)}</div>
-            <div class="kpi-sub">${fmtNum(cov.openWith1PlusOpinion)} open with 1+ · ${fmtNum(cov.openWith2PlusOpinions)} with 2+</div>
-          </div>
-          <div class="kpi" style="cursor:default;">
-            <div class="kpi-l"><span class="dot" style="background:var(--warn)"></span>Unroasted open</div>
-            <div class="kpi-v" style="color:var(--warn)">${fmtNum(cov.unroastedOpen)}</div>
-            <div class="kpi-sub">Waiting in queue</div>
-          </div>
-          <div class="kpi" style="cursor:default;">
-            <div class="kpi-l">Ready for Committer</div>
-            <div class="kpi-v">${rfcPct}%</div>
-            <div class="kpi-sub">${fmtNum(cov.readyForCommitterWithOpinion)} of ${fmtNum(cov.readyForCommitterOpen)} have opinion</div>
-          </div>
-          <div class="kpi" style="cursor:default;">
-            <div class="kpi-l">Active quota leases</div>
-            <div class="kpi-v">${fmtNum(cov.activeLeases.length)}</div>
-            <div class="kpi-sub">45m soft locks</div>
-          </div>
-        </div>
-
-        <div class="quota-bars">
-          <div class="quota-bar-item">
-            <div class="row" style="justify-content:space-between;font-size:12px;margin-bottom:5px;">
-              <span><strong>Baseline CommitFest coverage</strong> (open entries with at least a brief pass)</span>
-              <span class="mono"><strong>${basePct}%</strong> (${fmtNum(cov.baselineRoastedOpen)} / ${fmtNum(cov.totalOpen)})</span>
-            </div>
-            <div class="quota-track"><div class="quota-fill" style="width:${basePct}%;background:var(--accent);"></div></div>
-          </div>
-          <div class="quota-bar-item">
-            <div class="row" style="justify-content:space-between;font-size:12px;margin-bottom:5px;">
-              <span><strong>Community multi-model opinions</strong> (open entries with 1+ published reviewer/quota opinion)</span>
-              <span class="mono"><strong>${op1Pct}%</strong> (${fmtNum(cov.openWith1PlusOpinion)} / ${fmtNum(cov.totalOpen)}) · 2+ models: ${op2Pct}%</span>
-            </div>
-            <div class="quota-track">
-              <div class="quota-fill" style="width:${Math.max(op1Pct, cov.openWith1PlusOpinion > 0 ? 2 : 0)}%;background:var(--ok);"></div>
-            </div>
-          </div>
-        </div>
-
-        <div class="grid2" style="margin-top:14px;">
-          <div>
-            <div class="sheet-section-label" style="margin-bottom:6px;">Opinions by AI Backend &amp; Top Contributors</div>
-            <div class="row" style="gap:6px;flex-wrap:wrap;margin-bottom:10px;">
-              ${
-                cov.byBackend.length === 0
-                  ? `<span class="dim" style="font-size:12px;">No community opinions yet — be the first!</span>`
-                  : cov.byBackend.map((b) => `<span class="pill p-info mono">${esc(b.backend)}: ${b.count}</span>`).join("")
-              }
-            </div>
-            ${
-              cov.topContributors.length > 0
-                ? `<div class="lb-list">
-                    ${cov.topContributors
-                      .slice(0, 5)
-                      .map(
-                        (c, i) => `
-                      <div class="lb-row" style="cursor:default;">
-                        <span class="lb-rank mono">${i + 1}</span>
-                        <span class="lb-name"><strong>${esc(c.name)}</strong> <span class="dim mono">@${esc(c.handle)}</span></span>
-                        <span class="lb-count mono">${c.count}</span>
-                      </div>
-                    `,
-                      )
-                      .join("")}
-                  </div>`
-                : ""
-            }
-          </div>
-          <div>
-            <div class="sheet-section-label" style="margin-bottom:6px;">Recent Community Roasts &amp; Active Leases</div>
-            ${
-              cov.activeLeases.length > 0
-                ? `<div style="margin-bottom:8px;display:flex;flex-direction:column;gap:4px;">
-                    ${cov.activeLeases
-                      .slice(0, 3)
-                      .map(
-                        (l) => `
-                      <div class="tag-micro" style="justify-content:space-between;width:100%;">
-                        <span>⏳ Roasting <strong class="mono">CF ${l.cf_id}</strong> (${esc(l.backend)} · ${esc(l.roast_flavour)})</span>
-                        <span class="dim mono">${l.contributor_handle ? `@${esc(l.contributor_handle)}` : "active"}</span>
-                      </div>
-                    `,
-                      )
-                      .join("")}
-                  </div>`
-                : ""
-            }
-            ${
-              cov.recentContributions.length === 0
-                ? `<div class="muted" style="font-size:12.5px;">No published opinions yet. Run <code class="mono">pgroast contribute --once --publish</code> to contribute the first one.</div>`
-                : `<div class="lb-list">
-                    ${cov.recentContributions
-                      .slice(0, 5)
-                      .map(
-                        (r) => `
-                      <button type="button" class="lb-row" data-open-patch="${r.cf_id}">
-                        <span class="mono" style="color:var(--accent-t);font-size:11.5px;min-width:54px;">CF ${r.cf_id}</span>
-                        <span class="lb-name">${esc(r.title)}</span>
-                        <span class="tag-micro mono">${esc(r.backend)}</span>
-                      </button>
-                    `,
-                      )
-                      .join("")}
-                  </div>`
-            }
-          </div>
-        </div>
-      `
-            : `<div class="muted">Coverage stats unavailable right now.</div>`
-      }
-    </section>
-
-    <!-- 2. WEEKLY QUOTA AUTO-CONTRIBUTE: EXPLORE, PREVIEW & SET UP -->
-    <section class="card" id="quota-setup">
-      <div class="card-head">
-        <div>
-          <h2>Donate Leftover Weekly Quota (Claude · Codex · Antigravity)</h2>
-          <div class="dim" style="font-size:12px;">Use expiring weekly OAuth subscription capacity to pre-review open CommitFest patches — zero extra spend, zero auto-posting to -hackers.</div>
-        </div>
-        <span class="pill p-ok">Opt-in · Stops on limit</span>
-      </div>
-
-      <div class="intro-grid" style="margin-bottom:16px;">
+      <div class="intro-grid" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr));">
         <div class="intro-step">
-          <div class="intro-step-head"><span class="intro-num">1</span><strong>Define your weekly reset</strong></div>
-          <p>Set each CLI's reset day/hour (UTC) and pre-reset window (e.g. 18h before reset) plus a max patch cap per window.</p>
+          <div class="intro-step-head"><span class="intro-num">1</span><strong>CLI (<code class="mono">pgroast</code>)</strong></div>
+          <p>Runs locally on your OAuth AI CLIs (Claude, Codex, Antigravity) against 2,547 historical Postgres precedents. Writes local files only unless you run <code class="mono">publish</code> or opt-in <code class="mono">contribute</code>.</p>
         </div>
         <div class="intro-step">
-          <div class="intro-step-head"><span class="intro-num">2</span><strong>Claim a soft-leased patch</strong></div>
-          <p>The CLI asks <code class="mono">/api/v1/contribute/next</code> for an uncovered patch and reserves it for 45 min so contributors never duplicate work.</p>
+          <div class="intro-step-head"><span class="intro-num">2</span><strong>Personal Backoffice (<code class="mono">apps/local</code>)</strong></div>
+          <p>Private PostgreSQL 19 workbench on <code class="mono">127.0.0.1:3432</code>. Compile Postgres, inspect diffs, manage Work Items, run Roast Studio, draft 72-col Gmail replies, and schedule quota runs.</p>
         </div>
         <div class="intro-step">
-          <div class="intro-step-head"><span class="intro-num">3</span><strong>Roast locally &amp; stop on limit</strong></div>
-          <p>Runs locally on your OAuth CLI (no API keys). Stops cleanly at the first rate/usage limit without failing or wasting retries.</p>
-        </div>
-        <div class="intro-step">
-          <div class="intro-step-head"><span class="intro-num">4</span><strong>Publish sanitized opinion</strong></div>
-          <p>When you opt in (<code class="mono">autoPublish: true</code>), the Public-Confidentiality Hard Gate checks the summary and posts it here — never to <code class="mono">-hackers</code>.</p>
-        </div>
-      </div>
-
-      <!-- Interactive Live Queue Previewer -->
-      <div class="quota-preview-box">
-        <div class="card-head" style="margin-bottom:10px;">
-          <div>
-            <h3>Try It Live: Preview Your Next Queued Patch</h3>
-            <div class="dim" style="font-size:12px;">Runs a read-only <code class="mono">dry_run=1</code> query against the live CommitFest work queue (claims nothing).</div>
-          </div>
-          <button type="button" class="btn btn-primary btn-sm" id="quota-preview-btn" ${previewLoading ? "disabled" : ""}>
-            ${previewLoading ? "Checking queue…" : "Preview next patch →"}
-          </button>
-        </div>
-        <div class="quota-preview-controls">
-          <label>
-            <span class="dim" style="font-size:11px;display:block;margin-bottom:3px;">AI Backend</span>
-            <select id="qp-backend">
-              <option value="claude" ${previewBackend === "claude" ? "selected" : ""}>claude</option>
-              <option value="codex" ${previewBackend === "codex" ? "selected" : ""}>codex</option>
-              <option value="agy" ${previewBackend === "agy" ? "selected" : ""}>agy (Antigravity)</option>
-            </select>
-          </label>
-          <label>
-            <span class="dim" style="font-size:11px;display:block;margin-bottom:3px;">Queue Strategy</span>
-            <select id="qp-strategy">
-              <option value="unroasted-first" ${previewStrategy === "unroasted-first" ? "selected" : ""}>Unroasted patches first</option>
-              <option value="cross-model-second-opinion" ${previewStrategy === "cross-model-second-opinion" ? "selected" : ""}>Cross-model second opinion</option>
-              <option value="ready-for-committer" ${previewStrategy === "ready-for-committer" ? "selected" : ""}>Ready for Committer queue</option>
-            </select>
-          </label>
-          <label>
-            <span class="dim" style="font-size:11px;display:block;margin-bottom:3px;">Reviewer Archetype</span>
-            <select id="qp-flavour">
-              ${Object.entries(ARCHETYPE_LABELS)
-                .map(([id, label]) => `<option value="${id}" ${previewFlavour === id ? "selected" : ""}>${esc(label)}</option>`)
-                .join("")}
-            </select>
-          </label>
-          <label>
-            <span class="dim" style="font-size:11px;display:block;margin-bottom:3px;">Roast Level</span>
-            <select id="qp-level">
-              <option value="light" ${previewLevel === "light" ? "selected" : ""}>Light</option>
-              <option value="medium" ${previewLevel === "medium" ? "selected" : ""}>Medium</option>
-              <option value="dark" ${previewLevel === "dark" ? "selected" : ""}>Dark</option>
-            </select>
-          </label>
-        </div>
-
-        ${
-          previewError
-            ? `<div class="sheet-callout sheet-callout-warn" style="margin-top:10px;">${esc(previewError)}</div>`
-            : previewResult
-              ? previewResult.patch
-                ? `
-            <div class="quota-preview-result">
-              <div class="row" style="justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:6px;">
-                <div class="row" style="gap:6px;flex-wrap:wrap;">
-                  <span class="mono" style="font-weight:700;color:var(--accent-t);">CF ${previewResult.patch.cf_id}</span>
-                  <span class="tag-micro">${esc(previewResult.patch.status || "Open")}</span>
-                  ${previewResult.patch.topic ? `<span class="tag-micro">${esc(previewResult.patch.topic)}</span>` : ""}
-                  <span class="pill p-ok">Archetype: ${esc(ARCHETYPE_LABELS[previewResult.suggestedFlavour] || previewResult.suggestedFlavour)}</span>
-                  <span class="pill p-info">Level: ${esc(previewResult.suggestedLevel)}</span>
-                </div>
-                <button type="button" class="btn btn-secondary btn-sm" data-open-patch="${previewResult.patch.cf_id}">Open patch page →</button>
-              </div>
-              <div style="font-weight:600;font-size:14px;margin-bottom:4px;">${esc(previewResult.patch.title)}</div>
-              <div class="muted" style="font-size:12px;">${esc(previewResult.reason)}${previewResult.patch.authors ? ` · Authors: ${esc(previewResult.patch.authors)}` : ""}</div>
-            </div>
-          `
-                : `<div class="sheet-callout" style="margin-top:10px;">${esc(previewResult.reason)}</div>`
-              : ""
-        }
-      </div>
-
-      <!-- Setup Options: AI Agent Prompt + 3-Step CLI -->
-      <div class="grid2" style="margin-top:14px;">
-        <div>
-          <div class="row" style="justify-content:space-between;margin-bottom:6px;">
-            <strong style="font-size:13px;">Option A: Ask your AI agent to set it up</strong>
-            <button type="button" class="btn btn-primary btn-sm" id="docs-copy-quota-prompt-btn">Copy agent prompt</button>
-          </div>
-          <pre class="agent-prompt-pre mono" style="max-height:210px;">${esc(agentPrompt)}</pre>
-        </div>
-        <div>
-          <div class="row" style="justify-content:space-between;margin-bottom:6px;">
-            <strong style="font-size:13px;">Option B: 3-command CLI setup (or Backoffice UI)</strong>
-            <button type="button" class="btn btn-secondary btn-sm" id="docs-goto-backoffice-btn">Backoffice Setup →</button>
-          </div>
-          <pre class="agent-prompt-pre mono"># 1. Generate ~/.pgroast/contribute.json for installed CLIs
-bun run src/cli.ts contribute --init --hub ${esc(origin)}
-
-# 2. Check live CommitFest progress + reset countdown
-bun run src/cli.ts contribute --status
-bun run src/cli.ts contribute --dry-run
-
-# 3. Run 1 patch now or add hourly cron for pre-reset window
-bun run src/cli.ts contribute --once --publish
-# crontab -e:
-0 * * * * cd ~/pgroast && bun run src/cli.ts contribute --auto</pre>
+          <div class="intro-step-head"><span class="intro-num">3</span><strong>Front Office (<code class="mono">apps/web</code>)</strong></div>
+          <p>Public collaboration hub: CommitFest Briefs, <code class="mono">/patch/&lt;id&gt;</code> pages, Hacking Observatory, <code class="mono">/hacker/&lt;slug&gt;</code> profiles, Mailing Lists Archive, Stats, and the Quota Contribute queue.</p>
         </div>
       </div>
     </section>
 
-    <!-- 3. COMPLETE CATALOG OF ALL FEATURES -->
+    <!-- Complete Feature Catalog -->
     <section class="card" id="all-features">
       <div class="card-head">
         <div>
-          <h2>Complete Feature Directory (${ALL_FEATURES.length} features)</h2>
-          <div class="dim" style="font-size:12px;">Every capability across Front Office, Weekly Quota Auto-Contribute, Personal Backoffice, CLI, and Privacy/Safety</div>
+          <h2>All Features (${ALL_FEATURES.length})</h2>
+          <div class="dim" style="font-size:12px;">Filter by area or search any command, visualization, or safety gate</div>
         </div>
       </div>
 
@@ -737,8 +372,8 @@ bun run src/cli.ts contribute --once --publish
       </div>
     </section>
 
-    <!-- 4. COMPLETE CLI COMMAND REFERENCE -->
-    <section class="card">
+    <!-- Complete CLI Reference -->
+    <section class="card" id="cli-reference">
       <div class="card-head">
         <div>
           <h2>CLI Command Reference (<code class="mono">pgroast</code>)</h2>
@@ -755,6 +390,43 @@ bun run src/cli.ts contribute --once --publish
               <div class="muted" style="font-size:12px;margin-top:3px;">${esc(c.desc)}</div>
             </div>
             <button type="button" class="btn btn-ghost btn-sm" data-copy-snippet="${esc(c.cmd)}">Copy</button>
+          </div>
+        `,
+          )
+          .join("")}
+      </div>
+    </section>
+
+    <!-- Public Read-Only API Reference -->
+    <section class="card">
+      <div class="card-head">
+        <div>
+          <h2>Public Read-Only API &amp; Machine Endpoints</h2>
+          <div class="dim" style="font-size:12px;">JSON, XML, and Markdown endpoints served directly by the Front Office</div>
+        </div>
+      </div>
+      <div class="docs-cli-list">
+        ${[
+          ["GET /api/v1/health", "App version, PostgreSQL server info, entry/opinion/brief counts, and view totals"],
+          ["GET /api/v1/entries?limit=300", "Indexed CommitFest entries with verdict, status, topic, and authors"],
+          ["GET /api/v1/entries/<cf_id>", "Per-patch consensus breakdown, community opinions, and team claims"],
+          ["GET /api/v1/entries/<cf_id>/thread", "Parsed pgsql-hackers timeline, TL;DR, participants, and patch revisions"],
+          ["GET /api/v1/entries/<cf_id>/diff", "Live CFBot unified diff with inline matched -hackers review comments"],
+          ["GET /api/v1/hackers/overview?window=1y", "Hacking Observatory KPIs, timeline, 7x24 UTC heatmap, subsystems, and leaderboards"],
+          ["GET /api/v1/hackers/<slug>", "Unified multi-email contributor profile (zero raw emails exposed)"],
+          ["GET /api/v1/lists/overview", "49 PostgreSQL mailing lists catalog, daily volume, active threads, and top posters"],
+          ["GET /api/v1/lists/messages?list=pgsql-hackers", "Searchable archived messages linked to /hacker/<slug>"],
+          ["GET /api/v1/contribute/status", "Live community CommitFest coverage gauges and active soft leases"],
+          ["GET /api/v1/contribute/next?backend=claude&dry_run=1", "Soft-lease work queue returning next patch + auto-selected archetype"],
+          ["GET /llms.txt · /llms-full.txt · /sitemap.xml", "AI crawler digest and full XML sitemap of patches and hacker profiles"],
+        ]
+          .map(
+            ([ep, desc]) => `
+          <div class="docs-cli-row">
+            <div style="min-width:0;flex:1;">
+              <code class="mono docs-cli-cmd">${esc(ep)}</code>
+              <div class="muted" style="font-size:12px;margin-top:2px;">${esc(desc)}</div>
+            </div>
           </div>
         `,
           )

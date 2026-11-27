@@ -1,11 +1,14 @@
 import {
   buildQuotaAgentPrompt,
+  renderContributeTab,
+  type CommunityCoverageData,
+  type QuotaPreviewResult,
+} from "./contribute-view.ts";
+import {
   filterDocsFeatures,
   renderDocsFeatureCards,
   renderDocsTab,
-  type CommunityCoverageData,
   type DocsCategory,
-  type QuotaPreviewResult,
 } from "./docs-view.ts";
 import {
   renderHackerDirectoryCards,
@@ -25,8 +28,13 @@ import {
   type MailingListMessageItem,
   type MailingListsOverviewData,
 } from "./lists-view.ts";
+import {
+  renderStatusVerdictMarimekkoSvg,
+  renderTopicReadinessScatterSvg,
+} from "./viz-charts.ts";
+import { initVizInteractions } from "./viz-engine.ts";
 
-type TabId = "brief" | "hackers" | "lists" | "stats" | "entries" | "opinions" | "coordination" | "connect" | "docs";
+type TabId = "brief" | "hackers" | "lists" | "stats" | "entries" | "opinions" | "coordination" | "connect" | "contribute" | "docs";
 type MrTabId = "overview" | "discussion" | "changes";
 
 interface MrBodyBlock {
@@ -479,20 +487,17 @@ function parseRouteFromLocation(): { patchId: number | null; hackerSlug: string 
   if (hackerMatch?.[1]) {
     return { patchId: null, hackerSlug: hackerMatch[1].toLowerCase(), tab: "hackers", mrTab: "overview", hash: u.hash };
   }
-  if (/^\/(?:docs|contribute)\/?$/i.test(u.pathname)) {
-    return {
-      patchId: null,
-      hackerSlug: null,
-      tab: "docs",
-      mrTab: "overview",
-      hash: u.pathname.toLowerCase().startsWith("/contribute") ? "#quota-setup" : u.hash,
-    };
+  if (/^\/docs\/?$/i.test(u.pathname)) {
+    return { patchId: null, hackerSlug: null, tab: "docs", mrTab: "overview", hash: u.hash };
+  }
+  if (/^\/contribute\/?$/i.test(u.pathname)) {
+    return { patchId: null, hackerSlug: null, tab: "contribute", mrTab: "overview", hash: u.hash };
   }
   if (/^\/lists\/?$/i.test(u.pathname)) {
     return { patchId: null, hackerSlug: null, tab: "lists", mrTab: "overview", hash: u.hash };
   }
   const tabParam = u.searchParams.get("tab") as TabId | null;
-  const validTabs: TabId[] = ["brief", "hackers", "lists", "stats", "entries", "opinions", "coordination", "connect", "docs"];
+  const validTabs: TabId[] = ["brief", "hackers", "lists", "stats", "entries", "opinions", "coordination", "connect", "contribute", "docs"];
   return {
     patchId: null,
     hackerSlug: null,
@@ -712,14 +717,14 @@ async function loadDocsCoverage(force = false): Promise<void> {
   if (state.docsCoverageLoading) return;
   if (state.docsCoverage && !force) return;
   state.docsCoverageLoading = true;
-  if (state.tab === "docs") render();
+  if (state.tab === "contribute") render();
   try {
     state.docsCoverage = await api<CommunityCoverageData>("/api/v1/contribute/status");
   } catch {
     // ignore transient errors
   } finally {
     state.docsCoverageLoading = false;
-    if (state.tab === "docs" && !state.activePatchId && !state.activeHackerSlug) render();
+    if (state.tab === "contribute" && !state.activePatchId && !state.activeHackerSlug) render();
   }
 }
 
@@ -805,13 +810,23 @@ function navigateToTab(tab: TabId, pushHistory = true, hash = ""): void {
       ? "PostgreSQL Hacking Observatory — pgroast"
       : tab === "lists"
         ? "PostgreSQL Mailing Lists Archive — pgroast"
-        : tab === "docs"
-          ? "Docs, All Features & Weekly Quota Auto-Contribute — pgroast"
-          : "pgroast — Public CommitFest App";
+        : tab === "contribute"
+          ? "Weekly Quota Auto-Contribute — pgroast"
+          : tab === "docs"
+            ? "Docs & Complete Feature Catalog — pgroast"
+            : "pgroast — Public CommitFest App";
   if (pushHistory) {
     try {
       const targetUrl =
-        (tab === "brief" ? "/" : tab === "docs" ? "/docs" : tab === "lists" ? "/lists" : `/?tab=${encodeURIComponent(tab)}`) + hash;
+        (tab === "brief"
+          ? "/"
+          : tab === "docs"
+            ? "/docs"
+            : tab === "contribute"
+              ? "/contribute"
+              : tab === "lists"
+                ? "/lists"
+                : `/?tab=${encodeURIComponent(tab)}`) + hash;
       window.history.pushState({ patchId: null, hackerSlug: null, tab }, "", targetUrl);
     } catch {
       // ignore
@@ -824,7 +839,7 @@ function navigateToTab(tab: TabId, pushHistory = true, hash = ""): void {
   } else if (tab === "lists") {
     if (!state.listsOverview && !state.listsLoading) void loadListsOverview();
     if (state.listsMessages.length === 0) void loadListsMessages();
-  } else if (tab === "docs") {
+  } else if (tab === "contribute") {
     void loadDocsCoverage();
   }
   if (hash) {
@@ -857,7 +872,7 @@ async function loadAll(): Promise<void> {
     } else if (!route.patchId && !route.hackerSlug && route.tab === "lists") {
       void loadListsOverview();
       void loadListsMessages();
-    } else if (!route.patchId && !route.hackerSlug && route.tab === "docs") {
+    } else if (!route.patchId && !route.hackerSlug && route.tab === "contribute") {
       void loadDocsCoverage();
     }
 
@@ -2015,86 +2030,104 @@ function renderStatsTab(): string {
         </div>
       </div>
 
-      <div class="card" style="margin-bottom:0;">
+      <div class="card viz-card" style="margin-bottom:0;">
         <div class="card-head">
-          <h2>Top PostgreSQL Subsystems</h2>
-          <span class="dim" style="font-size:12px;">Open · Clean · Ready</span>
+          <div>
+            <div class="viz-kicker">Committer Attention Quadrant</div>
+            <h2>Top Subsystems: Open Volume vs Ready-for-Committer %</h2>
+            <div class="dim" style="font-size:12px;">Click any dot or row to filter Entries</div>
+          </div>
         </div>
-        <div class="subsys-list">
-          ${
-            topics
-              .map((t) => {
-                const tTotal = Math.max(1, t.total || t.open);
-                const wAll = Math.max(4, Math.round((tTotal / maxTopicTotal) * 100));
-                const cleanPct = Math.round(((t.clean || 0) / tTotal) * 100);
-                const readyPct = Math.round(((t.ready || 0) / tTotal) * 100);
-                return `
-              <button type="button" class="subsys-row" data-stats-topic="${esc(t.topic)}">
-                <div class="subsys-head">
-                  <span class="hbar-label">${esc(t.topic)}</span>
-                  <span class="mono dim">${t.open || t.total} open${t.clean ? ` · <span style="color:var(--ok)">${t.clean} clean</span>` : ""}${t.ready ? ` · <span style="color:var(--accent-t)">${t.ready} RFC</span>` : ""}</span>
-                </div>
-                <div class="subsys-bar" style="width:${wAll}%;">
-                  ${cleanPct > 0 ? `<div style="width:${cleanPct}%;background:var(--ok);"></div>` : ""}
-                  ${readyPct > 0 ? `<div style="width:${readyPct}%;background:var(--accent);"></div>` : ""}
-                  <div style="flex:1;background:rgb(94 106 210 / 0.35);"></div>
-                </div>
-              </button>
-            `;
-              })
-              .join("") || `<div class="muted">No subsystem breakdown included in this brief.</div>`
-          }
-        </div>
+        ${renderTopicReadinessScatterSvg(topics)}
+        <details style="margin-top:10px;">
+          <summary class="dim" style="font-size:12px;cursor:pointer;">Show all ${topics.length} subsystem bars</summary>
+          <div class="subsys-list" style="margin-top:8px;">
+            ${
+              topics
+                .map((t) => {
+                  const tTotal = Math.max(1, t.total || t.open);
+                  const wAll = Math.max(4, Math.round((tTotal / maxTopicTotal) * 100));
+                  const cleanPct = Math.round(((t.clean || 0) / tTotal) * 100);
+                  const readyPct = Math.round(((t.ready || 0) / tTotal) * 100);
+                  return `
+                <button type="button" class="subsys-row" data-stats-topic="${esc(t.topic)}">
+                  <div class="subsys-head">
+                    <span class="hbar-label">${esc(t.topic)}</span>
+                    <span class="mono dim">${t.open || t.total} open${t.clean ? ` · <span style="color:var(--ok)">${t.clean} clean</span>` : ""}${t.ready ? ` · <span style="color:var(--accent-t)">${t.ready} RFC</span>` : ""}</span>
+                  </div>
+                  <div class="subsys-bar" style="width:${wAll}%;">
+                    ${cleanPct > 0 ? `<div style="width:${cleanPct}%;background:var(--ok);"></div>` : ""}
+                    ${readyPct > 0 ? `<div style="width:${readyPct}%;background:var(--accent);"></div>` : ""}
+                    <div style="flex:1;background:rgb(94 106 210 / 0.35);"></div>
+                  </div>
+                </button>
+              `;
+                })
+                .join("") || `<div class="muted">No subsystem breakdown included in this brief.</div>`
+            }
+          </div>
+        </details>
       </div>
     </div>
 
     ${
       matrixRows.length
-        ? `
-      <div class="card">
+        ? (() => {
+            const mosaic = renderStatusVerdictMarimekkoSvg(matrixRows);
+            return `
+      <div class="card viz-card">
         <div class="card-head">
-          <h2>CommitFest Status × Verdict Heatmap</h2>
-          <span class="dim" style="font-size:12px;">Click any cell to open matching patches</span>
+          <div>
+            <div class="viz-kicker">CommitFest Status × AI Roast Verdict Mosaic</div>
+            <h2 class="viz-headline">${esc(mosaic.headline)}</h2>
+            <div class="dim" style="font-size:12px;margin-top:2px;">${esc(mosaic.subline)}</div>
+          </div>
         </div>
-        <div class="table-scroll">
-          <table class="matrix">
-            <thead>
-              <tr>
-                <th>CF Status</th>
-                <th class="num">Total</th>
-                <th class="num">No objection</th>
-                <th class="num">Committer eyes</th>
-                <th class="num">Design disc.</th>
-                <th class="num">Likely reject</th>
-                <th class="num">Not roasted</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${matrixRows
-                .map((row) => {
-                  const cOk = row.counts["NO-FUNDAMENTAL-OBJECTION"] ?? 0;
-                  const cEyes = row.counts["NEEDS-COMMITTER-EYES"] ?? 0;
-                  const cDesign = row.counts["NEEDS-DESIGN-DISCUSSION"] ?? 0;
-                  const cRej = row.counts["LIKELY-REJECT"] ?? 0;
-                  const cUn = row.counts.UNROASTED ?? 0;
-                  return `
+        ${mosaic.callouts ? `<div class="row" style="gap:8px;flex-wrap:wrap;margin-bottom:12px;">${mosaic.callouts}</div>` : ""}
+        ${mosaic.svg}
+        <details style="margin-top:12px;">
+          <summary class="dim" style="font-size:12px;cursor:pointer;">Show exact counts heatmap table</summary>
+          <div class="table-scroll" style="margin-top:8px;">
+            <table class="matrix">
+              <thead>
                 <tr>
-                  <td><strong>${esc(row.status)}</strong></td>
-                  <td class="num">${row.total}</td>
-                  <td class="num matrix-cell" style="${heatStyle(cOk, "76 183 130")}" data-mx-status="${esc(row.status)}" data-mx-verdict="NO-FUNDAMENTAL-OBJECTION">${cOk}</td>
-                  <td class="num matrix-cell" style="${heatStyle(cEyes, "94 106 210")}" data-mx-status="${esc(row.status)}" data-mx-verdict="NEEDS-COMMITTER-EYES">${cEyes}</td>
-                  <td class="num matrix-cell" style="${heatStyle(cDesign, "224 168 60")}" data-mx-status="${esc(row.status)}" data-mx-verdict="NEEDS-DESIGN-DISCUSSION">${cDesign}</td>
-                  <td class="num matrix-cell" style="${heatStyle(cRej, "235 87 87")}" data-mx-status="${esc(row.status)}" data-mx-verdict="LIKELY-REJECT">${cRej}</td>
-                  <td class="num dim matrix-cell" data-mx-status="${esc(row.status)}" data-mx-verdict="UNROASTED">${cUn}</td>
+                  <th>CF Status</th>
+                  <th class="num">Total</th>
+                  <th class="num">No objection</th>
+                  <th class="num">Committer eyes</th>
+                  <th class="num">Design disc.</th>
+                  <th class="num">Likely reject</th>
+                  <th class="num">Not roasted</th>
                 </tr>
-              `;
-                })
-                .join("")}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                ${matrixRows
+                  .map((row) => {
+                    const cOk = row.counts["NO-FUNDAMENTAL-OBJECTION"] ?? 0;
+                    const cEyes = row.counts["NEEDS-COMMITTER-EYES"] ?? 0;
+                    const cDesign = row.counts["NEEDS-DESIGN-DISCUSSION"] ?? 0;
+                    const cRej = row.counts["LIKELY-REJECT"] ?? 0;
+                    const cUn = row.counts.UNROASTED ?? 0;
+                    return `
+                  <tr>
+                    <td><strong>${esc(row.status)}</strong></td>
+                    <td class="num">${row.total}</td>
+                    <td class="num matrix-cell" style="${heatStyle(cOk, "76 183 130")}" data-mx-status="${esc(row.status)}" data-mx-verdict="NO-FUNDAMENTAL-OBJECTION">${cOk}</td>
+                    <td class="num matrix-cell" style="${heatStyle(cEyes, "94 106 210")}" data-mx-status="${esc(row.status)}" data-mx-verdict="NEEDS-COMMITTER-EYES">${cEyes}</td>
+                    <td class="num matrix-cell" style="${heatStyle(cDesign, "224 168 60")}" data-mx-status="${esc(row.status)}" data-mx-verdict="NEEDS-DESIGN-DISCUSSION">${cDesign}</td>
+                    <td class="num matrix-cell" style="${heatStyle(cRej, "235 87 87")}" data-mx-status="${esc(row.status)}" data-mx-verdict="LIKELY-REJECT">${cRej}</td>
+                    <td class="num dim matrix-cell" data-mx-status="${esc(row.status)}" data-mx-verdict="UNROASTED">${cUn}</td>
+                  </tr>
+                `;
+                  })
+                  .join("")}
+              </tbody>
+            </table>
+          </div>
+        </details>
       </div>
-    `
+    `;
+          })()
         : ""
     }
 
@@ -2975,11 +3008,21 @@ function bindPatchRowClicks(container: HTMLElement | Document): void {
 }
 
 function bindHackerClicks(container: HTMLElement | Document): void {
-  container.querySelectorAll<HTMLElement>("[data-open-hacker]").forEach((el) => {
-    el.addEventListener("click", () => {
-      const slug = el.dataset.openHacker || "";
+  container.querySelectorAll<Element>("[data-open-hacker]").forEach((el) => {
+    const activate = () => {
+      const slug = el.getAttribute("data-open-hacker") || "";
       if (slug) void openHackerProfile(slug, true);
-    });
+    };
+    el.addEventListener("click", activate);
+    if (el.tagName.toLowerCase() !== "button" && el.tagName.toLowerCase() !== "a") {
+      el.addEventListener("keydown", (ev) => {
+        const ke = ev as KeyboardEvent;
+        if (ke.key === "Enter" || ke.key === " ") {
+          ke.preventDefault();
+          activate();
+        }
+      });
+    }
   });
 }
 
@@ -3243,13 +3286,11 @@ function render(): void {
   else if (state.tab === "entries") root.innerHTML = renderEntriesTab();
   else if (state.tab === "opinions") root.innerHTML = renderOpinionsTab();
   else if (state.tab === "coordination") root.innerHTML = renderCoordinationTab();
-  else if (state.tab === "docs") {
-    root.innerHTML = renderDocsTab({
+  else if (state.tab === "contribute") {
+    root.innerHTML = renderContributeTab({
       origin: window.location.origin,
       coverage: state.docsCoverage,
       coverageLoading: state.docsCoverageLoading,
-      category: state.docsCategory,
-      search: state.docsSearch,
       previewBackend: state.quotaPreviewBackend,
       previewStrategy: state.quotaPreviewStrategy,
       previewFlavour: state.quotaPreviewFlavour,
@@ -3258,43 +3299,31 @@ function render(): void {
       previewError: state.quotaPreviewError,
       previewResult: state.quotaPreviewResult,
     });
+  } else if (state.tab === "docs") {
+    root.innerHTML = renderDocsTab({
+      category: state.docsCategory,
+      search: state.docsSearch,
+    });
   } else root.innerHTML = renderConnectTab();
 
-  // Docs & All Features tab events
-  if (state.tab === "docs") {
+  // Contribute tab events
+  if (state.tab === "contribute") {
     bindPatchRowClicks(root);
-    const bindDocsCardActions = (container: HTMLElement | Document) => {
-      container.querySelectorAll<HTMLButtonElement>("[data-docs-nav]").forEach((btn) => {
-        btn.addEventListener("click", () => {
-          const target = (btn.dataset.docsNav as TabId) || "brief";
-          navigateToTab(target);
-        });
-      });
-      container.querySelectorAll<HTMLButtonElement>("[data-copy-snippet]").forEach((btn) => {
-        btn.addEventListener("click", () => {
-          const text = btn.dataset.copySnippet || "";
-          if (text) copyTextWithFeedback(btn, text, btn.textContent || "Copy");
-        });
-      });
-    };
-    bindDocsCardActions(root);
-
-    document.getElementById("docs-jump-quota-btn")?.addEventListener("click", () => {
+    document.getElementById("contrib-jump-setup-btn")?.addEventListener("click", () => {
       document.getElementById("quota-setup")?.scrollIntoView({ behavior: "smooth", block: "start" });
     });
-    document.getElementById("docs-jump-catalog-btn")?.addEventListener("click", () => {
-      document.getElementById("all-features")?.scrollIntoView({ behavior: "smooth", block: "start" });
-    });
-    document.getElementById("docs-refresh-coverage-btn")?.addEventListener("click", () => {
+    document.getElementById("contrib-refresh-btn")?.addEventListener("click", () => {
       void loadDocsCoverage(true);
     });
-    document.getElementById("docs-copy-quota-prompt-btn")?.addEventListener("click", (ev) => {
+    document.getElementById("contrib-copy-prompt-btn")?.addEventListener("click", (ev) => {
       copyTextWithFeedback(ev.currentTarget as HTMLElement, buildQuotaAgentPrompt(window.location.origin), "Copy agent prompt");
     });
-    document.getElementById("docs-goto-backoffice-btn")?.addEventListener("click", () => {
+    document.getElementById("contrib-goto-backoffice-btn")?.addEventListener("click", () => {
       navigateToTab("connect");
     });
-
+    document.getElementById("contrib-goto-docs-btn")?.addEventListener("click", () => {
+      navigateToTab("docs", true, "#cli-reference");
+    });
     document.getElementById("qp-backend")?.addEventListener("change", (ev) => {
       state.quotaPreviewBackend = (ev.target as HTMLSelectElement).value || "claude";
     });
@@ -3310,6 +3339,25 @@ function render(): void {
     document.getElementById("quota-preview-btn")?.addEventListener("click", () => {
       void runQuotaPreview();
     });
+  }
+
+  // Docs & All Features tab events
+  if (state.tab === "docs") {
+    const bindDocsCardActions = (container: HTMLElement | Document) => {
+      container.querySelectorAll<HTMLButtonElement>("[data-docs-nav]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const target = (btn.dataset.docsNav as TabId) || "brief";
+          navigateToTab(target);
+        });
+      });
+      container.querySelectorAll<HTMLButtonElement>("[data-copy-snippet]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const text = btn.dataset.copySnippet || "";
+          if (text) copyTextWithFeedback(btn, text, btn.textContent || "Copy");
+        });
+      });
+    };
+    bindDocsCardActions(root);
 
     const updateDocsFeaturesOnly = () => {
       const mount = document.getElementById("docs-feature-mount");
@@ -3404,10 +3452,20 @@ function render(): void {
         jumpToEntries({ status: el.dataset.statsStatus || "all", verdict: "all", search: "" });
       });
     });
-    document.querySelectorAll<HTMLElement>("[data-stats-topic]").forEach((el) => {
-      el.addEventListener("click", () => {
-        jumpToEntries({ search: el.dataset.statsTopic || "", verdict: "all", status: "all" });
-      });
+    document.querySelectorAll<Element>("[data-stats-topic]").forEach((el) => {
+      const activate = () => {
+        jumpToEntries({ search: el.getAttribute("data-stats-topic") || "", verdict: "all", status: "all" });
+      };
+      el.addEventListener("click", activate);
+      if (el.tagName.toLowerCase() !== "button") {
+        el.addEventListener("keydown", (ev) => {
+          const ke = ev as KeyboardEvent;
+          if (ke.key === "Enter" || ke.key === " ") {
+            ke.preventDefault();
+            activate();
+          }
+        });
+      }
     });
     document.querySelectorAll<HTMLElement>("[data-stats-person]").forEach((el) => {
       el.addEventListener("click", () => {
@@ -3493,14 +3551,24 @@ function render(): void {
     });
   });
 
-  document.querySelectorAll<HTMLElement>("[data-mx-status]").forEach((td) => {
-    td.addEventListener("click", () => {
+  document.querySelectorAll<Element>("[data-mx-status]").forEach((el) => {
+    const activate = () => {
       jumpToEntries({
-        status: td.dataset.mxStatus || "all",
-        verdict: td.dataset.mxVerdict || "all",
+        status: el.getAttribute("data-mx-status") || "all",
+        verdict: el.getAttribute("data-mx-verdict") || "all",
         search: "",
       });
-    });
+    };
+    el.addEventListener("click", activate);
+    if (el.tagName.toLowerCase() !== "button") {
+      el.addEventListener("keydown", (ev) => {
+        const ke = ev as KeyboardEvent;
+        if (ke.key === "Enter" || ke.key === " ") {
+          ke.preventDefault();
+          activate();
+        }
+      });
+    }
   });
 
   if (state.tab === "brief") bindBriefListEvents();
@@ -3605,6 +3673,11 @@ document.getElementById("web-backoffice-top-btn")?.addEventListener("click", () 
 
 document.getElementById("web-home-btn")?.addEventListener("click", () => {
   navigateToTab("brief");
+});
+
+document.getElementById("footer-contribute-link")?.addEventListener("click", (ev) => {
+  ev.preventDefault();
+  navigateToTab("contribute");
 });
 
 document.getElementById("footer-docs-link")?.addEventListener("click", (ev) => {
@@ -3715,7 +3788,13 @@ window.addEventListener("popstate", () => {
     document.title =
       route.tab === "hackers"
         ? "PostgreSQL Hacking Observatory — pgroast"
-        : "pgroast — Public CommitFest App";
+        : route.tab === "lists"
+          ? "PostgreSQL Mailing Lists Archive — pgroast"
+          : route.tab === "contribute"
+            ? "Weekly Quota Auto-Contribute — pgroast"
+            : route.tab === "docs"
+              ? "Docs & Complete Feature Catalog — pgroast"
+              : "pgroast — Public CommitFest App";
     render();
     if (route.tab === "hackers") {
       if (!state.hackersOverview && !state.hackersLoading) void loadHackersOverview();
@@ -3723,7 +3802,7 @@ window.addEventListener("popstate", () => {
     } else if (route.tab === "lists") {
       if (!state.listsOverview && !state.listsLoading) void loadListsOverview();
       if (state.listsMessages.length === 0) void loadListsMessages();
-    } else if (route.tab === "docs") {
+    } else if (route.tab === "contribute") {
       void loadDocsCoverage();
     }
   }
@@ -3750,4 +3829,5 @@ try {
   applyWebTheme("dark", false);
 }
 
+initVizInteractions();
 void loadAll();

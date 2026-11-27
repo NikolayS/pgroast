@@ -2862,3 +2862,281 @@ details.diff-file[open] > summary {
     grid-template-columns: 1fr;
   }
 }
+
+/* ============================================================================
+ * World-Class Editorial Visualization Tokens, Floating Tooltips & Mobile Fixes
+ * ============================================================================ */
+:root {
+  --viz-1: var(--accent);
+  --viz-2: var(--ok);
+  --viz-3: var(--warn);
+  --viz-4: #38bdf8;
+  --viz-5: var(--danger);
+  --viz-grid: color-mix(in oklch, var(--text) 10%, transparent);
+  --viz-axis: var(--dim);
+  --viz-muted-line: color-mix(in oklch, var(--muted) 65%, transparent);
+  --viz-heat-0: var(--hover);
+}
+[data-theme="contrast"] {
+  --viz-grid: var(--border);
+  --viz-muted-line: var(--muted);
+}
+
+/* Mobile overflow guard — fixes right-side clipping on Leaderboards & narrow viewports */
+html, body {
+  overflow-x: clip;
+}
+.container,
+.grid2 > *,
+.card,
+.obs-lb-list,
+.obs-lb-info,
+.obs-collab-col,
+.subsys-list {
+  min-width: 0;
+  max-width: 100%;
+}
+.obs-lb-row {
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+.obs-lb-top {
+  min-width: 0;
+  max-width: 100%;
+}
+.obs-lb-top strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+.obs-lb-num {
+  min-width: 58px;
+}
+.mono,
+.kpi-v,
+.lb-count,
+.obs-lb-num,
+.matrix td {
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+.viz-card {
+  border-color: var(--border);
+}
+.viz-kicker {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent-t);
+  margin-bottom: 3px;
+}
+.viz-headline {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 650;
+  line-height: 1.32;
+  letter-spacing: -0.015em;
+}
+.viz-svg-full {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+.viz-hoverable {
+  cursor: pointer;
+  transition: opacity 140ms ease, filter 140ms ease;
+}
+.viz-hoverable:hover,
+.viz-hoverable:focus-visible {
+  filter: brightness(1.14);
+  outline: none;
+}
+.viz-slice {
+  cursor: crosshair;
+}
+.viz-slice:hover,
+.viz-slice:focus-visible {
+  fill: color-mix(in oklch, var(--viz-1) 9%, transparent);
+  outline: none;
+}
+
+/* Shared Viewport-Clamped Floating Tooltip */
+.viz-tip {
+  position: fixed;
+  z-index: 9999;
+  pointer-events: none;
+  max-width: min(320px, calc(100vw - 24px));
+  padding: 9px 12px;
+  border-radius: 9px;
+  border: 1px solid var(--border-s);
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.34);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.viz-tip-title {
+  font-weight: 650;
+  margin-bottom: 2px;
+  color: var(--text);
+}
+.viz-tip-body {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+  font-size: 11.5px;
+  color: var(--accent-t);
+}
+.viz-tip-sub {
+  margin-top: 3px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+/* Callout chips (Marimekko anomalies) */
+.viz-callout-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border-s);
+  background: var(--bg);
+  color: var(--text);
+  font: 500 12px inherit;
+  cursor: pointer;
+}
+.viz-callout-chip.is-warn {
+  border-color: color-mix(in oklch, var(--danger) 45%, var(--border));
+  background: color-mix(in oklch, var(--danger) 10%, var(--bg));
+}
+.viz-callout-chip.is-ok {
+  border-color: color-mix(in oklch, var(--ok) 45%, var(--border));
+  background: color-mix(in oklch, var(--ok) 10%, var(--bg));
+}
+.viz-callout-chip:hover {
+  filter: brightness(1.08);
+}
+
+/* Coverage Gauge & Legend */
+.viz-gauge-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.viz-legend-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.viz-legend-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+/* Profile Role Signature Bar */
+.viz-role-strip-wrap {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.viz-role-bar {
+  display: flex;
+  height: 9px;
+  border-radius: 999px;
+  overflow: hidden;
+  gap: 2px;
+  background: var(--hover);
+}
+.viz-role-seg {
+  height: 100%;
+  border-radius: 2px;
+}
+.viz-role-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.viz-role-legend > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+/* Radial UTC Clock & Constellation */
+.viz-clock-wrap {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 4px 0;
+}
+.viz-clock-svg {
+  width: 100%;
+  max-width: 280px;
+  height: auto;
+  display: block;
+}
+.viz-constellation-wrap {
+  width: 100%;
+  overflow: hidden;
+}
+
+/* Ranked List Sparkline Table */
+.viz-spark-table {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.viz-spark-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 72px 54px 40px;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 8px;
+  border-radius: 7px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: inherit;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.viz-spark-row:hover,
+.viz-spark-row.active {
+  background: var(--hover);
+  border-color: var(--border);
+}
+
+@media (max-width: 767px) {
+  .obs-lb-row {
+    gap: 7px;
+    padding: 7px 6px;
+  }
+  .obs-avatar {
+    width: 24px;
+    height: 24px;
+    font-size: 10px;
+  }
+  .viz-headline {
+    font-size: 14px;
+  }
+  .viz-spark-row {
+    grid-template-columns: minmax(0, 1fr) 60px 44px 34px;
+    gap: 5px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .viz-hoverable,
+  .quota-fill {
+    transition: none;
+  }
+}

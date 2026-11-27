@@ -86,6 +86,8 @@ const KNOWN_PG_HANDLES: Record<string, string> = {
   bruce: "bruce momjian",
   momjian: "bruce momjian",
   x4m: "andrey borodin",
+  x4mmm: "andrey borodin",
+  wolakk: "kirk wolak",
   akorotkov: "alexander korotkov",
   drowley: "david rowley",
   akapila: "amit kapila",
@@ -173,28 +175,34 @@ export function parsePersonRef(raw: string): ParsedPersonRef | null {
   let s = raw.trim();
   if (!s) return null;
 
-  // Extract email from <...> or bare email token
+  // Extract email from <...>, obfuscated "(local at domain.tld)" / "local [at] domain.tld", or bare email token
   let email = "";
   const angleMatch = s.match(/<([^>\s]+@[^>\s]+)>/);
   if (angleMatch?.[1]) {
     email = angleMatch[1].trim().toLowerCase();
     s = s.replace(angleMatch[0], " ").trim();
   } else {
-    const bareMatch = s.match(/\b([A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,})\b/);
-    if (bareMatch?.[1]) {
-      email = bareMatch[1].trim().toLowerCase();
-      s = s.replace(bareMatch[0], " ").trim();
+    const obfMatch = s.match(/[\[(<]?\s*([A-Za-z0-9._%+-]+)\s+(?:at|\[at\]|\(at\))\s+([A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+)\s*[\])>]?/i);
+    if (obfMatch?.[1] && obfMatch?.[2]) {
+      email = `${obfMatch[1].trim().toLowerCase()}@${obfMatch[2].trim().toLowerCase()}`;
+      s = s.replace(obfMatch[0], " ").trim();
+    } else {
+      const bareMatch = s.match(/\b([A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,})\b/);
+      if (bareMatch?.[1]) {
+        email = bareMatch[1].trim().toLowerCase();
+        s = s.replace(bareMatch[0], " ").trim();
+      }
     }
   }
 
   // Extract parenthetical org/affiliation like "Hayato Kuroda (Fujitsu)"
-  // Ignore non-organization notes like "(earlier versions)", "(v1)", "(part 1)", "(initial patch)"
+  // Ignore non-organization notes and obfuscated addresses
   let affiliation = "";
-  const parenMatch = s.match(/\(([^()]{2,40})\)/);
+  const parenMatch = s.match(/\(([^()]{2,45})\)/);
   if (parenMatch?.[1]) {
     const candidate = parenMatch[1].trim();
     if (
-      !/@|http|github|gitlab/i.test(candidate) &&
+      !/@|http|github|gitlab|\bat\s+[a-z0-9.-]+\.[a-z]{2,}/i.test(candidate) &&
       !/^(?:earlier|previous|initial|original|first|later|older|v\d+|part\s*\d+|patch|draft|test|tests|docs?|review|bug|fix|analysis|suggestion|help|idea)/i.test(
         candidate,
       )
@@ -204,9 +212,9 @@ export function parsePersonRef(raw: string): ParsedPersonRef | null {
     s = s.replace(parenMatch[0], " ").trim();
   }
 
-  // Strip surrounding quotes, stray angle brackets, and trailing punctuation
+  // Strip surrounding quotes, stray angle brackets/parens, and trailing punctuation
   s = s
-    .replace(/^["'`<>]+|["'`<>]+$/g, "")
+    .replace(/^["'`<>()]+|["'`<>()]+$/g, "")
     .replace(/\s+/g, " ")
     .replace(/[,;:]+$/g, "")
     .trim();
@@ -389,52 +397,96 @@ export interface ContributorRoleSeed {
   normalizedName: string;
   role: PgRole;
   company: string;
+  email?: string;
+}
+
+function decodeHtmlEntities(s: string): string {
+  return s
+    .replace(/&amp;/g, "&")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&#39;/g, "'")
+    .replace(/&quot;/g, '"')
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 export function parseContributorsHtml(html: string): ContributorRoleSeed[] {
   const seeds: ContributorRoleSeed[] = [];
-  const sections: Array<{ heading: RegExp; role: PgRole }> = [
-    { heading: /<h2[^>]*>\s*Core Team\s*<\/h2>/i, role: "Core Team" },
-    { heading: /<h2[^>]*>\s*Major Contributors\s*<\/h2>/i, role: "Major Contributor" },
-    { heading: /<h2[^>]*>\s*Significant Contributors\s*<\/h2>/i, role: "Significant Contributor" },
-  ];
+  const roleForHeading = (headingText: string): PgRole | null => {
+    const h = headingText.trim().toLowerCase();
+    if (h === "core team") return "Core Team";
+    if (h === "major contributors" || h === "past major contributors") return "Major Contributor";
+    if (h === "significant contributors") return "Significant Contributor";
+    return null;
+  };
 
-  const foundPos: Array<{ idx: number; role: PgRole }> = [];
-  for (const sec of sections) {
-    const m = sec.heading.exec(html);
-    if (m) foundPos.push({ idx: m.index, role: sec.role });
+  // Split by ALL <h2> headings so sections never bleed into later headings (e.g. Past Contributors)
+  const h2Matches: Array<{ idx: number; end: number; title: string }> = [];
+  const h2Re = /<h2[^>]*>([\s\S]*?)<\/h2>/gi;
+  let hm: RegExpExecArray | null;
+  while ((hm = h2Re.exec(html)) !== null) {
+    const title = decodeHtmlEntities(hm[1]!.replace(/<[^>]+>/g, " "));
+    h2Matches.push({ idx: hm.index, end: hm.index + hm[0].length, title });
   }
-  foundPos.sort((a, b) => a.idx - b.idx);
 
-  for (let i = 0; i < foundPos.length; i++) {
-    const start = foundPos[i]!.idx;
-    const end = i + 1 < foundPos.length ? foundPos[i + 1]!.idx : html.length;
+  const pushCellPerson = (rawCellHtml: string, role: PgRole, explicitCompany = "") => {
+    // Live postgresql.org Core Team / Major Contributors cells separate Name+Email, Company, Location with <br/>
+    const brParts = rawCellHtml.split(/<br\s*\/?>/i);
+    const firstLine = decodeHtmlEntities(brParts[0]!.replace(/<[^>]+>/g, " "));
+    const parsed = parsePersonRef(firstLine);
+    if (!parsed) return;
+    if (parsed.normalizedName.split(/\s+/).length < 2 || INVALID_PERSON_RE.test(parsed.normalizedName)) return;
+
+    let company = explicitCompany;
+    if (!company && brParts.length >= 2) {
+      const seg1Html = brParts[1] || "";
+      const seg1Text = decodeHtmlEntities(seg1Html.replace(/<[^>]+>/g, " "));
+      // Company line either has an <a href=...> link OR is followed by a 3rd <br/> location line
+      if (seg1Text && seg1Text !== "-" && (/<a\b/i.test(seg1Html) || brParts.length >= 3)) {
+        company = seg1Text;
+      }
+    }
+    seeds.push({
+      name: parsed.name,
+      normalizedName: parsed.normalizedName,
+      role,
+      company: company === "-" ? "" : company,
+      email: parsed.email || undefined,
+    });
+  };
+
+  for (let i = 0; i < h2Matches.length; i++) {
+    const role = roleForHeading(h2Matches[i]!.title);
+    if (!role) continue;
+    const start = h2Matches[i]!.end;
+    const end = i + 1 < h2Matches.length ? h2Matches[i + 1]!.idx : html.length;
     const slice = html.slice(start, end);
-    // Rows in postgresql.org/community/contributors/ have <tr><td>Name</td><td>Company</td><td>Contribution</td></tr>
+
+    const hasContribBioHeader = /<th[^>]*>\s*Contributor\s*<\/th>/i.test(slice);
     const rowRe = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
     let rm: RegExpExecArray | null;
     while ((rm = rowRe.exec(slice)) !== null) {
-      const cells = Array.from(rm[1]!.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/gi)).map((c) =>
-        c[1]!
-          .replace(/<[^>]+>/g, " ")
-          .replace(/&amp;/g, "&")
-          .replace(/&nbsp;/g, " ")
-          .replace(/&#39;/g, "'")
-          .replace(/&quot;/g, '"')
-          .replace(/\s+/g, " ")
-          .trim(),
-      );
-      if (cells.length < 2) continue;
-      const rawName = cells[0]!;
-      const company = cells[1] || "";
-      const norm = normalizePersonName(rawName);
-      if (!norm || norm.split(/\s+/).length < 2 || INVALID_PERSON_RE.test(norm)) continue;
-      seeds.push({
-        name: rawName,
-        normalizedName: norm,
-        role: foundPos[i]!.role,
-        company: company === "-" ? "" : company,
-      });
+      const rawCells = Array.from(rm[1]!.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/gi)).map((c) => c[1]!);
+      if (rawCells.length === 0) continue;
+
+      if (hasContribBioHeader) {
+        // 2-column table: <td>Name (email)<br/>Company<br/>Location</td><td>Bio paragraph</td>
+        pushCellPerson(rawCells[0]!, role);
+      } else if (
+        rawCells.length >= 3 &&
+        !/<br\s*\/?>/i.test(rawCells[0]!) &&
+        !/\bat\s+[a-z0-9.-]+\.[a-z]{2,}/i.test(rawCells[1]!) &&
+        !/\/community\/people\//i.test(rawCells[1]!)
+      ) {
+        // Legacy 3-column table layout: <td>Name</td><td>Company</td><td>Contribution</td>
+        const company = decodeHtmlEntities(rawCells[1]!.replace(/<[^>]+>/g, " "));
+        pushCellPerson(rawCells[0]!, role, company);
+      } else {
+        // Multi-column contributor grid (e.g. Significant Contributors: 2 people per row!)
+        for (const cellHtml of rawCells) {
+          pushCellPerson(cellHtml, role);
+        }
+      }
     }
   }
   return seeds;
@@ -535,11 +587,12 @@ export class IdentityResolver {
   }
 
   addContributorSeed(seed: ContributorRoleSeed): void {
+    const email = (seed.email || "").trim().toLowerCase();
     const ref: ParsedPersonRef = {
       name: seed.name,
       normalizedName: seed.normalizedName,
-      email: "",
-      domain: "",
+      email,
+      domain: email.includes("@") ? email.split("@")[1] || "" : "",
       affiliation: seed.company,
     };
     const root = this.observe(ref, "contributors_page", true);
@@ -608,6 +661,205 @@ export class IdentityResolver {
     return this.find(this.observe(ref, "lookup"));
   }
 
+  /**
+   * Post-pass consolidation across the entire contributor graph:
+   * 1) Non-generic shared email local-parts (e.g. x4mmm@yandex-team.ru + x4mmm@gmail.com)
+   * 2) Middle-initial / middle-name stripping (David G. Rowley <-> David Rowley)
+   * 3) Safe first-name transliteration/nickname variants sharing a rare surname (Andrey Borodin <-> Andrew Borodin)
+   * 4) Unambiguous single-word handle resolution (wolakk <-> Kirk Wolak, drowley <-> David Rowley)
+   */
+  private consolidate(): void {
+    const GENERIC_LOCALS = new Set([
+      "admin", "info", "mail", "dev", "test", "root", "user", "postgres", "pgsql", "hello", "contact", "support",
+      "david", "peter", "michael", "andrew", "alex", "robert", "thomas", "james", "john", "daniel", "chris",
+      "mark", "paul", "kevin", "brian", "steve", "jason", "martin", "kevin", "richard", "eric", "scott", "ryan",
+    ]);
+    const COMMON_SURNAMES = new Set([
+      "li", "wang", "chen", "zhang", "liu", "yang", "huang", "wu", "zhou", "xu", "sun", "ma", "zhu", "hu", "lin",
+      "kim", "lee", "park", "choi", "jung", "smith", "johnson", "williams", "brown", "jones", "miller", "davis",
+      "garcia", "rodriguez", "wilson", "martinez", "anderson", "taylor", "thomas", "moore", "jackson", "martin",
+      "white", "harris", "clark", "lewis", "robinson", "walker", "young", "allen", "king", "wright", "scott",
+      "kumar", "sharma", "singh", "patel", "gupta", "tanaka", "suzuki", "sato", "watanabe", "takahashi", "ito",
+    ]);
+    const FIRST_CANON: Record<string, string> = {
+      andrey: "andrew", andrei: "andrew", andrew: "andrew", andy: "andrew",
+      alexander: "alexander", aleksander: "alexander", aleksandr: "alexander", alex: "alexander", sasha: "alexander",
+      nikolay: "nicholas", nikolai: "nicholas", nicholas: "nicholas", nicolas: "nicholas", nick: "nicholas", nik: "nicholas",
+      sergey: "sergey", sergei: "sergey",
+      dmitry: "dmitry", dmitrii: "dmitry", dmitri: "dmitry",
+      mikhail: "michael", michael: "michael", mike: "michael",
+      evgeny: "eugene", evgenii: "eugene", evgeniy: "eugene", eugene: "eugene",
+      yury: "yury", yuri: "yury", iurii: "yury", yurii: "yury",
+      aleksey: "alexey", alexey: "alexey", aleksei: "alexey", alexei: "alexey",
+      vyacheslav: "vyacheslav", viacheslav: "vyacheslav",
+      vitaly: "vitaly", vitalii: "vitaly", vitaliy: "vitaly",
+      maksim: "maxim", maxim: "maxim",
+      viktor: "victor", victor: "victor",
+      konstantin: "konstantin", constantine: "konstantin",
+      pavel: "paul", paul: "paul",
+      tom: "thomas", thomas: "thomas",
+      dave: "david", david: "david",
+      rob: "robert", bob: "robert", robert: "robert",
+      pete: "peter", peter: "peter",
+      steve: "stephen", stephen: "stephen", steven: "stephen",
+      dan: "daniel", daniel: "daniel",
+      jeff: "jeffrey", jeffrey: "jeffrey",
+      greg: "gregory", gregory: "gregory",
+      matt: "matthew", matthew: "matthew",
+      chris: "christopher", christopher: "christopher",
+      jon: "jonathan", jonathan: "jonathan",
+      ben: "benjamin", benjamin: "benjamin",
+      jim: "james", james: "james",
+      bill: "william", will: "william", william: "william",
+      ken: "kenneth", kenneth: "kenneth",
+      ed: "edward", edward: "edward",
+      tim: "timothy", timothy: "timothy",
+      joe: "joseph", joseph: "joseph",
+      josh: "joshua", joshua: "joshua",
+      sam: "samuel", samuel: "samuel",
+    };
+
+    const getRoots = () => {
+      const s = new Set<number>();
+      for (let i = 0; i < this.parent.length; i++) s.add(this.find(i));
+      return Array.from(s);
+    };
+
+    // Pass 1: Shared distinctive email local-part across domains (length >= 5)
+    const localToRoots = new Map<string, Set<number>>();
+    for (const r of getRoots()) {
+      for (const em of this.nodeEmails.get(r) || []) {
+        const local = (em.split("@")[0] || "").replace(/[+].*$/, "").trim();
+        if (local.length >= 5 && !GENERIC_LOCALS.has(local) && !/^\d+$/.test(local)) {
+          if (!localToRoots.has(local)) localToRoots.set(local, new Set());
+          localToRoots.get(local)!.add(r);
+        }
+      }
+    }
+    for (const set of localToRoots.values()) {
+      if (set.size >= 2 && set.size <= 4) {
+        const arr = Array.from(set);
+        for (let i = 1; i < arr.length; i++) this.union(arr[0]!, arr[i]!);
+      }
+    }
+
+    // Build normalized name profiles per root
+    const rootTokens = (r: number): string[][] => {
+      const out: string[][] = [];
+      for (const id of this.nodeIdentities.get(r)?.values() || []) {
+        if (!id.normalizedName) continue;
+        const toks = id.normalizedName.split(/\s+/).filter(Boolean);
+        if (toks.length > 0) out.push(toks);
+      }
+      return out;
+    };
+
+    // Pass 2: Middle-initial / middle-name stripping + First-name transliteration/nickname merge
+    const firstLastMap = new Map<string, Set<number>>();
+    const canonFirstLastMap = new Map<string, Set<number>>();
+    const surnameCount = new Map<string, Set<number>>();
+
+    for (const r of getRoots()) {
+      for (const toks of rootTokens(r)) {
+        if (toks.length < 2) continue;
+        const first = toks[0]!;
+        const last = toks[toks.length - 1]!;
+        if (first.length < 2 || last.length < 3) continue;
+        if (!surnameCount.has(last)) surnameCount.set(last, new Set());
+        surnameCount.get(last)!.add(r);
+
+        // Exact first + last (collapses "David G. Rowley" -> "david rowley")
+        if (toks.length >= 2 && !COMMON_SURNAMES.has(last)) {
+          const flKey = `${first}|${last}`;
+          if (!firstLastMap.has(flKey)) firstLastMap.set(flKey, new Set());
+          firstLastMap.get(flKey)!.add(r);
+        }
+        // Canonical first + last (collapses "Andrey Borodin" <-> "Andrew Borodin")
+        if (last.length >= 5 && !COMMON_SURNAMES.has(last)) {
+          const cf = FIRST_CANON[first] || first;
+          const cflKey = `${cf}|${last}`;
+          if (!canonFirstLastMap.has(cflKey)) canonFirstLastMap.set(cflKey, new Set());
+          canonFirstLastMap.get(cflKey)!.add(r);
+        }
+      }
+    }
+    for (const set of firstLastMap.values()) {
+      if (set.size >= 2 && set.size <= 3) {
+        const arr = Array.from(set);
+        for (let i = 1; i < arr.length; i++) this.union(arr[0]!, arr[i]!);
+      }
+    }
+    for (const [key, set] of canonFirstLastMap.entries()) {
+      const last = key.split("|")[1] || "";
+      const totalWithSurname = surnameCount.get(last)?.size ?? 0;
+      // Only merge transliteration variants when <= 3 nodes share that surname in the whole Postgres corpus
+      if (set.size >= 2 && totalWithSurname <= 3) {
+        const arr = Array.from(set);
+        for (let i = 1; i < arr.length; i++) this.union(arr[0]!, arr[i]!);
+      }
+    }
+
+    // Pass 3: Unambiguous single-word handle resolution (e.g. "wolakk" -> "Kirk Wolak")
+    const handleCandidates = new Map<string, Set<number>>();
+    const addHandleKey = (h: string, r: number) => {
+      if (h.length < 4) return;
+      if (!handleCandidates.has(h)) handleCandidates.set(h, new Set());
+      handleCandidates.get(h)!.add(r);
+    };
+
+    const currentRoots = getRoots();
+    const singleTokenRoots: Array<{ root: number; handle: string }> = [];
+
+    for (const r of currentRoots) {
+      const toksList = rootTokens(r);
+      const hasMulti = toksList.some((t) => t.length >= 2);
+      if (hasMulti) {
+        for (const toks of toksList) {
+          if (toks.length < 2) continue;
+          const first = toks[0]!.replace(/[^a-z0-9]/g, "");
+          const last = toks[toks.length - 1]!.replace(/[^a-z0-9]/g, "");
+          if (first.length < 2 || last.length < 3) continue;
+          addHandleKey(`${first[0]}${last}`, r);       // drowley
+          addHandleKey(`${last}${first[0]}`, r);       // wolakk
+          addHandleKey(`${first}${last[0]}`, r);       // kirkw
+          addHandleKey(`${first}${last}`, r);          // kirkwolak
+          if (last.length >= 6 && !COMMON_SURNAMES.has(last)) {
+            addHandleKey(last, r);                     // unique long surname
+          }
+        }
+        // Also index their existing email local-parts as handle keys
+        for (const em of this.nodeEmails.get(r) || []) {
+          const local = (em.split("@")[0] || "").replace(/[^a-z0-9]/g, "");
+          if (local.length >= 4 && !GENERIC_LOCALS.has(local)) addHandleKey(local, r);
+        }
+      } else {
+        // Single-word handle node
+        for (const toks of toksList) {
+          if (toks.length === 1) {
+            const h = toks[0]!.replace(/[^a-z0-9]/g, "");
+            if (h.length >= 4) singleTokenRoots.push({ root: r, handle: h });
+          }
+        }
+      }
+    }
+
+    for (const item of singleTokenRoots) {
+      const mapped = KNOWN_PG_HANDLES[item.handle];
+      if (mapped) {
+        const target = this.normNameToNode.get(mapped);
+        if (target !== undefined) {
+          this.union(target, item.root);
+          continue;
+        }
+      }
+      const matches = handleCandidates.get(item.handle);
+      if (matches && matches.size === 1) {
+        const target = Array.from(matches)[0]!;
+        this.union(target, item.root);
+      }
+    }
+  }
+
   materialize(): {
     rootToIndex: Map<number, number>;
     people: Array<{
@@ -620,6 +872,7 @@ export class IdentityResolver {
       identities: Array<{ email: string; domain: string; displayName: string; normalizedName: string; source: string }>;
     }>;
   } {
+    this.consolidate();
     const roots = new Set<number>();
     for (let i = 0; i < this.parent.length; i++) roots.add(this.find(i));
 
@@ -1056,10 +1309,11 @@ export async function syncHackersToDb(
   const now = new Date().toISOString();
   log(`Writing ${people.length} unified people, ${commitRows.length} commits, ${creditRows.length} credits to PostgreSQL…`);
 
-  // Truncate observatory tables in dependency order for clean full rebuild (keeps public_entries, opinions, briefs untouched!)
-  await db.sql.unsafe(
-    `TRUNCATE ${db.t("commit_credits")}, ${db.t("pg_commits")}, ${db.t("person_identities")}, ${db.t("people")} RESTART IDENTITY CASCADE`,
-  );
+  // Rebuild observatory tables without touching public_entries, opinions, briefs, OR mailing_list_messages!
+  // (Never TRUNCATE people CASCADE because mailing_list_messages references people(id) with ON DELETE SET NULL.)
+  await db.sql.unsafe(`UPDATE ${db.t("mailing_list_messages")} SET person_id = NULL WHERE person_id IS NOT NULL`);
+  await db.sql.unsafe(`TRUNCATE ${db.t("commit_credits")}, ${db.t("pg_commits")}, ${db.t("person_identities")} RESTART IDENTITY`);
+  await db.sql.unsafe(`DELETE FROM ${db.t("people")}`);
 
   // Batch-insert people and capture assigned DB IDs
   const indexToDbId = new Int32Array(people.length);
@@ -1206,6 +1460,20 @@ export async function syncHackersToDb(
       params,
     );
   }
+
+  // Re-link any archived mailing_list_messages against the newly unified people & person_identities
+  await db.sql.unsafe(
+    `UPDATE ${db.t("mailing_list_messages")} m
+     SET person_id = COALESCE(
+       (SELECT pi.person_id FROM ${db.t("person_identities")} pi
+        WHERE pi.normalized_name = LOWER(TRIM(m.sender_name))
+        LIMIT 1),
+       (SELECT p.id FROM ${db.t("people")} p
+        WHERE LOWER(p.canonical_name) = LOWER(TRIM(m.sender_name))
+        LIMIT 1)
+     )
+     WHERE m.person_id IS NULL AND m.sender_name != ''`,
+  );
 
   const multiEmailPeople = people.filter((p) => p.emailCount >= 2).length;
   const metaPairs: Array<[string, string]> = [

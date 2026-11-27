@@ -1,5 +1,25 @@
 # Changelog
 
+## v0.3.0-alpha.12 (2026-11-26)
+
+This release separates the Front Office into dedicated **Contribute**, **Docs**, and **Stats / Hackers / Lists** sections, replaces the basic SVG charts with editorial-grade interactive visualizations across every stats view, upgrades contributor identity resolution to merge obfuscated emails, transliteration variants, and handles, and fixes mobile leaderboard overflow.
+
+### Changes
+
+- **Separate Front Office Segments (`apps/web`):**
+  - Split **Weekly Quota Auto-Contribute** into its own top-level **`Contribute`** tab and `/contribute` SSR route with a multi-tier coverage gauge, live queue previewer (`dry_run=1`), active leases, and 60-second AI agent setup.
+  - Made **`Docs`** (`/docs`) a pure documentation hub covering the 3-piece architecture, searchable 24-feature directory, 15-command CLI reference, and Public Read-Only API reference.
+- **Interactive Data Visualizations (`apps/web/src/ui/viz-charts.ts`, `viz-engine.ts`, `hackers-queries.ts`, `lists-queries.ts`):**
+  - Added a shared, CSP-safe floating tooltip engine (`textContent` only) with keyboard focus and mobile tap support, plus theme-proof OKLCH chart tokens across all 8 UI themes.
+  - Upgraded the **Hackers** observatory with a **PG17–PG20 Release Cycle Cumulative Race** chart (with Feature Freeze band), **Subsystem Bus-Factor Quadrant** (`1/HHI` effective committers vs. commits), **Annual Committer Concentration** 100% stacked chart with overlaid 50% bus-factor line, and **Commit Sponsorship** timeline (`own` vs. `for others` + reviews/commit ratio).
+  - Upgraded `/hacker/<slug>` profiles with a **24-hour UTC Polar Clock + 7-day DOW Ring**, **3-sector Collaboration Constellation** (clickable to profiles), and **Subsystem Over-Index** ratios (`3.4×` vs. project baseline).
+  - Upgraded **Stats** with a clickable **Status × AI Verdict Marimekko Mosaic** (hatched unroasted share + disagreement callouts) and **Subsystem Readiness Scatter**, and upgraded **Lists** with a **30-day Stacked Velocity + 7-day Moving Average**, per-list **14-day sparklines**, and a **Thread Heat Scatter** (messages × participants).
+- **Identity Resolution v2, Contributors Parser & Mobile Leaderboard Fix (`apps/web/src/hackers.ts`, `styles.css`):**
+  - Parsed obfuscated emails (`(x4mmm at yandex-team.ru)`), merged safe first-name transliterations (`Andrey Borodin` / `Andrew Borodin`), shared email local-parts across domains, middle-initial variants, and unambiguous single-word handles (`wolakk` → `Kirk Wolak`) into single unified people.
+  - Fixed `parseContributorsHtml` for the real `postgresql.org/community/contributors/` layouts: parses both 2-column `<br/>` bio tables (`Core Team`, `Major Contributors`, `Past Major Contributors`) and multi-column contributor grids (`Significant Contributors`), extracting companies and emails accurately without dropping column-2 contributors (such as `Nikolay Samokhvalov`) or polluting neighbor rows' affiliations.
+  - Made `syncHackersToDb` preserve `mailing_list_messages` instead of cascading truncates and automatically re-link archived messages to the rebuilt `people` table.
+  - Fixed horizontal right-edge clipping in the Hackers **Leaderboards** section on narrow mobile screens via strict grid/card `min-width: 0` and `overflow-x: clip` guards.
+
 ## v0.3.0-alpha.11 (2026-11-26)
 
 This release adds the continuously synced PostgreSQL Mailing Lists Archive (`Lists` tab & `/lists`), linking archived mailing list threads directly to unified `/hacker/<slug>` contributor profiles.
