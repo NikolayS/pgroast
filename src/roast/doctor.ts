@@ -18,6 +18,8 @@ import {
   type SingleBackendName,
 } from "./llm.ts";
 import type { JsonSchema } from "./schema.ts";
+import { detectLocalPgRepo } from "./verify.ts";
+import { DEFAULT_HUB_URL, resolvePublishToken } from "../publish.ts";
 
 export interface DoctorResult {
   backend: SingleBackendName;
@@ -128,6 +130,21 @@ export function renderDoctor(results: DoctorResult[], env: Record<string, string
     usable.push("dual (claude + agy cross-family)");
   }
   lines.push(usable.length ? `Usable backends: ${usable.join(", ")}.` : "No usable backend. Sign in to one of the CLIs and run `pgroast doctor` again.");
+
+  // Medium / Dark build & live SQL verification readiness + publish token status
+  const pgRepo = detectLocalPgRepo(env.PGROAST_PG_REPO);
+  const tools = ["git", "meson", "ninja", "psql"].map((t) => `${t}:${onPath(t) ? "ok" : "missing"}`).join("  ");
+  lines.push("");
+  lines.push("Verification environment (Medium / Dark roasts):");
+  lines.push(`  postgres.git: ${pgRepo ?? "not found (set PGROAST_PG_REPO or pass --pg-repo PATH for build/test/live SQL)"}`);
+  lines.push(`  tools:        ${tools}`);
+
+  const pub = resolvePublishToken();
+  lines.push(
+    pub.token
+      ? `Publish login: configured (${pub.token.slice(0, 18)}… via ${pub.source} -> ${env.PGROAST_PUBLIC_HUB_URL || pub.hubUrl || DEFAULT_HUB_URL})`
+      : "Publish login: not set (local roasting needs no login; run `pgroast login --token <tok>` to publish)",
+  );
   return lines.join("\n");
 }
 

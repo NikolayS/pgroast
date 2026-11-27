@@ -74,21 +74,21 @@ export function renderUsage(useColor = Boolean(process.stdout.isTTY && !process.
   const d = (t: string) => s.dim(t);
 
   return [
-    `${s.bold("pgroast")} ${d(`v${ver}`)} — adversarial idea & design pre-review for Postgres patches`,
+    `${s.bold("pgroast")} ${d(`v${ver}`)} — AI-assisted Postgres patch roasting: idea scrutiny, code diffs, builds, tests & live SQL stress`,
     "",
     h("Usage:"),
     `  ${cmd("pgroast")} <patch> [options]        Roast a CommitFest ID/URL, message-id, or thread URL`,
     `  ${cmd("pgroast")} <command> [options]      Run a subcommand`,
     "",
     h("Quick Start:"),
-    `  ${cmd("pgroast doctor")}                                ${d("Check installed AI CLIs (claude, codex, agy)")}`,
-    `  ${cmd("pgroast 7388 --level light")}                    ${d("Fast idea & precedent roast (local only)")}`,
-    `  ${cmd("pgroast 7388 --level medium")}                   ${d("Idea scrutiny + code diff, build & tests")}`,
-    `  ${cmd("pgroast login --token pgroast_pub_...")}         ${d("Save publish token in ~/.pgroast/auth.json")}`,
-    `  ${cmd("pgroast publish ./out/cf-7388/roast.json")}      ${d("Publish a sanitized roast to pgroast.postgres.ai")}`,
+    `  ${cmd("pgroast doctor")}                                ${d("Check AI CLIs, Postgres repo, build tools & login")}`,
+    `  ${cmd("pgroast 7388 --level light")}                    ${d("Idea & design scrutiny + 2,547 precedents (fast)")}`,
+    `  ${cmd("pgroast 7388 --level medium")}                   ${d("+ C/H/SQL diffs, git apply, meson compile & tests")}`,
+    `  ${cmd("pgroast 7388 --level dark")}                     ${d("+ isolated patched Postgres live SQL stress & reflection")}`,
+    `  ${cmd("pgroast 7388 --level medium --publish")}         ${d("Roast locally, run privacy gate & publish to hub")}`,
     "",
     h("Commands:"),
-    `  ${cmd("doctor")}                Check installed AI CLIs, logins, and local Postgres`,
+    `  ${cmd("doctor")}                Check AI CLIs, Postgres repo, meson/ninja/psql, and publish token`,
     `  ${cmd("login")} / ${cmd("whoami")}        Save or inspect your publish-only token (~/.pgroast/auth.json)`,
     `  ${cmd("publish")} <path>        Run confidentiality gate and publish a sanitized roast`,
     `  ${cmd("contribute")} [flags]    Spend leftover weekly OAuth quota on open CommitFest patches`,
@@ -100,15 +100,22 @@ export function renderUsage(useColor = Boolean(process.stdout.isTTY && !process.
     `  ${cmd("init-db")}               Create the local precedent database (2,547 historical rows)`,
     "",
     h("Options:"),
-    `  ${cmd("--level L")}             light, medium ${d("(default)")}, or dark ${d("(alias: --roast-level)")}`,
+    `  ${cmd("--level L")}             light (idea), medium ${d("(default: +build/test)")}, dark (+live SQL stress)`,
     `  ${cmd("--flavour NAME")}        default ${d("(House Blend)")}, edge-case-hunter, spec-lawyer, systems-architect,`,
     `                        perf-hawk, storage-skeptic, index-specialist, production-dba`,
     `  ${cmd("--backend NAME")}        claude, codex, agy, or dual ${d("(default: PGROAST_BACKEND or auto)")}`,
+    `  ${cmd("--model NAME")}          Override model ${d("(e.g. opus, gpt-6.2-astra, gemini-4-neon-high)")}`,
+    `  ${cmd("--effort LEVEL")}        Reasoning effort for codex ${d("(low, medium, high, xhigh)")}`,
+    `  ${cmd("--pg-repo PATH")}        Local postgres.git path for Medium/Dark apply, build & tests`,
+    `  ${cmd("--skip-verify")}         Skip local git apply / meson build / live SQL harness`,
+    `  ${cmd("--publish")}             Publish sanitized roast to the Public App after finishing`,
+    `  ${cmd("--hub URL")}             Target Public App URL for --publish`,
+    `  ${cmd("--token TOK")}           Publish token override for --publish`,
     `  ${cmd("--out DIR")}             Output directory ${d("(default: out/<slug>)")}`,
     `  ${cmd("--self")}                Roast your own draft before posting ${d("(use with --proposal FILE)")}`,
     `  ${cmd("--proposal FILE")}       Draft email file on disk ${d("(with --self)")}`,
     `  ${cmd("--patch FILE")}          Patch file on disk ${d("(repeatable, with --proposal)")}`,
-    `  ${cmd("--rounds N")}            Extra review rounds 0..6 ${d("(default: 0)")}`,
+    `  ${cmd("--rounds N")}            Extra review rounds 0..6 ${d("(default: 0; dark defaults to 1)")}`,
     `  ${cmd("--blind N")}             Read only the first N messages of the thread`,
     `  ${cmd("--before DATE")}         Read only messages before YYYY-MM-DD ${d("(also precedent cutoff)")}`,
     `  ${cmd("--hint TEXT")}           Directed precedent lookup hint`,
@@ -119,7 +126,7 @@ export function renderUsage(useColor = Boolean(process.stdout.isTTY && !process.
     `  ${cmd("-h, --help")}            Show this help message`,
     "",
     d("Run 'pgroast <command> --help' for subcommand options."),
-    d("All files stay local unless you run 'pgroast publish' or 'pgroast contribute --publish'."),
+    d("All files stay local unless you pass '--publish' or run 'pgroast publish'."),
   ].join("\n");
 }
 
@@ -130,6 +137,13 @@ export interface CliArgs {
   hint?: string;
   out?: string;
   backend?: BackendName;
+  model?: string;
+  effort?: string;
+  pgRepo?: string;
+  skipVerify?: boolean;
+  publish?: boolean;
+  hubUrl?: string;
+  token?: string;
   roastLevel?: RoastLevel;
   roastFlavour?: RoastFlavour;
   doctor?: boolean;
@@ -195,6 +209,27 @@ export function parseArgs(argv: string[]): CliArgs | "help" | "version" {
         a.backend = b as BackendName;
         break;
       }
+      case "--model":
+        a.model = value(flag, inline).trim();
+        break;
+      case "--effort":
+        a.effort = value(flag, inline).trim().toLowerCase();
+        break;
+      case "--pg-repo":
+        a.pgRepo = value(flag, inline);
+        break;
+      case "--skip-verify":
+        a.skipVerify = true;
+        break;
+      case "--publish":
+        a.publish = true;
+        break;
+      case "--hub":
+        a.hubUrl = value(flag, inline);
+        break;
+      case "--token":
+        a.token = value(flag, inline);
+        break;
       case "--roast-level":
       case "--level": {
         const lv = value(flag, inline).toLowerCase();
@@ -416,7 +451,21 @@ async function main(): Promise<number> {
   const log = (m: string) => console.log(m);
   const warn = (m: string) => console.error(m);
   const backendName: BackendName = args.dryRun ? (args.backend ?? "claude") : pickBackend(args.backend);
-  const models = modelsFromEnv(process.env, backendName);
+  const modelEnv: Record<string, string | undefined> = { ...process.env };
+  if (args.model) {
+    if (backendName === "codex") modelEnv.PGROAST_CODEX_MODEL = args.model;
+    else if (backendName === "agy") {
+      modelEnv.PGROAST_AGY_MODEL = args.model;
+      modelEnv.PGROAST_AGY_CRITIC_MODEL = args.model;
+    } else {
+      modelEnv.PGROAST_ROASTER_MODEL = args.model;
+      modelEnv.PGROAST_CRITIC_MODEL = args.model;
+    }
+  }
+  if (args.effort) {
+    modelEnv.PGROAST_CODEX_EFFORT = args.effort;
+  }
+  const models = modelsFromEnv(modelEnv, backendName);
 
   if (args.pushback) {
     log(`reading ${args.input} (whole thread) ...`);
@@ -473,19 +522,25 @@ async function main(): Promise<number> {
     mode: args.self ? "self" : "review",
     roastLevel: args.roastLevel,
     roastFlavour: args.roastFlavour,
-    rounds: args.rounds ?? 0,
+    pgRepo: args.pgRepo,
+    skipVerify: args.skipVerify,
+    rounds: args.rounds,
     log,
   });
   await closePrecedents();
   roast.stats.wall_ms = Date.now() - t0;
 
+  const summaryText = renderSummary(roast);
   writeFileSync(join(outDir, "roast.json"), JSON.stringify(roast, null, 2) + "\n");
   writeFileSync(join(outDir, "roast.md"), renderCompactMarkdown(roast));
   writeFileSync(join(outDir, "roast-full.md"), renderMarkdown(roast));
-  writeFileSync(join(outDir, "roast-summary.txt"), renderSummary(roast));
+  writeFileSync(join(outDir, "roast-summary.txt"), summaryText);
   log("");
   log(`${st.bold(args.dryRun ? "DRY RUN, placeholder verdict:" : "verdict:")} ${colorVerdict(roast.verdict, useColor)} ${st.dim(`(confidence: ${roast.confidence})`)}`);
   log(`${st.bold("objections:")} ${roast.objections.length} listed, ${roast.other_surviving.length} more survived, ${roast.refuted.length} refuted; prior attempts: ${roast.prior_attempts.length}`);
+  if (roast.verification?.evidenceBadges?.length) {
+    log(`${st.bold("verification:")} ${roast.verification.evidenceBadges.join(" · ")}`);
+  }
   for (const x of roast.rounds.slice(1)) log(`round ${x.round} (${x.kind}): ${x.llm_calls} calls, ${x.new_objections} new objection(s), ${x.new_survived} survived, ${x.revised} revised, ${x.withdrawn} withdrawn`);
   log(`LLM calls: ${roast.stats.llm_calls}; wall time: ${Math.round(roast.stats.wall_ms / 1000)} s`);
   if (!args.dryRun) for (const w of roast.warnings) warn(`warning: ${w}`);
@@ -493,6 +548,18 @@ async function main(): Promise<number> {
   log(`wrote ${join(outDir, "roast.md")} (short report; roast-full.md has everything)`);
   log(`wrote ${join(outDir, "roast.json")}`);
   log(`wrote ${join(outDir, "roast-summary.txt")}`);
+
+  if (args.publish && !args.dryRun) {
+    const { DEFAULT_HUB_URL, publishRoastOpinion, resolvePublishToken } = await import("./publish.ts");
+    const resolved = resolvePublishToken(args.token);
+    const pub = await publishRoastOpinion({
+      roast,
+      summaryTxt: summaryText,
+      hubUrl: args.hubUrl || process.env.PGROAST_PUBLIC_HUB_URL || resolved.hubUrl || DEFAULT_HUB_URL,
+      token: resolved.token,
+    });
+    log(`${st.bold(st.green("published:"))} ${pub.patchUrl}`);
+  }
   return 0;
 }
 

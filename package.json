@@ -1,7 +1,7 @@
 {
   "name": "pgroast",
-  "version": "0.4.0",
-  "description": "Adversarial idea and design pre-review for Postgres proposals: prior attempts, the strongest objections, touch points. Local output only.",
+  "version": "0.4.1",
+  "description": "AI-assisted Postgres patch roasting: idea scrutiny against 2,547 precedents, code diffs, meson builds, tests, and live SQL stress.",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",

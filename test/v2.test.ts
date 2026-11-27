@@ -1323,5 +1323,34 @@ describe("v2 CLI publish & weekly quota auto-contribute", () => {
     expect(badFlag.stderr.trim().split("\n").length).toBe(2);
     expect(badFlag.stderr).toContain("unknown option --bogus");
     expect(badFlag.stderr).toContain("Run 'pgroast --help' for usage.");
+
+    const fullFlags = parseArgs([
+      "7388",
+      "--level",
+      "dark",
+      "--backend",
+      "codex",
+      "--model",
+      "gpt-6.2-astra",
+      "--effort",
+      "xhigh",
+      "--pg-repo",
+      "/tmp/postgres",
+      "--skip-verify",
+      "--publish",
+      "--hub",
+      "https://pgroast.postgres.ai",
+    ]);
+    expect(typeof fullFlags === "object" && fullFlags).toMatchObject({
+      input: "7388",
+      roastLevel: "dark",
+      backend: "codex",
+      model: "gpt-6.2-astra",
+      effort: "xhigh",
+      pgRepo: "/tmp/postgres",
+      skipVerify: true,
+      publish: true,
+      hubUrl: "https://pgroast.postgres.ai",
+    });
   });
 });

@@ -1,5 +1,20 @@
 # Changelog
 
+## v0.4.1 (2026-11-27)
+
+This release brings the CLI fully in sync with the Medium/Dark verification pipeline, adds missing flags (`--pg-repo`, `--skip-verify`, `--model`, `--effort`, `--publish`), fixes a bug where `pgroast <id> --level dark` skipped its default reflection round, and expands `pgroast doctor` to check Postgres build tools and publish login status.
+
+### Changes
+
+- **CLI Parity & Bug Fix (`src/cli.ts`, `src/contribute.ts`):**
+  - Updated CLI tagline, `--help`, `package.json` description, and `README.md` to reflect full 3-level roasting (idea scrutiny + C/H/SQL diffs + `git apply` + `meson compile`/`test` + Dark live Postgres SQL stress).
+  - Wired `--pg-repo PATH`, `--skip-verify`, `--model NAME`, `--effort LEVEL`, and `--publish` (`--hub`, `--token`) directly into single-patch CLI runs.
+  - Fixed `rounds: args.rounds ?? 0` in `src/cli.ts` so `--level dark` runs its default reflection round (`rounds = 1`) as intended.
+  - Printed `verification:` evidence summary lines in CLI output when Medium/Dark checks run.
+  - Documented `--model` and `--effort` in `pgroast contribute --help`.
+- **Upgraded `pgroast doctor` (`src/roast/doctor.ts`):**
+  - Now also reports local `postgres.git` detection, `git`/`meson`/`ninja`/`psql` availability for Medium/Dark verification, and saved publish token status.
+
 ## v0.4.0 (2026-11-27)
 
 First stable `0.4.0` release promoting the full `0.3.x` feature set out of alpha to npm `@latest` (`npx pgroast`, no `@next` needed).

@@ -510,7 +510,7 @@ export async function runContributeCycle(opts: {
 const CONTRIBUTE_USAGE = `Usage: pgroast contribute [--init | --status | --dry-run | --once | --auto] [options]
 
   Spend leftover weekly OAuth quota (Claude, Codex, Antigravity) right before your weekly
-  reset to pre-review uncovered PostgreSQL CommitFest patches. Never posts to pgsql-hackers.
+  reset to roast uncovered Postgres CommitFest patches. Never posts to pgsql-hackers.
 
 Modes:
   --init             Create ~/.pgroast/contribute.json with installed AI CLIs
@@ -521,6 +521,8 @@ Modes:
 
 Options:
   --backend NAME     claude, codex, or agy (default: all enabled backends in config)
+  --model NAME       Override model for the run (e.g. gpt-6.2-astra, opus)
+  --effort LEVEL     Reasoning effort for codex (low, medium, high, xhigh)
   --strategy S       unroasted-first | cross-model-second-opinion | ready-for-committer
   --level L          light | medium | dark
   --flavour NAME     auto-by-subsystem (default) or any reviewer archetype
