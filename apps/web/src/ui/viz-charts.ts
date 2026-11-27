@@ -999,3 +999,428 @@ export function renderThreadHeatScatterSvg(
     </svg>
   `;
 }
+
+/* ============================================================================
+ * 10. STATS: Dark/Medium Verification Pipeline Funnel (Apply -> Compile -> Test -> Live PG SQL)
+ * ============================================================================ */
+export function renderVerificationPipelineSvg(v: {
+  codeRead: number;
+  avgFilesRead: number;
+  gitApplyClean: number;
+  gitApplyConflict: number;
+  compilePass: number;
+  compileFail: number;
+  avgCompileSec: number;
+  medianCompileSec: number;
+  testPass: number;
+  testFail: number;
+  totalTestsPassed: number;
+  totalTestsRun: number;
+  sqlPass: number;
+  sqlIssue: number;
+  sqlCrash: number;
+  totalSqlCases: number;
+}): { headline: string; subline: string; svg: string } {
+  const baseN = Math.max(1, v.codeRead);
+  const applyTotal = v.gitApplyClean + v.gitApplyConflict;
+  const applyPct = applyTotal > 0 ? Math.round((v.gitApplyClean / applyTotal) * 100) : 0;
+  const testTotal = v.testPass + v.testFail;
+  const testPct = testTotal > 0 ? Math.round((v.testPass / testTotal) * 100) : 0;
+  const sqlTotal = v.sqlPass + v.sqlIssue + v.sqlCrash;
+
+  const headline =
+    v.codeRead === 0
+      ? "Run a Medium or Dark roast to populate the live PostgreSQL build & SQL verification pipeline"
+      : `${applyPct}% applied cleanly to master · ${v.compilePass}/${Math.max(1, v.compilePass + v.compileFail)} compiled (-Dcassert, median ${v.medianCompileSec}s) · ${sqlTotal} ran live PG SQL stress tests`;
+  const subline = `Real verification evidence across ${fmtNum(v.codeRead)} unique code-verified CommitFest patches (avg ${v.avgFilesRead} C/H/SQL files read per patch)`;
+
+  if (v.codeRead === 0) {
+    return { headline, subline, svg: `<div class="empty-state">No Medium/Dark code-verified roasts published yet.</div>` };
+  }
+
+  const stages: Array<{
+    label: string;
+    detail: string;
+    segs: Array<{ label: string; count: number; fill: string }>;
+  }> = [
+    {
+      label: "1. Code Diff Read",
+      detail: `${v.codeRead} patches · avg ${v.avgFilesRead} files`,
+      segs: [{ label: "C/H/SQL diff read", count: v.codeRead, fill: "var(--viz-1)" }],
+    },
+    {
+      label: "2. git apply (master)",
+      detail: `${v.gitApplyClean} clean · ${v.gitApplyConflict} bitrot conflict`,
+      segs: [
+        { label: "Applied cleanly", count: v.gitApplyClean, fill: "var(--viz-2)" },
+        { label: "Bitrot / conflict", count: v.gitApplyConflict, fill: "var(--viz-5)" },
+      ],
+    },
+    {
+      label: "3. meson compile (-Dcassert)",
+      detail: `${v.compilePass} pass · ${v.compileFail} fail · avg ${v.avgCompileSec}s`,
+      segs: [
+        { label: "Compiled cleanly", count: v.compilePass, fill: "var(--viz-2)" },
+        { label: "Compile failed", count: v.compileFail, fill: "var(--viz-5)" },
+      ],
+    },
+    {
+      label: "4. Targeted meson test",
+      detail: `${v.testPass} pass (${testPct}%) · ${v.testFail} fail · ${v.totalTestsPassed}/${v.totalTestsRun} suites`,
+      segs: [
+        { label: "Targeted tests passed", count: v.testPass, fill: "var(--viz-2)" },
+        { label: "Targeted tests failed", count: v.testFail, fill: "var(--viz-5)" },
+      ],
+    },
+    {
+      label: "5. Live Patched PG SQL",
+      detail: `${v.totalSqlCases} adversarial SQL cases · ${v.sqlPass} clean · ${v.sqlIssue} error paths · ${v.sqlCrash} crashes`,
+      segs: [
+        { label: "All SQL stress cases passed", count: v.sqlPass, fill: "var(--viz-2)" },
+        { label: "Edge-case / error path triggered", count: v.sqlIssue, fill: "var(--viz-3)" },
+        { label: "CRASH / TRAP / ASSERT", count: v.sqlCrash, fill: "var(--viz-5)" },
+      ],
+    },
+  ];
+
+  const w = 680;
+  const padL = 178;
+  const padR = 54;
+  const padT = 8;
+  const rowH = 34;
+  const gap = 8;
+  const plotW = w - padL - padR;
+
+  const rowsHtml = stages
+    .map((st, idx) => {
+      const y = padT + idx * (rowH + gap);
+      const stageTot = st.segs.reduce((a, s) => a + s.count, 0);
+      let x = padL;
+      const track = `<rect x="${padL}" y="${y}" width="${plotW}" height="20" rx="4" fill="var(--hover)" />`;
+      const bars = st.segs
+        .filter((s) => s.count > 0)
+        .map((s) => {
+          const bw = Math.max(4, (s.count / baseN) * plotW);
+          const share = Math.round((s.count / Math.max(1, stageTot)) * 100);
+          const out = `
+            <g class="viz-hoverable" tabindex="0" data-tip-title="${esc(st.label)}: ${esc(s.label)}" data-tip-body="${s.count} of ${stageTot} patches (${share}%)" data-tip-sub="${esc(st.detail)}">
+              <rect x="${x.toFixed(1)}" y="${y}" width="${Math.max(2, bw - 1.5).toFixed(1)}" height="20" rx="3" fill="${s.fill}" fill-opacity="0.88" />
+              ${bw > 28 ? `<text x="${(x + bw / 2).toFixed(1)}" y="${y + 13.5}" text-anchor="middle" fill="#fff" font-size="10.5" font-weight="700" class="mono" pointer-events="none">${s.count}</text>` : ""}
+            </g>
+          `;
+          x += bw;
+          return out;
+        })
+        .join("");
+
+      const lbl = `
+        <text x="${padL - 10}" y="${y + 13.5}" text-anchor="end" fill="var(--text)" font-size="11.5" font-weight="600">${esc(st.label)}</text>
+        <text x="${w - padR + 8}" y="${y + 13.5}" text-anchor="start" fill="var(--viz-axis)" font-size="11" class="mono">${stageTot}/${baseN}</text>
+        <text x="${padL}" y="${y + 31}" fill="var(--dim)" font-size="9.5">${esc(st.detail)}</text>
+      `;
+      return `${track}${bars}${lbl}`;
+    })
+    .join("");
+
+  const h = padT + stages.length * (rowH + gap) + 4;
+  const svg = `
+    <svg viewBox="0 0 ${w} ${h}" class="obs-chart-svg" role="img" aria-label="${esc(headline)}">
+      ${rowsHtml}
+    </svg>
+    <div class="obs-chart-legend">
+      <span><span class="dot" style="background:var(--viz-1)"></span>Code diff extracted</span>
+      <span><span class="dot" style="background:var(--viz-2)"></span>Clean / Pass</span>
+      <span><span class="dot" style="background:var(--viz-3)"></span>Live SQL edge-case / error path</span>
+      <span><span class="dot" style="background:var(--viz-5)"></span>Conflict / Fail / Crash</span>
+    </div>
+  `;
+  return { headline, subline, svg };
+}
+
+/* ============================================================================
+ * 11. STATS: Model × Verdict & Depth Mix (Horizontal 100% Stacked Bars)
+ * ============================================================================ */
+export function renderModelVerdictMixSvg(
+  models: Array<{
+    spec: string;
+    backend: string;
+    total: number;
+    dark: number;
+    medium: number;
+    light: number;
+    verdicts: Record<string, number>;
+  }>,
+): string {
+  const rows = models.slice(0, 7);
+  if (rows.length === 0) return `<div class="empty-state">No community model opinions published yet.</div>`;
+
+  const vOrder = [
+    { key: "NO-FUNDAMENTAL-OBJECTION", label: "No objection", fill: "var(--viz-2)" },
+    { key: "NEEDS-COMMITTER-EYES", label: "Committer eyes", fill: "var(--viz-1)" },
+    { key: "NEEDS-DESIGN-DISCUSSION", label: "Design disc.", fill: "var(--viz-3)" },
+    { key: "LIKELY-REJECT", label: "Likely reject", fill: "var(--viz-5)" },
+  ];
+
+  const w = 620;
+  const padL = 188;
+  const padR = 46;
+  const padT = 8;
+  const rowH = 34;
+  const gap = 8;
+  const plotW = w - padL - padR;
+
+  const body = rows
+    .map((m, idx) => {
+      const y = padT + idx * (rowH + gap);
+      const tot = Math.max(1, m.total);
+      let x = padL;
+      const segs = vOrder
+        .map((v) => {
+          const cnt = m.verdicts[v.key] || 0;
+          if (cnt <= 0) return "";
+          const sw = (cnt / tot) * plotW;
+          const pct = Math.round((cnt / tot) * 100);
+          const el = `
+            <g class="viz-hoverable" tabindex="0" data-tip-title="${esc(m.spec)} × ${esc(v.label)}" data-tip-body="${cnt} of ${m.total} opinions (${pct}%)" data-tip-sub="Depth mix: ${m.dark} Dark · ${m.medium} Medium · ${m.light} Light">
+              <rect x="${x.toFixed(1)}" y="${y}" width="${Math.max(2, sw - 1.2).toFixed(1)}" height="18" rx="3" fill="${v.fill}" fill-opacity="0.88" />
+              ${sw > 26 ? `<text x="${(x + sw / 2).toFixed(1)}" y="${y + 12.5}" text-anchor="middle" fill="#fff" font-size="10" font-weight="700" class="mono" pointer-events="none">${cnt}</text>` : ""}
+            </g>
+          `;
+          x += sw;
+          return el;
+        })
+        .join("");
+
+      const shortSpec = m.spec.length > 26 ? `${m.spec.slice(0, 25)}…` : m.spec;
+      const depthSub = `${m.dark ? `${m.dark} Dark` : ""}${m.dark && m.light ? " · " : ""}${m.medium ? `${m.medium} Med · ` : ""}${m.light ? `${m.light} Light` : ""}`;
+      return `
+        <text x="${padL - 8}" y="${y + 12.5}" text-anchor="end" fill="var(--text)" font-size="10.5" font-weight="600" class="mono">${esc(shortSpec)}</text>
+        <text x="${padL - 8}" y="${y + 24.5}" text-anchor="end" fill="var(--dim)" font-size="9">${esc(depthSub || m.backend)}</text>
+        ${segs}
+        <text x="${w - padR + 7}" y="${y + 12.5}" text-anchor="start" fill="var(--viz-axis)" font-size="10.5" class="mono">${m.total}</text>
+      `;
+    })
+    .join("");
+
+  const h = padT + rows.length * (rowH + gap) + 4;
+  return `
+    <svg viewBox="0 0 ${w} ${h}" class="obs-chart-svg" role="img" aria-label="Verdict distribution by AI model">
+      ${body}
+    </svg>
+    <div class="obs-chart-legend">
+      <span><span class="dot" style="background:var(--viz-2)"></span>No objection</span>
+      <span><span class="dot" style="background:var(--viz-1)"></span>Committer eyes</span>
+      <span><span class="dot" style="background:var(--viz-3)"></span>Design disc.</span>
+      <span><span class="dot" style="background:var(--viz-5)"></span>Likely reject</span>
+    </div>
+  `;
+}
+
+/* ============================================================================
+ * 12. STATS: Bug Fixes vs Features vs Production-Reported Breakdown
+ * ============================================================================ */
+export function renderKindVerdictComparisonSvg(
+  rows: Array<{
+    key: "bugfix" | "feature" | "prod";
+    label: string;
+    total: number;
+    open: number;
+    committed: number;
+    ready: number;
+    needsReview: number;
+    waiting: number;
+    verdicts: Record<string, number>;
+  }>,
+): string {
+  const valid = rows.filter((r) => r.total > 0);
+  if (valid.length === 0) return `<div class="empty-state">No patch classification data yet.</div>`;
+
+  const w = 600;
+  const padL = 136;
+  const padR = 46;
+  const padT = 8;
+  const rowH = 44;
+  const gap = 10;
+  const plotW = w - padL - padR;
+
+  const stSegs = (r: (typeof valid)[number]) => {
+    const other = Math.max(0, r.total - r.committed - r.ready - r.needsReview - r.waiting);
+    return [
+      { label: "Committed", count: r.committed, fill: "var(--viz-2)" },
+      { label: "Ready for Committer", count: r.ready, fill: "var(--viz-1)" },
+      { label: "Needs review", count: r.needsReview, fill: "var(--viz-3)" },
+      { label: "Waiting on Author", count: r.waiting, fill: "var(--viz-4)" },
+      { label: "Other / Closed", count: other, fill: "var(--border-s)" },
+    ];
+  };
+
+  const body = valid
+    .map((r, idx) => {
+      const y = padT + idx * (rowH + gap);
+      const tot = Math.max(1, r.total);
+      let x = padL;
+      const segs = stSegs(r)
+        .filter((s) => s.count > 0)
+        .map((s) => {
+          const sw = (s.count / tot) * plotW;
+          const pct = Math.round((s.count / tot) * 100);
+          const out = `
+            <g class="viz-hoverable" tabindex="0" data-tip-title="${esc(r.label)} — ${esc(s.label)}" data-tip-body="${s.count} of ${r.total} patches (${pct}%)" data-tip-sub="${r.open} open · ${r.verdicts["NO-FUNDAMENTAL-OBJECTION"] || 0} roasted clean · ${r.verdicts["LIKELY-REJECT"] || 0} likely reject">
+              <rect x="${x.toFixed(1)}" y="${y}" width="${Math.max(2, sw - 1.2).toFixed(1)}" height="20" rx="3" fill="${s.fill}" fill-opacity="0.88" />
+              ${sw > 28 ? `<text x="${(x + sw / 2).toFixed(1)}" y="${y + 13.5}" text-anchor="middle" fill="${s.fill === "var(--border-s)" ? "var(--text)" : "#fff"}" font-size="10" font-weight="700" class="mono" pointer-events="none">${pct}%</text>` : ""}
+            </g>
+          `;
+          x += sw;
+          return out;
+        })
+        .join("");
+
+      const cleanN = r.verdicts["NO-FUNDAMENTAL-OBJECTION"] || 0;
+      const rejN = r.verdicts["LIKELY-REJECT"] || 0;
+      return `
+        <text x="${padL - 10}" y="${y + 13.5}" text-anchor="end" fill="var(--text)" font-size="11.5" font-weight="600">${esc(r.label)}</text>
+        <text x="${padL - 10}" y="${y + 26.5}" text-anchor="end" fill="var(--dim)" font-size="9.5" class="mono">${r.open} open</text>
+        ${segs}
+        <text x="${w - padR + 7}" y="${y + 13.5}" text-anchor="start" fill="var(--viz-axis)" font-size="11" class="mono">${r.total}</text>
+        <text x="${padL}" y="${y + 33}" fill="var(--dim)" font-size="9.5">${r.committed} committed · ${r.ready} RFC · ${cleanN} clean · ${rejN} likely reject</text>
+      `;
+    })
+    .join("");
+
+  const h = padT + valid.length * (rowH + gap) + 4;
+  return `
+    <svg viewBox="0 0 ${w} ${h}" class="obs-chart-svg" role="img" aria-label="Bug fixes vs features vs production-reported status breakdown">
+      ${body}
+    </svg>
+    <div class="obs-chart-legend">
+      <span><span class="dot" style="background:var(--viz-2)"></span>Committed</span>
+      <span><span class="dot" style="background:var(--viz-1)"></span>Ready for Committer</span>
+      <span><span class="dot" style="background:var(--viz-3)"></span>Needs review</span>
+      <span><span class="dot" style="background:var(--viz-4)"></span>Waiting on Author</span>
+      <span><span class="dot" style="background:var(--border-s)"></span>Other / Closed</span>
+    </div>
+  `;
+}
+
+/* ============================================================================
+ * 13. STATS: Opinion Publishing & Roast Depth Velocity Timeline
+ * ============================================================================ */
+export function renderOpinionVelocitySvg(
+  buckets: Array<{ bucket: string; label: string; dark: number; medium: number; light: number; total: number }>,
+): string {
+  if (!buckets || buckets.length === 0) return `<div class="empty-state">No community opinions published yet.</div>`;
+
+  const w = 600;
+  const h = 186;
+  const padL = 34;
+  const padR = 26;
+  const padT = 14;
+  const padB = 30;
+  const plotW = w - padL - padR;
+  const plotH = h - padT - padB;
+  const maxY = Math.max(4, ...buckets.map((b) => b.total));
+  const step = plotW / Math.max(1, buckets.length);
+  const barW = Math.max(6, Math.min(24, step * 0.68));
+  const labelEvery = Math.max(1, Math.ceil(buckets.length / 6));
+
+  const grid = [0, 0.5, 1]
+    .map((f) => {
+      const y = padT + plotH * (1 - f);
+      return `<line x1="${padL}" y1="${y.toFixed(1)}" x2="${w - padR}" y2="${y.toFixed(1)}" stroke="var(--viz-grid)" stroke-dasharray="${f === 0 ? "" : "3 3"}" />
+              <text x="${padL - 6}" y="${(y + 3.5).toFixed(1)}" text-anchor="end" fill="var(--viz-axis)" font-size="9.5" class="mono">${Math.round(maxY * f)}</text>`;
+    })
+    .join("");
+
+  const bars = buckets
+    .map((b, i) => {
+      const x = padL + i * step + (step - barW) / 2;
+      const baseY = padT + plotH;
+      const hDark = (b.dark / maxY) * plotH;
+      const hMed = (b.medium / maxY) * plotH;
+      const hLight = (b.light / maxY) * plotH;
+      const yDark = baseY - hDark;
+      const yMed = yDark - hMed;
+      const yLight = yMed - hLight;
+      const showLbl = i === 0 || i === buckets.length - 1 || (i % labelEvery === 0 && i < buckets.length - 1);
+      return `
+        <g class="viz-hoverable" tabindex="0" data-tip-title="${esc(b.label)} UTC" data-tip-body="${b.total} opinion${b.total === 1 ? "" : "s"} published" data-tip-sub="${b.dark} Dark (build+SQL) · ${b.medium} Medium · ${b.light} Light">
+          <rect x="${(padL + i * step).toFixed(1)}" y="${padT}" width="${step.toFixed(1)}" height="${plotH}" fill="transparent" />
+          ${hDark > 0 ? `<rect x="${x.toFixed(1)}" y="${yDark.toFixed(1)}" width="${barW.toFixed(1)}" height="${hDark.toFixed(1)}" rx="2" fill="var(--viz-3)" />` : ""}
+          ${hMed > 0 ? `<rect x="${x.toFixed(1)}" y="${yMed.toFixed(1)}" width="${barW.toFixed(1)}" height="${hMed.toFixed(1)}" rx="2" fill="var(--viz-1)" />` : ""}
+          ${hLight > 0 ? `<rect x="${x.toFixed(1)}" y="${yLight.toFixed(1)}" width="${barW.toFixed(1)}" height="${hLight.toFixed(1)}" rx="2" fill="var(--viz-4)" />` : ""}
+        </g>
+        ${showLbl ? `<text x="${(i === buckets.length - 1 ? x + barW : x + barW / 2).toFixed(1)}" y="${h - 8}" text-anchor="${i === buckets.length - 1 ? "end" : i === 0 ? "start" : "middle"}" fill="var(--viz-axis)" font-size="9" class="mono">${esc(b.label)}</text>` : ""}
+      `;
+    })
+    .join("");
+
+  return `
+    <svg viewBox="0 0 ${w} ${h}" class="obs-chart-svg" role="img" aria-label="Published AI roast opinions by depth over time">
+      ${grid}
+      ${bars}
+    </svg>
+    <div class="obs-chart-legend">
+      <span><span class="dot" style="background:var(--viz-3)"></span>Dark (code + build + live PG SQL)</span>
+      <span><span class="dot" style="background:var(--viz-1)"></span>Medium (code + build + test)</span>
+      <span><span class="dot" style="background:var(--viz-4)"></span>Light (thread + precedents)</span>
+    </div>
+  `;
+}
+
+/* ============================================================================
+ * 14. STATS: Site Traffic & Community Interest Area Sparkline
+ * ============================================================================ */
+export function renderTrafficTimelineSvg(
+  timeline: Array<{ bucket: string; label: string; hits: number }>,
+): string {
+  if (!timeline || timeline.length === 0) return `<div class="muted" style="font-size:12px;">No hourly traffic buckets yet.</div>`;
+
+  const w = 680;
+  const h = 128;
+  const padL = 32;
+  const padR = 24;
+  const padT = 12;
+  const padB = 24;
+  const plotW = w - padL - padR;
+  const plotH = h - padT - padB;
+  const maxY = Math.max(4, ...timeline.map((t) => t.hits));
+  const step = timeline.length > 1 ? plotW / (timeline.length - 1) : plotW;
+  const xOf = (i: number) => (timeline.length > 1 ? padL + i * step : padL + plotW / 2);
+  const yOf = (v: number) => padT + plotH - (v / maxY) * plotH;
+  const labelEvery = Math.max(1, Math.ceil(timeline.length / 6));
+
+  const linePts = timeline.map((t, i) => `${xOf(i).toFixed(1)},${yOf(t.hits).toFixed(1)}`).join(" ");
+  const areaPts =
+    timeline.length > 1
+      ? `M${xOf(0).toFixed(1)},${(padT + plotH).toFixed(1)} ` +
+        timeline.map((t, i) => `L${xOf(i).toFixed(1)},${yOf(t.hits).toFixed(1)}`).join(" ") +
+        ` L${xOf(timeline.length - 1).toFixed(1)},${(padT + plotH).toFixed(1)} Z`
+      : "";
+
+  const hitsOverlay = timeline
+    .map((t, i) => {
+      const cx = xOf(i);
+      const cy = yOf(t.hits);
+      const showLbl = i === 0 || i === timeline.length - 1 || (i % labelEvery === 0 && i < timeline.length - 1);
+      return `
+        <g class="viz-hoverable" tabindex="0" data-tip-title="${esc(t.label)} UTC" data-tip-body="${fmtNum(t.hits)} page view${t.hits === 1 ? "" : "s"}" data-tip-sub="Zero-cookie hit counter (bots excluded)">
+          <circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="4" fill="var(--viz-1)" stroke="var(--surface)" stroke-width="1.5" />
+          <rect x="${(cx - Math.max(8, step / 2)).toFixed(1)}" y="${padT}" width="${Math.max(16, step).toFixed(1)}" height="${plotH}" fill="transparent" />
+        </g>
+        ${showLbl ? `<text x="${cx.toFixed(1)}" y="${h - 6}" text-anchor="${i === timeline.length - 1 ? "end" : i === 0 ? "start" : "middle"}" fill="var(--viz-axis)" font-size="9" class="mono">${esc(t.label)}</text>` : ""}
+      `;
+    })
+    .join("");
+
+  return `
+    <svg viewBox="0 0 ${w} ${h}" class="obs-chart-svg" role="img" aria-label="Hourly page views">
+      <line x1="${padL}" y1="${padT}" x2="${w - padR}" y2="${padT}" stroke="var(--viz-grid)" stroke-dasharray="3 3" />
+      <line x1="${padL}" y1="${padT + plotH}" x2="${w - padR}" y2="${padT + plotH}" stroke="var(--border)" />
+      <text x="${padL - 6}" y="${padT + 4}" text-anchor="end" fill="var(--viz-axis)" font-size="9.5" class="mono">${maxY}</text>
+      <text x="${padL - 6}" y="${padT + plotH}" text-anchor="end" fill="var(--viz-axis)" font-size="9.5" class="mono">0</text>
+      ${areaPts ? `<path d="${areaPts}" fill="var(--viz-1)" fill-opacity="0.14" />` : ""}
+      ${timeline.length > 1 ? `<polyline fill="none" stroke="var(--viz-1)" stroke-width="2" stroke-linejoin="round" points="${linePts}" />` : ""}
+      ${hitsOverlay}
+    </svg>
+  `;
+}

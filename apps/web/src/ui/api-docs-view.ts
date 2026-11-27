@@ -58,6 +58,22 @@ export const API_ENDPOINTS: ApiEndpointDef[] = [
     ],
   },
   {
+    id: "stats-overview",
+    group: "CommitFest & Patches",
+    method: "GET",
+    pathTemplate: "/api/v1/stats/overview",
+    title: "Live CommitFest intelligence & build pipeline",
+    auth: "public",
+    summary: "Returns live PostgreSQL aggregation across all CommitFest entries and opinions: Dark/Medium verification pipeline funnel (git apply, meson compile, meson test, live PG SQL stress), live merged Status × Verdict matrix, subsystem readiness, model mix, unified author profiles, and hourly traffic.",
+    params: [],
+    responseFields: [
+      { name: "totals", type: "object", description: "Live open/closed counts, roast coverage, Dark-verified patches, bug fixes, and production hits." },
+      { name: "verification", type: "object", description: "git apply, meson compile (-Dcassert), meson test, live SQL stress stats, by-model breakdown, and radar lists." },
+      { name: "statusMatrix", type: "StatusRow[]", description: "Live CommitFest status × effective AI verdict matrix." },
+      { name: "contributors", type: "object", description: "Top CommitFest authors linked to /hacker/<slug> profiles, AI quota roasters, and PG role split." },
+    ],
+  },
+  {
     id: "entries-list",
     group: "CommitFest & Patches",
     method: "GET",

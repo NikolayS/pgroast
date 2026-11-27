@@ -948,4 +948,26 @@ describe("pgroast-web public companion API & security gates", () => {
     const listsHtml = await (await req("/lists")).text();
     expect(listsHtml).toContain("PostgreSQL Mailing Lists Archive (Continuous Sync) — pgroast");
   });
+
+  test("CommitFest Stats Observatory API (/api/v1/stats/overview) computes live verification funnel & unified authors", async () => {
+    const res = await req("/api/v1/stats/overview");
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as {
+      totals: { total: number; totalOpinions: number };
+      statusMatrix: unknown[];
+      subsystems: unknown[];
+      kindComparison: unknown[];
+      verification: { byModel: unknown[]; radar: Record<string, unknown[]> };
+      contributors: { authors: unknown[]; roasters: unknown[] };
+      traffic: { total: number; timeline: unknown[] };
+    };
+    expect(data.totals.total).toBeGreaterThanOrEqual(1);
+    expect(Array.isArray(data.statusMatrix)).toBe(true);
+    expect(Array.isArray(data.subsystems)).toBe(true);
+    expect(data.kindComparison.length).toBe(3);
+    expect(Array.isArray(data.verification.byModel)).toBe(true);
+    expect(Array.isArray(data.verification.radar.darkCleanRfc)).toBe(true);
+    expect(Array.isArray(data.contributors.authors)).toBe(true);
+    expect(typeof data.traffic.total).toBe("number");
+  });
 });

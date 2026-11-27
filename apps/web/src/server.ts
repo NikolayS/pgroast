@@ -14,6 +14,7 @@ import {
 import { getMailingListsOverview, searchMailingListMessages } from "./lists-queries.ts";
 import { fetchMrDiffForCf, fetchMrDiscussionForCf, matchThreadToDiff } from "./mr.ts";
 import { checkPublicPayloadSafe, safeHttpUrl, securityHeaders } from "./security.ts";
+import { getStatsOverview } from "./stats-queries.ts";
 
 const MAX_PG_INT4 = 2_147_483_647;
 
@@ -390,6 +391,7 @@ export async function createWebHandler(opts?: {
   const apiDocsViewPath = join(WEB_ROOT, "src", "ui", "api-docs-view.ts");
   const contributeViewPath = join(WEB_ROOT, "src", "ui", "contribute-view.ts");
   const listsViewPath = join(WEB_ROOT, "src", "ui", "lists-view.ts");
+  const statsViewPath = join(WEB_ROOT, "src", "ui", "stats-view.ts");
   const vizChartsPath = join(WEB_ROOT, "src", "ui", "viz-charts.ts");
   const vizEnginePath = join(WEB_ROOT, "src", "ui", "viz-engine.ts");
   const faviconPath = join(WEB_ROOT, "src", "ui", "favicon.svg");
@@ -403,6 +405,7 @@ export async function createWebHandler(opts?: {
     (existsSync(apiDocsViewPath) ? statSync(apiDocsViewPath).mtimeMs : 0) +
     (existsSync(contributeViewPath) ? statSync(contributeViewPath).mtimeMs : 0) +
     (existsSync(listsViewPath) ? statSync(listsViewPath).mtimeMs : 0) +
+    (existsSync(statsViewPath) ? statSync(statsViewPath).mtimeMs : 0) +
     (existsSync(vizChartsPath) ? statSync(vizChartsPath).mtimeMs : 0) +
     (existsSync(vizEnginePath) ? statSync(vizEnginePath).mtimeMs : 0);
   let cssMtime = existsSync(cssPath) ? statSync(cssPath).mtimeMs : 0;
@@ -421,8 +424,10 @@ export async function createWebHandler(opts?: {
         (existsSync(appTsPath) ? statSync(appTsPath).mtimeMs : 0) +
         (existsSync(hackersViewPath) ? statSync(hackersViewPath).mtimeMs : 0) +
         (existsSync(docsViewPath) ? statSync(docsViewPath).mtimeMs : 0) +
+        (existsSync(apiDocsViewPath) ? statSync(apiDocsViewPath).mtimeMs : 0) +
         (existsSync(contributeViewPath) ? statSync(contributeViewPath).mtimeMs : 0) +
         (existsSync(listsViewPath) ? statSync(listsViewPath).mtimeMs : 0) +
+        (existsSync(statsViewPath) ? statSync(statsViewPath).mtimeMs : 0) +
         (existsSync(vizChartsPath) ? statSync(vizChartsPath).mtimeMs : 0) +
         (existsSync(vizEnginePath) ? statSync(vizEnginePath).mtimeMs : 0);
       if (curAppMtime !== appMtime) {
@@ -552,6 +557,7 @@ export async function createWebHandler(opts?: {
             "/api/v1/entries": { get: { summary: "List indexed CommitFest entries", parameters: [{ name: "limit", in: "query", schema: { type: "integer" } }] } },
             "/api/v1/entries/{cf_id}": { get: { summary: "Get patch consensus, opinions, and claims", parameters: [{ name: "cf_id", in: "path", required: true, schema: { type: "integer" } }] } },
             "/api/v1/opinions": { get: { summary: "List recent attributed community AI opinions" } },
+            "/api/v1/stats/overview": { get: { summary: "Live CommitFest intelligence, build/SQL verification pipeline, subsystem readiness, and unified author telemetry" } },
             "/api/v1/hackers/overview": { get: { summary: "PostgreSQL Hacking Observatory overview & charts", parameters: [{ name: "window", in: "query", schema: { type: "string" } }] } },
             "/api/v1/hackers": { get: { summary: "Search unified PostgreSQL contributors", parameters: [{ name: "search", in: "query", schema: { type: "string" } }] } },
             "/api/v1/hackers/{slug}": { get: { summary: "Unified multi-email contributor profile", parameters: [{ name: "slug", in: "path", required: true, schema: { type: "string" } }] } },
@@ -886,6 +892,10 @@ export async function createWebHandler(opts?: {
       // ---- Health & Privacy-Friendly View Counts ----
       if (method === "GET" && path === "/api/v1/views") {
         return json(await db.getPageViewSummary(), 200, req);
+      }
+
+      if (method === "GET" && path === "/api/v1/stats/overview") {
+        return json(await getStatsOverview(db), 200, req);
       }
 
       // ---- Hacking Observatory & Unified Personal Profiles ----

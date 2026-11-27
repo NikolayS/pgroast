@@ -28,16 +28,14 @@ import {
   type HackerWindow,
 } from "./hackers-view.ts";
 
+import type { StatsOverviewData } from "../stats-queries.ts";
 import {
   renderListMessagesRows,
   renderListsTab,
   type MailingListMessageItem,
   type MailingListsOverviewData,
 } from "./lists-view.ts";
-import {
-  renderStatusVerdictMarimekkoSvg,
-  renderTopicReadinessScatterSvg,
-} from "./viz-charts.ts";
+import { renderStatsObservatory, type StatsRadarTab } from "./stats-view.ts";
 import { initVizInteractions } from "./viz-engine.ts";
 
 type TabId = "brief" | "hackers" | "lists" | "stats" | "entries" | "opinions" | "coordination" | "connect" | "contribute" | "docs";
@@ -342,6 +340,11 @@ const state = {
   mrOpenFiles: new Set<string>(),
   mrInitializedOpenFiles: false,
   statsLbTab: "authors" as "authors" | "reviewers" | "committers",
+  statsOverview: null as StatsOverviewData | null,
+  statsLoading: false,
+  statsError: "",
+  statsRadarTab: "darkCleanRfc" as StatsRadarTab,
+  statsContribTab: "authors" as "authors" | "roasters" | "roles",
   health: null as HealthInfo | null,
   views: null as PageViewsInfo | null,
   briefs: [] as BriefSummary[],
@@ -742,6 +745,22 @@ async function loadDocsCoverage(force = false): Promise<void> {
   }
 }
 
+async function loadStatsOverview(force = false): Promise<void> {
+  if (state.statsLoading) return;
+  if (state.statsOverview && !force) return;
+  state.statsLoading = true;
+  state.statsError = "";
+  if (state.tab === "stats" && !state.activePatchId && !state.activeHackerSlug) render();
+  try {
+    state.statsOverview = await api<StatsOverviewData>("/api/v1/stats/overview");
+  } catch (err) {
+    state.statsError = err instanceof Error ? err.message : String(err);
+  } finally {
+    state.statsLoading = false;
+    if (state.tab === "stats" && !state.activePatchId && !state.activeHackerSlug) render();
+  }
+}
+
 async function runQuotaPreview(): Promise<void> {
   state.quotaPreviewLoading = true;
   state.quotaPreviewError = "";
@@ -855,6 +874,8 @@ function navigateToTab(tab: TabId, pushHistory = true, hash = ""): void {
     if (state.listsMessages.length === 0) void loadListsMessages();
   } else if (tab === "contribute") {
     void loadDocsCoverage();
+  } else if (tab === "stats") {
+    void loadStatsOverview();
   }
   if (hash) {
     const id = hash.replace(/^#/, "");
@@ -888,6 +909,8 @@ async function loadAll(): Promise<void> {
       void loadListsMessages();
     } else if (!route.patchId && !route.hackerSlug && route.tab === "contribute") {
       void loadDocsCoverage();
+    } else if (!route.patchId && !route.hackerSlug && route.tab === "stats") {
+      void loadStatsOverview();
     }
 
     const [health, views, bRes, oRes, cRes] = await Promise.all([
@@ -2066,354 +2089,16 @@ function renderPatchPage(): string {
   `;
 }
 
-/* ---- First-Class Public Stats Tab ---- */
+/* ---- First-Class Public Stats Observatory Tab ---- */
 function renderStatsTab(): string {
-  const brief = state.briefDetail;
-  if (!brief) {
-    return `<div class="card"><div class="empty-state">No CommitFest brief stats published yet.</div></div>`;
-  }
-  const stats = brief.stats || {};
-  const verdicts = stats.verdicts ?? [];
-  const vCount = (k: string) => verdicts.find((x) => x.verdict === k)?.all ?? 0;
-  const total = stats.totals?.total ?? state.entries.length;
-  const openCount = stats.totals?.open ?? 0;
-  const closedCount = stats.totals?.closed ?? 0;
-  const roasted = stats.totals?.roasted ?? Math.max(0, total - vCount("UNROASTED"));
-  const coveragePct = total > 0 ? Math.round((roasted / total) * 100) : 0;
-  const rfcCount = (stats.statusMatrix ?? []).find((r) => r.status.toLowerCase().includes("ready for committer"))?.total ?? 0;
-
-  const donutSegments = [
-    { key: "NO-FUNDAMENTAL-OBJECTION", label: "No fundamental objection", value: vCount("NO-FUNDAMENTAL-OBJECTION"), color: "#4cb782" },
-    { key: "NEEDS-COMMITTER-EYES", label: "Needs committer eyes", value: vCount("NEEDS-COMMITTER-EYES"), color: "#5e6ad2" },
-    { key: "NEEDS-DESIGN-DISCUSSION", label: "Needs design discussion", value: vCount("NEEDS-DESIGN-DISCUSSION"), color: "#e0a83c" },
-    { key: "LIKELY-REJECT", label: "Likely reject", value: vCount("LIKELY-REJECT"), color: "#eb5757" },
-    { key: "UNROASTED", label: "Not roasted", value: vCount("UNROASTED"), color: "#737682" },
-  ];
-
-  const matrixRows = stats.statusMatrix ?? [];
-  const maxMatrixCell = Math.max(
-    1,
-    ...matrixRows.flatMap((r) => [
-      r.counts["NO-FUNDAMENTAL-OBJECTION"] ?? 0,
-      r.counts["NEEDS-COMMITTER-EYES"] ?? 0,
-      r.counts["NEEDS-DESIGN-DISCUSSION"] ?? 0,
-      r.counts["LIKELY-REJECT"] ?? 0,
-    ]),
-  );
-  const heatStyle = (val: number, rgb: string) => {
-    if (!val) return "";
-    const alpha = Math.min(0.32, 0.06 + (val / maxMatrixCell) * 0.26).toFixed(2);
-    return `background:rgb(${rgb} / ${alpha});font-weight:600;`;
-  };
-
-  // Subsystems with open + clean + ready breakdown
-  const topics = (stats.topTopics ?? []).slice(0, 14);
-  const maxTopicTotal = Math.max(1, ...topics.map((t) => t.total || t.open));
-
-  // Compute leaderboards from stats.leaderboards OR derive from entries on the fly if absent!
-  const deriveLeaderboard = (field: "authors" | "reviewers" | "committer"): Array<{ name: string; count: number }> => {
-    const counts = new Map<string, number>();
-    for (const e of state.entries) {
-      const raw = (e[field] || "").trim();
-      if (!raw || raw === "—") continue;
-      for (const part of raw.split(/,\s*/)) {
-        const clean = part.replace(/\s*\([^)]*\)\s*/g, "").trim();
-        if (!clean || clean === "—") continue;
-        counts.set(clean, (counts.get(clean) || 0) + 1);
-      }
-    }
-    return Array.from(counts.entries())
-      .map(([name, count]) => ({ name, count }))
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 15);
-  };
-
-  const authorsLb = stats.leaderboards?.authors?.length ? stats.leaderboards.authors.slice(0, 15) : deriveLeaderboard("authors");
-  const reviewersLb = stats.leaderboards?.reviewers?.length ? stats.leaderboards.reviewers.slice(0, 15) : deriveLeaderboard("reviewers");
-  const committersLb = stats.leaderboards?.committers?.length ? stats.leaderboards.committers.slice(0, 15) : deriveLeaderboard("committer");
-
-  // Multi-model opinion stats
-  const uniqueOpReviewers = new Set(state.opinions.map((o) => o.contributor_handle || o.contributor_name)).size;
-  const uniqueOpModels = new Set(state.opinions.map((o) => o.backend)).size;
-
-  const renderLbCard = (id: "authors" | "reviewers" | "committers", title: string, rows: Array<{ name: string; count: number }>) => `
-    <div class="card lb-card ${state.statsLbTab !== id ? "mobile-hidden" : ""}" style="margin-bottom:0;">
-      <div class="card-head" style="margin-bottom:8px;">
-        <h3>${title}</h3>
-        <span class="dim" style="font-size:11.5px;">Tap to filter</span>
-      </div>
-      <div class="lb-list">
-        ${
-          rows.length === 0
-            ? `<div class="muted" style="font-size:12px;">No data.</div>`
-            : rows
-                .map(
-                  (r, i) => `
-            <button type="button" class="lb-row" data-stats-person="${esc(r.name)}">
-              <span class="lb-rank mono">${i + 1}</span>
-              <span class="lb-name">${esc(r.name)}</span>
-              <span class="lb-count mono">${r.count}</span>
-            </button>
-          `,
-                )
-                .join("")
-        }
-      </div>
-    </div>
-  `;
-
-  return `
-    <div class="page-head">
-      <div>
-        <h1 class="page-title">CommitFest Stats &amp; Intelligence</h1>
-        <div class="page-sub">${esc(brief.commitfest_label)} · Updated ${esc(brief.created_at.slice(0, 10))} · Click any metric, cell, subsystem, or person to drill into Entries</div>
-      </div>
-      <div class="row" style="gap:6px;">
-        <a class="btn btn-secondary btn-sm" href="/briefs/${encodeURIComponent(brief.slug)}/download.html">Download HTML</a>
-        <a class="btn btn-ghost btn-sm" href="/briefs/${encodeURIComponent(brief.slug)}/download.json">JSON</a>
-      </div>
-    </div>
-
-    <div class="kpis">
-      <button type="button" class="kpi" data-jump-verdict="all">
-        <div class="kpi-l">Total entries</div>
-        <div class="kpi-v">${total}</div>
-        <div class="kpi-sub">${openCount} open · ${closedCount} closed</div>
-      </button>
-      <button type="button" class="kpi" data-jump-verdict="all">
-        <div class="kpi-l">Roast coverage</div>
-        <div class="kpi-v">${coveragePct}%</div>
-        <div class="kpi-sub">${roasted} of ${total} roasted</div>
-      </button>
-      <button type="button" class="kpi" data-stats-status="Ready for Committer">
-        <div class="kpi-l"><span class="dot" style="background:var(--ok)"></span>Ready for Committer</div>
-        <div class="kpi-v" style="color:var(--ok)">${rfcCount}</div>
-        <div class="kpi-sub">Tap to view queue</div>
-      </button>
-      <button type="button" class="kpi" data-jump-verdict="NO-FUNDAMENTAL-OBJECTION">
-        <div class="kpi-l"><span class="dot" style="background:#4cb782"></span>No objection</div>
-        <div class="kpi-v">${vCount("NO-FUNDAMENTAL-OBJECTION")}</div>
-        <div class="kpi-sub">Roasted clean</div>
-      </button>
-      <button type="button" class="kpi" data-jump-verdict="LIKELY-REJECT">
-        <div class="kpi-l"><span class="dot" style="background:#eb5757"></span>Likely reject</div>
-        <div class="kpi-v" style="color:var(--danger)">${vCount("LIKELY-REJECT")}</div>
-        <div class="kpi-sub">Closing candidates</div>
-      </button>
-      <button type="button" class="kpi" id="stats-goto-opinions">
-        <div class="kpi-l">Community roasts</div>
-        <div class="kpi-v">${state.opinions.length}</div>
-        <div class="kpi-sub">${uniqueOpReviewers} reviewers · ${uniqueOpModels} models</div>
-      </button>
-    </div>
-
-    <div class="grid2" style="margin-bottom:14px;">
-      <div class="card" style="margin-bottom:0;">
-        <div class="card-head">
-          <h2>Verdict Distribution</h2>
-          <span class="dim" style="font-size:12px;">Tap any verdict to filter</span>
-        </div>
-        <div class="donut-row">
-          ${renderSvgDonut(donutSegments)}
-          <div class="legend">
-            ${donutSegments
-              .map((s) => {
-                const pct = total > 0 ? Math.round((s.value / total) * 100) : 0;
-                return `
-              <button type="button" class="legend-btn" data-jump-verdict="${s.key}">
-                <span class="legend-left"><span class="dot" style="background:${s.color}"></span><span>${esc(s.label)}</span></span>
-                <span class="mono"><strong>${s.value}</strong> <span class="dim">(${pct}%)</span></span>
-              </button>
-            `;
-              })
-              .join("")}
-          </div>
-        </div>
-      </div>
-
-      <div class="card viz-card" style="margin-bottom:0;">
-        <div class="card-head">
-          <div>
-            <div class="viz-kicker">Committer Attention Quadrant</div>
-            <h2>Top Subsystems: Open Volume vs Ready-for-Committer %</h2>
-            <div class="dim" style="font-size:12px;">Click any dot or row to filter Entries</div>
-          </div>
-        </div>
-        ${renderTopicReadinessScatterSvg(topics)}
-        <details style="margin-top:10px;">
-          <summary class="dim" style="font-size:12px;cursor:pointer;">Show all ${topics.length} subsystem bars</summary>
-          <div class="subsys-list" style="margin-top:8px;">
-            ${
-              topics
-                .map((t) => {
-                  const tTotal = Math.max(1, t.total || t.open);
-                  const wAll = Math.max(4, Math.round((tTotal / maxTopicTotal) * 100));
-                  const cleanPct = Math.round(((t.clean || 0) / tTotal) * 100);
-                  const readyPct = Math.round(((t.ready || 0) / tTotal) * 100);
-                  return `
-                <button type="button" class="subsys-row" data-stats-topic="${esc(t.topic)}">
-                  <div class="subsys-head">
-                    <span class="hbar-label">${esc(t.topic)}</span>
-                    <span class="mono dim">${t.open || t.total} open${t.clean ? ` · <span style="color:var(--ok)">${t.clean} clean</span>` : ""}${t.ready ? ` · <span style="color:var(--accent-t)">${t.ready} RFC</span>` : ""}</span>
-                  </div>
-                  <div class="subsys-bar" style="width:${wAll}%;">
-                    ${cleanPct > 0 ? `<div style="width:${cleanPct}%;background:var(--ok);"></div>` : ""}
-                    ${readyPct > 0 ? `<div style="width:${readyPct}%;background:var(--accent);"></div>` : ""}
-                    <div style="flex:1;background:rgb(94 106 210 / 0.35);"></div>
-                  </div>
-                </button>
-              `;
-                })
-                .join("") || `<div class="muted">No subsystem breakdown included in this brief.</div>`
-            }
-          </div>
-        </details>
-      </div>
-    </div>
-
-    ${
-      matrixRows.length
-        ? (() => {
-            const mosaic = renderStatusVerdictMarimekkoSvg(matrixRows);
-            return `
-      <div class="card viz-card">
-        <div class="card-head">
-          <div>
-            <div class="viz-kicker">CommitFest Status × AI Roast Verdict Mosaic</div>
-            <h2 class="viz-headline">${esc(mosaic.headline)}</h2>
-            <div class="dim" style="font-size:12px;margin-top:2px;">${esc(mosaic.subline)}</div>
-          </div>
-        </div>
-        ${mosaic.callouts ? `<div class="row" style="gap:8px;flex-wrap:wrap;margin-bottom:12px;">${mosaic.callouts}</div>` : ""}
-        ${mosaic.svg}
-        <details style="margin-top:12px;">
-          <summary class="dim" style="font-size:12px;cursor:pointer;">Show exact counts heatmap table</summary>
-          <div class="table-scroll" style="margin-top:8px;">
-            <table class="matrix">
-              <thead>
-                <tr>
-                  <th>CF Status</th>
-                  <th class="num">Total</th>
-                  <th class="num">No objection</th>
-                  <th class="num">Committer eyes</th>
-                  <th class="num">Design disc.</th>
-                  <th class="num">Likely reject</th>
-                  <th class="num">Not roasted</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${matrixRows
-                  .map((row) => {
-                    const cOk = row.counts["NO-FUNDAMENTAL-OBJECTION"] ?? 0;
-                    const cEyes = row.counts["NEEDS-COMMITTER-EYES"] ?? 0;
-                    const cDesign = row.counts["NEEDS-DESIGN-DISCUSSION"] ?? 0;
-                    const cRej = row.counts["LIKELY-REJECT"] ?? 0;
-                    const cUn = row.counts.UNROASTED ?? 0;
-                    return `
-                  <tr>
-                    <td><strong>${esc(row.status)}</strong></td>
-                    <td class="num">${row.total}</td>
-                    <td class="num matrix-cell" style="${heatStyle(cOk, "76 183 130")}" data-mx-status="${esc(row.status)}" data-mx-verdict="NO-FUNDAMENTAL-OBJECTION">${cOk}</td>
-                    <td class="num matrix-cell" style="${heatStyle(cEyes, "94 106 210")}" data-mx-status="${esc(row.status)}" data-mx-verdict="NEEDS-COMMITTER-EYES">${cEyes}</td>
-                    <td class="num matrix-cell" style="${heatStyle(cDesign, "224 168 60")}" data-mx-status="${esc(row.status)}" data-mx-verdict="NEEDS-DESIGN-DISCUSSION">${cDesign}</td>
-                    <td class="num matrix-cell" style="${heatStyle(cRej, "235 87 87")}" data-mx-status="${esc(row.status)}" data-mx-verdict="LIKELY-REJECT">${cRej}</td>
-                    <td class="num dim matrix-cell" data-mx-status="${esc(row.status)}" data-mx-verdict="UNROASTED">${cUn}</td>
-                  </tr>
-                `;
-                  })
-                  .join("")}
-              </tbody>
-            </table>
-          </div>
-        </details>
-      </div>
-    `;
-          })()
-        : ""
-    }
-
-    <div class="card-head" style="margin:16px 0 10px;">
-      <h2>Community Leaderboards</h2>
-      <span class="dim" style="font-size:12px;">Click any contributor to see their patches</span>
-    </div>
-
-    <div class="lb-mobile-seg" role="tablist" aria-label="Leaderboard categories">
-      <button type="button" class="seg-btn ${state.statsLbTab === "authors" ? "active" : ""}" data-lb-tab="authors">Authors</button>
-      <button type="button" class="seg-btn ${state.statsLbTab === "reviewers" ? "active" : ""}" data-lb-tab="reviewers">Reviewers</button>
-      <button type="button" class="seg-btn ${state.statsLbTab === "committers" ? "active" : ""}" data-lb-tab="committers">Committers</button>
-    </div>
-
-    <div class="lb-grid">
-      ${renderLbCard("authors", "Top Authors", authorsLb)}
-      ${renderLbCard("reviewers", "Top Reviewers", reviewersLb)}
-      ${renderLbCard("committers", "Top Committers", committersLb)}
-    </div>
-
-    ${(() => {
-      const v = state.views;
-      const totalViews = v?.total ?? state.health?.views?.total ?? 0;
-      const last24h = v?.last24h ?? state.health?.views?.last24h ?? 0;
-      const last7d = v?.last7d ?? state.health?.views?.last7d ?? 0;
-      const topPatches = v?.topPatches ?? [];
-      const topRefs = v?.topReferrers ?? [];
-      return `
-      <div class="card" id="site-traffic" style="margin-top:16px;">
-        <div class="card-head">
-          <div>
-            <h2>Site Traffic &amp; Interest</h2>
-            <div class="dim" style="font-size:12px;">Privacy-friendly hit counter stored in PostgreSQL — zero cookies, zero IPs, bots excluded.</div>
-          </div>
-          <span class="tag-micro mono">${totalViews} total · ${last24h} (24h) · ${last7d} (7d)</span>
-        </div>
-        <div class="grid2">
-          <div>
-            <div class="dim" style="font-size:11.5px;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:8px;">Most Viewed Patches</div>
-            ${
-              topPatches.length === 0
-                ? `<div class="muted" style="font-size:12.5px;">No individual patch views recorded yet. Open any <code class="mono">/patch/&lt;id&gt;</code> URL directly to count hits.</div>`
-                : `<div class="lb-list">
-                    ${topPatches
-                      .slice(0, 10)
-                      .map((p, idx) => {
-                        const entry = state.entries.find((e) => e.cf_id === p.cf_id);
-                        return `
-                          <button type="button" class="lb-row" data-open-patch="${p.cf_id}">
-                            <span class="lb-rank mono">${idx + 1}</span>
-                            <span class="lb-name"><span class="mono" style="color:var(--accent-t);">CF ${p.cf_id}</span> ${entry ? esc(entry.title) : ""}</span>
-                            <span class="lb-count mono">${p.hits}</span>
-                          </button>
-                        `;
-                      })
-                      .join("")}
-                  </div>`
-            }
-          </div>
-          <div>
-            <div class="dim" style="font-size:11.5px;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:8px;">Top Referrers</div>
-            ${
-              topRefs.length === 0
-                ? `<div class="muted" style="font-size:12.5px;">No external referrers yet (direct visits or links shared from <code class="mono">postgresql.org</code> / Telegram / X will appear here).</div>`
-                : `<div class="lb-list">
-                    ${topRefs
-                      .slice(0, 10)
-                      .map(
-                        (r, idx) => `
-                      <div class="lb-row" style="cursor:default;">
-                        <span class="lb-rank mono">${idx + 1}</span>
-                        <span class="lb-name mono">${esc(r.ref_host)}</span>
-                        <span class="lb-count mono">${r.hits}</span>
-                      </div>
-                    `,
-                      )
-                      .join("")}
-                  </div>`
-            }
-          </div>
-        </div>
-      </div>
-      `;
-    })()}
-  `;
+  return renderStatsObservatory({
+    data: state.statsOverview,
+    loading: state.statsLoading,
+    error: state.statsError,
+    radarTab: state.statsRadarTab,
+    contributorTab: state.statsContribTab,
+    renderDonut: renderSvgDonut,
+  });
 }
 
 function jumpToEntries(opts: { verdict?: string; status?: string; search?: string; focusSearch?: boolean }): void {
@@ -3820,7 +3505,24 @@ function render(): void {
   // Stats tab events
   if (state.tab === "stats") {
     bindPatchRowClicks(root);
+    bindHackerClicks(root);
+    document.getElementById("stats-refresh-btn")?.addEventListener("click", () => void loadStatsOverview(true));
+    document.getElementById("stats-jump-dark-pipeline")?.addEventListener("click", () => {
+      document.getElementById("stats-verification-pipeline")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
     document.getElementById("stats-goto-opinions")?.addEventListener("click", () => navigateToTab("opinions"));
+    document.querySelectorAll<HTMLButtonElement>("[data-stats-radar]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        state.statsRadarTab = (btn.dataset.statsRadar as StatsRadarTab) || "darkCleanRfc";
+        render();
+      });
+    });
+    document.querySelectorAll<HTMLButtonElement>("[data-stats-contrib-tab]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        state.statsContribTab = (btn.dataset.statsContribTab as typeof state.statsContribTab) || "authors";
+        render();
+      });
+    });
     document.querySelectorAll<HTMLElement>("[data-stats-status]").forEach((el) => {
       el.addEventListener("click", () => {
         jumpToEntries({ status: el.dataset.statsStatus || "all", verdict: "all", search: "" });
@@ -3828,7 +3530,8 @@ function render(): void {
     });
     document.querySelectorAll<Element>("[data-stats-topic]").forEach((el) => {
       const activate = () => {
-        jumpToEntries({ search: el.getAttribute("data-stats-topic") || "", verdict: "all", status: "all" });
+        const topic = (el.getAttribute("data-stats-topic") || "").split("/")[0]!.trim();
+        jumpToEntries({ search: topic, verdict: "all", status: "all" });
       };
       el.addEventListener("click", activate);
       if (el.tagName.toLowerCase() !== "button") {
@@ -3844,12 +3547,6 @@ function render(): void {
     document.querySelectorAll<HTMLElement>("[data-stats-person]").forEach((el) => {
       el.addEventListener("click", () => {
         void openHackerByName(el.dataset.statsPerson || "");
-      });
-    });
-    document.querySelectorAll<HTMLButtonElement>("[data-lb-tab]").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        state.statsLbTab = (btn.dataset.lbTab as typeof state.statsLbTab) || "authors";
-        render();
       });
     });
   }

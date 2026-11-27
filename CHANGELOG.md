@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.3.0-alpha.18 (2026-11-27)
+
+This release upgrades the Public App **Stats** tab into a live **CommitFest Intelligence & Verification Observatory** matching the Hacking Observatory, backed by a new live `GET /api/v1/stats/overview` PostgreSQL endpoint.
+
+### Changes
+
+- **Live Stats Observatory API (`apps/web/src/stats-queries.ts`, `apps/web/src/server.ts`, `api-docs-view.ts`):**
+  - Added `GET /api/v1/stats/overview` (also documented in `/openapi.json` and the Stripe-style API Reference) computing live merged verdicts (preferring Dark > Medium > Light opinions over static brief snapshots), verification pipeline metrics, subsystem classification, patch kind breakdown, opinion throughput, unified CommitFest authors linked to `people`, and hourly page-view timelines.
+- **PostgreSQL Verification Pipeline, Model Calibration & Unified Authors UI (`apps/web/src/ui/stats-view.ts`, `viz-charts.ts`, `app.ts`, `styles.css`):**
+  - Added a 5-stage **Real PostgreSQL Verification Pipeline** funnel (`Code Diff` → `git apply` → `meson compile -Dcassert` → `meson test` → `Live Patched PG SQL`) with interactive **Verification Radar** tabs (**Dark-Verified RFC**, **Bitrot / Apply Conflicts**, **Build / Test Failures**, **Live PG SQL Edge-Cases**).
+  - Added **Model × Verdict & Depth Mix** (`provider/model:effort`), **Published Opinions Over Time by Depth**, **Bug Fixes vs Features vs Production-Reported** progression, and an interactive **Site Traffic** timeline sparkline.
+  - Replaced the empty Reviewers/Committers cards with **Active CommitFest Authors, Quota Contributors & PG Role Split**, cross-linking CommitFest authors directly to `/hacker/<slug>` profiles with PostgreSQL role badges and per-author status bars.
+
 ## v0.3.0-alpha.17 (2026-11-26)
 
 This release hardens parallel Dark/Medium bulk roasting after live multi-worker verification: serializes soft-lease claims on `/api/v1/contribute/next`, staggers parallel worker startups, fixes atomic cache writes, and ensures `meson test` always runs PostgreSQL's `setup` suite before targeted regression/TAP suites.
