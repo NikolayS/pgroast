@@ -754,6 +754,14 @@ async function openHackerProfile(slug: string, pushHistory = true, year?: number
     if (state.activeHackerSlug !== cleanSlug) return;
     state.hackerProfile = data;
     state.hackerProfileLoading = false;
+    if (switchingPerson) {
+      if (data.recentCommits.length > 0) state.hackerProfileTab = "commits";
+      else if (data.recentReviews.length > 0) state.hackerProfileTab = "reviews";
+      else if (data.commitfestEntries.length > 0) state.hackerProfileTab = "commitfest";
+      else if ((data.mailingLists?.totalMessages ?? 0) > 0) state.hackerProfileTab = "lists";
+      else if (data.opinions.length > 0) state.hackerProfileTab = "opinions";
+      else state.hackerProfileTab = "commits";
+    }
     document.title = `${data.person.name} — PostgreSQL Hacker Profile | pgroast`;
     render();
   } catch (err) {
@@ -3340,6 +3348,13 @@ function render(): void {
       btn.addEventListener("click", () => {
         state.hackerProfileTab = (btn.dataset.hackerTab as HackerProfileTab) || "commits";
         render();
+      });
+    });
+    document.querySelectorAll<HTMLButtonElement>("[data-hacker-jump-tab]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        state.hackerProfileTab = (btn.dataset.hackerJumpTab as HackerProfileTab) || "commits";
+        render();
+        document.getElementById("hacker-activity-feed")?.scrollIntoView({ behavior: "smooth", block: "start" });
       });
     });
     bindHackerClicks(root);

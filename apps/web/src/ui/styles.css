@@ -2291,6 +2291,23 @@ details.diff-file[open] > summary {
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 26%, transparent);
   transition: border-color 0.25s ease, box-shadow 0.25s ease;
 }
+.kpi-clickable {
+  text-align: left;
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color 0.14s ease, background-color 0.14s ease, transform 0.12s ease;
+}
+.kpi-clickable:hover {
+  border-color: var(--accent);
+  background: var(--hover);
+}
+.kpi-clickable:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.kpi-clickable.kpi-has-data .kpi-v {
+  color: var(--accent-t);
+}
 .mr-rev-strip {
   display: flex;
   align-items: center;

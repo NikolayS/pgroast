@@ -988,6 +988,22 @@ export function renderHackerProfilePage(params: {
     `;
   };
 
+  const hasGitActivity =
+    profile.heatmap.length > 0 ||
+    profile.careerByYear.length > 0 ||
+    profile.subsystems.length > 0 ||
+    p.commitsAuthored > 0 ||
+    p.commitsCommitted > 0 ||
+    p.reviewsGiven > 0 ||
+    p.bugsReported > 0 ||
+    p.suggestionsGiven > 0 ||
+    p.testsGiven > 0;
+  const nameLc = p.name.trim().toLowerCase();
+  const matchesPerson = (field: string) => Boolean(nameLc && field.toLowerCase().includes(nameLc));
+  const cfAuthCount = Math.max(p.cfAuthored, profile.commitfestEntries.filter((e) => matchesPerson(e.authors || "")).length);
+  const cfRevCount = Math.max(p.cfReviewed, profile.commitfestEntries.filter((e) => matchesPerson(e.reviewers || "")).length);
+  const cfCommCount = Math.max(p.cfCommitted, profile.commitfestEntries.filter((e) => matchesPerson(e.committer || "")).length);
+
   return `
     <div class="patch-crumb">
       <button type="button" class="back-btn" id="hacker-back-btn">
@@ -1053,38 +1069,41 @@ export function renderHackerProfilePage(params: {
 
     <!-- Personal Infographic KPIs -->
     <div class="kpis">
-      <div class="kpi" style="cursor:default;">
+      <button type="button" class="kpi kpi-clickable" data-hacker-jump-tab="commits" title="Jump to Recent Commits">
         <div class="kpi-l"><span class="dot" style="background:var(--accent)"></span>Commits authored</div>
         <div class="kpi-v">${fmtNum(p.commitsAuthored)}</div>
         <div class="kpi-sub">Author &amp; co-author</div>
-      </div>
-      <div class="kpi" style="cursor:default;">
+      </button>
+      <button type="button" class="kpi kpi-clickable" data-hacker-jump-tab="commits" title="Jump to Recent Commits">
         <div class="kpi-l"><span class="dot" style="background:var(--ok)"></span>Commits landed</div>
         <div class="kpi-v">${fmtNum(p.commitsCommitted)}</div>
         <div class="kpi-sub">${p.commitsCommitted > 0 ? `${fmtNum(p.commitsCommittedForOthers)} for others (${forOthersPct}%)` : "Not a committer"}</div>
-      </div>
-      <div class="kpi" style="cursor:default;">
+      </button>
+      <button type="button" class="kpi kpi-clickable" data-hacker-jump-tab="reviews" title="Jump to Reviews & Reports">
         <div class="kpi-l"><span class="dot" style="background:#4cb782"></span>Reviews credited</div>
         <div class="kpi-v" style="color:var(--ok)">${fmtNum(p.reviewsGiven)}</div>
         <div class="kpi-sub">Reviewed-by trailers</div>
-      </div>
-      <div class="kpi" style="cursor:default;">
+      </button>
+      <button type="button" class="kpi kpi-clickable" data-hacker-jump-tab="reviews" title="Jump to Reviews & Reports">
         <div class="kpi-l"><span class="dot" style="background:var(--warn)"></span>Bugs reported</div>
         <div class="kpi-v">${fmtNum(p.bugsReported)}</div>
         <div class="kpi-sub">Reported-by → fix landed</div>
-      </div>
-      <div class="kpi" style="cursor:default;">
+      </button>
+      <button type="button" class="kpi kpi-clickable" data-hacker-jump-tab="reviews" title="Jump to Reviews & Reports">
         <div class="kpi-l">Suggested / Tested</div>
         <div class="kpi-v">${fmtNum(p.suggestionsGiven + p.testsGiven)}</div>
         <div class="kpi-sub">${fmtNum(p.suggestionsGiven)} sug · ${fmtNum(p.testsGiven)} test</div>
-      </div>
-      <div class="kpi" style="cursor:default;">
+      </button>
+      <button type="button" class="kpi kpi-clickable ${profile.commitfestEntries.length > 0 ? "kpi-has-data" : ""}" data-hacker-jump-tab="commitfest" title="Jump to CommitFest entries">
         <div class="kpi-l">CommitFest entries</div>
         <div class="kpi-v">${fmtNum(profile.commitfestEntries.length)}</div>
-        <div class="kpi-sub">${p.cfAuthored} auth · ${p.cfReviewed} rev · ${p.cfCommitted} comm</div>
-      </div>
+        <div class="kpi-sub">${cfAuthCount} auth · ${cfRevCount} rev · ${cfCommCount} comm</div>
+      </button>
     </div>
 
+    ${
+      hasGitActivity
+        ? `
     <!-- 52-Week Contribution Heatmap -->
     <div class="card">
       <div class="card-head">
@@ -1192,9 +1211,12 @@ export function renderHackerProfilePage(params: {
         ${renderCollabGroup("Authors helped (reviewed / committed)", profile.collaborators.helpedAuthors)}
       </div>
     </div>
+        `
+        : ""
+    }
 
     <!-- Tabbed Activity Feed -->
-    <div class="mr-tabs" role="tablist" aria-label="Hacker activity feed">
+    <div class="mr-tabs" id="hacker-activity-feed" role="tablist" aria-label="Hacker activity feed">
       <button type="button" class="mr-tab ${activeTab === "commits" ? "active" : ""}" data-hacker-tab="commits">
         <span>Recent Commits</span>
         <span class="mr-tab-count">${profile.recentCommits.length}</span>
