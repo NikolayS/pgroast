@@ -1,4 +1,13 @@
 import {
+  buildQuotaAgentPrompt,
+  filterDocsFeatures,
+  renderDocsFeatureCards,
+  renderDocsTab,
+  type CommunityCoverageData,
+  type DocsCategory,
+  type QuotaPreviewResult,
+} from "./docs-view.ts";
+import {
   renderHackerDirectoryCards,
   renderHackerProfilePage,
   renderHackersTab,
@@ -10,7 +19,7 @@ import {
   type HackerWindow,
 } from "./hackers-view.ts";
 
-type TabId = "brief" | "hackers" | "stats" | "entries" | "opinions" | "coordination" | "connect";
+type TabId = "brief" | "hackers" | "stats" | "entries" | "opinions" | "coordination" | "connect" | "docs";
 type MrTabId = "overview" | "discussion" | "changes";
 
 interface MrBodyBlock {
@@ -271,6 +280,17 @@ const state = {
   hackersDirSearch: "",
   hackersDirRole: "all",
   hackersDirSort: "activity",
+  docsCoverage: null as CommunityCoverageData | null,
+  docsCoverageLoading: false,
+  docsCategory: "all" as DocsCategory,
+  docsSearch: "",
+  quotaPreviewBackend: "claude",
+  quotaPreviewStrategy: "unroasted-first",
+  quotaPreviewFlavour: "auto-by-subsystem",
+  quotaPreviewLevel: "medium",
+  quotaPreviewLoading: false,
+  quotaPreviewError: "",
+  quotaPreviewResult: null as QuotaPreviewResult | null,
   mrTab: "overview" as MrTabId,
   patchLoading: false,
   patchData: null as PatchPageData | null,
@@ -445,8 +465,17 @@ function parseRouteFromLocation(): { patchId: number | null; hackerSlug: string 
   if (hackerMatch?.[1]) {
     return { patchId: null, hackerSlug: hackerMatch[1].toLowerCase(), tab: "hackers", mrTab: "overview", hash: u.hash };
   }
+  if (/^\/(?:docs|contribute)\/?$/i.test(u.pathname)) {
+    return {
+      patchId: null,
+      hackerSlug: null,
+      tab: "docs",
+      mrTab: "overview",
+      hash: u.pathname.toLowerCase().startsWith("/contribute") ? "#quota-setup" : u.hash,
+    };
+  }
   const tabParam = u.searchParams.get("tab") as TabId | null;
-  const validTabs: TabId[] = ["brief", "hackers", "stats", "entries", "opinions", "coordination", "connect"];
+  const validTabs: TabId[] = ["brief", "hackers", "stats", "entries", "opinions", "coordination", "connect", "docs"];
   return {
     patchId: null,
     hackerSlug: null,
@@ -662,6 +691,50 @@ async function openHackerByName(name: string): Promise<void> {
   jumpToEntries({ search: trimmed, verdict: "all", status: "all" });
 }
 
+async function loadDocsCoverage(force = false): Promise<void> {
+  if (state.docsCoverageLoading) return;
+  if (state.docsCoverage && !force) return;
+  state.docsCoverageLoading = true;
+  if (state.tab === "docs") render();
+  try {
+    state.docsCoverage = await api<CommunityCoverageData>("/api/v1/contribute/status");
+  } catch {
+    // ignore transient errors
+  } finally {
+    state.docsCoverageLoading = false;
+    if (state.tab === "docs" && !state.activePatchId && !state.activeHackerSlug) render();
+  }
+}
+
+async function runQuotaPreview(): Promise<void> {
+  state.quotaPreviewLoading = true;
+  state.quotaPreviewError = "";
+  render();
+  try {
+    const qs = new URLSearchParams({
+      backend: state.quotaPreviewBackend,
+      strategy: state.quotaPreviewStrategy,
+      flavour: state.quotaPreviewFlavour,
+      level: state.quotaPreviewLevel,
+      dry_run: "1",
+    });
+    const res = await api<QuotaPreviewResult & { coverage?: CommunityCoverageData }>(`/api/v1/contribute/next?${qs.toString()}`);
+    state.quotaPreviewResult = {
+      patch: res.patch,
+      suggestedFlavour: res.suggestedFlavour,
+      suggestedLevel: res.suggestedLevel,
+      reason: res.reason,
+      leaseExpiresAt: res.leaseExpiresAt,
+    };
+    if (res.coverage) state.docsCoverage = res.coverage;
+  } catch (err) {
+    state.quotaPreviewError = err instanceof Error ? err.message : String(err);
+  } finally {
+    state.quotaPreviewLoading = false;
+    render();
+  }
+}
+
 function navigateToTab(tab: TabId, pushHistory = true, hash = ""): void {
   state.activePatchId = null;
   state.patchData = null;
@@ -674,10 +747,12 @@ function navigateToTab(tab: TabId, pushHistory = true, hash = ""): void {
   document.title =
     tab === "hackers"
       ? "PostgreSQL Hacking Observatory — pgroast"
-      : "pgroast — Public CommitFest App";
+      : tab === "docs"
+        ? "Docs, All Features & Weekly Quota Auto-Contribute — pgroast"
+        : "pgroast — Public CommitFest App";
   if (pushHistory) {
     try {
-      const targetUrl = (tab === "brief" ? "/" : `/?tab=${encodeURIComponent(tab)}`) + hash;
+      const targetUrl = (tab === "brief" ? "/" : tab === "docs" ? "/docs" : `/?tab=${encodeURIComponent(tab)}`) + hash;
       window.history.pushState({ patchId: null, hackerSlug: null, tab }, "", targetUrl);
     } catch {
       // ignore
@@ -687,6 +762,8 @@ function navigateToTab(tab: TabId, pushHistory = true, hash = ""): void {
   if (tab === "hackers") {
     if (!state.hackersOverview && !state.hackersLoading) void loadHackersOverview();
     if (state.hackersDirectory.length === 0) void loadHackersDirectory();
+  } else if (tab === "docs") {
+    void loadDocsCoverage();
   }
   if (hash) {
     const id = hash.replace(/^#/, "");
@@ -715,6 +792,8 @@ async function loadAll(): Promise<void> {
     if (!route.patchId && !route.hackerSlug && route.tab === "hackers") {
       void loadHackersOverview();
       void loadHackersDirectory();
+    } else if (!route.patchId && !route.hackerSlug && route.tab === "docs") {
+      void loadDocsCoverage();
     }
 
     const [health, views, bRes, oRes, cRes] = await Promise.all([
@@ -827,8 +906,11 @@ function openSpaceSwitcher(): void {
     </div>
 
     <div class="row" style="gap:8px;">
+      <button type="button" class="btn btn-ghost" id="space-goto-docs-btn" style="flex:1;">
+        Docs &amp; All Features →
+      </button>
       <button type="button" class="btn btn-ghost" id="space-goto-team-btn" style="flex:1;">
-        Team Coordination (${state.coordination.length}) →
+        Team (${state.coordination.length}) →
       </button>
     </div>
   `;
@@ -839,6 +921,10 @@ function openSpaceSwitcher(): void {
   body.querySelector("#space-goto-setup-btn")?.addEventListener("click", () => {
     closeSpaceSwitcher();
     navigateToTab("connect");
+  });
+  body.querySelector("#space-goto-docs-btn")?.addEventListener("click", () => {
+    closeSpaceSwitcher();
+    navigateToTab("docs");
   });
   body.querySelector("#space-goto-team-btn")?.addEventListener("click", () => {
     closeSpaceSwitcher();
@@ -3082,7 +3168,95 @@ function render(): void {
   else if (state.tab === "entries") root.innerHTML = renderEntriesTab();
   else if (state.tab === "opinions") root.innerHTML = renderOpinionsTab();
   else if (state.tab === "coordination") root.innerHTML = renderCoordinationTab();
-  else root.innerHTML = renderConnectTab();
+  else if (state.tab === "docs") {
+    root.innerHTML = renderDocsTab({
+      origin: window.location.origin,
+      coverage: state.docsCoverage,
+      coverageLoading: state.docsCoverageLoading,
+      category: state.docsCategory,
+      search: state.docsSearch,
+      previewBackend: state.quotaPreviewBackend,
+      previewStrategy: state.quotaPreviewStrategy,
+      previewFlavour: state.quotaPreviewFlavour,
+      previewLevel: state.quotaPreviewLevel,
+      previewLoading: state.quotaPreviewLoading,
+      previewError: state.quotaPreviewError,
+      previewResult: state.quotaPreviewResult,
+    });
+  } else root.innerHTML = renderConnectTab();
+
+  // Docs & All Features tab events
+  if (state.tab === "docs") {
+    bindPatchRowClicks(root);
+    const bindDocsCardActions = (container: HTMLElement | Document) => {
+      container.querySelectorAll<HTMLButtonElement>("[data-docs-nav]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const target = (btn.dataset.docsNav as TabId) || "brief";
+          navigateToTab(target);
+        });
+      });
+      container.querySelectorAll<HTMLButtonElement>("[data-copy-snippet]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const text = btn.dataset.copySnippet || "";
+          if (text) copyTextWithFeedback(btn, text, btn.textContent || "Copy");
+        });
+      });
+    };
+    bindDocsCardActions(root);
+
+    document.getElementById("docs-jump-quota-btn")?.addEventListener("click", () => {
+      document.getElementById("quota-setup")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+    document.getElementById("docs-jump-catalog-btn")?.addEventListener("click", () => {
+      document.getElementById("all-features")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+    document.getElementById("docs-refresh-coverage-btn")?.addEventListener("click", () => {
+      void loadDocsCoverage(true);
+    });
+    document.getElementById("docs-copy-quota-prompt-btn")?.addEventListener("click", (ev) => {
+      copyTextWithFeedback(ev.currentTarget as HTMLElement, buildQuotaAgentPrompt(window.location.origin), "Copy agent prompt");
+    });
+    document.getElementById("docs-goto-backoffice-btn")?.addEventListener("click", () => {
+      navigateToTab("connect");
+    });
+
+    document.getElementById("qp-backend")?.addEventListener("change", (ev) => {
+      state.quotaPreviewBackend = (ev.target as HTMLSelectElement).value || "claude";
+    });
+    document.getElementById("qp-strategy")?.addEventListener("change", (ev) => {
+      state.quotaPreviewStrategy = (ev.target as HTMLSelectElement).value || "unroasted-first";
+    });
+    document.getElementById("qp-flavour")?.addEventListener("change", (ev) => {
+      state.quotaPreviewFlavour = (ev.target as HTMLSelectElement).value || "auto-by-subsystem";
+    });
+    document.getElementById("qp-level")?.addEventListener("change", (ev) => {
+      state.quotaPreviewLevel = (ev.target as HTMLSelectElement).value || "medium";
+    });
+    document.getElementById("quota-preview-btn")?.addEventListener("click", () => {
+      void runQuotaPreview();
+    });
+
+    const updateDocsFeaturesOnly = () => {
+      const mount = document.getElementById("docs-feature-mount");
+      if (!mount) return;
+      mount.innerHTML = renderDocsFeatureCards(filterDocsFeatures(state.docsCategory, state.docsSearch));
+      bindDocsCardActions(mount);
+    };
+    const docsSearchInput = document.getElementById("docs-feature-search") as HTMLInputElement | null;
+    docsSearchInput?.addEventListener("input", () => {
+      state.docsSearch = docsSearchInput.value;
+      updateDocsFeaturesOnly();
+    });
+    document.querySelectorAll<HTMLButtonElement>("[data-docs-cat]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        state.docsCategory = (btn.dataset.docsCat as DocsCategory) || "all";
+        document.querySelectorAll<HTMLButtonElement>("[data-docs-cat]").forEach((b) => {
+          b.classList.toggle("active", b.dataset.docsCat === state.docsCategory);
+        });
+        updateDocsFeaturesOnly();
+      });
+    });
+  }
 
   // Hackers Observatory tab events
   if (state.tab === "hackers") {
@@ -3329,6 +3503,11 @@ document.getElementById("web-home-btn")?.addEventListener("click", () => {
   navigateToTab("brief");
 });
 
+document.getElementById("footer-docs-link")?.addEventListener("click", (ev) => {
+  ev.preventDefault();
+  navigateToTab("docs");
+});
+
 document.getElementById("web-space-btn")?.addEventListener("click", () => {
   openSpaceSwitcher();
 });
@@ -3437,6 +3616,8 @@ window.addEventListener("popstate", () => {
     if (route.tab === "hackers") {
       if (!state.hackersOverview && !state.hackersLoading) void loadHackersOverview();
       if (state.hackersDirectory.length === 0) void loadHackersDirectory();
+    } else if (route.tab === "docs") {
+      void loadDocsCoverage();
     }
   }
 });

@@ -23,6 +23,16 @@ import {
 import { generateNikDraft, saveDraftToGmail, searchGmailThreads } from "./services/gmail.ts";
 import { detectAvailableAiBackends, runDoctor } from "./services/health.ts";
 import { publishBriefToHub, publishOpinionToHub, pullOpinionsFromHub } from "./services/hub.ts";
+import {
+  computeResetWindowStatus,
+  fetchNextPatchFromHub,
+  getDefaultConfigPath,
+  loadContributeConfig,
+  loadContributeState,
+  saveContributeConfig,
+  type ContributeConfig,
+  type QuotaBackend,
+} from "../../../src/contribute.ts";
 import { connectGitHubIdentity, connectGoogleIdentity, disconnectIdentity, getCurrentContributor } from "./services/identity.ts";
 import { JobRunner } from "./services/jobs.ts";
 import { buildLightRoast } from "./services/lightroast.ts";
@@ -981,6 +991,105 @@ export async function createAppHandler(opts?: {
             confirm: Boolean(body.confirm),
           });
           return json(res, 201);
+        }
+
+        // ---- Weekly Quota Auto-Contribute (Local Config + Live Coverage + Job Runner) ----
+        if (method === "GET" && path === "/api/contribute/state") {
+          const curSettings = await db.getSettings();
+          const cfg = loadContributeConfig();
+          if (!cfg.hubUrl && curSettings.publicHubUrl) cfg.hubUrl = curSettings.publicHubUrl.replace(/\/$/, "");
+          const st = loadContributeState();
+          const windows: Record<string, ReturnType<typeof computeResetWindowStatus> & { used: number; cap: number }> = {};
+          for (const b of ["claude", "codex", "agy"] as QuotaBackend[]) {
+            const w = computeResetWindowStatus(cfg.backends[b]);
+            windows[b] = {
+              ...w,
+              used: st.windows[b]?.[w.windowKey] ?? 0,
+              cap: cfg.backends[b].maxPatchesPerWindow,
+            };
+          }
+          let coverage: unknown = null;
+          try {
+            const covRes = await fetch(`${cfg.hubUrl}/api/v1/contribute/status`, {
+              headers: { Accept: "application/json" },
+              signal: AbortSignal.timeout(6_000),
+            });
+            if (covRes.ok) coverage = await covRes.json();
+          } catch {
+            // Public App unreachable; still return local config & history
+          }
+          return json({
+            configPath: getDefaultConfigPath(),
+            config: cfg,
+            windows,
+            history: st.history.slice(0, 20),
+            coverage,
+          });
+        }
+
+        if (method === "PUT" && path === "/api/contribute/config") {
+          const body = await readBody<Partial<ContributeConfig>>(req);
+          const cur = loadContributeConfig();
+          const nextCfg: ContributeConfig = {
+            ...cur,
+            hubUrl: (body.hubUrl || cur.hubUrl || "https://pgroast.postgres.ai").trim().replace(/\/$/, ""),
+            autoPublish: body.autoPublish !== undefined ? Boolean(body.autoPublish) : cur.autoPublish,
+            strategy:
+              body.strategy === "cross-model-second-opinion" || body.strategy === "ready-for-committer"
+                ? body.strategy
+                : body.strategy === "unroasted-first"
+                  ? "unroasted-first"
+                  : cur.strategy,
+            roastLevel:
+              body.roastLevel === "light" || body.roastLevel === "medium" || body.roastLevel === "dark"
+                ? body.roastLevel
+                : cur.roastLevel,
+            roastFlavour: body.roastFlavour || cur.roastFlavour,
+            topics: Array.isArray(body.topics) ? body.topics.map(String).filter(Boolean) : cur.topics,
+            backends: {
+              claude: { ...cur.backends.claude, ...(body.backends?.claude || {}) },
+              codex: { ...cur.backends.codex, ...(body.backends?.codex || {}) },
+              agy: { ...cur.backends.agy, ...(body.backends?.agy || {}) },
+            },
+          };
+          saveContributeConfig(nextCfg);
+          await db.logAudit("contribute_config_saved", "contribute", {
+            autoPublish: nextCfg.autoPublish,
+            strategy: nextCfg.strategy,
+          });
+          return json({ ok: true, config: nextCfg });
+        }
+
+        if (method === "POST" && path === "/api/contribute/preview") {
+          const body = await readBody<{ backend?: QuotaBackend }>(req);
+          const cfg = loadContributeConfig();
+          const backend: QuotaBackend =
+            body.backend === "codex" || body.backend === "agy" ? body.backend : "claude";
+          const next = await fetchNextPatchFromHub({
+            hubUrl: cfg.hubUrl,
+            backend,
+            strategy: cfg.strategy,
+            flavour: cfg.roastFlavour,
+            level: cfg.roastLevel,
+            topics: cfg.topics,
+            dryRun: true,
+          });
+          return json({ ok: true, backend, preview: next });
+        }
+
+        if (method === "POST" && path === "/api/contribute/run") {
+          const body = await readBody<{
+            mode?: "once" | "auto" | "dry-run";
+            backend?: QuotaBackend;
+            publish?: boolean;
+          }>(req);
+          const mode = body.mode === "auto" || body.mode === "dry-run" ? body.mode : "once";
+          const job = await jobs.startContributeJob({
+            mode,
+            backend: body.backend,
+            publish: body.publish,
+          });
+          return json({ ok: true, job }, 201);
         }
 
         // ---- Experimental Patch Diff & Inline Review ----

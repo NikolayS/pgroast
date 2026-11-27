@@ -385,13 +385,15 @@ export async function createWebHandler(opts?: {
   const cssPath = join(WEB_ROOT, "src", "ui", "styles.css");
   const appTsPath = join(WEB_ROOT, "src", "ui", "app.ts");
   const hackersViewPath = join(WEB_ROOT, "src", "ui", "hackers-view.ts");
+  const docsViewPath = join(WEB_ROOT, "src", "ui", "docs-view.ts");
   const faviconPath = join(WEB_ROOT, "src", "ui", "favicon.svg");
   const touchIconPath = join(WEB_ROOT, "src", "ui", "apple-touch-icon.png");
   const manifestPath = join(WEB_ROOT, "src", "ui", "manifest.webmanifest");
 
   let appMtime =
     (existsSync(appTsPath) ? statSync(appTsPath).mtimeMs : 0) +
-    (existsSync(hackersViewPath) ? statSync(hackersViewPath).mtimeMs : 0);
+    (existsSync(hackersViewPath) ? statSync(hackersViewPath).mtimeMs : 0) +
+    (existsSync(docsViewPath) ? statSync(docsViewPath).mtimeMs : 0);
   let cssMtime = existsSync(cssPath) ? statSync(cssPath).mtimeMs : 0;
   let favMtime = existsSync(faviconPath) ? statSync(faviconPath).mtimeMs : 0;
   let cssHash = createHash("sha256").update(readFileSync(cssPath, "utf8")).digest("hex").slice(0, 8);
@@ -406,7 +408,8 @@ export async function createWebHandler(opts?: {
     try {
       const curAppMtime =
         (existsSync(appTsPath) ? statSync(appTsPath).mtimeMs : 0) +
-        (existsSync(hackersViewPath) ? statSync(hackersViewPath).mtimeMs : 0);
+        (existsSync(hackersViewPath) ? statSync(hackersViewPath).mtimeMs : 0) +
+        (existsSync(docsViewPath) ? statSync(docsViewPath).mtimeMs : 0);
       if (curAppMtime !== appMtime) {
         bundleJs = await buildUiJs();
         jsHash = createHash("sha256").update(bundleJs).digest("hex").slice(0, 8);
@@ -561,6 +564,7 @@ export async function createWebHandler(opts?: {
           { loc: `${origin}/?tab=opinions`, lastmod: latestDate, changefreq: "hourly", priority: "0.8" },
           { loc: `${origin}/?tab=coordination`, lastmod: latestDate, changefreq: "daily", priority: "0.6" },
           { loc: `${origin}/?tab=connect`, lastmod: latestDate, changefreq: "weekly", priority: "0.6" },
+          { loc: `${origin}/docs`, lastmod: latestDate, changefreq: "weekly", priority: "0.8" },
           { loc: `${origin}/llms.txt`, lastmod: latestDate, changefreq: "daily", priority: "0.6" },
         ];
         const entryUrls = entries.map((e) => ({
@@ -637,6 +641,7 @@ export async function createWebHandler(opts?: {
           `- [All CommitFest Entries](${origin}/?tab=entries): Searchable directory of ${entries.length} patches with status and verdict filters.`,
           `- [Community AI Opinions](${origin}/?tab=opinions): Attributed multi-model, multi-flavour review opinions.`,
           `- [Personal Backoffice Setup](${origin}/?tab=connect): How to run your own local workbench and publish opinions.`,
+          `- [Docs, All Features & Weekly Quota Auto-Contribute](${origin}/docs): Complete feature directory, CLI reference, live CommitFest coverage progress, and weekly OAuth quota donation setup.`,
           `- [XML Sitemap](${origin}/sitemap.xml): Complete index of all patch collaboration pages.`,
           `- [Full LLM Digest](${origin}/llms-full.txt): Expanded Markdown with live opinions and full shortlist.`,
           "",
@@ -682,6 +687,8 @@ export async function createWebHandler(opts?: {
           `- Hacking Observatory overview: \`GET ${origin}/api/v1/hackers/overview?window=1y\``,
           `- Contributor directory: \`GET ${origin}/api/v1/hackers?search=<q>&role=<role>&sort=activity\``,
           `- Individual contributor profile: \`GET ${origin}/api/v1/hackers/<slug>\` (web page: \`${origin}/hacker/<slug>\`)`,
+          `- Community quota coverage status: \`GET ${origin}/api/v1/contribute/status\``,
+          `- Next soft-leased CommitFest patch: \`GET ${origin}/api/v1/contribute/next?backend=claude&dry_run=1\``,
           `- Latest brief (Markdown): \`GET ${origin}/briefs/latest/download.md\``,
           `- Latest brief (JSON): \`GET ${origin}/briefs/latest/download.json\``,
           "",
@@ -697,7 +704,8 @@ export async function createWebHandler(opts?: {
       }
       const patchPageMatch = path.match(/^\/patch\/(\d+)\/?$/);
       const hackerPageMatch = path.match(/^\/hacker\/([a-z0-9-]+)\/?$/i);
-      if (method === "GET" && (path === "/" || path === "/index.html" || patchPageMatch || hackerPageMatch)) {
+      const isDocsPage = path === "/docs" || path === "/docs/" || path === "/contribute" || path === "/contribute/";
+      if (method === "GET" && (path === "/" || path === "/index.html" || patchPageMatch || hackerPageMatch || isDocsPage)) {
         await refreshUiAssetsIfChanged();
         const origin = resolveRequestOrigin(req, cfg);
         const cfId = parsePositivePgInt(patchPageMatch?.[1] || url.searchParams.get("cf")) ?? 0;
@@ -712,7 +720,11 @@ export async function createWebHandler(opts?: {
           url: `${origin}/`,
           description: desc,
         };
-        if (hackerSlug) {
+        if (isDocsPage) {
+          canonical = `${origin}/docs`;
+          title = "Docs, All Features & Weekly Quota Auto-Contribute — pgroast";
+          desc = "Complete feature directory, CLI reference, live CommitFest multi-model coverage tracker, and weekly OAuth quota auto-roasting setup for Claude, Codex, and Antigravity.";
+        } else if (hackerSlug) {
           canonical = `${origin}/hacker/${encodeURIComponent(hackerSlug)}`;
           const profile = await getHackerProfileBySlug(db, hackerSlug).catch(() => null);
           if (profile) {
@@ -852,6 +864,59 @@ export async function createWebHandler(opts?: {
           void db.recordPageView({ path: `/hacker/${slug}`, cfId: null, refHost: "" });
         }
         return json(profile, 200, req);
+      }
+
+      // ---- Weekly Quota Auto-Contribute Work Queue & Coverage Progress ----
+      if (method === "GET" && path === "/api/v1/contribute/status") {
+        const coverage = await db.getCommunityCoverage();
+        return json(coverage, 200, req);
+      }
+
+      if (method === "GET" && path === "/api/v1/contribute/next") {
+        const rl = enforceRateLimit(`contribute:${getClientIp(req)}`);
+        if (rl) return rl;
+        const rawBackend = (url.searchParams.get("backend") || "claude").toLowerCase().trim();
+        const allowedBackends = new Set(["claude", "codex", "agy", "dual"]);
+        const backend = allowedBackends.has(rawBackend) ? rawBackend : "claude";
+        const rawStrategy = (url.searchParams.get("strategy") || "unroasted-first").toLowerCase().trim();
+        const strategy =
+          rawStrategy === "cross-model-second-opinion" || rawStrategy === "ready-for-committer"
+            ? rawStrategy
+            : "unroasted-first";
+        const topics = (url.searchParams.get("topics") || "")
+          .split(",")
+          .map((t) => t.trim())
+          .filter(Boolean);
+        const flavour = (url.searchParams.get("flavour") || url.searchParams.get("flavor") || "auto-by-subsystem").trim();
+        const rawLevel = (url.searchParams.get("level") || url.searchParams.get("roast_level") || "medium").toLowerCase().trim();
+        const roastLevel = rawLevel === "light" || rawLevel === "dark" ? rawLevel : "medium";
+        const dryRun = url.searchParams.get("dry_run") === "1" || url.searchParams.get("dry_run") === "true";
+        const excludeCfIds = (url.searchParams.get("exclude") || "")
+          .split(",")
+          .map((x) => Number(x.trim()))
+          .filter((n) => Number.isInteger(n) && n > 0);
+        const leaseMinutes = Number(url.searchParams.get("lease_minutes") || 45);
+
+        let contributorHandle = "";
+        const authHeader = req.headers.get("authorization") || "";
+        if (authHeader.toLowerCase().startsWith("bearer ")) {
+          const contributor = await db.verifyPublishToken(authHeader);
+          if (contributor) contributorHandle = contributor.handle;
+        }
+
+        const next = await db.claimNextContributePatch({
+          backend,
+          strategy,
+          topics,
+          flavour,
+          roastLevel,
+          contributorHandle,
+          excludeCfIds,
+          dryRun,
+          leaseMinutes: Number.isFinite(leaseMinutes) ? leaseMinutes : 45,
+        });
+        const coverage = await db.getCommunityCoverage();
+        return json({ ...next, coverage }, 200, req);
       }
 
       if (method === "GET" && path === "/api/v1/health") {

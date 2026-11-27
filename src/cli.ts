@@ -44,6 +44,8 @@ const USAGE = `Usage: bun run src/cli.ts <cf-id|cf-url|message-id|thread-url> [o
                                       [--concurrency N] [--only id,id] [--blind N] [--backend NAME] [--dry-run]
        bun run src/cli.ts shortlist <batch-dir> [--top 20] [--reject 50] [--pg-repo PATH] [--out DIR]
        bun run src/cli.ts bugs [--days 14] [--limit 30] [--backend NAME] [--out DIR] [--offline] [--dry-run]
+       bun run src/cli.ts publish <roast.json|dir> [--hub URL] [--token TOK] [--dry-run]
+       bun run src/cli.ts contribute [--init|--status|--dry-run|--once|--auto] [--backend NAME] [--publish]
        bun run src/cli.ts doctor      check the installed CLIs and their login
        bun run src/cli.ts init-db     create the precedent database and load the shipped index
 
@@ -86,6 +88,14 @@ optional git log subsystem expert routing (--pg-repo PATH).
 
 bugs: fetches recent pgsql-bugs threads and prioritizes real production user hits over
 synthetic/AI bug-hunt reports, writing bugs-triage.md and bugs-triage.json.
+
+publish: runs the Public-Confidentiality Hard Gate on a finished roast.json and publishes
+a sanitized opinion to the pgroast Public App (never posts to pgsql-hackers or CommitFest).
+
+contribute: spends leftover weekly OAuth subscription quota (claude, codex, agy) right before
+your weekly reset to pre-review uncovered CommitFest patches from the shared soft-lease queue.
+Use --init to create ~/.pgroast/contribute.json, --status for live coverage progress, --dry-run
+to preview, --once to roast 1 patch now, or --auto from hourly cron.
 
 page: renders a finished roast.json, with no model call, to one self-contained HTML file
 (default: roast.html next to the JSON; --out FILE), or with --site DIR to a static layout:
@@ -352,6 +362,8 @@ async function main(): Promise<number> {
   if (process.argv[2] === "batch") return (await import("./batch.ts")).batchMain(process.argv.slice(3));
   if (process.argv[2] === "shortlist") return (await import("./shortlist.ts")).shortlistMain(process.argv.slice(3));
   if (process.argv[2] === "bugs") return (await import("./bugs.ts")).bugsMain(process.argv.slice(3));
+  if (process.argv[2] === "publish") return (await import("./publish.ts")).publishMain(process.argv.slice(3));
+  if (process.argv[2] === "contribute") return (await import("./contribute.ts")).contributeMain(process.argv.slice(3));
   let args: CliArgs | "help";
   try {
     args = parseArgs(process.argv.slice(2));

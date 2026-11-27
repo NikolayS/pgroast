@@ -330,6 +330,18 @@ export class WebDatabase {
         value TEXT NOT NULL,
         updated_at TEXT NOT NULL
       )`,
+      // ---- Weekly Quota Auto-Contribute Soft Leases ----
+      `CREATE TABLE IF NOT EXISTS ${this.t("contribute_leases")} (
+        cf_id INTEGER NOT NULL,
+        backend TEXT NOT NULL,
+        contributor_handle TEXT NOT NULL DEFAULT '',
+        roast_flavour TEXT NOT NULL DEFAULT 'default',
+        roast_level TEXT NOT NULL DEFAULT 'medium',
+        leased_at TEXT NOT NULL,
+        expires_at TEXT NOT NULL,
+        PRIMARY KEY (cf_id, backend)
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_${this.schema}_contribute_leases_exp ON ${this.t("contribute_leases")}(expires_at)`,
     ];
     for (const s of stmts) {
       await this.sql.unsafe(s);
@@ -829,6 +841,311 @@ export class WebDatabase {
       last7d: Number(t.last7d || 0),
       topPatches: topPatchRows.map((r) => ({ cf_id: Number(r.cf_id), hits: Number(r.hits) })),
       topReferrers: topRefRows.map((r) => ({ ref_host: String(r.ref_host), hits: Number(r.hits) })),
+    };
+  }
+
+  async getCommunityCoverage(): Promise<{
+    totalAll: number;
+    totalOpen: number;
+    baselineRoastedOpen: number;
+    unroastedOpen: number;
+    opinionsTotal: number;
+    openWith1PlusOpinion: number;
+    openWith2PlusOpinions: number;
+    readyForCommitterOpen: number;
+    readyForCommitterWithOpinion: number;
+    activeLeases: Array<{
+      cf_id: number;
+      title: string;
+      backend: string;
+      contributor_handle: string;
+      roast_flavour: string;
+      roast_level: string;
+      expires_at: string;
+    }>;
+    byBackend: Array<{ backend: string; count: number }>;
+    topContributors: Array<{ handle: string; name: string; count: number; backends: string[] }>;
+    recentContributions: Array<{
+      cf_id: number;
+      title: string;
+      contributor_handle: string;
+      contributor_name: string;
+      backend: string;
+      roast_level: string;
+      roast_flavour: string;
+      verdict: string;
+      created_at: string;
+    }>;
+  }> {
+    const nowIso = new Date().toISOString();
+    await this.sql.unsafe(`DELETE FROM ${this.t("contribute_leases")} WHERE expires_at < $1`, [nowIso]);
+
+    const openWhere = `LOWER(COALESCE(e.status,'')) NOT IN ('committed','rejected','returned with feedback','withdrawn','moved to different cf')`;
+    const [totalsRows, leaseRows, backendRows, contribRows, recentRows] = await Promise.all([
+      this.sql.unsafe(
+        `WITH op_counts AS (
+           SELECT cf_id, COUNT(*)::int AS op_cnt
+           FROM ${this.t("public_opinions")}
+           GROUP BY cf_id
+         )
+         SELECT
+           COUNT(*)::int AS total_all,
+           COUNT(*) FILTER (WHERE ${openWhere})::int AS total_open,
+           COUNT(*) FILTER (WHERE ${openWhere} AND COALESCE(e.verdict,'') NOT IN ('','UNROASTED'))::int AS baseline_roasted_open,
+           COUNT(*) FILTER (WHERE ${openWhere} AND COALESCE(e.verdict,'') IN ('','UNROASTED') AND COALESCE(o.op_cnt,0) = 0)::int AS unroasted_open,
+           COUNT(*) FILTER (WHERE ${openWhere} AND COALESCE(o.op_cnt,0) >= 1)::int AS open_1plus,
+           COUNT(*) FILTER (WHERE ${openWhere} AND COALESCE(o.op_cnt,0) >= 2)::int AS open_2plus,
+           COUNT(*) FILTER (WHERE ${openWhere} AND LOWER(e.status) LIKE '%ready for committer%')::int AS rfc_open,
+           COUNT(*) FILTER (WHERE ${openWhere} AND LOWER(e.status) LIKE '%ready for committer%' AND COALESCE(o.op_cnt,0) >= 1)::int AS rfc_with_op,
+           (SELECT COUNT(*)::int FROM ${this.t("public_opinions")}) AS opinions_total
+         FROM ${this.t("public_entries")} e
+         LEFT JOIN op_counts o ON o.cf_id = e.cf_id`,
+      ) as Promise<Array<Record<string, number>>>,
+      this.sql.unsafe(
+        `SELECT l.cf_id, COALESCE(e.title, 'CF ' || l.cf_id) AS title, l.backend, l.contributor_handle, l.roast_flavour, l.roast_level, l.expires_at
+         FROM ${this.t("contribute_leases")} l
+         LEFT JOIN ${this.t("public_entries")} e ON e.cf_id = l.cf_id
+         WHERE l.expires_at >= $1
+         ORDER BY l.leased_at DESC
+         LIMIT 20`,
+        [nowIso],
+      ) as Promise<Array<{ cf_id: number; title: string; backend: string; contributor_handle: string; roast_flavour: string; roast_level: string; expires_at: string }>>,
+      this.sql.unsafe(
+        `SELECT LOWER(COALESCE(NULLIF(backend,''),'unknown')) AS backend, COUNT(*)::int AS count
+         FROM ${this.t("public_opinions")}
+         GROUP BY 1
+         ORDER BY count DESC`,
+      ) as Promise<Array<{ backend: string; count: number }>>,
+      this.sql.unsafe(
+        `SELECT contributor_handle AS handle, MAX(contributor_name) AS name, COUNT(*)::int AS count,
+                ARRAY_AGG(DISTINCT LOWER(backend)) AS backends
+         FROM ${this.t("public_opinions")}
+         WHERE contributor_handle != ''
+         GROUP BY contributor_handle
+         ORDER BY count DESC
+         LIMIT 12`,
+      ) as Promise<Array<{ handle: string; name: string; count: number; backends: string[] }>>,
+      this.sql.unsafe(
+        `SELECT o.cf_id, COALESCE(e.title, 'CF ' || o.cf_id) AS title, o.contributor_handle, o.contributor_name,
+                o.backend, o.roast_level, o.roast_flavour, o.verdict, o.created_at
+         FROM ${this.t("public_opinions")} o
+         LEFT JOIN ${this.t("public_entries")} e ON e.cf_id = o.cf_id
+         ORDER BY o.created_at DESC
+         LIMIT 12`,
+      ) as Promise<Array<{ cf_id: number; title: string; contributor_handle: string; contributor_name: string; backend: string; roast_level: string; roast_flavour: string; verdict: string; created_at: string }>>,
+    ]);
+
+    const t = totalsRows[0] ?? {};
+    return {
+      totalAll: Number(t.total_all || 0),
+      totalOpen: Number(t.total_open || 0),
+      baselineRoastedOpen: Number(t.baseline_roasted_open || 0),
+      unroastedOpen: Number(t.unroasted_open || 0),
+      opinionsTotal: Number(t.opinions_total || 0),
+      openWith1PlusOpinion: Number(t.open_1plus || 0),
+      openWith2PlusOpinions: Number(t.open_2plus || 0),
+      readyForCommitterOpen: Number(t.rfc_open || 0),
+      readyForCommitterWithOpinion: Number(t.rfc_with_op || 0),
+      activeLeases: leaseRows.map((r) => ({
+        cf_id: Number(r.cf_id),
+        title: String(r.title || ""),
+        backend: String(r.backend || ""),
+        contributor_handle: String(r.contributor_handle || ""),
+        roast_flavour: String(r.roast_flavour || "default"),
+        roast_level: String(r.roast_level || "medium"),
+        expires_at: String(r.expires_at || ""),
+      })),
+      byBackend: backendRows.map((r) => ({ backend: String(r.backend), count: Number(r.count) })),
+      topContributors: contribRows.map((r) => ({
+        handle: String(r.handle),
+        name: String(r.name || r.handle),
+        count: Number(r.count),
+        backends: Array.isArray(r.backends) ? r.backends.map(String) : [],
+      })),
+      recentContributions: recentRows.map((r) => ({
+        cf_id: Number(r.cf_id),
+        title: String(r.title || ""),
+        contributor_handle: String(r.contributor_handle || ""),
+        contributor_name: String(r.contributor_name || ""),
+        backend: String(r.backend || ""),
+        roast_level: String(r.roast_level || "medium"),
+        roast_flavour: String(r.roast_flavour || "default"),
+        verdict: String(r.verdict || ""),
+        created_at: String(r.created_at || ""),
+      })),
+    };
+  }
+
+  async claimNextContributePatch(opts: {
+    backend: string;
+    strategy?: "unroasted-first" | "cross-model-second-opinion" | "ready-for-committer";
+    topics?: string[];
+    flavour?: string;
+    roastLevel?: string;
+    contributorHandle?: string;
+    excludeCfIds?: number[];
+    dryRun?: boolean;
+    leaseMinutes?: number;
+  }): Promise<{
+    patch: PublicEntryRecord | null;
+    suggestedFlavour: string;
+    suggestedLevel: string;
+    reason: string;
+    leaseExpiresAt: string | null;
+  }> {
+    const now = Date.now();
+    const nowIso = new Date(now).toISOString();
+    const backend = (opts.backend || "claude").toLowerCase().trim();
+    const strategy = opts.strategy || "unroasted-first";
+    const level = (opts.roastLevel || "medium").toLowerCase().trim();
+    const exclude = new Set((opts.excludeCfIds || []).filter((n) => Number.isInteger(n) && n > 0));
+    const topics = (opts.topics || []).map((t) => t.trim().toLowerCase()).filter(Boolean);
+
+    await this.sql.unsafe(`DELETE FROM ${this.t("contribute_leases")} WHERE expires_at < $1`, [nowIso]);
+
+    const openWhere = `LOWER(COALESCE(e.status,'')) NOT IN ('committed','rejected','returned with feedback','withdrawn','moved to different cf')`;
+    const rows = (await this.sql.unsafe(
+      `WITH op_stats AS (
+         SELECT cf_id,
+                COUNT(*)::int AS total_ops,
+                COUNT(*) FILTER (WHERE LOWER(backend) = $1)::int AS same_backend_ops,
+                COUNT(*) FILTER (WHERE LOWER(backend) != $1)::int AS other_backend_ops
+         FROM ${this.t("public_opinions")}
+         GROUP BY cf_id
+       ),
+       active_leases AS (
+         SELECT cf_id, COUNT(*)::int AS lease_cnt,
+                COUNT(*) FILTER (WHERE LOWER(backend) = $1)::int AS same_backend_lease
+         FROM ${this.t("contribute_leases")}
+         WHERE expires_at >= $2
+         GROUP BY cf_id
+       )
+       SELECT e.*,
+              COALESCE(o.total_ops, 0)::int AS total_ops,
+              COALESCE(o.same_backend_ops, 0)::int AS same_backend_ops,
+              COALESCE(o.other_backend_ops, 0)::int AS other_backend_ops,
+              COALESCE(l.lease_cnt, 0)::int AS lease_cnt,
+              COALESCE(l.same_backend_lease, 0)::int AS same_backend_lease
+       FROM ${this.t("public_entries")} e
+       LEFT JOIN op_stats o ON o.cf_id = e.cf_id
+       LEFT JOIN active_leases l ON l.cf_id = e.cf_id
+       WHERE ${openWhere}
+       ORDER BY e.recommended_score DESC, e.cf_id DESC
+       LIMIT 1000`,
+      [backend, nowIso],
+    )) as Array<
+      PublicEntryRecord & {
+        total_ops: number;
+        same_backend_ops: number;
+        other_backend_ops: number;
+        lease_cnt: number;
+        same_backend_lease: number;
+      }
+    >;
+
+    const candidates = rows.filter((r) => {
+      if (exclude.has(r.cf_id)) return false;
+      if (r.same_backend_lease > 0) return false;
+      if (topics.length > 0) {
+        const hay = `${r.topic} ${r.title}`.toLowerCase();
+        if (!topics.some((kw) => hay.includes(kw))) return false;
+      }
+      return true;
+    });
+
+    const statusRank = (st: string): number => {
+      const s = st.toLowerCase();
+      if (s.includes("ready for committer")) return 0;
+      if (s.includes("needs review")) return 1;
+      if (s.includes("waiting on author")) return 2;
+      return 3;
+    };
+
+    const isUnroasted = (v: string) => !v || v === "UNROASTED";
+
+    candidates.sort((a, b) => {
+      if (strategy === "ready-for-committer") {
+        const ra = a.status.toLowerCase().includes("ready for committer") ? 0 : 1;
+        const rb = b.status.toLowerCase().includes("ready for committer") ? 0 : 1;
+        if (ra !== rb) return ra - rb;
+        if (a.same_backend_ops !== b.same_backend_ops) return a.same_backend_ops - b.same_backend_ops;
+        if (a.total_ops !== b.total_ops) return a.total_ops - b.total_ops;
+      } else if (strategy === "cross-model-second-opinion") {
+        // Prioritize entries that already have an opinion (or baseline verdict) from another backend, but 0 from this backend
+        const needSecondA = a.same_backend_ops === 0 && (a.other_backend_ops > 0 || !isUnroasted(a.verdict)) ? 0 : 1;
+        const needSecondB = b.same_backend_ops === 0 && (b.other_backend_ops > 0 || !isUnroasted(b.verdict)) ? 0 : 1;
+        if (needSecondA !== needSecondB) return needSecondA - needSecondB;
+        if (a.same_backend_ops !== b.same_backend_ops) return a.same_backend_ops - b.same_backend_ops;
+        if (statusRank(a.status) !== statusRank(b.status)) return statusRank(a.status) - statusRank(b.status);
+      } else {
+        // unroasted-first: entries with no baseline verdict & 0 opinions first, then 0 opinions, then fewest opinions
+        const tierA = isUnroasted(a.verdict) && a.total_ops === 0 ? 0 : a.total_ops === 0 ? 1 : a.same_backend_ops === 0 ? 2 : 3;
+        const tierB = isUnroasted(b.verdict) && b.total_ops === 0 ? 0 : b.total_ops === 0 ? 1 : b.same_backend_ops === 0 ? 2 : 3;
+        if (tierA !== tierB) return tierA - tierB;
+        if (statusRank(a.status) !== statusRank(b.status)) return statusRank(a.status) - statusRank(b.status);
+      }
+      if (a.lease_cnt !== b.lease_cnt) return a.lease_cnt - b.lease_cnt;
+      return (b.recommended_score || 0) - (a.recommended_score || 0) || b.cf_id - a.cf_id;
+    });
+
+    const chosen = candidates[0] ?? null;
+    if (!chosen) {
+      return {
+        patch: null,
+        suggestedFlavour: opts.flavour && opts.flavour !== "auto-by-subsystem" ? opts.flavour : "default",
+        suggestedLevel: level,
+        reason: "No eligible open CommitFest patches matched your filters right now.",
+        leaseExpiresAt: null,
+      };
+    }
+
+    const suggestFlavourForEntry = (entry: PublicEntryRecord): string => {
+      const hay = `${entry.topic} ${entry.title}`.toLowerCase();
+      if (/\b(wal|xlog|storage|buffer|checkpoint|vacuum|clog|slru|aio|io_uring|smgr|fsync|crash)\b/.test(hay)) return "storage-skeptic";
+      if (/\b(index|btree|nbtree|gin|gist|spgist|brin|hash|amcheck|opclass)\b/.test(hay)) return "index-specialist";
+      if (/\b(planner|optimizer|executor|jit|simd|perf|performance|parallel|sort|hashjoin|memoize|cost)\b/.test(hay)) return "perf-hawk";
+      if (/\b(sql|parser|standard|json|jsonpath|syntax|ddl|type|collation|unicode|trigger|view)\b/.test(hay)) return "spec-lawyer";
+      if (/\b(replication|logical|walsender|catalog|protocol|hook|extension|plugin|architecture|fdw|partition)\b/.test(hay)) return "systems-architect";
+      if (/\b(pg_stat|monitor|logging|backup|pg_basebackup|pg_dump|pg_upgrade|guc|psql|admin|ops|autovacuum)\b/.test(hay)) return "production-dba";
+      return "edge-case-hunter";
+    };
+
+    const suggestedFlavour =
+      !opts.flavour || opts.flavour === "auto-by-subsystem" ? suggestFlavourForEntry(chosen) : opts.flavour;
+
+    const reason =
+      strategy === "cross-model-second-opinion"
+        ? `Cross-model second opinion (${backend}): ${chosen.status || "Open"}, currently ${chosen.total_ops} community opinion(s)`
+        : strategy === "ready-for-committer"
+          ? `Ready-for-Committer priority queue: ${chosen.total_ops} community opinion(s) so far`
+          : isUnroasted(chosen.verdict) && chosen.total_ops === 0
+            ? `Unroasted open patch (${chosen.status || "Open"}) with 0 opinions yet`
+            : `Open patch (${chosen.status || "Open"}) needing a ${backend} community opinion (${chosen.total_ops} so far)`;
+
+    let leaseExpiresAt: string | null = null;
+    if (!opts.dryRun) {
+      const leaseMs = Math.max(5, Math.min(180, opts.leaseMinutes ?? 45)) * 60_000;
+      leaseExpiresAt = new Date(now + leaseMs).toISOString();
+      await this.sql.unsafe(
+        `INSERT INTO ${this.t("contribute_leases")} (cf_id, backend, contributor_handle, roast_flavour, roast_level, leased_at, expires_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7)
+         ON CONFLICT (cf_id, backend) DO UPDATE SET
+           contributor_handle = EXCLUDED.contributor_handle,
+           roast_flavour = EXCLUDED.roast_flavour,
+           roast_level = EXCLUDED.roast_level,
+           leased_at = EXCLUDED.leased_at,
+           expires_at = EXCLUDED.expires_at`,
+        [chosen.cf_id, backend, opts.contributorHandle || "", suggestedFlavour, level, nowIso, leaseExpiresAt],
+      );
+    }
+
+    const { total_ops: _a, same_backend_ops: _b, other_backend_ops: _c, lease_cnt: _d, same_backend_lease: _e, ...cleanPatch } = chosen;
+    return {
+      patch: cleanPatch,
+      suggestedFlavour,
+      suggestedLevel: level,
+      reason,
+      leaseExpiresAt,
     };
   }
 }

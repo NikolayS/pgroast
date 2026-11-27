@@ -766,4 +766,45 @@ echo "=== Build & test complete (PGPORT=${pgPort}) ==="
 
     return job;
   }
+
+  async startContributeJob(params: {
+    mode: "once" | "auto" | "dry-run";
+    backend?: "claude" | "codex" | "agy";
+    publish?: boolean;
+  }): Promise<JobRecord> {
+    const settings = await this.db.getSettings();
+    const repoDir = expandHome(settings.pgroastRepo);
+    const cliPath = join(repoDir, "src", "cli.ts");
+    if (!existsSync(cliPath)) {
+      throw new Error(`pgroast CLI not found at ${cliPath}`);
+    }
+    const modeFlag = params.mode === "dry-run" ? "--dry-run" : params.mode === "auto" ? "--auto" : "--once";
+    const args = ["run", cliPath, "contribute", modeFlag];
+    if (params.backend) args.push("--backend", params.backend);
+    if (params.publish === true) args.push("--publish");
+    else if (params.publish === false) args.push("--no-publish");
+    if (settings.publicHubUrl) args.push("--hub", settings.publicHubUrl);
+
+    const token = await this.db.getHubTokenDecrypted();
+    const id = makeJobId("contribute");
+    const logPath = join(LOGS_DIR, `${id}.log`);
+    const job = await this.db.createJob({
+      id,
+      kind: "contribute",
+      title: `Quota Auto-Contribute (${params.mode}${params.backend ? ` · ${params.backend}` : ""})`,
+      backend: params.backend || "auto",
+      model: params.mode,
+      log_path: logPath,
+    });
+
+    const extraEnv: Record<string, string> = {};
+    if (token) extraEnv.PGROAST_PUBLISH_TOKEN = token;
+    if (settings.publicHubUrl) extraEnv.PGROAST_PUBLIC_HUB_URL = settings.publicHubUrl;
+
+    this.spawnShellJob(job, resolveBunBin(), args, {
+      cwd: repoDir,
+      env: buildChildEnv(settings, { stripApiKeys: true, extra: extraEnv }),
+    });
+    return job;
+  }
 }

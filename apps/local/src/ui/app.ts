@@ -150,6 +150,41 @@ interface AppState {
   } | null;
   onboardingStep: number;
   onboardingSkillsMode: "builtin" | "custom";
+  contributeData: {
+    configPath: string;
+    config: {
+      hubUrl: string;
+      autoPublish: boolean;
+      strategy: string;
+      roastLevel: string;
+      roastFlavour: string;
+      topics: string[];
+      backends: Record<
+        "claude" | "codex" | "agy",
+        { enabled: boolean; resetDayUtc: string; resetHourUtc: number; windowHoursBeforeReset: number; maxPatchesPerWindow: number }
+      >;
+    };
+    windows: Record<string, { nextResetAt: string; hoursUntilReset: number; inWindow: boolean; windowKey: string; countdownLabel: string; used: number; cap: number }>;
+    history: Array<{ at: string; cfId: number; title: string; backend: string; flavour: string; level: string; verdict: string; published: boolean; error?: string }>;
+    coverage: {
+      totalOpen: number;
+      baselineRoastedOpen: number;
+      opinionsTotal: number;
+      openWith1PlusOpinion: number;
+      openWith2PlusOpinions: number;
+      unroastedOpen: number;
+      activeLeases: Array<{ cf_id: number; backend: string }>;
+    } | null;
+  } | null;
+  contributePreview: {
+    backend: string;
+    preview: {
+      patch: { cf_id: number; title: string; status: string; topic: string } | null;
+      suggestedFlavour: string;
+      suggestedLevel: string;
+      reason: string;
+    };
+  } | null;
 
   loading: {
     shortlist: boolean;
@@ -239,6 +274,8 @@ const state: AppState = {
   skillsSummary: null,
   onboardingStep: 1,
   onboardingSkillsMode: "builtin",
+  contributeData: null,
+  contributePreview: null,
 
   loading: {
     shortlist: true,
@@ -1173,7 +1210,7 @@ async function loadSettingsAndDoctor(): Promise<void> {
   setTopProgress();
   if (state.doctorChecks.length === 0) render();
   try {
-    const [settingsRes, doctorRes, auditRes] = await Promise.all([
+    const [settingsRes, doctorRes, auditRes, contribRes] = await Promise.all([
       api<{
         settings: AppSettings;
         identity?: ContributorIdentity;
@@ -1188,6 +1225,7 @@ async function loadSettingsAndDoctor(): Promise<void> {
         skillsSummary?: AppState["skillsSummary"];
       }>("/api/doctor"),
       api<{ logs: AuditLogRecord[] }>("/api/audit"),
+      api<AppState["contributeData"]>("/api/contribute/state").catch(() => null),
     ]);
     state.settings = settingsRes.settings;
     if (settingsRes.identity) {
@@ -1198,6 +1236,7 @@ async function loadSettingsAndDoctor(): Promise<void> {
     state.cfAuth = settingsRes.cfAuth;
     state.doctorChecks = doctorRes.checks;
     state.auditLogs = auditRes.logs;
+    if (contribRes) state.contributeData = contribRes;
     if (doctorRes.aiSummary) state.aiSummary = doctorRes.aiSummary;
     if (settingsRes.skillsSummary) state.skillsSummary = settingsRes.skillsSummary;
   } catch (err) {
@@ -3348,6 +3387,175 @@ function renderSettingsView(): string {
           </div>
         </div>
 
+        ${(() => {
+          const cd = state.contributeData;
+          const cfg = cd?.config;
+          const cov = cd?.coverage;
+          const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+          const archetypes: Array<[string, string]> = [
+            ["auto-by-subsystem", "Auto by subsystem (recommended)"],
+            ["default", "House Blend"],
+            ["edge-case-hunter", "The Edge-Case Hunter"],
+            ["spec-lawyer", "The Spec Lawyer"],
+            ["systems-architect", "The Systems Architect"],
+            ["perf-hawk", "The Perf Hawk"],
+            ["storage-skeptic", "The Storage Skeptic"],
+            ["index-specialist", "The Index Specialist"],
+            ["production-dba", "The Production DBA"],
+          ];
+          const covPct = cov && cov.totalOpen > 0 ? Math.round((cov.openWith1PlusOpinion / cov.totalOpen) * 100) : 0;
+          const basePct = cov && cov.totalOpen > 0 ? Math.round((cov.baselineRoastedOpen / cov.totalOpen) * 100) : 0;
+          return `
+        <div class="card">
+          <div class="card-header">
+            <h3>Weekly Quota Auto-Contribute</h3>
+            <span class="pill ${cfg?.autoPublish ? "pill-ok" : "pill-neutral"}">
+              ${cfg?.autoPublish ? "Auto-publish ON" : "Local-only (opt-in)"}
+            </span>
+          </div>
+          <p class="muted" style="margin-top:0;font-size:12px;">
+            Automatically spend leftover weekly OAuth quota (<code>claude</code>, <code>codex</code>, <code>agy</code>) right before your weekly reset to pre-review open CommitFest patches. Stops cleanly on usage limits and never posts to <code>-hackers</code>.
+          </p>
+          ${
+            cov
+              ? `
+            <div class="ob-card" style="margin-bottom:10px;">
+              <div class="inline-row" style="justify-content:space-between;font-size:11.5px;margin-bottom:4px;">
+                <strong>Community CommitFest Progress</strong>
+                <span class="mono">${cov.baselineRoastedOpen}/${cov.totalOpen} baseline (${basePct}%) · ${cov.opinionsTotal} opinions (${covPct}% open) · ${cov.activeLeases?.length || 0} active leases</span>
+              </div>
+              <div style="height:6px;border-radius:99px;background:var(--border);overflow:hidden;">
+                <div style="height:100%;width:${Math.max(basePct, 2)}%;background:var(--accent);"></div>
+              </div>
+            </div>
+          `
+              : ""
+          }
+          ${
+            cfg
+              ? `
+            <div class="form-grid">
+              <div class="form-field">
+                <label>Queue Strategy</label>
+                <select id="contrib-strategy">
+                  <option value="unroasted-first" ${cfg.strategy === "unroasted-first" ? "selected" : ""}>Unroasted patches first</option>
+                  <option value="cross-model-second-opinion" ${cfg.strategy === "cross-model-second-opinion" ? "selected" : ""}>Cross-model second opinion</option>
+                  <option value="ready-for-committer" ${cfg.strategy === "ready-for-committer" ? "selected" : ""}>Ready for Committer queue</option>
+                </select>
+              </div>
+              <div class="form-field">
+                <label>Roast Level</label>
+                <select id="contrib-level">
+                  <option value="light" ${cfg.roastLevel === "light" ? "selected" : ""}>Light</option>
+                  <option value="medium" ${cfg.roastLevel === "medium" ? "selected" : ""}>Medium</option>
+                  <option value="dark" ${cfg.roastLevel === "dark" ? "selected" : ""}>Dark</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-grid">
+              <div class="form-field">
+                <label>Reviewer Archetype</label>
+                <select id="contrib-flavour">
+                  ${archetypes.map(([id, label]) => `<option value="${id}" ${cfg.roastFlavour === id ? "selected" : ""}>${esc(label)}</option>`).join("")}
+                </select>
+              </div>
+              <div class="form-field">
+                <label>Subsystem Topics (optional, comma-separated)</label>
+                <input type="text" id="contrib-topics" value="${esc((cfg.topics || []).join(", "))}" placeholder="e.g. wal, vacuum, planner (blank = all)" />
+              </div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:10px;">
+              ${(["claude", "codex", "agy"] as const)
+                .map((b) => {
+                  const sc = cfg.backends[b];
+                  const w = cd?.windows?.[b];
+                  return `
+                <div class="ob-card" style="margin-bottom:0;padding:8px 10px;">
+                  <div class="inline-row" style="justify-content:space-between;margin-bottom:6px;">
+                    <label class="inline-row" style="cursor:pointer;gap:6px;">
+                      <input type="checkbox" id="contrib-en-${b}" ${sc.enabled ? "checked" : ""} />
+                      <strong class="mono">${b}</strong>
+                    </label>
+                    <span class="pill ${!sc.enabled ? "pill-neutral" : w?.inWindow ? "pill-ok" : "pill-info"}" style="font-size:10.5px;">
+                      ${!sc.enabled ? "disabled" : w?.inWindow ? `IN WINDOW · ${w.used}/${w.cap}` : `reset in ${esc(w?.countdownLabel || "?")} · ${w?.used ?? 0}/${w?.cap ?? sc.maxPatchesPerWindow}`}
+                    </span>
+                  </div>
+                  <div class="inline-row" style="gap:6px;flex-wrap:wrap;font-size:11.5px;">
+                    <span>Reset:</span>
+                    <select id="contrib-day-${b}" style="width:auto;padding:3px 6px;">
+                      ${days.map((d) => `<option value="${d}" ${sc.resetDayUtc === d ? "selected" : ""}>${d}</option>`).join("")}
+                    </select>
+                    <input type="number" id="contrib-hour-${b}" min="0" max="23" value="${sc.resetHourUtc}" style="width:54px;padding:3px 6px;" title="Reset hour (UTC 0-23)" />
+                    <span class="dim">UTC · Window</span>
+                    <input type="number" id="contrib-win-${b}" min="1" max="168" value="${sc.windowHoursBeforeReset}" style="width:54px;padding:3px 6px;" title="Hours before reset" />
+                    <span class="dim">h · Cap</span>
+                    <input type="number" id="contrib-cap-${b}" min="1" max="50" value="${sc.maxPatchesPerWindow}" style="width:54px;padding:3px 6px;" title="Max patches per weekly window" />
+                  </div>
+                </div>
+              `;
+                })
+                .join("")}
+            </div>
+            <label class="inline-row" style="cursor:pointer;margin-bottom:10px;font-size:12px;">
+              <input type="checkbox" id="contrib-autopublish" ${cfg.autoPublish ? "checked" : ""} />
+              <span>Auto-publish sanitized opinions to Public App (requires Publish-Only Token above; Public-Confidentiality Hard Gate always enforced)</span>
+            </label>
+            <div class="inline-row" style="flex-wrap:wrap;gap:6px;">
+              <button type="button" class="btn btn-primary btn-sm" id="contrib-save-btn">Save Schedule</button>
+              <button type="button" class="btn btn-secondary btn-sm" id="contrib-preview-btn">Preview Next Patch</button>
+              <button type="button" class="btn btn-ok btn-sm" id="contrib-run-once-btn">Run 1 Patch Now</button>
+              <button type="button" class="btn btn-ghost btn-sm" id="contrib-copy-cron-btn">Copy Hourly Cron</button>
+            </div>
+            ${
+              state.contributePreview
+                ? `
+              <div class="ob-card" style="margin-top:10px;border-color:var(--accent);">
+                ${
+                  state.contributePreview.preview.patch
+                    ? `
+                  <div class="inline-row" style="justify-content:space-between;">
+                    <strong class="mono">Next (${esc(state.contributePreview.backend)}): CF ${state.contributePreview.preview.patch.cf_id}</strong>
+                    <span class="pill pill-info">${esc(state.contributePreview.preview.suggestedFlavour)} · ${esc(state.contributePreview.preview.suggestedLevel)}</span>
+                  </div>
+                  <div style="font-size:12.5px;font-weight:600;margin-top:3px;">${esc(state.contributePreview.preview.patch.title)}</div>
+                  <div class="muted" style="font-size:11.5px;margin-top:2px;">${esc(state.contributePreview.preview.reason)}</div>
+                `
+                    : `<div class="muted" style="font-size:12px;">${esc(state.contributePreview.preview.reason)}</div>`
+                }
+              </div>
+            `
+                : ""
+            }
+            ${
+              cd && cd.history.length > 0
+                ? `
+              <div style="margin-top:10px;border-top:1px solid var(--border);padding-top:8px;">
+                <div class="dim" style="font-size:11px;font-weight:600;margin-bottom:4px;">Recent Quota Contributions (${cd.history.length})</div>
+                ${cd.history
+                  .slice(0, 5)
+                  .map(
+                    (h) => `
+                  <div style="padding:4px 0;border-bottom:1px solid var(--border);font-size:11.5px;display:flex;justify-content:space-between;gap:8px;">
+                    <span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+                      <button type="button" class="btn btn-ghost btn-sm" style="padding:1px 5px;font-size:11px;" data-open-cf="${h.cfId}">CF ${h.cfId}</button>
+                      <span class="mono dim">${esc(h.backend)}</span> · ${esc(h.verdict)}
+                    </span>
+                    <span class="pill ${h.published ? "pill-ok" : "pill-neutral"}" style="font-size:10px;">${h.published ? "published" : "local"}</span>
+                  </div>
+                `,
+                  )
+                  .join("")}
+              </div>
+            `
+                : ""
+            }
+          `
+              : `<div class="muted" style="font-size:12px;">Loading Auto-Contribute schedule…</div>`
+          }
+        </div>
+          `;
+        })()}
+
         <div class="card">
           <div class="card-header">
             <h3>PostgreSQL Community / CommitFest Login${auth?.verifiedUser || auth?.username ? ` (${esc(auth?.verifiedUser || auth?.username)})` : ""}</h3>
@@ -4880,6 +5088,74 @@ function bindViewEvents(): void {
     } catch (err) {
       toastError(err);
     }
+  });
+
+  // Weekly Quota Auto-Contribute events
+  document.getElementById("contrib-save-btn")?.addEventListener("click", async () => {
+    try {
+      const readBackend = (b: "claude" | "codex" | "agy") => ({
+        enabled: Boolean((document.getElementById(`contrib-en-${b}`) as HTMLInputElement | null)?.checked),
+        resetDayUtc: (document.getElementById(`contrib-day-${b}`) as HTMLSelectElement | null)?.value || "Mon",
+        resetHourUtc: Number((document.getElementById(`contrib-hour-${b}`) as HTMLInputElement | null)?.value || 0),
+        windowHoursBeforeReset: Number((document.getElementById(`contrib-win-${b}`) as HTMLInputElement | null)?.value || 18),
+        maxPatchesPerWindow: Number((document.getElementById(`contrib-cap-${b}`) as HTMLInputElement | null)?.value || 5),
+      });
+      const topicsRaw = (document.getElementById("contrib-topics") as HTMLInputElement | null)?.value || "";
+      const payload = {
+        hubUrl: state.hubStatus?.url || state.settings?.publicHubUrl || "https://pgroast.postgres.ai",
+        strategy: (document.getElementById("contrib-strategy") as HTMLSelectElement | null)?.value || "unroasted-first",
+        roastLevel: (document.getElementById("contrib-level") as HTMLSelectElement | null)?.value || "medium",
+        roastFlavour: (document.getElementById("contrib-flavour") as HTMLSelectElement | null)?.value || "auto-by-subsystem",
+        topics: topicsRaw.split(",").map((s) => s.trim()).filter(Boolean),
+        autoPublish: Boolean((document.getElementById("contrib-autopublish") as HTMLInputElement | null)?.checked),
+        backends: {
+          claude: readBackend("claude"),
+          codex: readBackend("codex"),
+          agy: readBackend("agy"),
+        },
+      };
+      await api("/api/contribute/config", { method: "PUT", body: JSON.stringify(payload) });
+      toast("Weekly Quota Auto-Contribute schedule saved (~/.pgroast/contribute.json)", "ok");
+      await loadSettingsAndDoctor();
+    } catch (err) {
+      toastError(err, "Failed to save Auto-Contribute schedule");
+    }
+  });
+  document.getElementById("contrib-preview-btn")?.addEventListener("click", async () => {
+    try {
+      const cfg = state.contributeData?.config;
+      const preferred =
+        cfg?.backends.claude.enabled ? "claude" : cfg?.backends.codex.enabled ? "codex" : cfg?.backends.agy.enabled ? "agy" : "claude";
+      const res = await api<{ backend: string; preview: NonNullable<AppState["contributePreview"]>["preview"] }>(
+        "/api/contribute/preview",
+        { method: "POST", body: JSON.stringify({ backend: preferred }) },
+      );
+      state.contributePreview = res;
+      render();
+    } catch (err) {
+      toastError(err, "Could not preview next queued patch");
+    }
+  });
+  document.getElementById("contrib-run-once-btn")?.addEventListener("click", async () => {
+    try {
+      const cfg = state.contributeData?.config;
+      const preferred =
+        cfg?.backends.claude.enabled ? "claude" : cfg?.backends.codex.enabled ? "codex" : cfg?.backends.agy.enabled ? "agy" : "claude";
+      const res = await api<{ job: JobRecord }>("/api/contribute/run", {
+        method: "POST",
+        body: JSON.stringify({ mode: "once", backend: preferred, publish: Boolean(cfg?.autoPublish) }),
+      });
+      toast(`Started Quota Auto-Contribute run (${preferred})`, "ok");
+      openJobStream(res.job);
+      await refreshJobsList();
+    } catch (err) {
+      toastError(err, "Failed to start Auto-Contribute run");
+    }
+  });
+  document.getElementById("contrib-copy-cron-btn")?.addEventListener("click", () => {
+    const repo = state.settings?.pgroastRepo || "~/pgroast";
+    const line = `0 * * * * cd ${repo} && bun run src/cli.ts contribute --auto >> ~/.pgroast/contribute.log 2>&1`;
+    void navigator.clipboard?.writeText(line).then(() => toast("Copied hourly cron line to clipboard", "ok"));
   });
   document.getElementById("settings-open-onboarding-btn")?.addEventListener("click", () => void openOnboarding(1));
   document.getElementById("doctor-refresh-btn")?.addEventListener("click", () => void loadSettingsAndDoctor());

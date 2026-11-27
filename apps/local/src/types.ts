@@ -258,7 +258,8 @@ export type JobKind =
   | "ai_review"
   | "blind_verify"
   | "bugs_triage"
-  | "hetzner_run";
+  | "hetzner_run"
+  | "contribute";
 
 export type JobStatus = "queued" | "running" | "succeeded" | "failed" | "cancelled";
 

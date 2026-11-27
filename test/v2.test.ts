@@ -1007,3 +1007,157 @@ describe("v2 embedded basic skills and custom override", () => {
     }
   });
 });
+
+describe("v2 CLI publish & weekly quota auto-contribute", () => {
+  test("checkPublishConfidentiality blocks tokens, cookies, local paths, and internal codenames", async () => {
+    const { checkPublishConfidentiality, buildOpinionPayloadFromRoast, publishRoastOpinion } = await import("../src/publish.ts");
+    expect(checkPublishConfidentiality("Clean review of WAL buffer allocation.").ok).toBe(true);
+    expect(checkPublishConfidentiality("Oops pgroast_pub_abcdef1234567890 leaked").ok).toBe(false);
+    expect(checkPublishConfidentiality("See /Users/nik/work/pgroast/secret.txt").ok).toBe(false);
+    expect(checkPublishConfidentiality("cookie sessionid=abcdef1234567890").ok).toBe(false);
+
+    const mockRoast = {
+      schema_version: 2,
+      tool: "pgroast",
+      generated_at: "2026-11-26T00:00:00Z",
+      input: {
+        arg: "5879",
+        cf: { id: 5879, url: "https://commitfest.postgresql.org/patch/5879/", title: "Fix WAL flush", status: "Needs review", authors: "Alice", reviewers: "", committer: "" },
+        thread_url: "https://postgr.es/m/test",
+        subject: "Fix WAL flush",
+        messages_read: 5,
+        messages_total: 5,
+        attachments_read: [],
+      },
+      backend: "claude",
+      roast_level: "dark",
+      roast_flavour: "storage-skeptic",
+      models: { roaster: "opus", critic: "opus" },
+      verdict: "NEEDS-COMMITTER-EYES",
+      confidence: "high",
+      verdict_reasoning: "Needs WAL durability sign-off from a storage committer.",
+      objections: [{ title: "Crash recovery torn page window", severity: "fixable" }],
+    } as unknown as Parameters<typeof buildOpinionPayloadFromRoast>[0];
+
+    const payload = buildOpinionPayloadFromRoast(mockRoast);
+    expect(payload.cf_id).toBe(5879);
+    expect(payload.roast_level).toBe("dark");
+    expect(payload.roast_flavour).toBe("storage-skeptic");
+    expect(payload.summary).toContain("WAL durability");
+
+    const dryRes = await publishRoastOpinion({
+      roast: mockRoast,
+      hubUrl: "https://pgroast.postgres.ai",
+      token: "",
+      dryRun: true,
+    });
+    expect(dryRes.dryRun).toBe(true);
+    expect(dryRes.patchUrl).toBe("https://pgroast.postgres.ai/patch/5879");
+  });
+
+  test("computeResetWindowStatus and runContributeCycle respect weekly reset windows, caps, opt-in publish, and usage limits", async () => {
+    const { computeResetWindowStatus, defaultContributeConfig, runContributeCycle } = await import("../src/contribute.ts");
+
+    // Sunday 2026-11-29 12:00 UTC is 12h before Monday 00:00 UTC -> INSIDE 18h window
+    const sunNoon = new Date("2026-11-29T12:00:00Z");
+    const winInside = computeResetWindowStatus(
+      { enabled: true, resetDayUtc: "Mon", resetHourUtc: 0, windowHoursBeforeReset: 18, maxPatchesPerWindow: 3 },
+      sunNoon,
+    );
+    expect(winInside.inWindow).toBe(true);
+    expect(winInside.hoursUntilReset).toBe(12);
+    expect(winInside.windowKey).toBe("2026-11-30T00Z");
+
+    // Wednesday 2026-11-25 12:00 UTC is 108h before Monday 00:00 UTC -> OUTSIDE 18h window
+    const wedNoon = new Date("2026-11-25T12:00:00Z");
+    const winOutside = computeResetWindowStatus(
+      { enabled: true, resetDayUtc: "Mon", resetHourUtc: 0, windowHoursBeforeReset: 18, maxPatchesPerWindow: 3 },
+      wedNoon,
+    );
+    expect(winOutside.inWindow).toBe(false);
+    expect(winOutside.hoursUntilReset).toBe(108);
+
+    const cfg = defaultContributeConfig("https://pgroast.postgres.ai");
+    cfg.outDir = mkdtempSync(join(tmpdir(), "pgroast-contrib-"));
+    cfg.autoPublish = true;
+    cfg.backends.claude = { enabled: true, resetDayUtc: "Mon", resetHourUtc: 0, windowHoursBeforeReset: 18, maxPatchesPerWindow: 2 };
+
+    let publishedPayloads = 0;
+    let nextCall = 0;
+    const fakeFetch = (async (input: string | URL | Request) => {
+      const u = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+      if (u.includes("/api/v1/contribute/next")) {
+        nextCall++;
+        const cfId = 8000 + nextCall;
+        return new Response(
+          JSON.stringify({
+            patch: { cf_id: cfId, title: `Patch ${cfId}`, status: "Needs review", topic: "WAL", authors: "Dev", verdict: "UNROASTED" },
+            suggestedFlavour: "storage-skeptic",
+            suggestedLevel: "medium",
+            reason: "Unroasted open patch",
+            leaseExpiresAt: "2026-11-29T12:45:00Z",
+          }),
+          { status: 200 },
+        );
+      }
+      if (u.includes("/api/v1/publish/opinion")) {
+        publishedPayloads++;
+        return new Response(JSON.stringify({ ok: true }), { status: 201 });
+      }
+      return new Response("not found", { status: 404 });
+    }) as typeof fetch;
+
+    try {
+      // 1. Outside window: --auto skips cleanly without roasting
+      const stOutside = { windows: {}, history: [] };
+      const resOut = await runContributeCycle({
+        config: cfg,
+        state: stOutside,
+        mode: "auto",
+        now: wedNoon,
+        token: "pgroast_pub_test_token_12345678",
+        log: () => {},
+        fetchFn: fakeFetch,
+      });
+      expect(resOut.skippedWindow).toBe(1);
+      expect(resOut.processed).toBe(0);
+
+      // 2. Inside window: roasts patch 1 + publishes, then patch 2 hits usage limit and stops cleanly!
+      const stInside: { windows: Record<string, Record<string, number>>; history: Array<never> } = { windows: {}, history: [] };
+      let roastCalls = 0;
+      const resIn = await runContributeCycle({
+        config: cfg,
+        state: stInside,
+        mode: "auto",
+        now: sunNoon,
+        token: "pgroast_pub_test_token_12345678",
+        log: () => {},
+        fetchFn: fakeFetch,
+        roastFn: async ({ cfId }) => {
+          roastCalls++;
+          if (roastCalls === 2) throw new Error("You have hit your weekly usage limit");
+          return {
+            roast: {
+              verdict: "NO-FUNDAMENTAL-OBJECTION",
+              confidence: "high",
+              verdict_reasoning: "Clean WAL patch.",
+              backend: "claude",
+              roast_level: "medium",
+              roast_flavour: "storage-skeptic",
+              objections: [],
+              input: { cf: { id: cfId, title: `Patch ${cfId}`, status: "Needs review", authors: "Dev" } },
+            } as unknown as Parameters<typeof import("../src/publish.ts").buildOpinionPayloadFromRoast>[0],
+            summaryTxt: "Clean WAL patch summary.",
+          };
+        },
+      });
+      expect(resIn.processed).toBe(1);
+      expect(resIn.published).toBe(1);
+      expect(publishedPayloads).toBe(1);
+      expect(resIn.stoppedByLimit).toEqual(["claude"]);
+      expect(stInside.windows.claude?.["2026-11-30T00Z"]).toBe(1);
+    } finally {
+      rmSync(cfg.outDir, { recursive: true, force: true });
+    }
+  });
+});

@@ -83,9 +83,9 @@ Full design: [docs/design.md](docs/design.md).
 
 PG Roast splits into two web apps plus the CLI engine:
 
-- **`src/` (CLI):** adversarial design pre-review (`bun run src/cli.ts 5879`), batch runner, CommitFest shortlist (`pgroast shortlist`), and `pgsql-bugs` triage (`pgroast bugs`).
-- **`apps/local` (Personal Backoffice — `bun run app:local`, `http://127.0.0.1:3432`):** your private workspace on your own machine. Compile Postgres, run your AI CLIs (`claude`, `codex`, `agy`, or `--backend dual`), inspect patch diffs in `Diff & Review`, track private Work Items, keep CommitFest cookies and Gmail drafts local, and explicitly publish sanitized opinions or briefs to the Public App.
-- **`apps/web` (Public App — `bun run app:web`, `http://127.0.0.1:3433`):** shared community hub with CommitFest briefs, a public **Stats & Leaderboards** view (verdict heatmap, subsystem health, clickable Authors / Reviewers / Committers), and GitLab MR-style patch pages (`/patch/<cf-id>`) with Overview & Consensus, collapsible `-hackers` Discussion timelines, and live CFBot unified diffs. Trust flows strictly `local → public`; the public site never controls `127.0.0.1`.
+- **`src/` (CLI):** adversarial design pre-review (`bun run src/cli.ts 5879`), batch runner, CommitFest shortlist (`pgroast shortlist`), `pgsql-bugs` triage (`pgroast bugs`), sanitized opinion publishing (`pgroast publish`), and weekly OAuth quota auto-contributing (`pgroast contribute`).
+- **`apps/local` (Personal Backoffice — `bun run app:local`, `http://127.0.0.1:3432`):** your private workspace on your own machine. Compile Postgres, run your AI CLIs (`claude`, `codex`, `agy`, or `--backend dual`), inspect patch diffs in `Diff & Review`, track private Work Items, keep CommitFest cookies and Gmail drafts local, configure weekly quota auto-contribute, and explicitly publish sanitized opinions or briefs to the Public App.
+- **`apps/web` (Public App — `bun run app:web`, `http://127.0.0.1:3433`):** shared community hub with CommitFest briefs, the **PostgreSQL Hacking Observatory** (`/hackers` and multi-email `/hacker/<slug>` profiles), a complete **Docs & All Features** hub (`/docs`) with live CommitFest quota coverage progress, **Stats & Leaderboards**, and GitLab MR-style patch pages (`/patch/<cf-id>`). Trust flows strictly `local → public`; the public site never controls `127.0.0.1`.
 
 ### Install and run your Personal Backoffice (2 minutes)
 

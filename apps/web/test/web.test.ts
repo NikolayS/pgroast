@@ -773,4 +773,69 @@ describe("pgroast-web public companion API & security gates", () => {
       rmSync(tmpRepo, { recursive: true, force: true });
     }
   });
+
+  test("Weekly Quota Auto-Contribute queue, soft-lease deduplication, auto-by-subsystem archetype routing, and /docs SSR", async () => {
+    // Seed 2 unroasted open patches across distinct subsystems
+    await db.upsertPublicEntry({
+      cf_id: 9101,
+      title: "Reduce WAL full-page writes during checkpoint",
+      status: "Ready for Committer",
+      topic: "Storage & WAL",
+      authors: "Alice Dev",
+      verdict: "UNROASTED",
+    });
+    await db.upsertPublicEntry({
+      cf_id: 9102,
+      title: "Add B-tree index deduplication metrics",
+      status: "Needs review",
+      topic: "Indexing",
+      authors: "Bob Dev",
+      verdict: "UNROASTED",
+    });
+
+    // 1. Dry-run preview does NOT acquire a lease
+    const dryRes = await req("/api/v1/contribute/next?backend=claude&strategy=unroasted-first&flavour=auto-by-subsystem&dry_run=1");
+    expect(dryRes.status).toBe(200);
+    const dryJson = (await dryRes.json()) as {
+      patch: { cf_id: number } | null;
+      suggestedFlavour: string;
+      leaseExpiresAt: string | null;
+      coverage: { activeLeases: unknown[]; totalOpen: number };
+    };
+    expect(dryJson.patch?.cf_id).toBe(9101);
+    expect(dryJson.suggestedFlavour).toBe("storage-skeptic");
+    expect(dryJson.leaseExpiresAt).toBeNull();
+    expect(dryJson.coverage.activeLeases.length).toBe(0);
+
+    // 2. Real claim acquires a 45m soft lease for claude on 9101
+    const claim1 = await (await req("/api/v1/contribute/next?backend=claude&strategy=unroasted-first&flavour=auto-by-subsystem")).json() as {
+      patch: { cf_id: number } | null;
+      suggestedFlavour: string;
+      leaseExpiresAt: string | null;
+      coverage: { activeLeases: Array<{ cf_id: number; backend: string }> };
+    };
+    expect(claim1.patch?.cf_id).toBe(9101);
+    expect(claim1.suggestedFlavour).toBe("storage-skeptic");
+    expect(claim1.leaseExpiresAt).not.toBeNull();
+    expect(claim1.coverage.activeLeases.some((l) => l.cf_id === 9101 && l.backend === "claude")).toBe(true);
+
+    // 3. Second claude worker skips soft-leased 9101 and gets 9102 with index-specialist!
+    const claim2 = await (await req("/api/v1/contribute/next?backend=claude&strategy=unroasted-first&flavour=auto-by-subsystem")).json() as {
+      patch: { cf_id: number } | null;
+      suggestedFlavour: string;
+    };
+    expect(claim2.patch?.cf_id).toBe(9102);
+    expect(claim2.suggestedFlavour).toBe("index-specialist");
+
+    // 4. Coverage status endpoint reports live progress & active leases
+    const statusRes = await req("/api/v1/contribute/status");
+    expect(statusRes.status).toBe(200);
+    const statusJson = (await statusRes.json()) as { totalOpen: number; activeLeases: unknown[] };
+    expect(statusJson.totalOpen).toBeGreaterThanOrEqual(2);
+    expect(statusJson.activeLeases.length).toBeGreaterThanOrEqual(2);
+
+    // 5. SSR /docs route renders dynamic title and OG metadata
+    const docsHtml = await (await req("/docs")).text();
+    expect(docsHtml).toContain("Docs, All Features &amp; Weekly Quota Auto-Contribute — pgroast");
+  });
 });

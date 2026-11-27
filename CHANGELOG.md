@@ -1,5 +1,24 @@
 # Changelog
 
+## v0.3.0-alpha.10 (2026-11-26)
+
+This release brings the `pgroast` CLI up to date with `publish` and `contribute` (weekly OAuth quota auto-roasting for Claude, Codex, and Antigravity), adds a searchable Front Office **Docs & All Features** hub (`/docs`) with live CommitFest multi-model coverage tracking and interactive queue preview, and adds a **Weekly Quota Auto-Contribute** configuration card to the Personal Backoffice.
+
+### Changes
+
+- **Front Office Docs & All Features Hub (`apps/web` — `Docs` tab & `/docs`):**
+  - Added a searchable, category-filterable directory of every feature across the Front Office, Weekly Quota Auto-Contribute, Personal Backoffice, CLI, and Privacy/Safety, with direct jump buttons and copyable CLI commands.
+  - Added a live **Community CommitFest Coverage Progress** tracker showing baseline coverage, 1+ and 2+ multi-model opinions, unroasted open patches, Ready-for-Committer coverage, active 45-minute soft leases, backend breakdown, and top contributors.
+  - Added an interactive **Preview Next Queued Patch** widget (`dry_run=1`) and a one-click AI agent setup prompt for weekly quota auto-contributing.
+- **Public App Quota Work Queue (`apps/web/src/db.ts`, `server.ts`):**
+  - Added `contribute_leases` table and `GET /api/v1/contribute/status` + `GET /api/v1/contribute/next` endpoints with 45-minute per-backend soft leases, strategies (`unroasted-first`, `cross-model-second-opinion`, `ready-for-committer`), topic filters, and automatic subsystem-to-archetype routing (`auto-by-subsystem`).
+  - Cleaned up non-organization parentheticals (e.g. `(earlier versions)`) and stray angle brackets in `hackers.ts` identity parsing.
+- **CLI Parity & Weekly Quota Auto-Roaster (`src/publish.ts`, `src/contribute.ts`, `src/cli.ts`):**
+  - Added `pgroast publish <roast.json|dir>` with client-side Public-Confidentiality Hard Gate and `--dry-run` preview.
+  - Added `pgroast contribute` (`--init`, `--status`, `--dry-run`, `--once`, `--auto`) with per-backend (`claude`, `codex`, `agy`) weekly UTC reset window calculations, per-window patch caps, clean usage-limit stopping, and strictly opt-in `autoPublish`.
+- **Personal Backoffice Auto-Contribute Card (`apps/local`):**
+  - Added `/api/contribute/state`, `PUT /api/contribute/config`, `POST /api/contribute/preview`, and `POST /api/contribute/run` endpoints plus a Settings card to manage weekly reset schedules, preview queued patches, launch streaming 1-patch runs, and inspect local contribution history.
+
 ## v0.3.0-alpha.9 (2026-11-26)
 
 This release adds the PostgreSQL Hacking Observatory and individual `/hacker/<slug>` contributor profiles to the Public App (`apps/web`), backed by a multi-email identity resolution engine across the full `postgres.git` commit history and recognized PostgreSQL contributors.

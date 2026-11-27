@@ -188,19 +188,25 @@ export function parsePersonRef(raw: string): ParsedPersonRef | null {
   }
 
   // Extract parenthetical org/affiliation like "Hayato Kuroda (Fujitsu)"
+  // Ignore non-organization notes like "(earlier versions)", "(v1)", "(part 1)", "(initial patch)"
   let affiliation = "";
   const parenMatch = s.match(/\(([^()]{2,40})\)/);
   if (parenMatch?.[1]) {
     const candidate = parenMatch[1].trim();
-    if (!/@|http|github|gitlab/i.test(candidate)) {
+    if (
+      !/@|http|github|gitlab/i.test(candidate) &&
+      !/^(?:earlier|previous|initial|original|first|later|older|v\d+|part\s*\d+|patch|draft|test|tests|docs?|review|bug|fix|analysis|suggestion|help|idea)/i.test(
+        candidate,
+      )
+    ) {
       affiliation = candidate;
     }
     s = s.replace(parenMatch[0], " ").trim();
   }
 
-  // Strip surrounding quotes and trailing punctuation
+  // Strip surrounding quotes, stray angle brackets, and trailing punctuation
   s = s
-    .replace(/^["'`]+|["'`]+$/g, "")
+    .replace(/^["'`<>]+|["'`<>]+$/g, "")
     .replace(/\s+/g, " ")
     .replace(/[,;:]+$/g, "")
     .trim();
