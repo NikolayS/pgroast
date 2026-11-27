@@ -2,6 +2,7 @@
 // stage, and a small validator for them. No dependencies.
 
 import type { RoastFlavour, RoastLevel } from "./flavours.ts";
+import type { VerificationReport } from "./verify.ts";
 
 // ---------------------------------------------------------------------------------------------
 // Constants
@@ -446,6 +447,8 @@ export interface Roast {
   roast_level?: RoastLevel;
   /** Review archetype flavour: "default" | "edge-case-hunter" | "spec-lawyer" | ... */
   roast_flavour?: RoastFlavour;
+  /** Real code/apply/compile/test/live-SQL verification results (populated for medium & dark roasts). */
+  verification?: VerificationReport | null;
   /** "claude" | "codex" | "agy" | "dual" | "dry-run" | "test". */
   backend: string;
   models: { roaster: string; critic: string; synth: string; brief: string };

@@ -3,7 +3,7 @@
 
 import { fetchText } from "./fetch.ts";
 import { flatThreadUrl, parseCommitfestPatch, parseFlatThread } from "./parse.ts";
-import { extractPatchProse, isReadableAttachment, MAX_DOC_HUNK_CHARS } from "./patchprose.ts";
+import { extractPatchCodeHunks, extractPatchProse, isReadableAttachment, MAX_DOC_HUNK_CHARS } from "./patchprose.ts";
 import type {
   CfEntry,
   InputRef,
@@ -230,7 +230,23 @@ async function loadPatchProse(
         });
         continue;
       }
-      out.push({ attachment: att, fromMessageIndex: msg.index, fromAuthor: msg.from, fromDate: msg.date, isLatest, ...prose });
+      let codeHunks: { path: string; text: string }[] | undefined;
+      let rawText: string | undefined;
+      if (opts.includeCode && isLatest && /\.(patch|diff)$/i.test(att.name)) {
+        const extracted = extractPatchCodeHunks(text, opts.maxCodeChars ?? 65_000);
+        codeHunks = extracted.codeHunks;
+        rawText = text;
+      }
+      out.push({
+        attachment: att,
+        fromMessageIndex: msg.index,
+        fromAuthor: msg.from,
+        fromDate: msg.date,
+        isLatest,
+        ...prose,
+        ...(codeHunks ? { codeHunks } : {}),
+        ...(rawText ? { rawText } : {}),
+      });
     }
   }
   return { patchProse: out, latestPatchFrom, latestPatchDate, latestPatchVersion };

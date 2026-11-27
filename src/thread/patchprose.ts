@@ -141,3 +141,74 @@ export function isReadableAttachment(name: string, contentType: string): boolean
   if (/\.(patch|diff|txt|md|nocfbot)$/i.test(name) || /README/i.test(name)) return true;
   return /^text\//i.test(contentType);
 }
+
+export const MAX_CODE_HUNK_CHARS = 14_000;
+export const DEFAULT_MAX_CODE_TOTAL_CHARS = 65_000;
+
+/**
+ * Extract non-doc source code diff hunks (.c, .h, .y, .l, .sql, .pl, meson.build, etc.)
+ * for Medium and Dark roasts. Prioritizes backend/include/contrib C code over expected test outputs.
+ */
+export function extractPatchCodeHunks(
+  raw: string,
+  maxTotalChars = DEFAULT_MAX_CODE_TOTAL_CHARS,
+): { codeHunks: { path: string; text: string }[]; truncated: boolean } {
+  const text = raw.replace(/\r\n/g, "\n");
+  const lines = text.split("\n");
+  const rawBlocks: { path: string; text: string; priority: number }[] = [];
+  let cur: { path: string; lines: string[] } | null = null;
+
+  const filePriority = (p: string): number => {
+    if (/^src\/(?:backend|include)\//.test(p)) return 0;
+    if (/^contrib\/.*\.(?:c|h|sql)$/.test(p) && !/\/expected\//.test(p)) return 1;
+    if (/^src\/(?:bin|interfaces|pl|common|port)\//.test(p) && !/\/expected\//.test(p)) return 2;
+    if (/\.sql$|\.pl$/.test(p) && !/\/expected\//.test(p)) return 3;
+    if (/\/expected\//.test(p)) return 5;
+    return 4;
+  };
+
+  const flush = () => {
+    if (!cur) return;
+    if (!isDocPath(cur.path)) {
+      rawBlocks.push({
+        path: cur.path,
+        text: cur.lines.join("\n"),
+        priority: filePriority(cur.path),
+      });
+    }
+    cur = null;
+  };
+
+  for (const line of lines) {
+    const d = line.match(/^diff --git a\/(\S+) b\/(\S+)/);
+    if (d) {
+      flush();
+      cur = { path: d[2]!, lines: [line] };
+      continue;
+    }
+    if (/^From [0-9a-f]{40} /.test(line)) {
+      flush();
+      continue;
+    }
+    if (cur) cur.lines.push(line);
+  }
+  flush();
+
+  rawBlocks.sort((a, b) => a.priority - b.priority);
+  const codeHunks: { path: string; text: string }[] = [];
+  let total = 0;
+  let truncated = false;
+
+  for (const b of rawBlocks) {
+    if (total >= maxTotalChars) {
+      truncated = true;
+      break;
+    }
+    const budget = Math.min(MAX_CODE_HUNK_CHARS, maxTotalChars - total);
+    const c = clip(b.text, budget);
+    truncated ||= c.cut;
+    total += c.text.length;
+    codeHunks.push({ path: b.path, text: c.text });
+  }
+  return { codeHunks, truncated };
+}

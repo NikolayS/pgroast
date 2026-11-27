@@ -1,5 +1,22 @@
 # Changelog
 
+## v0.3.0-alpha.16 (2026-11-26)
+
+This release defines Light, Medium, and Dark roasts by actual verification depth rather than prompt tone. Medium and Dark roasts now read C/H/SQL diffs, apply patches against a local `postgres.git` worktree pool, compile PostgreSQL with `-Dcassert=true`, run targeted `meson test` suites, and—on Dark—boot an isolated patched PostgreSQL cluster to run adversarial SQL stress tests. Published opinions now include the full structured findings and a verification evidence strip.
+
+### Changes
+
+- **Verification Depth for Light, Medium, and Dark Roasts (`src/roast/verify.ts`, `src/roast/flavours.ts`, `src/roast/pipeline.ts`):**
+  - **Light:** Reads the thread, patch prose, and 2,547 historical precedents. Reads no code and runs no build.
+  - **Medium:** Extracts C/H/SQL patch hunks (`src/thread/patchprose.ts`) plus surrounding source context from `postgres.git`, runs `git apply` inside a pooled detached worktree (`~/.pgroast/verify-pool/`), builds incrementally with `meson compile` (`-Dcassert=true`), and runs targeted `meson test` suites mapped to touched subsystems.
+  - **Dark:** Runs everything in Medium, then installs into a temporary directory, initializes and starts a throwaway Unix-socket PostgreSQL cluster (`listen_addresses=''`), runs LLM-proposed pure-SQL stress tests via `psql` with `statement_timeout = 10s`, checks `postgres.log` for `TRAP:`, `PANIC:`, or crashes, cleans up the cluster in `finally`, and runs a reflection pass (`rounds >= 1`).
+- **Rich Published Opinions & Verification Evidence Strip (`src/publish.ts`, `apps/web`):**
+  - Replaced the 5-line stub summary with `buildRichOpinionMarkdown()` (up to 16,000 chars) containing verification evidence, verdict reasoning, build/test/live-SQL results, numbered objections with severity and failure scenarios, questions, prior attempts, and unchecked items. Raised `public_opinions.summary` storage limit in `apps/web/src/db.ts` from 1,200 to 20,000 chars.
+  - Added safe Markdown rendering (`renderOpinionMarkdown()`) and color-coded **Verification Evidence Strip** pills to `/patch/<cf-id>` opinion cards and **Opinions** list rows on `pgroast.postgres.ai`.
+  - Updated `claimNextContributePatch()` so `medium` and `dark` runs advance naturally from unroasted open patches to patches that only have `light` (idea-only) opinions.
+- **Updated Roast Level Labels Across UI & Docs (`apps/local`, `apps/web`):**
+  - Updated Roast Studio cards, Bulk Roast defaults (`dark`, 2 parallel build workers), `/contribute`, `/docs`, and `/llms.txt` to reflect the Light / Medium / Dark verification tiers.
+
 ## v0.3.0-alpha.15 (2026-11-26)
 
 This release adds interactive **CLI & API Playgrounds** (plus OpenAPI 3.1 spec at `/openapi.json`) to `/docs`, upgrades every remaining chart with hover/tap concrete-number tooltips, updates PostgreSQL git analytics through today (`upstream/master`), and fixes all Desktop + Mobile layout and SVG clipping issues found by a 36-view headless Chrome audit across both Front Office and Personal Backoffice.

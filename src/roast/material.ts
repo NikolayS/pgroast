@@ -109,7 +109,12 @@ export function renderMaterial(p: ProposalInput, opts: MaterialOptions = {}): { 
   );
 
   if (p.patchProse.length) {
-    const lines = ["## Patch prose (commit messages, touched files, documentation hunks; code is never shown)"];
+    const hasCodeHunks = p.patchProse.some((pp) => (pp.codeHunks?.length ?? 0) > 0);
+    const lines = [
+      hasCodeHunks
+        ? "## Patch content (commit messages, touched files, doc hunks, AND actual source code diff hunks)"
+        : "## Patch prose (commit messages, touched files, documentation hunks; code is not shown in Light roast)",
+    ];
     if (p.latestPatchFrom || p.latestPatchVersion || p.latestPatchDate) {
       const meta = [
         p.latestPatchVersion ? `version ${p.latestPatchVersion}` : null,
@@ -125,8 +130,15 @@ export function renderMaterial(p: ProposalInput, opts: MaterialOptions = {}): { 
       for (const cm of pp.commitMessages) lines.push(`Commit message:\n${cm.subject}\n\n${cm.body}`.trim());
       if (pp.files.length) lines.push(`Files touched:\n${pp.files.map((f) => `- ${f}`).join("\n")}`);
       for (const h of pp.docHunks) lines.push(`Documentation hunk (${h.path}):\n${h.text}`);
-      if (pp.commitMessages.length === 0 && pp.docHunks.length === 0) lines.push("(no commit message and no documentation changes in this file)");
-      if (pp.truncated) lines.push("(prose truncated for length)");
+      if (pp.codeHunks?.length) {
+        for (const ch of pp.codeHunks) {
+          lines.push(`Code diff hunk (${ch.path}):\n\`\`\`diff\n${ch.text}\n\`\`\``);
+        }
+      }
+      if (pp.commitMessages.length === 0 && pp.docHunks.length === 0 && !pp.codeHunks?.length) {
+        lines.push("(no commit message and no documentation changes in this file)");
+      }
+      if (pp.truncated) lines.push("(patch content truncated for length)");
     }
     parts.push(lines.join("\n\n"));
   } else {
@@ -139,6 +151,10 @@ export function renderMaterial(p: ProposalInput, opts: MaterialOptions = {}): { 
 export function materialRawText(p: ProposalInput): string {
   return [
     ...p.thread.messages.map((m) => m.body),
-    ...p.patchProse.flatMap((pp) => [...pp.commitMessages.map((c) => c.subject + "\n" + c.body), ...pp.docHunks.map((h) => h.text)]),
+    ...p.patchProse.flatMap((pp) => [
+      ...pp.commitMessages.map((c) => c.subject + "\n" + c.body),
+      ...pp.docHunks.map((h) => h.text),
+      ...(pp.codeHunks ?? []).map((h) => h.text),
+    ]),
   ].join("\n\n");
 }

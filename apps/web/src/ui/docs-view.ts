@@ -168,8 +168,8 @@ const ALL_FEATURES: FeatureDocItem[] = [
     id: "bo-studio",
     category: "backoffice",
     categoryLabel: "Personal Backoffice",
-    title: "Roast Studio: 3 Levels × 8 Fictional Reviewer Archetypes",
-    summary: "Run Light, Medium, or Dark roasts locally with House Blend or any of 7 specialized fictional reviewer archetypes, using Claude, Codex, Antigravity (agy), or Cross-Family Dual mode. Records full prompts and transcripts locally.",
+    title: "Roast Studio: 3 Verification Levels × 8 Fictional Reviewer Archetypes",
+    summary: "Light checks the idea, thread, and 2,547 precedents (no code read). Medium reads C/H/SQL diffs, applies the patch, compiles PostgreSQL with -Dcassert=true, and runs targeted meson tests. Dark adds an isolated throwaway patched PostgreSQL cluster that runs adversarial SQL stress tests and checks logs for crashes, plus a reflection pass.",
     status: "live",
     actionLabel: "Set up Backoffice →",
     actionTab: "connect",
@@ -450,9 +450,9 @@ export function renderDocsTab(params: {
         <label>
           <span class="dim" style="font-size:11px;display:block;margin-bottom:3px;">Roast Level</span>
           <select id="pg-cli-level">
-            <option value="light">Light</option>
-            <option value="medium" selected>Medium</option>
-            <option value="dark">Dark</option>
+            <option value="light">Light (idea + precedents)</option>
+            <option value="medium" selected>Medium (code + build + test)</option>
+            <option value="dark">Dark (code + build + live PG SQL stress)</option>
           </select>
         </label>
         <label>

@@ -7,6 +7,7 @@ import { REPO_ROOT } from "../thread/fetch.ts";
 import type { ProposalInput, Thread } from "../thread/types.ts";
 import { loadInvariantFiles, renderInvariants, selectInvariants, type InvariantFile } from "./invariants.ts";
 import { buildRoastProfilePrompt, normalizeRoastFlavour, normalizeRoastLevel, type RoastFlavour, type RoastLevel } from "./flavours.ts";
+import { renderVerificationForPrompt, runPatchVerification, type VerificationReport } from "./verify.ts";
 import { toneCheck } from "./tone.ts";
 import { ENRICH_SCHEMA, RELEVANCE_SCHEMA, enrichPrecedents, openPgEnrichmentStore, type EnrichmentStore } from "./enrich.ts";
 import type { LlmBackend } from "./llm.ts";
@@ -60,8 +61,12 @@ export interface RunOptions {
   roastLevel?: RoastLevel;
   /** Review archetype flavour (default, edge-case-hunter, spec-lawyer, ...). */
   roastFlavour?: RoastFlavour;
-  /** Extra rounds after the first pass (default 0). 1 = "What did you forget?", 2 = + "Are you happy with the results?", 3+ = supervisor follow-ups. */
+  /** Extra rounds after the first pass (default 0; dark defaults to 1 reflection round). */
   rounds?: number;
+  /** Optional local postgres.git path for Medium/Dark git apply + meson compile + tests. */
+  pgRepo?: string;
+  /** Skip build/test verification harness (used by unit tests). */
+  skipVerify?: boolean;
   /** Injected for tests; default = the files under invariants/. */
   invariants?: InvariantFile[];
   /** Recorded in roast.json: "claude" | "codex". */
@@ -454,7 +459,56 @@ export async function runRoast(proposal: ProposalInput, opts: RunOptions): Promi
   for (const f of invariantFiles) for (const u of f.sourceUrls) allowed.add(u);
   if (invariantFiles.length) log(`invariants: ${invariantFiles.map((f) => f.file).join(", ")}`);
   const selfMode = opts.mode === "self";
-  const maxRounds = Math.max(0, Math.floor(opts.rounds ?? 0));
+  const defaultRounds = roastLevel === "dark" && !backend.dryRun && !opts.skipVerify ? 1 : 0;
+  const maxRounds = Math.max(0, Math.floor(opts.rounds ?? defaultRounds));
+
+  // Real Medium / Dark verification harness (code diff + git apply + meson compile + targeted tests + Dark live SQL stress)
+  let verification: VerificationReport | null = null;
+  if (roastLevel !== "light" && !backend.dryRun && !opts.skipVerify && !opts.search) {
+    verification = await runPatchVerification({
+      proposal,
+      level: roastLevel,
+      pgRepo: opts.pgRepo,
+      backend,
+      model: models.critic,
+      log,
+    });
+  } else {
+    const codeHunks = proposal.patchProse.filter((pp) => pp.isLatest !== false).flatMap((pp) => pp.codeHunks ?? []);
+    const codeFiles = new Set(codeHunks.map((h) => h.path)).size;
+    verification = {
+      level: roastLevel,
+      codeRead: roastLevel !== "light" && codeHunks.length > 0,
+      codeFilesCount: codeFiles,
+      codeHunksChars: codeHunks.reduce((a, h) => a + h.text.length, 0),
+      pgRepoUsed: null,
+      baseRef: "",
+      gitApply: "skipped",
+      applyDetail: "",
+      mesonCompile: "skipped",
+      compileDurationMs: 0,
+      compileDetail: "",
+      testsStatus: "skipped",
+      testsRun: 0,
+      testsPassed: 0,
+      testsFailed: 0,
+      testSuites: [],
+      testDetail: "",
+      liveReproStatus: "skipped",
+      liveReproCases: [],
+      surroundingContext: "",
+      evidenceBadges:
+        roastLevel === "light"
+          ? ["Thread + Precedents (no code read)"]
+          : codeFiles > 0
+            ? [`Code Diff (${codeFiles} file${codeFiles === 1 ? "" : "s"})`]
+            : ["Thread + Precedents (no code diff attached)"],
+    };
+  }
+  const verifySection =
+    verification && (verification.gitApply !== "skipped" || verification.codeRead || verification.liveReproCases.length > 0)
+      ? renderVerificationForPrompt(verification)
+      : "";
 
   // a. Brief
   log("brief ...");
@@ -555,6 +609,7 @@ export async function runRoast(proposal: ProposalInput, opts: RunOptions): Promi
   const shared = [
     head,
     `# Brief\n\n${JSON.stringify(brief, null, 1)}`,
+    ...(verifySection ? [verifySection] : []),
     `# Material\n\n${material.text}`,
     `# Precedents (retrieved by code; keyword search, so check relevance)\n\n${precedentText}`,
   ].join("\n\n");
@@ -957,6 +1012,7 @@ export async function runRoast(proposal: ProposalInput, opts: RunOptions): Promi
     mode: selfMode ? "self" : "review",
     roast_level: roastLevel,
     roast_flavour: roastFlavour,
+    verification,
     backend: opts.backendName ?? (backend.dryRun ? "dry-run" : "claude"),
     models,
     verdict: asm.verdict,

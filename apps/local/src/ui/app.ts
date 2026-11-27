@@ -298,9 +298,9 @@ const state: AppState = {
     effort: "xhigh",
     strategy: "unroasted-first",
     flavour: "default",
-    level: "medium",
-    count: 100,
-    workers: 4,
+    level: "dark",
+    count: 150,
+    workers: 2,
     publish: true,
     cfNumber: 62,
     status: "open",
@@ -2204,24 +2204,24 @@ function renderWorkbenchView(): string {
       id: "light",
       label: "Light Roast",
       beans: "●○○",
-      heat: "Gentle",
-      desc: "Constructive author pre-flight — spot weak points before posting.",
+      heat: "Idea & Precedents",
+      desc: "Thread, patch prose, and 2,547 precedents only. No code read, no compile.",
       swatch: "#d49a4a",
     },
     {
       id: "medium",
       label: "Medium Roast",
       beans: "●●○",
-      heat: "Balanced",
-      desc: "Standard committer review — direct, pragmatic, fair.",
+      heat: "Code + Build + Test",
+      desc: "Reads C/H/SQL diffs + postgres.git context, runs git apply, meson compile (-Dcassert), and targeted tests.",
       swatch: "#a85c2c",
     },
     {
       id: "dark",
       label: "Dark Roast",
       beans: "●●●",
-      heat: "Harsh 🔥",
-      desc: "Brutal stress-test on maintenance, demand, WAL & locking.",
+      heat: "Live PG Stress 🔥",
+      desc: "Everything in Medium + boots isolated patched Postgres cluster, runs adversarial SQL stress tests, checks logs + reflection.",
       swatch: "#6e2112",
     },
   ];
@@ -3304,9 +3304,9 @@ function renderJobsView(): string {
         <div class="form-field">
           <label>Roast Level</label>
           <select id="bulk-level">
-            <option value="light" ${b.level === "light" ? "selected" : ""}>Light</option>
-            <option value="medium" ${b.level === "medium" ? "selected" : ""}>Medium</option>
-            <option value="dark" ${b.level === "dark" ? "selected" : ""}>Dark</option>
+            <option value="light" ${b.level === "light" ? "selected" : ""}>Light (idea + precedents)</option>
+            <option value="medium" ${b.level === "medium" ? "selected" : ""}>Medium (code + build + test)</option>
+            <option value="dark" ${b.level === "dark" ? "selected" : ""}>Dark (code + build + live PG SQL stress)</option>
           </select>
         </div>
         <div class="form-field">

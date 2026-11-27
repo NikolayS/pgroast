@@ -166,7 +166,12 @@ export async function runBatch(o: BatchOptions): Promise<{ done: number; skipped
     (async (e: BatchEntry, dir: string) => {
       const transcriptDir = join(transcripts, String(e.id));
       const backend = o.dryRun ? new DryRunBackend({ transcriptDir, print: () => undefined }) : createBackend(backendName, { transcriptDir, log: (m) => log(`[${e.id}] ${m}`) });
-      const proposal = await loadProposal(String(e.id), { blind: o.blind, offline: o.offline });
+      const proposal = await loadProposal(String(e.id), {
+        blind: o.blind,
+        offline: o.offline,
+        includeCode: (o.roastLevel ?? "medium") !== "light",
+        maxCodeChars: (o.roastLevel ?? "medium") === "dark" ? 85_000 : 55_000,
+      });
       return runRoast(proposal, {
         backend,
         models,

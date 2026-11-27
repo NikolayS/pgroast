@@ -83,6 +83,80 @@ export interface PublishOpinionPayload {
   summary: string;
 }
 
+export function buildRichOpinionMarkdown(roast: Roast): string {
+  const parts: string[] = [];
+
+  if (roast.verification?.evidenceBadges?.length) {
+    parts.push(`**Verification:** ${roast.verification.evidenceBadges.join(" · ")}`);
+  }
+
+  if (roast.verdict_reasoning?.trim()) {
+    parts.push(`### Verdict Reasoning\n\n${roast.verdict_reasoning.trim()}`);
+  }
+
+  if (roast.verification && (roast.verification.gitApply !== "skipped" || roast.verification.liveReproCases.length > 0)) {
+    const v = roast.verification;
+    const vLines: string[] = ["### Build, Test & Live Verification"];
+    if (v.gitApply !== "skipped") {
+      vLines.push(`- **git apply (${v.baseRef || "master"}):** \`${v.gitApply}\` — ${v.applyDetail.replace(/\s+/g, " ").slice(0, 260)}`);
+    }
+    if (v.mesonCompile !== "skipped") {
+      vLines.push(`- **meson compile (-Dcassert=true):** \`${v.mesonCompile}\` (${Math.max(1, Math.round(v.compileDurationMs / 1000))}s) — ${v.compileDetail.replace(/\s+/g, " ").slice(0, 260)}`);
+    }
+    if (v.testsStatus !== "skipped") {
+      vLines.push(`- **meson test (${v.testSuites.join(", ")}):** \`${v.testsStatus}\` (${v.testsPassed}/${v.testsRun} passed${v.testsFailed ? `, ${v.testsFailed} failed` : ""})`);
+    }
+    if (v.liveReproCases.length > 0) {
+      vLines.push(`- **Live patched PostgreSQL SQL stress tests (\`${v.liveReproStatus}\`):**`);
+      for (const c of v.liveReproCases) {
+        const detail = c.errorExcerpt
+          ? ` — Error: \`${c.errorExcerpt.replace(/\s+/g, " ").slice(0, 220)}\``
+          : c.outputExcerpt
+            ? ` — Output: \`${c.outputExcerpt.replace(/\s+/g, " ").slice(0, 180)}\``
+            : "";
+        vLines.push(`  - \`[${c.status}]\` **${c.name}** (${c.category}, ${c.durationMs}ms)${detail}`);
+      }
+    }
+    parts.push(vLines.join("\n"));
+  }
+
+  const objs = roast.objections || [];
+  if (objs.length > 0) {
+    const oLines: string[] = [`### Key Objections (${objs.length})`];
+    objs.slice(0, 8).forEach((o, idx) => {
+      const nov = o.novelty === "open_in_thread" ? "open in thread" : o.novelty === "revisits_precedent" ? "revisits precedent" : "new";
+      oLines.push(`**${idx + 1}. ${o.title}** \`[${o.severity} · ${nov}]\``);
+      if (o.failure_scenario?.trim()) oLines.push(o.failure_scenario.trim());
+      if (o.argument?.trim()) oLines.push(o.argument.trim());
+      if (o.author_must_show?.trim()) oLines.push(`*Author must show:* ${o.author_must_show.trim()}`);
+      oLines.push("");
+    });
+    parts.push(oLines.join("\n").trim());
+  } else {
+    parts.push("### Objections\n\nNo material objection survived the counter-check.");
+  }
+
+  const qs = (roast.questions || []).filter((q) => q && q.trim());
+  if (qs.length > 0) {
+    parts.push(`### Questions for the Author\n\n${qs.slice(0, 5).map((q, i) => `${i + 1}. ${q.trim()}`).join("\n")}`);
+  }
+
+  const priors = (roast.prior_attempts || []).slice(0, 4);
+  if (priors.length > 0) {
+    parts.push(
+      `### Prior Attempts\n\n${priors
+        .map((p) => `- [${p.title}](${p.url}) (${p.status || "outcome unknown"}${p.date ? `, ${p.date.slice(0, 10)}` : ""}): ${(p.what_is_different || p.reason || "").trim()}`)
+        .join("\n")}`,
+    );
+  }
+
+  if (roast.provisional_note?.trim()) {
+    parts.push(`*Not checked:* ${roast.provisional_note.trim()}`);
+  }
+
+  return parts.join("\n\n").slice(0, 16_000).trim();
+}
+
 export function buildOpinionPayloadFromRoast(
   roast: Roast,
   opts?: { cfIdOverride?: number; summaryTxt?: string; backendOverride?: string },
@@ -95,24 +169,10 @@ export function buildOpinionPayloadFromRoast(
   const level = normalizeRoastLevel(roast.roast_level);
   const flavour = normalizeRoastFlavour(roast.roast_flavour);
 
-  const summaryParts: string[] = [];
-  if (opts?.summaryTxt && opts.summaryTxt.trim()) {
-    summaryParts.push(opts.summaryTxt.trim());
-  } else {
-    if (roast.verdict_reasoning) summaryParts.push(roast.verdict_reasoning.trim());
-    const topObjs = (roast.objections || []).slice(0, 3);
-    if (topObjs.length > 0) {
-      summaryParts.push(
-        "Key objections: " +
-          topObjs
-            .map((o) => `${o.title}${o.severity === "fatal" ? " [fatal]" : ""}`)
-            .join("; "),
-      );
-    }
-  }
-  const summary = summaryParts.join("\n\n").slice(0, 3500).trim();
+  const richMd = buildRichOpinionMarkdown(roast);
+  const summary = (richMd || opts?.summaryTxt?.trim() || roast.verdict_reasoning || "").slice(0, 16_000).trim();
 
-  // Build structured models metadata including canonical provider/model:effort spec
+  // Build structured models metadata including canonical provider/model:effort spec + verification badges
   const cleanModels: Record<string, string> = {};
   if (roast.models && typeof roast.models === "object") {
     for (const [k, v] of Object.entries(roast.models)) {
@@ -123,6 +183,9 @@ export function buildOpinionPayloadFromRoast(
   }
   const spec = formatCanonicalModelSpec(backend, cleanModels);
   if (spec) cleanModels.spec = spec;
+  if (roast.verification?.evidenceBadges?.length) {
+    cleanModels.evidence = roast.verification.evidenceBadges.join(" | ");
+  }
 
   const cf = roast.input?.cf as
     | { id: number; title?: string; status?: string | null; authors?: string; reviewers?: string; committer?: string }

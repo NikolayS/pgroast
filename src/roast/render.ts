@@ -363,10 +363,30 @@ export function renderCompactMarkdown(r: Roast, fullName = "roast-full.md"): str
   const latestPatchStr = formatLatestPatch(r);
   if (latestPatchStr) src.push(`patch ${latestPatchStr}`);
   src.push(formatRoastProfile(r.roast_level, r.roast_flavour));
-  src.push("no code read");
+  if (r.verification?.evidenceBadges?.length) {
+    src.push(r.verification.evidenceBadges.join(" · "));
+  } else {
+    src.push("no code read");
+  }
   out.push(`${src.join("; ")}.`, "");
   const compactFlavourNote = formatFlavourDisclaimer(r.roast_flavour);
   if (compactFlavourNote) out.push(`> ${compactFlavourNote}`, "");
+
+  if (r.verification && (r.verification.gitApply !== "skipped" || r.verification.liveReproCases.length > 0)) {
+    const v = r.verification;
+    out.push("## Verification & Build Evidence", "");
+    out.push(`- **Evidence:** ${v.evidenceBadges.join(" · ")}`);
+    if (v.gitApply !== "skipped") out.push(`- **git apply (${v.baseRef || "master"}):** ${v.gitApply} — ${oneLine(v.applyDetail)}`);
+    if (v.mesonCompile !== "skipped") out.push(`- **meson compile (-Dcassert=true):** ${v.mesonCompile} (${Math.round(v.compileDurationMs / 1000)}s) — ${oneLine(v.compileDetail)}`);
+    if (v.testsStatus !== "skipped") out.push(`- **meson test (${v.testSuites.join(", ")}):** ${v.testsStatus} (${v.testsPassed}/${v.testsRun} passed)`);
+    if (v.liveReproCases.length > 0) {
+      out.push(`- **Live patched PostgreSQL SQL stress tests (${v.liveReproStatus}):**`);
+      for (const c of v.liveReproCases) {
+        out.push(`  - \`[${c.status}]\` **${oneLine(c.name)}** (${c.category}, ${c.durationMs}ms)${c.errorExcerpt ? ` — \`${oneLine(c.errorExcerpt).slice(0, 160)}\`` : ""}`);
+      }
+    }
+    out.push("");
+  }
 
   const verdict = [
     `**${r.verdict}** (confidence: ${r.confidence}). ${stripInternalIds(r.verdict_reasoning)}`,

@@ -388,9 +388,9 @@ export function renderContributeTab(params: {
           <label>
             <span class="dim" style="font-size:11px;display:block;margin-bottom:3px;">Roast Level</span>
             <select id="qp-level">
-              <option value="light" ${previewLevel === "light" ? "selected" : ""}>Light</option>
-              <option value="medium" ${previewLevel === "medium" ? "selected" : ""}>Medium</option>
-              <option value="dark" ${previewLevel === "dark" ? "selected" : ""}>Dark</option>
+              <option value="light" ${previewLevel === "light" ? "selected" : ""}>Light (idea + precedents)</option>
+              <option value="medium" ${previewLevel === "medium" ? "selected" : ""}>Medium (code + build + test)</option>
+              <option value="dark" ${previewLevel === "dark" ? "selected" : ""}>Dark (code + build + live PG SQL stress)</option>
             </select>
           </label>
         </div>

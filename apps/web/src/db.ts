@@ -601,7 +601,7 @@ export class WebDatabase {
         modelsJson,
         input.verdict,
         input.confidence || "medium",
-        (input.summary || "").slice(0, 1200),
+        (input.summary || "").slice(0, 20000),
         new Date().toISOString(),
       ],
     )) as PublicOpinionRecord[];
@@ -1040,7 +1040,9 @@ export class WebDatabase {
          SELECT cf_id,
                 COUNT(*)::int AS total_ops,
                 COUNT(*) FILTER (WHERE LOWER(backend) = $1)::int AS same_backend_ops,
-                COUNT(*) FILTER (WHERE LOWER(backend) != $1)::int AS other_backend_ops
+                COUNT(*) FILTER (WHERE LOWER(backend) != $1)::int AS other_backend_ops,
+                COUNT(*) FILTER (WHERE LOWER(roast_level) IN ('medium', 'dark'))::int AS deep_ops,
+                COUNT(*) FILTER (WHERE LOWER(backend) = $1 AND LOWER(roast_level) = $3)::int AS same_backend_level_ops
          FROM ${this.t("public_opinions")}
          GROUP BY cf_id
        ),
@@ -1055,6 +1057,8 @@ export class WebDatabase {
               COALESCE(o.total_ops, 0)::int AS total_ops,
               COALESCE(o.same_backend_ops, 0)::int AS same_backend_ops,
               COALESCE(o.other_backend_ops, 0)::int AS other_backend_ops,
+              COALESCE(o.deep_ops, 0)::int AS deep_ops,
+              COALESCE(o.same_backend_level_ops, 0)::int AS same_backend_level_ops,
               COALESCE(l.lease_cnt, 0)::int AS lease_cnt,
               COALESCE(l.same_backend_lease, 0)::int AS same_backend_lease
        FROM ${this.t("public_entries")} e
@@ -1063,12 +1067,14 @@ export class WebDatabase {
        WHERE ${openWhere}
        ORDER BY e.recommended_score DESC, e.cf_id DESC
        LIMIT 1000`,
-      [backend, nowIso],
+      [backend, nowIso, level],
     )) as Array<
       PublicEntryRecord & {
         total_ops: number;
         same_backend_ops: number;
         other_backend_ops: number;
+        deep_ops: number;
+        same_backend_level_ops: number;
         lease_cnt: number;
         same_backend_lease: number;
       }
@@ -1094,24 +1100,33 @@ export class WebDatabase {
 
     const isUnroasted = (v: string) => !v || v === "UNROASTED";
 
+    const wantsDeep = level === "medium" || level === "dark";
     candidates.sort((a, b) => {
       if (strategy === "ready-for-committer") {
         const ra = a.status.toLowerCase().includes("ready for committer") ? 0 : 1;
         const rb = b.status.toLowerCase().includes("ready for committer") ? 0 : 1;
         if (ra !== rb) return ra - rb;
-        if (a.same_backend_ops !== b.same_backend_ops) return a.same_backend_ops - b.same_backend_ops;
+        if (wantsDeep && (a.deep_ops === 0) !== (b.deep_ops === 0)) return a.deep_ops === 0 ? -1 : 1;
+        if (a.same_backend_level_ops !== b.same_backend_level_ops) return a.same_backend_level_ops - b.same_backend_level_ops;
         if (a.total_ops !== b.total_ops) return a.total_ops - b.total_ops;
       } else if (strategy === "cross-model-second-opinion") {
         // Prioritize entries that already have an opinion (or baseline verdict) from another backend, but 0 from this backend
         const needSecondA = a.same_backend_ops === 0 && (a.other_backend_ops > 0 || !isUnroasted(a.verdict)) ? 0 : 1;
         const needSecondB = b.same_backend_ops === 0 && (b.other_backend_ops > 0 || !isUnroasted(b.verdict)) ? 0 : 1;
         if (needSecondA !== needSecondB) return needSecondA - needSecondB;
-        if (a.same_backend_ops !== b.same_backend_ops) return a.same_backend_ops - b.same_backend_ops;
+        if (a.same_backend_level_ops !== b.same_backend_level_ops) return a.same_backend_level_ops - b.same_backend_level_ops;
         if (statusRank(a.status) !== statusRank(b.status)) return statusRank(a.status) - statusRank(b.status);
       } else {
-        // unroasted-first: entries with no baseline verdict & 0 opinions first, then 0 opinions, then fewest opinions
-        const tierA = isUnroasted(a.verdict) && a.total_ops === 0 ? 0 : a.total_ops === 0 ? 1 : a.same_backend_ops === 0 ? 2 : 3;
-        const tierB = isUnroasted(b.verdict) && b.total_ops === 0 ? 0 : b.total_ops === 0 ? 1 : b.same_backend_ops === 0 ? 2 : 3;
+        // unroasted-first: entries with no baseline verdict & 0 opinions first, then 0 opinions, then light-only needing deep build/test verification, then missing this backend+level
+        const tierOf = (r: typeof a): number => {
+          if (isUnroasted(r.verdict) && r.total_ops === 0) return 0;
+          if (r.total_ops === 0) return 1;
+          if (wantsDeep && r.deep_ops === 0) return 2;
+          if (r.same_backend_level_ops === 0) return 3;
+          return 4;
+        };
+        const tierA = tierOf(a);
+        const tierB = tierOf(b);
         if (tierA !== tierB) return tierA - tierB;
         if (statusRank(a.status) !== statusRank(b.status)) return statusRank(a.status) - statusRank(b.status);
       }
@@ -1170,7 +1185,16 @@ export class WebDatabase {
       );
     }
 
-    const { total_ops: _a, same_backend_ops: _b, other_backend_ops: _c, lease_cnt: _d, same_backend_lease: _e, ...cleanPatch } = chosen;
+    const {
+      total_ops: _a,
+      same_backend_ops: _b,
+      other_backend_ops: _c,
+      deep_ops: _f,
+      same_backend_level_ops: _g,
+      lease_cnt: _d,
+      same_backend_lease: _e,
+      ...cleanPatch
+    } = chosen;
     return {
       patch: cleanPatch,
       suggestedFlavour,

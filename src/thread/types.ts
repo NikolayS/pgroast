@@ -76,7 +76,7 @@ export interface CommitMessage {
   body: string;
 }
 
-/** The prose parts of one patch attachment. Never contains code hunks. */
+/** The extracted content of one patch attachment. Code hunks are included only for medium/dark roasts. */
 export interface PatchProse {
   attachment: Attachment;
   fromMessageIndex: number;
@@ -89,6 +89,10 @@ export interface PatchProse {
   files: string[];
   /** Diff hunks for doc/, README* and *.md / *.sgml / *.rst files only. */
   docHunks: { path: string; text: string }[];
+  /** Code diff hunks (.c, .h, .sql, .pl, etc.), populated only when LoadOptions.includeCode is true. */
+  codeHunks?: { path: string; text: string }[];
+  /** Raw patch text for git apply in medium/dark verification (latest revision only). */
+  rawText?: string;
   truncated: boolean;
 }
 
@@ -101,6 +105,10 @@ export interface LoadOptions {
   cacheDir?: string;
   /** Skip attachment download. */
   noAttachments?: boolean;
+  /** Include C/H/SQL code hunks and raw patch text (used by medium and dark roasts). */
+  includeCode?: boolean;
+  /** Max total chars of code hunks to keep (default 60000). */
+  maxCodeChars?: number;
 }
 
 export type InputRef =

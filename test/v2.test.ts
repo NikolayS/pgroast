@@ -1160,4 +1160,120 @@ describe("v2 CLI publish & weekly quota auto-contribute", () => {
       rmSync(cfg.outDir, { recursive: true, force: true });
     }
   });
+
+  test("verification depth: code hunk extraction, meson suite mapping, and rich opinion markdown", async () => {
+    const { extractPatchCodeHunks } = await import("../src/thread/patchprose.ts");
+    const { selectTargetedMesonSuites, renderVerificationForPrompt } = await import("../src/roast/verify.ts");
+    const { buildRichOpinionMarkdown, buildOpinionPayloadFromRoast } = await import("../src/publish.ts");
+
+    const sampleDiff = [
+      "diff --git a/src/test/regress/expected/foo.out b/src/test/regress/expected/foo.out",
+      "--- a/src/test/regress/expected/foo.out",
+      "+++ b/src/test/regress/expected/foo.out",
+      "@@ -1 +1 @@",
+      "-old",
+      "+new",
+      "diff --git a/src/backend/access/nbtree/nbtsearch.c b/src/backend/access/nbtree/nbtsearch.c",
+      "--- a/src/backend/access/nbtree/nbtsearch.c",
+      "+++ b/src/backend/access/nbtree/nbtsearch.c",
+      "@@ -10,3 +10,5 @@ _bt_first()",
+      "+  if (so->skipScan)",
+      "+    return false;",
+      "diff --git a/contrib/pg_stat_statements/pg_stat_statements.c b/contrib/pg_stat_statements/pg_stat_statements.c",
+      "--- a/contrib/pg_stat_statements/pg_stat_statements.c",
+      "+++ b/contrib/pg_stat_statements/pg_stat_statements.c",
+      "@@ -1,2 +1,3 @@",
+      "+  int x = 1;",
+    ].join("\n");
+
+    const { codeHunks: hunks } = extractPatchCodeHunks(sampleDiff, 20_000);
+    // Backend C code is prioritized ahead of expected outputs
+    expect(hunks[0]!.path).toBe("src/backend/access/nbtree/nbtsearch.c");
+    expect(hunks.some((h) => h.path === "contrib/pg_stat_statements/pg_stat_statements.c")).toBe(true);
+
+    const suites = selectTargetedMesonSuites([
+      "contrib/pg_stat_statements/pg_stat_statements.c",
+      "src/backend/access/nbtree/nbtsearch.c",
+    ]);
+    expect(suites.some((s) => s.includes("pg_stat_statements"))).toBe(true);
+
+    const vReport = {
+      level: "dark" as const,
+      codeRead: true,
+      codeFilesCount: 2,
+      codeHunksChars: 512,
+      pgRepoUsed: "upstream/master",
+      baseRef: "upstream/master",
+      gitApply: "clean" as const,
+      applyDetail: "Applied 1 patch cleanly",
+      mesonCompile: "pass" as const,
+      compileDurationMs: 14000,
+      compileDetail: "0 warnings, -Dcassert=true",
+      testsStatus: "pass" as const,
+      testsRun: 1,
+      testsPassed: 1,
+      testsFailed: 0,
+      testSuites: ["regress/regress"],
+      testDetail: "1/1 ok",
+      liveReproStatus: "pass" as const,
+      liveReproCases: [
+        {
+          name: "NULL boundary scan",
+          category: "edge-case",
+          sql: "SELECT 1;",
+          status: "pass" as const,
+          durationMs: 12,
+          outputExcerpt: "1",
+          errorExcerpt: "",
+        },
+      ],
+      surroundingContext: "",
+      evidenceBadges: ["Code Diff (2 files)", "git apply: clean", "meson compile (-Dcassert): pass", "tests: 1/1 pass", "live PG SQL: 1/1 ok"],
+    };
+    const promptTxt = renderVerificationForPrompt(vReport);
+    expect(promptTxt).toContain("git apply: clean");
+    expect(promptTxt).toContain("NULL boundary scan");
+
+    const fakeRoast = {
+      schema_version: SCHEMA_VERSION,
+      generated_at: "2026-11-26T00:00:00Z",
+      backend: "codex",
+      roast_level: "dark",
+      roast_flavour: "default",
+      models: { roaster: "gpt-6.2-astra:xhigh", critic: "gpt-6.2-astra:xhigh", synth: "gpt-6.2-astra:xhigh" },
+      verdict: "NEEDS-COMMITTER-EYES",
+      confidence: "high",
+      verdict_reasoning: "Compiles cleanly with assertions enabled and passes live SQL checks, but skip-scan lock ordering needs review.",
+      objections: [
+        {
+          id: "o1",
+          title: "Missing page lock release on early return",
+          severity: "important",
+          novelty: "new",
+          failure_scenario: "Concurrent VACUUM waits indefinitely when _bt_first returns early.",
+          argument: "The early return skips _bt_relbuf(rel, buf).",
+          author_must_show: "Add _bt_relbuf or isolation test covering concurrent VACUUM.",
+          precedent_ids: [],
+          angles: ["correctness"],
+        },
+      ],
+      questions: ["Does _bt_first release the buffer pin on skipScan?"],
+      prior_attempts: [],
+      provisional_note: "",
+      verification: vReport,
+      input: { cf: { id: 7777, title: "Skip scan fix", status: "Needs review", authors: "Alice", reviewers: "", committer: "" } },
+    } as unknown as Roast;
+
+    const md = buildRichOpinionMarkdown(fakeRoast);
+    expect(md).toContain("### Verdict Reasoning");
+    expect(md).toContain("### Build, Test & Live Verification");
+    expect(md).toContain("### Key Objections (1)");
+    expect(md).toContain("Missing page lock release on early return");
+    expect(md).toContain("NULL boundary scan");
+
+    const payload = buildOpinionPayloadFromRoast(fakeRoast, { summaryTxt: "tiny stub" });
+    expect(payload.summary).toContain("Missing page lock release on early return");
+    expect(payload.models.spec).toBe("openai/gpt-6.2-astra:xhigh");
+    expect(payload.models.evidence).toContain("live PG SQL: 1/1 ok");
+  });
 });

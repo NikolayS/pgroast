@@ -411,7 +411,10 @@ export async function runContributeCycle(opts: {
         const result = opts.roastFn
           ? await opts.roastFn({ cfId, backend, level, flavour, outDir: patchOutDir })
           : await (async () => {
-              const proposal = await loadProposal(String(cfId), {});
+              const proposal = await loadProposal(String(cfId), {
+                includeCode: level !== "light",
+                maxCodeChars: level === "dark" ? 85_000 : 55_000,
+              });
               const transcriptDir = join(patchOutDir, "llm");
               const llm = createBackend(backend as BackendName, { transcriptDir, log: (m) => log(`  [${cfId}] ${m}`) });
               const models = modelsFromEnv(process.env, backend as BackendName);

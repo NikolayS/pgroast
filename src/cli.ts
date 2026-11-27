@@ -417,7 +417,13 @@ async function main(): Promise<number> {
   log(`reading ${args.proposal ?? args.input} ...`);
   const proposal = args.proposal
     ? loadLocalProposal(args.proposal, args.patches ?? [])
-    : await loadProposal(args.input, { blind: args.blind, before: args.before, offline: args.offline });
+    : await loadProposal(args.input, {
+        blind: args.blind,
+        before: args.before,
+        offline: args.offline,
+        includeCode: (args.roastLevel ?? "medium") !== "light",
+        maxCodeChars: (args.roastLevel ?? "medium") === "dark" ? 85_000 : 55_000,
+      });
   log(
     args.proposal
       ? `draft: "${proposal.thread.subject}", ${proposal.patchProse.length} patch file(s) read`

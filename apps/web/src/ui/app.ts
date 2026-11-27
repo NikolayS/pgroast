@@ -1095,12 +1095,154 @@ function formatModelsLabel(modelsJson: string): string {
   try {
     const obj = JSON.parse(modelsJson) as Record<string, string>;
     const vals = Object.entries(obj)
-      .filter(([k, v]) => k !== "spec" && Boolean(v))
+      .filter(([k, v]) => k !== "spec" && k !== "evidence" && Boolean(v))
       .map(([k, v]) => `${k}: ${v}`);
     return vals.join(" · ");
   } catch {
     return modelsJson;
   }
+}
+
+function extractOpinionEvidence(o: OpinionItem): string[] {
+  if (o.models_json && o.models_json !== "{}") {
+    try {
+      const obj = JSON.parse(o.models_json) as Record<string, string>;
+      if (obj.evidence && obj.evidence.trim()) {
+        return obj.evidence
+          .split(/\s*\|\s*|\s*·\s*/)
+          .map((s) => s.trim())
+          .filter(Boolean);
+      }
+    } catch {
+      // ignore
+    }
+  }
+  const lv = (o.roast_level || "light").toLowerCase();
+  return lv === "light" ? ["Thread + Precedents (no code read)"] : [];
+}
+
+function renderEvidenceStrip(badges: string[]): string {
+  if (!badges.length) return "";
+  const clsFor = (b: string): string => {
+    const low = b.toLowerCase();
+    if (/(?:fail|crash|error|rejected)/.test(low)) return "ev-err";
+    if (/(?:passed|clean|applied|compiled|cassert|sql|live)/.test(low) && !/skipped|no code/.test(low)) return "ev-ok";
+    if (/(?:skipped|no code|timeout|partial)/.test(low)) return "ev-warn";
+    return "ev-neutral";
+  };
+  return `<div class="opinion-evidence-strip" aria-label="Verification evidence">${badges
+    .map((b) => `<span class="ev-pill ${clsFor(b)}">${esc(b)}</span>`)
+    .join("")}</div>`;
+}
+
+function formatInlineMd(escaped: string): string {
+  let out = escaped;
+  // Safe links [label](https://...)
+  out = out.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, (_m, label: string, url: string) => {
+    return `<a href="${url}" target="_blank" rel="noopener">${label}</a>`;
+  });
+  // Inline code
+  out = out.replace(/`([^`\n]+)`/g, `<code class="mono">$1</code>`);
+  // Bold
+  out = out.replace(/\*\*([^*\n]+)\*\*/g, `<strong>$1</strong>`);
+  // Italic
+  out = out.replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, `$1<em>$2</em>`);
+  return out;
+}
+
+function renderOpinionMarkdown(raw: string): string {
+  const text = (raw || "").trim();
+  if (!text) return `<p class="muted">No summary text included.</p>`;
+  const lines = text.replace(/\r\n/g, "\n").split("\n");
+  const blocks: string[] = [];
+  let inCode = false;
+  let codeLines: string[] = [];
+  let listType: "ul" | "ol" | null = null;
+  let listItems: string[] = [];
+  let paraLines: string[] = [];
+
+  const flushPara = () => {
+    if (paraLines.length === 0) return;
+    blocks.push(`<p>${paraLines.map((l) => formatInlineMd(esc(l))).join("<br/>")}</p>`);
+    paraLines = [];
+  };
+  const flushList = () => {
+    if (!listType || listItems.length === 0) return;
+    blocks.push(`<${listType}>${listItems.map((it) => `<li>${formatInlineMd(esc(it))}</li>`).join("")}</${listType}>`);
+    listType = null;
+    listItems = [];
+  };
+
+  for (const line of lines) {
+    if (line.trim().startsWith("```")) {
+      flushPara();
+      flushList();
+      if (inCode) {
+        blocks.push(`<pre class="op-code mono"><code>${esc(codeLines.join("\n"))}</code></pre>`);
+        codeLines = [];
+        inCode = false;
+      } else {
+        inCode = true;
+      }
+      continue;
+    }
+    if (inCode) {
+      codeLines.push(line);
+      continue;
+    }
+    const trimmed = line.trim();
+    if (!trimmed) {
+      flushPara();
+      flushList();
+      continue;
+    }
+    const hMatch = trimmed.match(/^(#{2,4})\s+(.+)$/);
+    if (hMatch) {
+      flushPara();
+      flushList();
+      const tag = hMatch[1]!.length <= 3 ? "h4" : "h5";
+      blocks.push(`<${tag} class="op-h">${formatInlineMd(esc(hMatch[2]!))}</${tag}>`);
+      continue;
+    }
+    const ulMatch = line.match(/^\s*[-*]\s+(.+)$/);
+    if (ulMatch) {
+      flushPara();
+      if (listType && listType !== "ul") flushList();
+      listType = "ul";
+      listItems.push(ulMatch[1]!);
+      continue;
+    }
+    const olMatch = line.match(/^\s*\d+\.\s+(.+)$/);
+    if (olMatch) {
+      flushPara();
+      if (listType && listType !== "ol") flushList();
+      listType = "ol";
+      listItems.push(olMatch[1]!);
+      continue;
+    }
+    flushList();
+    paraLines.push(trimmed);
+  }
+  if (inCode && codeLines.length > 0) {
+    blocks.push(`<pre class="op-code mono"><code>${esc(codeLines.join("\n"))}</code></pre>`);
+  }
+  flushPara();
+  flushList();
+  return blocks.join("");
+}
+
+function summarizeOpinionPreview(md: string): string {
+  const lines = (md || "")
+    .replace(/\r\n/g, "\n")
+    .split("\n")
+    .map((l) => l.trim())
+    .filter((l) => l && !l.startsWith("#") && !l.startsWith("**Verification:**"));
+  const first = (lines[0] || "View patch consensus & full opinion")
+    .replace(/\*\*([^*]+)\*\*/g, "$1")
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+    .replace(/^[-*]\s+/, "");
+  return first.length > 220 ? `${first.slice(0, 219).trimEnd()}…` : first;
 }
 
 function cleanQuoteForDisplay(raw: string): string {
@@ -1728,6 +1870,7 @@ function renderPatchPage(): string {
               .map((o) => {
                 const initials = (o.contributor_name || o.contributor_handle || "?").slice(0, 2).toUpperCase();
                 const modelsText = formatModelsLabel(o.models_json);
+                const evidenceBadges = extractOpinionEvidence(o);
                 return `
               <article class="opinion-card">
                 <div class="opinion-head">
@@ -1746,8 +1889,9 @@ function renderPatchPage(): string {
                     ${verdictPill(o.verdict)}
                   </div>
                 </div>
+                ${renderEvidenceStrip(evidenceBadges)}
                 ${modelsText ? `<div class="dim mono" style="font-size:11.5px;">Models: ${esc(modelsText)} · Confidence: ${esc(o.confidence || "medium")}</div>` : `<div class="dim" style="font-size:11.5px;">Confidence: ${esc(o.confidence || "medium")}</div>`}
-                <div class="opinion-body">${esc(o.summary || "No summary text included.")}</div>
+                <div class="opinion-body">${renderOpinionMarkdown(o.summary || "")}</div>
               </article>
             `;
               })
@@ -2856,12 +3000,16 @@ function renderOpinionsTab(): string {
               </div>
               ${CHEVRON_SVG}
             </div>
-            <div class="issue-title" style="font-size:13.5px;">${esc(o.summary || "View patch consensus & full opinion")}</div>
+            <div class="issue-title" style="font-size:13.5px;">${esc(summarizeOpinionPreview(o.summary || ""))}</div>
             <div class="issue-meta">
               ${verdictPill(o.verdict)}
               <span class="tag-micro">${esc(o.contributor_name)} (@${esc(o.contributor_handle)})</span>
               <span class="tag-micro mono">${esc(formatOpinionModelSpec(o.backend, o.models_json))}</span>
               <span class="tag-micro">${esc(formatOpinionProfile(o))}</span>
+              ${extractOpinionEvidence(o)
+                .slice(0, 3)
+                .map((b) => `<span class="tag-micro">${esc(b)}</span>`)
+                .join("")}
             </div>
           </button>
         `,
