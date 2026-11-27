@@ -9,7 +9,7 @@ import { loadInvariantFiles, renderInvariants, selectInvariants, type InvariantF
 import { buildRoastProfilePrompt, normalizeRoastFlavour, normalizeRoastLevel, type RoastFlavour, type RoastLevel } from "./flavours.ts";
 import { renderVerificationForPrompt, runPatchVerification, type VerificationReport } from "./verify.ts";
 import { toneCheck } from "./tone.ts";
-import { ENRICH_SCHEMA, RELEVANCE_SCHEMA, enrichPrecedents, openPgEnrichmentStore, type EnrichmentStore } from "./enrich.ts";
+import { ENRICH_SCHEMA, RELEVANCE_SCHEMA, enrichPrecedents, openEnrichmentStore, type EnrichmentStore } from "./enrich.ts";
 import type { LlmBackend } from "./llm.ts";
 import { materialRawText, renderMaterial } from "./material.ts";
 import { renderPrecedentsForPrompt, retrievePrecedents, type SearchFn } from "./precedents.ts";
@@ -551,8 +551,8 @@ export async function runRoast(proposal: ProposalInput, opts: RunOptions): Promi
   let enrichment: Roast["enrichment"] = null;
   if (pool.length > 0 && opts.enrich !== false && !backend.dryRun) {
     log("enriching precedents ...");
-    const store = opts.enrichStore === undefined ? await openPgEnrichmentStore() : opts.enrichStore;
-    if (!store) warnings.push("the enrichment table could not be opened: precedent summaries are not cached in this run");
+    const store = opts.enrichStore === undefined ? await openEnrichmentStore() : opts.enrichStore;
+    if (!store) warnings.push("the enrichment cache could not be opened: precedent summaries are not cached in this run");
     const res = await enrichPrecedents(pool, {
       backend,
       model: models.roaster,

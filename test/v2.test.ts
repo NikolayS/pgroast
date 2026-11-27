@@ -1490,4 +1490,32 @@ describe("v2 CLI publish & weekly quota auto-contribute", () => {
       }),
     ).rejects.toThrow(/HTTP 409/);
   });
+
+  test("FileEnrichmentStore persists precedent summaries without Postgres (zero-DB fallback)", async () => {
+    const { FileEnrichmentStore, openEnrichmentStore } = await import("../src/roast/enrich.ts");
+    const tmpDir = mkdtempSync(join(tmpdir(), "pgroast-enrich-cache-"));
+    const cacheFile = join(tmpDir, "enrichment.json");
+
+    const store = await openEnrichmentStore(join(tmpDir, "missing-root"), cacheFile);
+    expect(store).not.toBeNull();
+    await store!.put({
+      thread_url: "https://www.postgresql.org/message-id/test-123@example.org",
+      raw_ref: "cf:123",
+      kind: "cf",
+      as_of: "2026-01-01",
+      summary: "Test proposal summary",
+      objection: "Rejected due to WAL overhead",
+      objectors: ["Tom Lane"],
+      key_quote: "This adds WAL overhead.",
+      quote_message_url: "https://www.postgresql.org/message-id/test-123@example.org",
+      model: "claude-opus",
+      created_at: "2026-11-27T00:00:00Z",
+    });
+
+    // Reload from disk in a new store instance
+    const reloaded = new FileEnrichmentStore(cacheFile);
+    const hit = await reloaded.get("https://www.postgresql.org/message-id/test-123@example.org", "2026-01-01");
+    expect(hit?.objection).toBe("Rejected due to WAL overhead");
+    expect(hit?.objectors).toEqual(["Tom Lane"]);
+  });
 });

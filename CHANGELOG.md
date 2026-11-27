@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.5.1 (2026-11-27)
+
+Adds a zero-DB local JSON enrichment cache (`~/.pgroast/cache/enrichment.json`) so `npx pgroast` runs without local Postgres no longer print `warning: the enrichment table could not be opened` and reuse enriched precedent summaries across runs.
+
+### Changes
+
+- **Zero-DB Enrichment Cache (`src/roast/enrich.ts`, `src/roast/pipeline.ts`):**
+  - Added `FileEnrichmentStore` with atomic file writes to `~/.pgroast/cache/enrichment.json` and `openEnrichmentStore()`, which uses Postgres when available and falls back to the local file cache automatically.
+
 ## v0.5.0 (2026-11-27)
 
 Makes roasting and publishing to `pgroast.postgres.ai` a single command with no manual token copying:

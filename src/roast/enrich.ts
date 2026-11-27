@@ -15,8 +15,9 @@
 //    anything later than a date the retrieval cutoff has already allowed.
 //  - the proposal's own thread is never read here.
 
-import { existsSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { dirname, join } from "node:path";
 import { REPO_ROOT } from "../thread/fetch.ts";
 import { loadCfEntry, loadThread } from "../thread/load.ts";
 import type { Thread, ThreadMessage } from "../thread/types.ts";
@@ -55,6 +56,46 @@ export class MemoryEnrichmentStore implements EnrichmentStore {
   }
   async put(e: Enrichment) {
     this.rows.set(`${e.thread_url}|${e.as_of}`, e);
+  }
+}
+
+export const DEFAULT_ENRICHMENT_CACHE_PATH = join(homedir(), ".pgroast", "cache", "enrichment.json");
+
+/** Zero-DB local JSON cache for enriched precedent summaries (~/.pgroast/cache/enrichment.json). */
+export class FileEnrichmentStore implements EnrichmentStore {
+  private readonly filePath: string;
+  private readonly rows = new Map<string, Enrichment>();
+
+  constructor(filePath: string = DEFAULT_ENRICHMENT_CACHE_PATH) {
+    this.filePath = filePath;
+    try {
+      if (existsSync(filePath)) {
+        const parsed = JSON.parse(readFileSync(filePath, "utf8")) as Record<string, Enrichment>;
+        if (parsed && typeof parsed === "object") {
+          for (const [k, v] of Object.entries(parsed)) {
+            if (v && typeof v === "object" && typeof v.thread_url === "string") {
+              this.rows.set(k, v);
+            }
+          }
+        }
+      }
+    } catch {
+      // ignore corrupt/unreadable cache file; start fresh
+    }
+  }
+
+  async get(threadUrl: string, asOf: string): Promise<Enrichment | null> {
+    return this.rows.get(`${threadUrl}|${asOf}`) ?? null;
+  }
+
+  async put(e: Enrichment): Promise<void> {
+    this.rows.set(`${e.thread_url}|${e.as_of}`, e);
+    mkdirSync(dirname(this.filePath), { recursive: true });
+    const obj: Record<string, Enrichment> = {};
+    for (const [k, v] of this.rows) obj[k] = v;
+    const tmp = `${this.filePath}.${process.pid}.${Math.random().toString(36).slice(2, 8)}.tmp`;
+    writeFileSync(tmp, JSON.stringify(obj, null, 2) + "\n", "utf8");
+    renameSync(tmp, this.filePath);
   }
 }
 
@@ -109,6 +150,20 @@ export async function openPgEnrichmentStore(root: string = REPO_ROOT): Promise<E
         await sql.close();
       },
     };
+  } catch {
+    return null;
+  }
+}
+
+/** Open Postgres enrichment store when available, otherwise fall back to local JSON cache (~/.pgroast/cache/enrichment.json). */
+export async function openEnrichmentStore(
+  root: string = REPO_ROOT,
+  fallbackFilePath: string = DEFAULT_ENRICHMENT_CACHE_PATH,
+): Promise<EnrichmentStore | null> {
+  const pg = await openPgEnrichmentStore(root);
+  if (pg) return pg;
+  try {
+    return new FileEnrichmentStore(fallbackFilePath);
   } catch {
     return null;
   }

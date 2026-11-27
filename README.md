@@ -39,7 +39,7 @@ Live public hub: **[https://pgroast.postgres.ai](https://pgroast.postgres.ai)** 
 
 Given a `pgsql-hackers` thread or CommitFest entry, `pgroast` checks earlier rejected attempts and reverts, raises the strongest objections with concrete failure scenarios, and checks 15 Postgres touch points. A Critic pass then tries to refute every objection so only solid findings survive.
 
-Version: `v0.5.0`. The CLI writes local files only unless you explicitly pass `--publish`, run `pgroast publish`, or opt-in to `pgroast contribute --publish`. The Personal Backoffice (`apps/local`) adds explicit-confirmation CommitFest actions, local Gmail drafts, and opt-in publishing of sanitized roasts to the Public App (`apps/web`).
+Version: `v0.5.1`. The CLI writes local files only unless you explicitly pass `--publish`, run `pgroast publish`, or opt-in to `pgroast contribute --publish`. The Personal Backoffice (`apps/local`) adds explicit-confirmation CommitFest actions, local Gmail drafts, and opt-in publishing of sanitized roasts to the Public App (`apps/web`).
 
 ## What you get
 
