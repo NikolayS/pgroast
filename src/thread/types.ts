@@ -109,6 +109,12 @@ export interface LoadOptions {
   includeCode?: boolean;
   /** Max total chars of code hunks to keep (default 60000). */
   maxCodeChars?: number;
+  /** Max individual /message-id/ pages to fetch when /message-id/flat/ falls back. Default 35. */
+  maxNonFlatMessages?: number;
+  /** Injected for tests. */
+  fetchImpl?: typeof fetch;
+  sleepImpl?: (ms: number) => Promise<void>;
+  log?: (msg: string) => void;
 }
 
 export type InputRef =

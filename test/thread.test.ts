@@ -3,8 +3,27 @@ import { mkdirSync, mkdtempSync, readFileSync, writeFileSync, existsSync } from 
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { cachePath, fetchText, USER_AGENT } from "../src/thread/fetch.ts";
-import { filterMessages, loadProposal, parseInputRef, pickProposalMessages, redactCf } from "../src/thread/load.ts";
-import { flatThreadUrl, htmlToText, normTimestamp, parseCommitfestPatch, parseFlatThread, parseSize } from "../src/thread/parse.ts";
+import {
+  filterMessages,
+  getFlatCircuitBreakerState,
+  loadProposal,
+  loadThread,
+  parseInputRef,
+  pickProposalMessages,
+  redactCf,
+  resetFlatCircuitBreaker,
+} from "../src/thread/load.ts";
+import {
+  flatThreadUrl,
+  htmlToText,
+  messageUrl,
+  normTimestamp,
+  parseCommitfestPatch,
+  parseFlatThread,
+  parseSingleMessagePage,
+  parseSize,
+  selectNonFlatMessageIds,
+} from "../src/thread/parse.ts";
 import { extractPatchProse, isDocPath, isReadableAttachment } from "../src/thread/patchprose.ts";
 
 const FIX = join(import.meta.dir, "thread-fixtures");
@@ -321,5 +340,198 @@ describe("loadProposal (offline, from fixtures)", () => {
 
   test("a cutoff before the thread start is an error", async () => {
     await expect(loadProposal("5253", { before: "2020-01-01", offline: true, cacheDir: primeCache() })).rejects.toThrow(/no messages left/);
+  });
+});
+
+function makeSingleMessageHtml(opts: {
+  id: string;
+  from: string;
+  date: string;
+  subject: string;
+  body: string;
+  attachment?: string;
+  threadSelect?: Array<{ id: string; date: string; from: string; att?: boolean }>;
+  responses?: string[];
+}): string {
+  const selectHtml = opts.threadSelect
+    ? `<tr><th scope="row">Thread:</th><td><select id="thread_select" class="custom-select">
+        ${opts.threadSelect
+          .map(
+            (o) =>
+              `<option value="${encodeURIComponent(o.id)}">${o.date} from ${o.from}${o.att ? "\t&#x1f4ce;" : ""}</option>`,
+          )
+          .join("\n")}
+      </select></td></tr>`
+    : "";
+  const attHtml = opts.attachment
+    ? `<table class="table table-sm table-responsive message-attachments"><tbody><tr>
+        <th scope="row"><a href="/message-id/attachment/999/${opts.attachment}">${opts.attachment}</a></th>
+        <td>text/plain</td><td>4.2 KB</td>
+      </tr></tbody></table>`
+    : "";
+  const respHtml = opts.responses?.length
+    ? `<h3 class="messages">Responses</h3><ul class="message-responses">${opts.responses
+        .map((id) => `<li><a href="/message-id/${encodeURIComponent(id)}">Re: ${opts.subject}</a></li>`)
+        .join("")}</ul>`
+    : "";
+  return `<html><body>
+    <table class="table-sm table-responsive message-header">
+      <tr><th scope="row">From:</th><td>${opts.from}</td></tr>
+      <tr><th scope="row">Subject:</th><td>${opts.subject}</td></tr>
+      <tr><th scope="row">Date:</th><td>${opts.date}</td></tr>
+      <tr><th scope="row">Message-ID:</th><td><a href="/message-id/${encodeURIComponent(opts.id)}">${opts.id}</a></td></tr>
+      ${selectHtml}
+      <tr><th scope="row">Lists:</th><td><span class="listname"><a href="/list/pgsql-hackers/">pgsql-hackers</a></span></td></tr>
+    </table>
+    <div class="message-content"><p>${opts.body}</p></div>
+    ${attHtml}
+    ${respHtml}
+    <h3 class="messages">Browse pgsql-hackers by date</h3>
+    <table class="table table-sm table-responsive message-nav"><tbody>
+      <tr><th><a href="/message-id/unrelated-next%40example.org">Next Message</a></th><td>Someone Else</td><td>2026-11-27 16:00:00</td><td><a href="/message-id/unrelated-next%40example.org">Unrelated thread</a></td></tr>
+    </tbody></table>
+  </body></html>`;
+}
+
+describe("parseSingleMessagePage & selectNonFlatMessageIds", () => {
+  test("parses message, thread_select options, attachments, and ignores message-nav", () => {
+    const html = makeSingleMessageHtml({
+      id: "m2@example.org",
+      from: "Reviewer <rev@example.org>",
+      date: "2026-11-25 14:01:30",
+      subject: "Re: Skip FK checks",
+      body: "Updated patch attached.",
+      attachment: "v2-0001-skip-fk.patch",
+      threadSelect: [
+        { id: "m1@example.org", date: "2026-11-24 22:10:26", from: "Author", att: true },
+        { id: "m2@example.org", date: "2026-11-25 14:01:30", from: "Reviewer", att: true },
+        { id: "m3@example.org", date: "2026-11-26 09:00:00", from: "Author" },
+      ],
+      responses: ["m1@example.org"],
+    });
+    const parsed = parseSingleMessagePage(html);
+    expect(parsed.message.messageId).toBe("m2@example.org");
+    expect(parsed.message.date).toBe("2026-11-25T14:01:30Z");
+    expect(parsed.message.attachments.map((a) => a.name)).toEqual(["v2-0001-skip-fk.patch"]);
+    expect(parsed.lists).toEqual(["pgsql-hackers"]);
+    expect(parsed.threadMessages.length).toBe(3);
+    expect(parsed.threadMessages[0]!.hasAttachment).toBe(true);
+    expect(parsed.threadMessages[2]!.hasAttachment).toBe(false);
+    expect(parsed.responseIds).toEqual(["m1@example.org"]);
+    expect(parsed.threadMessages.some((t) => t.messageId.includes("unrelated"))).toBe(false);
+    expect(parsed.responseIds.some((id) => id.includes("unrelated"))).toBe(false);
+  });
+
+  test("selectNonFlatMessageIds sorts chronologically and preserves head, tail, and patch revisions", () => {
+    const opts = Array.from({ length: 80 }, (_, i) => ({
+      messageId: `msg-${String(i + 1).padStart(2, "0")}@example.org`,
+      date: `2026-10-${String(1 + Math.floor(i / 3)).padStart(2, "0")}T${String((i % 3) * 8).padStart(2, "0")}:00:00Z`,
+      from: "Hacker",
+      hasAttachment: i === 0 || i === 35 || i === 60,
+    })).reverse();
+    const res = selectNonFlatMessageIds(opts, 20);
+    expect(res.truncated).toBe(true);
+    expect(res.totalBeforeLimit).toBe(80);
+    expect(res.selected.length).toBe(20);
+    expect(res.selected[0]).toBe("msg-01@example.org");
+    expect(res.selected).toContain("msg-36@example.org");
+    expect(res.selected).toContain("msg-61@example.org");
+    expect(res.selected[res.selected.length - 1]).toBe("msg-80@example.org");
+
+    const blind = selectNonFlatMessageIds(opts, 20, { blind: 3 });
+    expect(blind.selected).toEqual(["msg-01@example.org", "msg-02@example.org", "msg-03@example.org"]);
+  });
+});
+
+describe("loadThread /flat/ circuit breaker", () => {
+  const noSleep = async () => undefined;
+  const quiet = () => undefined;
+
+  test("falls back immediately on /flat/ 500, trips after 2 consecutive failures, and skips /flat/ while open", async () => {
+    resetFlatCircuitBreaker();
+    const dir = mkdtempSync(join(tmpdir(), "pgroast-breaker-"));
+    const requested: string[] = [];
+
+    const makePages = (prefix: string) => {
+      const m1 = `${prefix}-1@example.org`;
+      const m2 = `${prefix}-2@example.org`;
+      const threadSelect = [
+        { id: m1, date: "2026-11-24 10:00:00", from: "Alice", att: true },
+        { id: m2, date: "2026-11-25 12:00:00", from: "Bob" },
+      ];
+      return new Map<string, string>([
+        [
+          messageUrl(m1),
+          makeSingleMessageHtml({
+            id: m1,
+            from: "Alice",
+            date: "2026-11-24 10:00:00",
+            subject: `Patch ${prefix}`,
+            body: "Initial patch.",
+            attachment: `v1-${prefix}.patch`,
+            threadSelect,
+          }),
+        ],
+        [
+          messageUrl(m2),
+          makeSingleMessageHtml({
+            id: m2,
+            from: "Bob",
+            date: "2026-11-25 12:00:00",
+            subject: `Re: Patch ${prefix}`,
+            body: "Looks reasonable.",
+            threadSelect,
+          }),
+        ],
+      ]);
+    };
+
+    const pages = new Map([...makePages("t1"), ...makePages("t2"), ...makePages("t3")]);
+    const fetchImpl = (async (url: string) => {
+      requested.push(url);
+      if (url.includes("/message-id/flat/")) {
+        return new Response("Internal Server Error", { status: 500 });
+      }
+      const body = pages.get(url);
+      return body ? new Response(body, { status: 200 }) : new Response("not found", { status: 404 });
+    }) as unknown as typeof fetch;
+
+    const opts = { cacheDir: dir, fetchImpl, sleepImpl: noSleep, log: quiet };
+
+    // 1st failure: tries /flat/, falls back immediately to /message-id/, breaker still closed
+    const t1 = await loadThread("t1-1@example.org", opts);
+    expect(t1.messages.length).toBe(2);
+    expect(t1.messages[0]!.attachments[0]!.name).toBe("v1-t1.patch");
+    expect(t1.threadUrl).toBe(messageUrl("t1-1@example.org"));
+    expect(getFlatCircuitBreakerState().consecutiveFails).toBe(1);
+    expect(getFlatCircuitBreakerState().isOpen).toBe(false);
+
+    // 2nd consecutive failure: trips the circuit breaker
+    const t2 = await loadThread("t2-1@example.org", opts);
+    expect(t2.messages.length).toBe(2);
+    expect(getFlatCircuitBreakerState().consecutiveFails).toBe(2);
+    expect(getFlatCircuitBreakerState().isOpen).toBe(true);
+
+    // 3rd thread while breaker is open: must NOT call /message-id/flat/ at all!
+    const beforeT3 = requested.length;
+    const t3 = await loadThread("t3-1@example.org", opts);
+    expect(t3.messages.length).toBe(2);
+    const t3Urls = requested.slice(beforeT3);
+    expect(t3Urls.some((u) => u.includes("/message-id/flat/"))).toBe(false);
+    expect(t3Urls.every((u) => u.includes("/message-id/t3-"))).toBe(true);
+
+    resetFlatCircuitBreaker();
+  });
+
+  test("404 on /flat/ throws without tripping the breaker", async () => {
+    resetFlatCircuitBreaker();
+    const dir = mkdtempSync(join(tmpdir(), "pgroast-breaker-404-"));
+    const fetchImpl = (async () => new Response("Not Found", { status: 404 })) as unknown as typeof fetch;
+    await expect(
+      loadThread("does-not-exist@example.org", { cacheDir: dir, fetchImpl, sleepImpl: noSleep, log: quiet }),
+    ).rejects.toThrow(/thread not found/);
+    expect(getFlatCircuitBreakerState().consecutiveFails).toBe(0);
+    expect(getFlatCircuitBreakerState().isOpen).toBe(false);
+    resetFlatCircuitBreaker();
   });
 });

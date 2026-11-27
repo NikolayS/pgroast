@@ -38,8 +38,12 @@ export interface FetchOptions {
   /** Never touch the network; a cache miss returns null. */
   offline?: boolean;
   maxTries?: number;
+  /** Initial retry backoff in ms for 429/5xx/network errors (default 5000). */
+  initialDelayMs?: number;
   /** Refuse bodies larger than this (bytes). The body is not cached when refused. */
   maxBytes?: number;
+  /** Optional hook receiving the HTTP status of each network response (0 on network error). */
+  onStatus?: (status: number) => void;
   /** Injected for tests. */
   fetchImpl?: typeof fetch;
   sleepImpl?: (ms: number) => Promise<void>;
@@ -114,7 +118,7 @@ async function fetchUncached(url: string, p: string, opts: FetchOptions): Promis
   const doSleep = opts.sleepImpl ?? sleep;
   const log = opts.log ?? ((m: string) => console.error(m));
   const maxTries = opts.maxTries ?? 5;
-  let delay = 5000;
+  let delay = opts.initialDelayMs ?? 5000;
 
   for (let attempt = 0; attempt < maxTries; attempt++) {
     const wait = (lastRequestAt.get(host) ?? 0) + MIN_INTERVAL_MS - Date.now();
@@ -128,6 +132,7 @@ async function fetchUncached(url: string, p: string, opts: FetchOptions): Promis
         credentials: "omit",
         signal: AbortSignal.timeout(60_000),
       });
+      opts.onStatus?.(res.status);
       if (res.status === 404 || res.status === 410) {
         mkdirSync(dirname(p), { recursive: true });
         writeFileSync(p + ".404", "");
@@ -135,11 +140,15 @@ async function fetchUncached(url: string, p: string, opts: FetchOptions): Promis
         return null;
       }
       if (res.status === 429 || res.status >= 500) {
-        const ra = parseRetryAfter(res.headers.get("retry-after"));
-        const pause = Math.min(ra ?? delay, 300_000);
-        log(`  HTTP ${res.status} on ${url}; backing off ${Math.round(pause / 1000)}s`);
-        await doSleep(pause);
-        delay = Math.min(delay * 2, 300_000);
+        if (attempt + 1 < maxTries) {
+          const ra = parseRetryAfter(res.headers.get("retry-after"));
+          const pause = Math.min(ra ?? delay, 300_000);
+          log(`  HTTP ${res.status} on ${url}; backing off ${Math.round(pause / 1000)}s`);
+          await doSleep(pause);
+          delay = Math.min(delay * 2, 300_000);
+        } else {
+          log(`  HTTP ${res.status} on ${url}; giving up after ${maxTries} tries`);
+        }
         continue;
       }
       if (!res.ok) {
@@ -163,9 +172,14 @@ async function fetchUncached(url: string, p: string, opts: FetchOptions): Promis
       stats.fetched++;
       return body;
     } catch (e) {
-      log(`  network error on ${url}: ${(e as Error).message}; backing off ${Math.round(delay / 1000)}s`);
-      await doSleep(delay);
-      delay = Math.min(delay * 2, 300_000);
+      opts.onStatus?.(0);
+      if (attempt + 1 < maxTries) {
+        log(`  network error on ${url}: ${(e as Error).message}; backing off ${Math.round(delay / 1000)}s`);
+        await doSleep(delay);
+        delay = Math.min(delay * 2, 300_000);
+      } else {
+        log(`  network error on ${url}: ${(e as Error).message}; giving up after ${maxTries} tries`);
+      }
     }
   }
   stats.failed++;

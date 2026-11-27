@@ -102,6 +102,183 @@ function parseAttachments(block: string): Attachment[] {
   return out;
 }
 
+export interface ThreadSelectOption {
+  messageId: string;
+  date: string | null;
+  from: string;
+  hasAttachment: boolean;
+}
+
+export interface ParsedSingleMessage {
+  message: ThreadMessage;
+  lists: string[];
+  /** All messages listed in <select id="thread_select">, if present on the page. */
+  threadMessages: ThreadSelectOption[];
+  /** Message IDs linked from <ul class="message-responses"> ("In response to" / "Responses"). */
+  responseIds: string[];
+}
+
+function decodeMsgIdToken(raw: string): string {
+  const unescaped = decodeEntities(raw).trim().replace(/\/+$/, "");
+  try {
+    return decodeURIComponent(unescaped);
+  } catch {
+    return unescaped;
+  }
+}
+
+/**
+ * Parse a single non-flat archive page: https://www.postgresql.org/message-id/<msgid>.
+ * Reuses the same message-header / message-content / message-attachments markup as /flat/,
+ * and also extracts the full thread index from <select id="thread_select"> (ignoring
+ * unrelated chronological Next/Previous list links in <table class="... message-nav">).
+ */
+export function parseSingleMessagePage(html: string): ParsedSingleMessage {
+  const lists = [
+    ...new Set([...html.matchAll(/<span class="listname"><a[^>]*>([^<]+)<\/a>/g)].map((m) => m[1]!.trim())),
+  ];
+
+  const parts = html.split(/<table[^>]*class="[^"]*message-header[^"]*"[^>]*>/i).slice(1);
+  let message: ThreadMessage | null = null;
+  for (const part of parts) {
+    const headerEnd = part.indexOf("</table>");
+    if (headerEnd < 0) continue;
+    const header = part.slice(0, headerEnd);
+    if (!/<th[^>]*>\s*From:/i.test(header)) continue;
+    const rest = part.slice(headerEnd);
+
+    const idM = header.match(/<th[^>]*>\s*Message-ID:\s*<\/th>\s*<td[^>]*>\s*<a[^>]*>([\s\S]*?)<\/a>/i);
+    const messageId = idM ? stripTags(idM[1]!) : "";
+    if (!messageId) continue;
+    const bodyM = rest.match(/<div class="message-content">([\s\S]*?)<\/div>/i);
+    const date = normTimestamp(headerField(header, "Date"));
+    message = {
+      index: 1,
+      messageId,
+      url: messageUrl(messageId),
+      from: headerField(header, "From"),
+      date: date ?? "",
+      subject: headerField(header, "Subject"),
+      body: bodyM ? htmlToText(bodyM[1]!) : "",
+      attachments: parseAttachments(rest),
+    };
+    break;
+  }
+  if (!message) throw new Error("no message found: not a postgresql.org message page");
+
+  const threadMessages: ThreadSelectOption[] = [];
+  const seenThreadIds = new Set<string>();
+  const selectM = html.match(/<select[^>]*id="thread_select"[^>]*>([\s\S]*?)<\/select>/i);
+  if (selectM) {
+    for (const opt of selectM[1]!.matchAll(/<option\s+[^>]*value="([^"]+)"[^>]*>([\s\S]*?)<\/option>/gi)) {
+      const msgId = decodeMsgIdToken(opt[1]!);
+      if (!msgId || seenThreadIds.has(msgId)) continue;
+      seenThreadIds.add(msgId);
+      const rawText = opt[2]!;
+      const hasAttachment = /&#x1f4ce;|&#128206;|\u{1F4CE}/iu.test(rawText);
+      const plain = stripTags(rawText);
+      const fromM = plain.match(/\bfrom\s+(.+?)(?:\s*\u{1F4CE})?$/u);
+      threadMessages.push({
+        messageId: msgId,
+        date: normTimestamp(plain),
+        from: fromM ? fromM[1]!.trim() : "",
+        hasAttachment,
+      });
+    }
+  }
+
+  const responseIds: string[] = [];
+  const seenResp = new Set<string>();
+  for (const ul of html.matchAll(/<ul[^>]*class="[^"]*message-responses[^"]*"[^>]*>([\s\S]*?)<\/ul>/gi)) {
+    for (const a of ul[1]!.matchAll(/<a\s+[^>]*href="\/message-id\/([^"?#]+)"/gi)) {
+      const rawPath = a[1]!;
+      if (/^(?:flat|raw|mbox|attachment|resend)\//i.test(rawPath)) continue;
+      const msgId = decodeMsgIdToken(rawPath);
+      if (!msgId || msgId === message.messageId || seenResp.has(msgId)) continue;
+      seenResp.add(msgId);
+      responseIds.push(msgId);
+    }
+  }
+
+  return { message, lists, threadMessages, responseIds };
+}
+
+/**
+ * Pick which message IDs to fetch from a thread's <select id="thread_select"> entries
+ * when /flat/ is unavailable. Always keeps chronological order and, on long threads,
+ * prioritizes the opening proposal, messages with patch attachments, and the latest replies.
+ */
+export function selectNonFlatMessageIds(
+  options: ThreadSelectOption[],
+  limit: number,
+  filters?: { before?: string | null; blind?: number | null },
+): { selected: string[]; totalBeforeLimit: number; truncated: boolean } {
+  const deduped: ThreadSelectOption[] = [];
+  const seen = new Set<string>();
+  for (const o of options) {
+    if (!o.messageId || seen.has(o.messageId)) continue;
+    seen.add(o.messageId);
+    deduped.push(o);
+  }
+  deduped.sort((a, b) => (a.date ?? "9999").localeCompare(b.date ?? "9999"));
+
+  let filtered = deduped;
+  if (filters?.before) {
+    const cutoff = filters.before + "T00:00:00Z";
+    filtered = filtered.filter((o) => !o.date || o.date < cutoff);
+  }
+  if (filters?.blind != null && filters.blind > 0) {
+    filtered = filtered.slice(0, filters.blind);
+  }
+
+  const totalBeforeLimit = filtered.length;
+  if (totalBeforeLimit <= limit) {
+    return { selected: filtered.map((o) => o.messageId), totalBeforeLimit, truncated: false };
+  }
+
+  const chosen = new Set<number>();
+  const addIdx = (i: number) => {
+    if (i >= 0 && i < filtered.length && chosen.size < limit) chosen.add(i);
+  };
+
+  // 1. Opening proposal + early context
+  const headCount = Math.min(4, Math.max(1, Math.floor(limit * 0.15)));
+  for (let i = 0; i < headCount; i++) addIdx(i);
+
+  // 2. Latest messages (current consensus / review state)
+  const tailCount = Math.min(14, Math.max(2, Math.floor(limit * 0.4)));
+  for (let i = filtered.length - 1; i >= Math.max(0, filtered.length - tailCount); i--) addIdx(i);
+
+  // 3. Messages with attachments (latest revisions first, then earliest revision)
+  const attIndices: number[] = [];
+  for (let i = 0; i < filtered.length; i++) {
+    if (filtered[i]!.hasAttachment) attIndices.push(i);
+  }
+  if (attIndices.length > 0) {
+    addIdx(attIndices[0]!);
+    for (let k = attIndices.length - 1; k >= Math.max(0, attIndices.length - 6); k--) {
+      addIdx(attIndices[k]!);
+    }
+  }
+
+  // 4. Fill remaining slots with evenly-spaced middle messages so timeline stays representative
+  const remaining = limit - chosen.size;
+  if (remaining > 0) {
+    const unchosen: number[] = [];
+    for (let i = 0; i < filtered.length; i++) {
+      if (!chosen.has(i)) unchosen.push(i);
+    }
+    const step = unchosen.length / remaining;
+    for (let k = 0; k < remaining; k++) {
+      const idx = unchosen[Math.min(unchosen.length - 1, Math.floor(k * step))];
+      if (idx != null) chosen.add(idx);
+    }
+  }
+
+  const ordered = [...chosen].sort((a, b) => a - b).map((i) => filtered[i]!.messageId);
+  return { selected: ordered, totalBeforeLimit, truncated: true };
+}
+
 /**
  * Parse https://www.postgresql.org/message-id/flat/<msgid>.
  * Throws when the page holds no message (e.g. an error page).

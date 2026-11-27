@@ -1,5 +1,20 @@
 # Changelog
 
+## v0.3.0-alpha.31 (2026-11-27)
+
+This release fixes roasting and Discussion tab loading when `postgresql.org`'s `/message-id/flat/<id>` view returns HTTP 500. Both the CLI roaster and the web Discussion viewer now try `/flat/` first and fall back to individual `/message-id/<id>` pages, with a circuit breaker that stops hammering `/flat/` after 2 consecutive failures.
+
+### Changes
+
+- **Non-Flat Thread Parser (`src/thread/parse.ts`):**
+  - Added `parseSingleMessagePage()` to parse standard `https://www.postgresql.org/message-id/<id>` pages, including the full thread index in `<select id="thread_select">` and `<ul class="message-responses">`, while ignoring unrelated `Next Message` / `Previous Message` list links.
+  - Added `selectNonFlatMessageIds()` to sort messages chronologically, apply `--before` / `--blind` before fetching extra pages, and sample long threads while keeping the opening proposal, earliest and latest patch attachments, and recent replies.
+- **CLI `/flat/` Circuit Breaker + Fallback (`src/thread/load.ts`, `src/thread/fetch.ts`, `src/thread/types.ts`):**
+  - Replaced the 5-try exponential stall on `/flat/` HTTP 500s with fast 2-try probing (`1.5s` backoff) and immediate fallback to `loadThreadViaMessages()`.
+  - Added a 10-minute circuit breaker after 2 consecutive `/flat/` failures so batch roasts, precedent enrichment, and bug triage skip `/flat/` until cooldown expires, then probe `/flat/` once to resume automatically when `postgresql.org` recovers.
+- **Web Discussion Viewer Fallback (`apps/web/src/mr.ts`):**
+  - Added the same `/flat/` circuit breaker (2 failures -> 10m cooldown) and polite bounded-concurrency non-flat fallback in `fetchMrDiscussionForCf()`, so `/patch/<id>` Discussion and Changes tabs keep loading when `/flat/` is down.
+
 ## v0.3.0-alpha.30 (2026-11-27)
 
 This release makes the copy-ready **AI Agent Backoffice Install Prompt** the #1 default path at every Backoffice entry point and right at the top of `README.md`.

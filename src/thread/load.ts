@@ -1,8 +1,16 @@
 // Resolve a CLI argument to a CommitFest entry and/or a mailing-list thread, fetch it
 // (cached, polite), apply --blind / --before, and collect the prose of the proposal's patches.
 
-import { fetchText } from "./fetch.ts";
-import { flatThreadUrl, parseCommitfestPatch, parseFlatThread } from "./parse.ts";
+import { existsSync } from "node:fs";
+import { cachePath, fetchText } from "./fetch.ts";
+import {
+  flatThreadUrl,
+  messageUrl,
+  parseCommitfestPatch,
+  parseFlatThread,
+  parseSingleMessagePage,
+  selectNonFlatMessageIds,
+} from "./parse.ts";
 import { extractPatchCodeHunks, extractPatchProse, isReadableAttachment, MAX_DOC_HUNK_CHARS } from "./patchprose.ts";
 import type {
   CfEntry,
@@ -18,6 +26,30 @@ import type {
 export const MAX_ATTACHMENT_BYTES = 1536 * 1024;
 /** At most this many attachments are read per run. */
 export const MAX_ATTACHMENTS = 8;
+/** Default cap on individual /message-id/ pages fetched when /message-id/flat/ falls back. */
+export const DEFAULT_MAX_NONFLAT_MESSAGES = 35;
+
+/** Consecutive /message-id/flat/ failures before bypassing /flat/ directly to /message-id/. */
+export const FLAT_FAIL_THRESHOLD = 2;
+/** Cooldown (ms) before probing /message-id/flat/ again after the breaker trips. */
+export const FLAT_COOLDOWN_MS = 10 * 60_000;
+
+let flatConsecutiveFails = 0;
+let flatBypassUntilMs = 0;
+
+export function resetFlatCircuitBreaker(): void {
+  flatConsecutiveFails = 0;
+  flatBypassUntilMs = 0;
+}
+
+export function getFlatCircuitBreakerState(): {
+  consecutiveFails: number;
+  bypassUntilMs: number;
+  isOpen: boolean;
+} {
+  const isOpen = flatConsecutiveFails >= FLAT_FAIL_THRESHOLD && Date.now() < flatBypassUntilMs;
+  return { consecutiveFails: flatConsecutiveFails, bypassUntilMs: flatBypassUntilMs, isOpen };
+}
 
 export function parseInputRef(arg: string): InputRef {
   const s = arg.trim();
@@ -254,16 +286,145 @@ async function loadPatchProse(
 
 export async function loadCfEntry(id: number, opts: LoadOptions = {}): Promise<CfEntry> {
   const url = `https://commitfest.postgresql.org/patch/${id}/`;
-  const html = await fetchText(url, { offline: opts.offline, cacheDir: opts.cacheDir });
+  const html = await fetchText(url, {
+    offline: opts.offline,
+    cacheDir: opts.cacheDir,
+    fetchImpl: opts.fetchImpl,
+    sleepImpl: opts.sleepImpl,
+    log: opts.log,
+  });
   if (html == null) throw new Error(`CommitFest patch ${id} not found (${url})`);
   return parseCommitfestPatch(html, id);
 }
 
+/**
+ * Fallback thread loader using individual canonical /message-id/<id> pages.
+ * Reads <select id="thread_select"> on the seed message to discover all messages in the thread,
+ * then fetches them politely through the on-disk cache.
+ */
+export async function loadThreadViaMessages(messageId: string, opts: LoadOptions = {}): Promise<Thread> {
+  const log = opts.log ?? ((m: string) => console.error(m));
+  const seedUrl = messageUrl(messageId);
+  const fetchBase = {
+    offline: opts.offline,
+    cacheDir: opts.cacheDir,
+    fetchImpl: opts.fetchImpl,
+    sleepImpl: opts.sleepImpl,
+    log: opts.log,
+    maxTries: 3,
+    initialDelayMs: 2000,
+  };
+
+  const seedHtml = await fetchText(seedUrl, fetchBase);
+  if (seedHtml == null) throw new Error(`thread not found: ${seedUrl}`);
+  const seed = parseSingleMessagePage(seedHtml);
+
+  const byId = new Map<string, ThreadMessage>([[seed.message.messageId, seed.message]]);
+  const lists = new Set<string>(seed.lists);
+  const maxMessages = Math.max(1, opts.maxNonFlatMessages ?? DEFAULT_MAX_NONFLAT_MESSAGES);
+
+  let targetIds: string[];
+  if (seed.threadMessages.length > 0) {
+    const picked = selectNonFlatMessageIds(seed.threadMessages, maxMessages, {
+      before: opts.before ? validateDate(opts.before) : null,
+      blind: opts.blind ?? null,
+    });
+    if (picked.truncated) {
+      log(`  /message-id/ fallback: reading ${picked.selected.length} of ${picked.totalBeforeLimit} messages in thread ${messageId}`);
+    }
+    targetIds = picked.selected;
+  } else {
+    targetIds = [seed.message.messageId, ...seed.responseIds.slice(0, Math.max(0, maxMessages - 1))];
+  }
+
+  for (const id of targetIds) {
+    if (byId.has(id)) continue;
+    const html = await fetchText(messageUrl(id), { ...fetchBase, maxTries: 2 });
+    if (html == null) continue;
+    try {
+      const parsed = parseSingleMessagePage(html);
+      byId.set(parsed.message.messageId, parsed.message);
+      for (const l of parsed.lists) lists.add(l);
+    } catch {
+      // Skip malformed secondary message pages without failing the whole thread.
+    }
+  }
+
+  const all = [...byId.values()].sort((a, b) => a.date.localeCompare(b.date));
+  const messages = all.map((m, i) => ({ ...m, index: i + 1 }));
+  const root = messages[0]!;
+  return {
+    threadUrl: messageUrl(root.messageId),
+    rootMessageId: root.messageId,
+    subject: root.subject,
+    lists: [...lists],
+    messages,
+  };
+}
+
 export async function loadThread(messageId: string, opts: LoadOptions = {}): Promise<Thread> {
+  const log = opts.log ?? ((m: string) => console.error(m));
   const url = flatThreadUrl(messageId);
-  const html = await fetchText(url, { offline: opts.offline, cacheDir: opts.cacheDir });
-  if (html == null) throw new Error(`thread not found: ${url}`);
-  return parseFlatThread(html);
+  const cachedFlatPath = cachePath(url, opts.cacheDir);
+
+  // Fast path: already cached on disk (or offline mode).
+  if (existsSync(cachedFlatPath)) {
+    const html = await fetchText(url, { offline: true, cacheDir: opts.cacheDir });
+    if (html != null) {
+      try {
+        return parseFlatThread(html);
+      } catch {
+        // Fall through to non-flat if cached flat page was corrupted/error HTML.
+      }
+    }
+  }
+  if (opts.offline) {
+    return loadThreadViaMessages(messageId, opts);
+  }
+
+  const now = Date.now();
+  const breakerOpen = flatConsecutiveFails >= FLAT_FAIL_THRESHOLD && now < flatBypassUntilMs;
+  const halfOpenProbe = flatConsecutiveFails >= FLAT_FAIL_THRESHOLD && now >= flatBypassUntilMs;
+
+  if (!breakerOpen) {
+    let lastStatus: number | null = null;
+    const html = await fetchText(url, {
+      offline: opts.offline,
+      cacheDir: opts.cacheDir,
+      fetchImpl: opts.fetchImpl,
+      sleepImpl: opts.sleepImpl,
+      log: opts.log,
+      maxTries: halfOpenProbe ? 1 : 2,
+      initialDelayMs: 1500,
+      onStatus: (s) => {
+        lastStatus = s;
+      },
+    });
+    if (html != null) {
+      try {
+        const parsed = parseFlatThread(html);
+        flatConsecutiveFails = 0;
+        flatBypassUntilMs = 0;
+        return parsed;
+      } catch {
+        // Error HTML returned with 200; treat as /flat/ failure and fall back.
+      }
+    }
+    if (lastStatus === 404 || lastStatus === 410) {
+      throw new Error(`thread not found: ${url}`);
+    }
+    flatConsecutiveFails++;
+    if (flatConsecutiveFails >= FLAT_FAIL_THRESHOLD) {
+      flatBypassUntilMs = Date.now() + FLAT_COOLDOWN_MS;
+      log(
+        `  /message-id/flat/ failed ${flatConsecutiveFails} times in a row (last HTTP ${lastStatus ?? "err"}); using /message-id/ links for the next ${Math.round(FLAT_COOLDOWN_MS / 60_000)}m`,
+      );
+    } else {
+      log(`  /message-id/flat/ failed (HTTP ${lastStatus ?? "err"}); falling back to /message-id/ for ${messageId}`);
+    }
+  }
+
+  return loadThreadViaMessages(messageId, opts);
 }
 
 export async function loadProposal(arg: string, opts: LoadOptions = {}): Promise<ProposalInput> {
@@ -298,10 +459,13 @@ export async function loadProposal(arg: string, opts: LoadOptions = {}): Promise
   }
 
   const loadedThreads: Thread[] = [];
+  const threadOpts = threadIds.length === 1 ? opts : { ...opts, blind: undefined };
   for (const id of threadIds) {
     try {
-      const t = await loadThread(id, opts);
-      if (!loadedThreads.some((x) => x.threadUrl === t.threadUrl)) loadedThreads.push(t);
+      const t = await loadThread(id, threadOpts);
+      if (!loadedThreads.some((x) => x.rootMessageId === t.rootMessageId || x.threadUrl === t.threadUrl)) {
+        loadedThreads.push(t);
+      }
     } catch (e) {
       if (threadIds.length === 1) throw e;
       warnings.push(`a thread of this CommitFest entry could not be read (${id}): ${(e as Error).message.split("\n")[0]}`);

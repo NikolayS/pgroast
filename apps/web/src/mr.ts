@@ -1,4 +1,12 @@
-import { flatThreadUrl, parseCommitfestPatch, parseFlatThread } from "../../../src/thread/parse.ts";
+import {
+  flatThreadUrl,
+  messageUrl,
+  parseCommitfestPatch,
+  parseFlatThread,
+  parseSingleMessagePage,
+  selectNonFlatMessageIds,
+} from "../../../src/thread/parse.ts";
+import type { Thread, ThreadMessage } from "../../../src/thread/types.ts";
 
 export interface MrBodyBlock {
   kind: "text" | "quote";
@@ -109,6 +117,32 @@ const MAX_CACHE_ENTRIES = 160;
 const MAX_FETCH_BYTES = 4 * 1024 * 1024;
 const FETCH_TIMEOUT_MS = 10_000;
 const USER_AGENT = "pgroast-web/0.3 (+https://github.com/NikolayS/pgroast)";
+
+const FLAT_FAIL_THRESHOLD = 2;
+const FLAT_COOLDOWN_MS = 10 * 60 * 1000;
+const MAX_WEB_NONFLAT_MESSAGES = 30;
+const WEB_NONFLAT_CONCURRENCY = 3;
+const WEB_NONFLAT_BATCH_DELAY_MS = 120;
+
+let webFlatConsecutiveFails = 0;
+let webFlatBypassUntilMs = 0;
+
+export function resetWebFlatCircuitBreaker(): void {
+  webFlatConsecutiveFails = 0;
+  webFlatBypassUntilMs = 0;
+}
+
+export function getWebFlatCircuitBreakerState(): {
+  consecutiveFails: number;
+  bypassUntilMs: number;
+  isOpen: boolean;
+} {
+  return {
+    consecutiveFails: webFlatConsecutiveFails,
+    bypassUntilMs: webFlatBypassUntilMs,
+    isOpen: webFlatConsecutiveFails >= FLAT_FAIL_THRESHOLD && Date.now() < webFlatBypassUntilMs,
+  };
+}
 
 const threadCache = new Map<number, { expiresAt: number; data: MrDiscussionResult }>();
 const diffCache = new Map<number, { expiresAt: number; data: MrDiffResult }>();
@@ -230,7 +264,7 @@ function isPatchAttachment(name: string): boolean {
   return /\.(?:patch|diff)(?:\.txt|\.gz)?$/i.test(name);
 }
 
-function normalizeToFlatUrl(rawUrl: string): string | null {
+function extractMessageIdFromUrl(rawUrl: string): string | null {
   try {
     const parsed = new URL(rawUrl);
     if (parsed.protocol !== "https:" && parsed.protocol !== "http:") return null;
@@ -247,10 +281,10 @@ function normalizeToFlatUrl(rawUrl: string): string | null {
   } catch {
     // keep raw
   }
-  return flatThreadUrl(msgId);
+  return msgId;
 }
 
-async function resolveThreadUrlFromCommitfest(cfId: number): Promise<string | null> {
+async function resolveThreadMessageIdFromCommitfest(cfId: number): Promise<string | null> {
   const res = await fetchTextBounded(
     `https://commitfest.postgresql.org/patch/${cfId}/`,
     { "User-Agent": USER_AGENT, Accept: "text/html" },
@@ -260,8 +294,89 @@ async function resolveThreadUrlFromCommitfest(cfId: number): Promise<string | nu
   const cf = parseCommitfestPatch(res.text, cfId);
   if (!cf) return null;
   const firstMsgId = cf.threads[0]?.messageId;
-  if (firstMsgId) return flatThreadUrl(firstMsgId);
-  return cf.threads[0]?.url ? normalizeToFlatUrl(cf.threads[0].url) : null;
+  if (firstMsgId) return firstMsgId;
+  return cf.threads[0]?.url ? extractMessageIdFromUrl(cf.threads[0].url) : null;
+}
+
+async function fetchThreadViaSingleMessagesWeb(rootMsgId: string): Promise<Thread> {
+  const headers = { "User-Agent": USER_AGENT, Accept: "text/html" };
+  const seedRes = await fetchTextBounded(messageUrl(rootMsgId), headers);
+  if (!seedRes.ok) {
+    throw new Error(`Could not load pgsql-hackers thread (HTTP ${seedRes.status} from postgresql.org).`);
+  }
+  const seed = parseSingleMessagePage(seedRes.text);
+  const byId = new Map<string, ThreadMessage>([[seed.message.messageId, seed.message]]);
+  const lists = new Set<string>(seed.lists);
+
+  const targetIds =
+    seed.threadMessages.length > 0
+      ? selectNonFlatMessageIds(seed.threadMessages, MAX_WEB_NONFLAT_MESSAGES).selected
+      : [seed.message.messageId, ...seed.responseIds.slice(0, MAX_WEB_NONFLAT_MESSAGES - 1)];
+
+  const toFetch = targetIds.filter((id) => !byId.has(id));
+  for (let i = 0; i < toFetch.length; i += WEB_NONFLAT_CONCURRENCY) {
+    const chunk = toFetch.slice(i, i + WEB_NONFLAT_CONCURRENCY);
+    const results = await Promise.all(
+      chunk.map(async (id) => {
+        try {
+          const r = await fetchTextBounded(messageUrl(id), headers);
+          if (!r.ok) return null;
+          return parseSingleMessagePage(r.text);
+        } catch {
+          return null;
+        }
+      }),
+    );
+    for (const parsed of results) {
+      if (!parsed) continue;
+      byId.set(parsed.message.messageId, parsed.message);
+      for (const l of parsed.lists) lists.add(l);
+    }
+    if (i + WEB_NONFLAT_CONCURRENCY < toFetch.length) {
+      await new Promise((r) => setTimeout(r, WEB_NONFLAT_BATCH_DELAY_MS));
+    }
+  }
+
+  const all = [...byId.values()].sort((a, b) => a.date.localeCompare(b.date));
+  const messages = all.map((m, idx) => ({ ...m, index: idx + 1 }));
+  const root = messages[0]!;
+  return {
+    threadUrl: messageUrl(root.messageId),
+    rootMessageId: root.messageId,
+    subject: root.subject,
+    lists: [...lists],
+    messages,
+  };
+}
+
+async function fetchThreadWithFallbackWeb(rootMsgId: string): Promise<Thread> {
+  const now = Date.now();
+  const breakerOpen = webFlatConsecutiveFails >= FLAT_FAIL_THRESHOLD && now < webFlatBypassUntilMs;
+  if (!breakerOpen) {
+    const flatUrl = flatThreadUrl(rootMsgId);
+    let status = 0;
+    try {
+      const res = await fetchTextBounded(flatUrl, { "User-Agent": USER_AGENT, Accept: "text/html" });
+      status = res.status;
+      if (res.ok) {
+        const parsed = parseFlatThread(res.text);
+        webFlatConsecutiveFails = 0;
+        webFlatBypassUntilMs = 0;
+        return parsed;
+      }
+      if (res.status === 404 || res.status === 410) {
+        throw new Error(`Could not load pgsql-hackers thread (HTTP ${res.status} from postgresql.org).`);
+      }
+    } catch (err) {
+      if (status === 404 || status === 410) throw err;
+      // Treat 5xx / timeout / parse error as /flat/ failure and fall back to /message-id/.
+    }
+    webFlatConsecutiveFails++;
+    if (webFlatConsecutiveFails >= FLAT_FAIL_THRESHOLD) {
+      webFlatBypassUntilMs = Date.now() + FLAT_COOLDOWN_MS;
+    }
+  }
+  return fetchThreadViaSingleMessagesWeb(rootMsgId);
 }
 
 function normAuthorToken(s: string): string {
@@ -321,19 +436,15 @@ export async function fetchMrDiscussionForCf(
 
   const job = (async (): Promise<MrDiscussionResult> => {
     try {
-      let flatUrl = knownThreadUrl ? normalizeToFlatUrl(knownThreadUrl) : null;
-      if (!flatUrl) {
-        flatUrl = await resolveThreadUrlFromCommitfest(cfId);
+      let rootMsgId = knownThreadUrl ? extractMessageIdFromUrl(knownThreadUrl) : null;
+      if (!rootMsgId) {
+        rootMsgId = await resolveThreadMessageIdFromCommitfest(cfId);
       }
-      if (!flatUrl) {
+      if (!rootMsgId) {
         throw new Error(`No pgsql-hackers thread linked to CF ${cfId}.`);
       }
 
-      const res = await fetchTextBounded(flatUrl, { "User-Agent": USER_AGENT, Accept: "text/html" });
-      if (!res.ok) {
-        throw new Error(`Could not load pgsql-hackers thread (HTTP ${res.status} from postgresql.org).`);
-      }
-      const parsed = parseFlatThread(res.text);
+      const parsed = await fetchThreadWithFallbackWeb(rootMsgId);
 
       const starterName = (parsed.messages[0]?.from || "").trim().toLowerCase();
       const cfAuthorTokens = parseCfAuthorTokens(cfAuthors);
@@ -400,7 +511,7 @@ export async function fetchMrDiscussionForCf(
       const participants = Array.from(participantMap.values()).sort((a, b) => b.count - a.count);
       const data: MrDiscussionResult = {
         cfId,
-        threadUrl: flatUrl.replace(/\/message-id\/flat\//i, "/message-id/"),
+        threadUrl: messageUrl(parsed.rootMessageId || rootMsgId),
         subject: parsed.subject,
         lists: parsed.lists,
         messageCount: messages.length,
