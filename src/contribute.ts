@@ -18,7 +18,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { isLimitError } from "./batch.ts";
-import { checkPublishConfidentiality, DEFAULT_HUB_URL, publishRoastOpinion } from "./publish.ts";
+import { checkPublishConfidentiality, DEFAULT_HUB_URL, publishRoastOpinion, resolvePublishToken } from "./publish.ts";
 import { checkBackend } from "./roast/doctor.ts";
 import {
   isValidRoastFlavour,
@@ -311,7 +311,11 @@ export async function runContributeCycle(opts: {
   const cfg = opts.config;
   const st = opts.state;
   const shouldPublish = opts.publishOverride ?? cfg.autoPublish;
-  const token = opts.token ?? (cfg.publishTokenEnv ? process.env[cfg.publishTokenEnv] || "" : "");
+  const token =
+    opts.token ??
+    (cfg.publishTokenEnv && process.env[cfg.publishTokenEnv]?.trim()
+      ? process.env[cfg.publishTokenEnv]!.trim()
+      : resolvePublishToken().token);
 
   const targetBackends: QuotaBackend[] = opts.onlyBackend
     ? [opts.onlyBackend]

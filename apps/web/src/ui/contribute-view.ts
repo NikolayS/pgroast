@@ -1,3 +1,5 @@
+import { renderContributeCoverageSkeleton } from "./skeletons.ts";
+
 export interface CommunityCoverageData {
   totalAll: number;
   totalOpen: number;
@@ -202,7 +204,7 @@ export function renderContributeTab(params: {
 
       ${
         coverageLoading && !cov
-          ? `<div class="loading-state" style="padding:28px 0;"><div class="spinner"></div><div class="muted">Loading live CommitFest coverage…</div></div>`
+          ? renderContributeCoverageSkeleton()
           : cov
             ? `
         <div class="kpis" style="margin-bottom:14px;">

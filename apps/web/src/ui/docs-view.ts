@@ -80,8 +80,8 @@ const ALL_FEATURES: FeatureDocItem[] = [
     id: "cf-stats",
     category: "front-office",
     categoryLabel: "Front Office",
-    title: "CommitFest Intelligence & Flow Visualizations",
-    summary: "Status → Verdict alluvial flow diagram, subsystem readiness scatter plot, interactive Status × Verdict heatmap, clickable leaderboards, and zero-cookie PostgreSQL page-view traffic analytics.",
+    title: "CommitFest Intelligence & Bottleneck Observatory",
+    summary: "6 decision-focused visualizations: 736-square clickable Queue unit chart, Ready-for-Committer Warnings vs. Clean Pickups, 36-patch Dark Evidence Matrix, Subsystem Load vs. Committer Capacity, Author Track Record Beeswarm, and exact Production-Hit triage table.",
     status: "live",
     actionLabel: "Open Stats →",
     actionTab: "stats",
@@ -91,7 +91,7 @@ const ALL_FEATURES: FeatureDocItem[] = [
     category: "front-office",
     categoryLabel: "Front Office",
     title: "Multi-Model Opinions & Team Coordination",
-    summary: "Compare attributed AI opinions across Claude, Codex, and Antigravity runs (with roast level and reviewer archetype recorded on every opinion). Post opt-in team claims so reviewers do not duplicate effort.",
+    summary: "Compare attributed AI opinions across Claude, Codex, and Antigravity runs (with roast level and flavour recorded on every opinion). Search, filter, sort, and paginate all opinions, or post opt-in team claims.",
     status: "live",
     actionLabel: "Open Opinions →",
     actionTab: "opinions",
@@ -100,11 +100,11 @@ const ALL_FEATURES: FeatureDocItem[] = [
     id: "themes-seo",
     category: "front-office",
     categoryLabel: "Front Office",
-    title: "8 UI Themes, Mobile Bottom Nav & AI/SEO Endpoints",
-    summary: "Midnight, Daylight, Warm Paper, Espresso, Nord, Tokyo Night, Postgres Classic, and High Contrast themes shared across both apps, plus SSR OpenGraph/JSON-LD, /sitemap.xml, /llms.txt, and /llms-full.txt.",
+    title: "System Day/Night Themes, About Page & AI/SEO Endpoints",
+    summary: "Configurable System (Auto Day / Night) defaulting to Warm Paper by day and Espresso by night across 8 themes, dedicated /about explainer, mobile More sheet, SSR OpenGraph/JSON-LD, /sitemap.xml, and /llms.txt.",
     status: "live",
-    actionLabel: "Read /llms.txt ↗",
-    actionPath: "/llms.txt",
+    actionLabel: "Open About →",
+    actionTab: "about",
   },
 
   // Weekly Quota Auto-Contribute
@@ -168,8 +168,8 @@ const ALL_FEATURES: FeatureDocItem[] = [
     id: "bo-studio",
     category: "backoffice",
     categoryLabel: "Personal Backoffice",
-    title: "Roast Studio: 3 Verification Levels × 8 Fictional Reviewer Archetypes",
-    summary: "Light checks the idea, thread, and 2,547 precedents (no code read). Medium reads C/H/SQL diffs, applies the patch, compiles PostgreSQL with -Dcassert=true, and runs targeted meson tests. Dark adds an isolated throwaway patched PostgreSQL cluster that runs adversarial SQL stress tests and checks logs for crashes, plus a reflection pass.",
+    title: "Roast Studio: 3 Verification Levels (Idea-First) × 8 Review Flavours",
+    summary: "Every roast starts with idea & design scrutiny (Review Pyramid + 2,547 historical precedents + Critic filter). Light runs that core triage only; Medium adds real C/H/SQL diff review, git apply, meson compile, and targeted tests; Dark adds -Dcassert build, isolated patched PG live SQL stress tests, and a reflection pass.",
     status: "live",
     actionLabel: "Set up Backoffice →",
     actionTab: "connect",
@@ -309,40 +309,191 @@ export function renderDocsTab(params: {
   ];
 
   const cliCommands: Array<{ cmd: string; desc: string }> = [
-    { cmd: "npx pgroast 5879 --level medium --flavour edge-case-hunter", desc: "Roast one CommitFest entry with a specific level and reviewer archetype" },
-    { cmd: "npx pgroast --self --proposal draft.txt --patch 0001.patch", desc: "Pre-check your own draft proposal before posting to pgsql-hackers" },
-    { cmd: "npx pgroast pushback 5879", desc: "Read an entire long-stuck thread and extract blocking objections with quotes" },
-    { cmd: "npx pgroast batch 62 --out ./out/cf62 --status open --limit 10 --concurrency 3", desc: "Resumably roast open entries of CommitFest #62 in parallel; stops cleanly on quota limit" },
-    { cmd: "npx pgroast shortlist ./out/cf62 --pg-repo ~/postgres", desc: "Rank shortlisted and closing candidates with git-log subsystem expert routing" },
-    { cmd: "npx pgroast bugs --days 14 --limit 30", desc: "Triage recent pgsql-bugs threads (production hits vs synthetic hunts)" },
-    { cmd: "npx pgroast page ./out/cf-5879/roast.json", desc: "Render a self-contained HTML report card locally (no LLM call)" },
-    { cmd: "npx pgroast publish ./out/cf-5879/roast.json", desc: "Run the confidentiality gate and publish a sanitized opinion to the Public App" },
-    { cmd: "npx pgroast contribute --init", desc: "Create ~/.pgroast/contribute.json with weekly reset schedules for installed CLIs" },
-    { cmd: "npx pgroast contribute --status", desc: "Show live CommitFest coverage progress and your weekly reset countdowns" },
-    { cmd: "npx pgroast contribute --dry-run", desc: "Preview the next queued patch and auto-selected archetype (zero LLM calls)" },
-    { cmd: "npx pgroast contribute --once --backend codex --flavour default --level medium --publish", desc: "Claim, roast, and publish 1 CommitFest patch right now" },
-    { cmd: "npx pgroast contribute --auto", desc: "Run from hourly cron: spends leftover weekly quota only inside your pre-reset window" },
-    { cmd: "npx pgroast doctor", desc: "Verify installed AI CLIs (claude, codex, agy) and subscription logins" },
-    { cmd: "npx pgroast init-db", desc: "Create local pgroast Postgres DB and load the 2,547-row precedent index" },
+    { cmd: "npx pgroast@next doctor", desc: "Check installed AI CLIs (claude, codex, agy) and your local login status" },
+    { cmd: "npx pgroast@next 7388 --level light", desc: "Roast one patch locally (idea, thread & 2,547 precedents — no account or Postgres needed)" },
+    { cmd: "npx pgroast@next page ./out/cf-7388/roast.json", desc: "Render a self-contained HTML report locally (zero LLM calls)" },
+    { cmd: "npx pgroast@next 7388 --level medium --flavour edge-case-hunter", desc: "Code-aware roast: idea scrutiny + C/H/SQL diffs + git apply + meson compile + targeted tests" },
+    { cmd: "npx pgroast@next --self --proposal draft.txt --patch 0001.patch", desc: "Pre-check your own draft proposal privately before posting to pgsql-hackers" },
+    { cmd: "npx pgroast@next login --token <pgroast_pub_...>", desc: "Save your publish-only token once in ~/.pgroast/auth.json (mode 0600) so npx pgroast recognizes you" },
+    { cmd: "npx pgroast@next whoami", desc: "Show your saved publish token status and target hub" },
+    { cmd: "npx pgroast@next publish ./out/cf-7388/roast.json", desc: "Run the confidentiality gate and publish a sanitized opinion under your handle" },
+    { cmd: "npx pgroast@next pushback 7388", desc: "Read an entire long-stuck thread and extract blocking objections with quotes" },
+    { cmd: "npx pgroast@next batch 62 --out ./out/cf62 --status open --limit 10 --concurrency 3", desc: "Resumably roast open entries of CommitFest #62 in parallel; stops cleanly on quota limit" },
+    { cmd: "npx pgroast@next shortlist ./out/cf62 --pg-repo ~/postgres", desc: "Rank shortlisted and closing candidates with git-log subsystem expert routing" },
+    { cmd: "npx pgroast@next bugs --days 14 --limit 30", desc: "Triage recent pgsql-bugs threads (production hits vs synthetic hunts)" },
+    { cmd: "npx pgroast@next contribute --init", desc: "Create ~/.pgroast/contribute.json with weekly reset schedules for installed CLIs" },
+    { cmd: "npx pgroast@next contribute --status", desc: "Show live CommitFest coverage progress and your weekly reset countdowns" },
+    { cmd: "npx pgroast@next contribute --dry-run", desc: "Preview the next queued patch and auto-selected flavour (zero LLM calls)" },
+    { cmd: "npx pgroast@next contribute --once --backend claude --level medium --publish", desc: "Claim, roast, and publish 1 CommitFest patch right now" },
+    { cmd: "npx pgroast@next init-db", desc: "Optional: load the 2,547-row historical precedent index into your local Postgres DB" },
   ];
 
   return `
     <div class="page-head">
-      <div>
-        <div class="viz-kicker">Documentation &amp; Reference</div>
-        <h1 class="page-title">pgroast Docs &amp; Complete Feature Catalog</h1>
+      <div class="page-head-main">
+        <div class="viz-kicker">Documentation &amp; Quickstart</div>
+        <h1 class="page-title">Start in 5 Minutes &amp; Full Reference</h1>
         <div class="page-sub">
-          Every capability across the Front Office, Personal Backoffice, CLI, Weekly Quota Auto-Contribute, and Safety Gates.
+          Run your first patch roast with <code class="mono">npx pgroast@next</code> — no global install, no account, and no Backoffice required.
         </div>
       </div>
       <div class="row" style="gap:6px;flex-wrap:wrap;">
-        <a class="btn btn-primary btn-sm" href="#api-reference">API Reference ↓</a>
+        <a class="btn btn-primary btn-sm" href="#quickstart">5-Min Tutorial ↓</a>
         <a class="btn btn-secondary btn-sm" href="#cli-playground">CLI Playground ↓</a>
-        <button type="button" class="btn btn-ghost btn-sm" data-docs-nav="contribute">Auto-Contribute →</button>
+        <a class="btn btn-secondary btn-sm" href="#api-reference">API Reference ↓</a>
+        <button type="button" class="btn btn-ghost btn-sm" data-open-about="">What is a roast?</button>
       </div>
     </div>
 
-    <!-- Architecture at a Glance -->
+    <!-- 1. STEP-BY-STEP BEGINNER TUTORIAL -->
+    <section class="card" id="quickstart">
+      <div class="card-head">
+        <div>
+          <div class="viz-kicker">Step-by-Step Beginner Tutorial</div>
+          <h2>Roast One PostgreSQL Patch in 5 Minutes</h2>
+          <div class="dim" style="font-size:12.5px;margin-top:3px;">
+            <strong>No Personal Backoffice, no pgroast account, and nothing leaves your machine.</strong> You only need <strong>Bun &ge; 1.3.5</strong> (<code class="mono">bun</code> on <code class="mono">PATH</code>) and one logged-in AI CLI (<code class="mono">claude</code>, <code class="mono">codex</code>, or <code class="mono">agy</code>). Both <code class="mono">npx pgroast@next</code> and <code class="mono">bunx pgroast@next</code> run with zero installation.
+          </div>
+        </div>
+        <span class="pill p-ok">Uses your Claude / Codex login · Zero API keys</span>
+      </div>
+
+      <div class="qs-steps">
+        <div class="qs-step">
+          <div class="qs-step-head">
+            <span class="intro-num">1</span>
+            <strong>Check your local AI CLI</strong>
+          </div>
+          <p class="muted" style="font-size:12.5px;margin:0;line-height:1.5;">
+            Verify that Bun and at least one AI CLI (<code class="mono">claude</code>, <code class="mono">codex</code>, or <code class="mono">agy</code>) are logged in. <code class="mono">pgroast</code> strips API key env vars and uses your normal CLI login.
+          </p>
+          <div class="qs-cmd">
+            <code class="mono">npx pgroast@next doctor</code>
+            <button type="button" class="btn btn-ghost btn-sm" data-copy-snippet="npx pgroast@next doctor">Copy</button>
+          </div>
+        </div>
+
+        <div class="qs-step">
+          <div class="qs-step-head">
+            <span class="intro-num">2</span>
+            <strong>Roast one patch (Light — idea first)</strong>
+          </div>
+          <p class="muted" style="font-size:12.5px;margin:0;line-height:1.5;">
+            Every roast starts by scrutinizing the <strong>idea and design</strong> against CommitFest history and 2,547 precedents. Light needs no PostgreSQL source checkout and writes local files to <code class="mono">./out/cf-7388/</code>.
+          </p>
+          <div class="qs-cmd">
+            <code class="mono">npx pgroast@next 7388 --level light</code>
+            <button type="button" class="btn btn-ghost btn-sm" data-copy-snippet="npx pgroast@next 7388 --level light">Copy</button>
+          </div>
+        </div>
+
+        <div class="qs-step">
+          <div class="qs-step-head">
+            <span class="intro-num">3</span>
+            <strong>Read locally (or test real code)</strong>
+          </div>
+          <p class="muted" style="font-size:12.5px;margin:0;line-height:1.5;">
+            Open <code class="mono">./out/cf-7388/roast.md</code> or render an HTML card. When you have a local <code class="mono">postgres</code> git checkout, switch to <code class="mono">--level medium</code> (compile + tests) or <code class="mono">--level dark</code> (+ live PG SQL).
+          </p>
+          <div class="qs-cmd">
+            <code class="mono">npx pgroast@next page ./out/cf-7388/roast.json</code>
+            <button type="button" class="btn btn-ghost btn-sm" data-copy-snippet="npx pgroast@next page ./out/cf-7388/roast.json">Copy</button>
+          </div>
+        </div>
+
+        <div class="qs-step" id="identity-auth">
+          <div class="qs-step-head">
+            <span class="intro-num">4</span>
+            <strong>Optional: publish under your name</strong>
+          </div>
+          <p class="muted" style="font-size:12.5px;margin:0;line-height:1.5;">
+            <strong>How <code class="mono">npx pgroast</code> recognizes you:</strong> your AI CLI login stays local. To publish opinions here, mint a publish-only token via GitHub/Google once on <button type="button" class="about-link-inline" data-docs-nav="connect">Sign in / Setup</button> and save it to <code class="mono">~/.pgroast/auth.json</code> (mode <code class="mono">0600</code>):
+          </p>
+          <div class="qs-cmd">
+            <code class="mono">npx pgroast@next login --token pgroast_pub_…</code>
+            <button type="button" class="btn btn-ghost btn-sm" data-copy-snippet="npx pgroast@next login --token pgroast_pub_YOUR_TOKEN">Copy</button>
+          </div>
+          <div class="dim" style="font-size:11.5px;">
+            After saving once, <code class="mono">npx pgroast@next publish ./out/cf-7388/roast.json</code> knows who you are automatically. Check anytime with <code class="mono">npx pgroast@next whoami</code>.
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 2. INTERACTIVE CLI PLAYGROUND -->
+    <section class="card" id="cli-playground">
+      <div class="card-head">
+        <div>
+          <div class="viz-kicker">Interactive CLI Builder</div>
+          <h2>CLI Playground (<code class="mono">npx pgroast@next</code>)</h2>
+          <div class="dim" style="font-size:12px;">Pick a task, AI CLI, roast level (every level starts with idea &amp; design scrutiny), and flavour — copy the exact runnable command.</div>
+        </div>
+        <span class="pill p-ok">Uses your Claude / Codex / agy login</span>
+      </div>
+      <div class="quota-preview-controls" style="margin-bottom:10px;">
+        <label>
+          <span class="dim" style="font-size:11px;display:block;margin-bottom:3px;">Command</span>
+          <select id="pg-cli-cmd">
+            <option value="roast" selected>Roast 1 patch (local only)</option>
+            <option value="contribute">Quota auto-contribute (--once)</option>
+            <option value="batch">Bulk CommitFest batch</option>
+            <option value="pushback">Pushback thread archaeology</option>
+            <option value="shortlist">Shortlist &amp; closing report</option>
+            <option value="bugs">pgsql-bugs production triage</option>
+            <option value="publish">Publish local roast.json</option>
+          </select>
+        </label>
+        <label>
+          <span class="dim" style="font-size:11px;display:block;margin-bottom:3px;">AI CLI Backend</span>
+          <select id="pg-cli-backend">
+            <option value="claude" selected>claude (Claude Code CLI)</option>
+            <option value="codex">codex (OpenAI Codex CLI)</option>
+            <option value="agy">agy (Antigravity CLI)</option>
+            <option value="dual">dual (Claude + agy)</option>
+          </select>
+        </label>
+        <label>
+          <span class="dim" style="font-size:11px;display:block;margin-bottom:3px;">Model (optional)</span>
+          <input type="text" id="pg-cli-model" value="" placeholder="Leave blank for CLI default" />
+        </label>
+        <label>
+          <span class="dim" style="font-size:11px;display:block;margin-bottom:3px;">Flavour (Lens)</span>
+          <select id="pg-cli-flavour">
+            <option value="default" selected>House Blend (default)</option>
+            <option value="auto-by-subsystem">Auto by subsystem</option>
+            <option value="edge-case-hunter">The Edge-Case Hunter</option>
+            <option value="spec-lawyer">The Spec Lawyer</option>
+            <option value="systems-architect">The Systems Architect</option>
+            <option value="perf-hawk">The Perf Hawk</option>
+            <option value="storage-skeptic">The Storage Skeptic</option>
+            <option value="index-specialist">The Index Specialist</option>
+            <option value="production-dba">The Production DBA</option>
+          </select>
+        </label>
+        <label>
+          <span class="dim" style="font-size:11px;display:block;margin-bottom:3px;">Roast Level (all include idea check)</span>
+          <select id="pg-cli-level">
+            <option value="light" selected>Light (idea, thread &amp; precedents)</option>
+            <option value="medium">Medium (idea + code, build &amp; tests)</option>
+            <option value="dark">Dark (idea + build + live PG SQL)</option>
+          </select>
+        </label>
+        <label>
+          <span class="dim" style="font-size:11px;display:block;margin-bottom:3px;">CF # / Patch ID</span>
+          <input type="text" id="pg-cli-target" value="7388" placeholder="Patch ID or CF #" />
+        </label>
+      </div>
+      <div class="cli-bar">
+        <span class="cli-bar-label">CMD</span>
+        <code class="mono cli-bar-cmd" id="pg-cli-output">npx pgroast@next 7388 --backend claude --level light --flavour default</code>
+        <button type="button" class="btn btn-primary btn-sm" id="pg-cli-copy-btn">Copy</button>
+      </div>
+      <div class="dim" style="font-size:11.5px;margin-top:6px;">
+        Tip: <code class="mono">npx pgroast@next</code> and <code class="mono">bunx pgroast@next</code> work identically without installing globally. Run <code class="mono">npx pgroast@next login --token …</code> once to save your publishing identity in <code class="mono">~/.pgroast/auth.json</code>.
+      </div>
+    </section>
+
+    <!-- 3. ARCHITECTURE AT A GLANCE -->
     <section class="card">
       <div class="card-head">
         <h2>How the Three Pieces Fit Together</h2>
@@ -350,25 +501,50 @@ export function renderDocsTab(params: {
       </div>
       <div class="intro-grid" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr));">
         <div class="intro-step">
-          <div class="intro-step-head"><span class="intro-num">1</span><strong>CLI (<code class="mono">pgroast</code>)</strong></div>
-          <p>Runs locally on your OAuth AI CLIs (Claude, Codex, Antigravity) against 2,547 historical Postgres precedents. Writes local files only unless you run <code class="mono">publish</code> or opt-in <code class="mono">contribute</code>.</p>
+          <div class="intro-step-head"><span class="intro-num">1</span><strong>CLI (<code class="mono">npx pgroast@next</code>)</strong></div>
+          <p>Fastest way to start. Runs locally on your AI CLI login against 2,547 Postgres precedents. Writes local files only unless you run <code class="mono">publish</code> or opt-in <code class="mono">contribute</code>.</p>
         </div>
         <div class="intro-step">
-          <div class="intro-step-head"><span class="intro-num">2</span><strong>Personal Backoffice (<code class="mono">apps/local</code>)</strong></div>
-          <p>Private PostgreSQL 19 workbench on <code class="mono">127.0.0.1:3432</code>. Compile Postgres, inspect diffs, manage Work Items, run Roast Studio, draft 72-col Gmail replies, and schedule quota runs.</p>
+          <div class="intro-step-head"><span class="intro-num">2</span><strong>Personal Backoffice (optional)</strong></div>
+          <p>Optional local PostgreSQL 19 web UI on <code class="mono">127.0.0.1:3432</code> for power reviewers: compile Postgres, inspect diffs, manage Work Items, run Roast Studio, and draft 72-col Gmail replies.</p>
         </div>
         <div class="intro-step">
-          <div class="intro-step-head"><span class="intro-num">3</span><strong>Front Office (<code class="mono">apps/web</code>)</strong></div>
-          <p>Public collaboration hub: CommitFest Briefs, <code class="mono">/patch/&lt;id&gt;</code> pages, Hacking Observatory, <code class="mono">/hacker/&lt;slug&gt;</code> profiles, Mailing Lists Archive, Stats, and the Quota Contribute queue.</p>
+          <div class="intro-step-head"><span class="intro-num">3</span><strong>Public App (this site)</strong></div>
+          <p>Shared hub: CommitFest Briefs, <code class="mono">/patch/&lt;id&gt;</code> pages, Hacking Observatory, <code class="mono">/hacker/&lt;slug&gt;</code> profiles, Mailing Lists Archive, Stats, and the Quota Contribute queue.</p>
         </div>
       </div>
     </section>
 
-    <!-- Complete Feature Catalog -->
+    <!-- 4. COMPLETE CLI REFERENCE -->
+    <section class="card" id="cli-reference">
+      <div class="card-head">
+        <div>
+          <h2>CLI Command Reference (<code class="mono">npx pgroast@next</code>)</h2>
+          <div class="dim" style="font-size:12px;">Every command works via <code class="mono">npx pgroast@next …</code> or <code class="mono">bunx pgroast@next …</code> without global installation</div>
+        </div>
+      </div>
+      <div class="docs-cli-list">
+        ${cliCommands
+          .map(
+            (c) => `
+          <div class="docs-cli-row">
+            <div style="min-width:0;flex:1;">
+              <code class="mono docs-cli-cmd">${esc(c.cmd)}</code>
+              <div class="muted" style="font-size:12px;margin-top:3px;">${esc(c.desc)}</div>
+            </div>
+            <button type="button" class="btn btn-ghost btn-sm" data-copy-snippet="${esc(c.cmd)}">Copy</button>
+          </div>
+        `,
+          )
+          .join("")}
+      </div>
+    </section>
+
+    <!-- 5. COMPLETE FEATURE CATALOG (MOVED BELOW QUICKSTART & CLI) -->
     <section class="card" id="all-features">
       <div class="card-head">
         <div>
-          <h2>All Features (${ALL_FEATURES.length})</h2>
+          <h2>Complete Feature Catalog (${ALL_FEATURES.length})</h2>
           <div class="dim" style="font-size:12px;">Filter by area or search any command, visualization, or safety gate</div>
         </div>
       </div>
@@ -397,105 +573,7 @@ export function renderDocsTab(params: {
       </div>
     </section>
 
-    <!-- Interactive CLI Playground -->
-    <section class="card" id="cli-playground">
-      <div class="card-head">
-        <div>
-          <div class="viz-kicker">Interactive CLI Builder</div>
-          <h2>CLI Playground (<code class="mono">npx pgroast</code>)</h2>
-          <div class="dim" style="font-size:12px;">Pick any command, model, reasoning effort, and reviewer archetype — copy the exact runnable command.</div>
-        </div>
-        <span class="pill p-ok">OAuth CLI · Zero API keys</span>
-      </div>
-      <div class="quota-preview-controls" style="margin-bottom:10px;">
-        <label>
-          <span class="dim" style="font-size:11px;display:block;margin-bottom:3px;">Command</span>
-          <select id="pg-cli-cmd">
-            <option value="roast">Roast 1 patch</option>
-            <option value="contribute" selected>Quota auto-contribute (--once)</option>
-            <option value="batch">Bulk CommitFest batch</option>
-            <option value="pushback">Pushback thread archaeology</option>
-            <option value="shortlist">Shortlist &amp; closing report</option>
-            <option value="bugs">pgsql-bugs production triage</option>
-            <option value="publish">Publish local roast.json</option>
-          </select>
-        </label>
-        <label>
-          <span class="dim" style="font-size:11px;display:block;margin-bottom:3px;">Backend</span>
-          <select id="pg-cli-backend">
-            <option value="codex" selected>codex (OpenAI Codex CLI)</option>
-            <option value="claude">claude (Claude Code CLI)</option>
-            <option value="agy">agy (Antigravity CLI)</option>
-            <option value="dual">dual (Claude + agy)</option>
-          </select>
-        </label>
-        <label>
-          <span class="dim" style="font-size:11px;display:block;margin-bottom:3px;">Model &amp; Effort</span>
-          <input type="text" id="pg-cli-model" value="gpt-6.2-astra:xhigh" placeholder="e.g. gpt-6.2-astra:xhigh or opus" />
-        </label>
-        <label>
-          <span class="dim" style="font-size:11px;display:block;margin-bottom:3px;">Archetype</span>
-          <select id="pg-cli-flavour">
-            <option value="default" selected>House Blend (default)</option>
-            <option value="auto-by-subsystem">Auto by subsystem</option>
-            <option value="edge-case-hunter">The Edge-Case Hunter</option>
-            <option value="spec-lawyer">The Spec Lawyer</option>
-            <option value="systems-architect">The Systems Architect</option>
-            <option value="perf-hawk">The Perf Hawk</option>
-            <option value="storage-skeptic">The Storage Skeptic</option>
-            <option value="index-specialist">The Index Specialist</option>
-            <option value="production-dba">The Production DBA</option>
-          </select>
-        </label>
-        <label>
-          <span class="dim" style="font-size:11px;display:block;margin-bottom:3px;">Roast Level</span>
-          <select id="pg-cli-level">
-            <option value="light">Light (idea + precedents)</option>
-            <option value="medium" selected>Medium (code + build + test)</option>
-            <option value="dark">Dark (code + build + live PG SQL stress)</option>
-          </select>
-        </label>
-        <label>
-          <span class="dim" style="font-size:11px;display:block;margin-bottom:3px;">CF # / Patch ID</span>
-          <input type="text" id="pg-cli-target" value="7508" placeholder="Patch ID or CF #" />
-        </label>
-      </div>
-      <div class="cli-bar">
-        <span class="cli-bar-label">CMD</span>
-        <code class="mono cli-bar-cmd" id="pg-cli-output">PGROAST_PUBLISH_TOKEN=pgroast_pub_… npx pgroast@next contribute --once --backend codex --model gpt-6.2-astra --effort xhigh --flavour default --level medium --publish</code>
-        <button type="button" class="btn btn-primary btn-sm" id="pg-cli-copy-btn">Copy</button>
-      </div>
-      <div class="dim" style="font-size:11.5px;margin-top:6px;">
-        Tip: use <code class="mono">npx pgroast@next</code> for the latest prerelease (or <code class="mono">bunx pgroast@next</code>). Identity for <code class="mono">--publish</code> comes from your <code class="mono">PGROAST_PUBLISH_TOKEN</code>.
-      </div>
-    </section>
-
-    <!-- Complete CLI Reference -->
-    <section class="card" id="cli-reference">
-      <div class="card-head">
-        <div>
-          <h2>CLI Command Reference (<code class="mono">npx pgroast</code>)</h2>
-          <div class="dim" style="font-size:12px;">Run directly with <code class="mono">npx pgroast …</code> (or <code class="mono">bunx pgroast …</code> / globally installed <code class="mono">pgroast …</code>)</div>
-        </div>
-      </div>
-      <div class="docs-cli-list">
-        ${cliCommands
-          .map(
-            (c) => `
-          <div class="docs-cli-row">
-            <div style="min-width:0;flex:1;">
-              <code class="mono docs-cli-cmd">${esc(c.cmd)}</code>
-              <div class="muted" style="font-size:12px;margin-top:3px;">${esc(c.desc)}</div>
-            </div>
-            <button type="button" class="btn btn-ghost btn-sm" data-copy-snippet="${esc(c.cmd)}">Copy</button>
-          </div>
-        `,
-          )
-          .join("")}
-      </div>
-    </section>
-
-    <!-- Stripe-Style 3-Column Interactive API Reference (OpenAPI 3.1) -->
+    <!-- 6. STRIPE-STYLE 3-COLUMN INTERACTIVE API REFERENCE (OpenAPI 3.1) -->
     ${renderStripeApiExplorer({
       origin,
       selectedId: apiEndpointId,

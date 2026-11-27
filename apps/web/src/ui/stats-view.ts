@@ -1,4 +1,5 @@
 import type { DarkMatrixRow, StatsOverviewData, TriageTableRow } from "../stats-queries.ts";
+import { renderStatsSkeleton } from "./skeletons.ts";
 import {
   renderAuthorBeeswarmSvg,
   renderLoadVsCapacitySvg,
@@ -188,14 +189,7 @@ export function renderStatsObservatory(params: {
   const { data, loading, error, queueFilter, darkFilter } = params;
 
   if (loading && !data) {
-    return `
-      <div class="card">
-        <div class="loading-state" style="padding:48px 0;">
-          <div class="spinner"></div>
-          <div class="muted">Computing live CommitFest intelligence &amp; PostgreSQL git capacity…</div>
-        </div>
-      </div>
-    `;
+    return renderStatsSkeleton();
   }
   if (error && !data) {
     return `

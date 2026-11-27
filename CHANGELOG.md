@@ -1,5 +1,22 @@
 # Changelog
 
+## v0.3.0-alpha.24 (2026-11-27)
+
+This release applies Fable's newcomer UX audit across Home, Docs, Patch Detail, and CLI onboarding, and replaces every tiny spinner and missing preloader with layout-matched animated grayscale shimmer rectangles.
+
+### Changes
+
+- **De-Cluttered Home & Unified Idea-First Definition (`apps/web/src/ui/app.ts`, `prompts/roaster-common.md`):**
+  - Replaced the 4-box 2-column Home intro (which had stale tone-only roast copy) with a compact single-column welcome bar stating clearly that **every roast level starts with idea & design scrutiny** (`Light`: idea + 2,547 precedents · `Medium`: + C/SQL diff, compile & tests · `Dark`: + live patched PG SQL).
+  - Removed the dangerous `batch 62` CLI bar from Home and collapsed the brief snapshot charts by default so real CommitFest patches appear in the first viewport.
+  - Updated `prompts/roaster-common.md` so idea and design scrutiny explicitly comes first across all three levels while Medium/Dark cleanly incorporate code, compile/test, and live SQL evidence.
+- **Step-by-Step 5-Minute Docs Tutorial & `npx pgroast@next login` (`apps/web/src/ui/docs-view.ts`, `src/publish.ts`, `src/cli.ts`, `src/contribute.ts`):**
+  - Put a 4-step beginner tutorial (`#quickstart`) at the top of `/docs`: prerequisites (`Bun >= 1.3.5` + `claude`/`codex`/`agy`), `npx pgroast@next doctor`, first local Light roast (`npx pgroast@next 7388 --level light` — no account or Backoffice needed), HTML report, and optional publishing identity.
+  - Added `npx pgroast@next login --token <pgroast_pub_...>` and `npx pgroast@next whoami` saving the publish-only token in `~/.pgroast/auth.json` (`0600`) so zero-install `npx pgroast@next` runs recognize you automatically for `publish` and `contribute --publish`.
+  - Refreshed stale Docs cards (new 6-chart Stats, System Day/Night themes, About page) and switched the CLI Playground and Patch Detail sidebar defaults to a safe, untruncated Light roast.
+- **Animated Grayscale Skeleton Preloaders Everywhere (`apps/web/src/ui/skeletons.ts`, `index.html`, `styles.css`, `app.ts`, `stats-view.ts`, `hackers-view.ts`, `lists-view.ts`, `contribute-view.ts`):**
+  - Replaced tiny spinners and missing preloaders (including the initial boot screen and **Setup Backoffice**) with layout-matched animated grayscale shimmer rectangles (`@keyframes skel-shimmer`, respecting `prefers-reduced-motion`) across Brief, Setup Backoffice, Stats, Hackers, Hacker Profile, Lists, Entries, Opinions, Contribute, and Patch Overview/Discussion/Diff.
+
 ## v0.3.0-alpha.23 (2026-11-27)
 
 This release adds a dedicated **About** page (`/about`) that explains what "roasting" means on pgroast, tells the coffee story behind the name, and shows with custom theme-aware SVG diagrams why scrutinizing the patch idea comes first across all roast levels (`Light`, `Medium`, `Dark`).

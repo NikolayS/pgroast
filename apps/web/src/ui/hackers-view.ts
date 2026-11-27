@@ -1,3 +1,4 @@
+import { renderHackerProfileSkeleton, renderHackersSkeleton } from "./skeletons.ts";
 import {
   renderBusFactorQuadrantSvg,
   renderCollabConstellationSvg,
@@ -415,14 +416,7 @@ export function renderHackersTab(params: {
   ];
 
   if (loading && !overview) {
-    return `
-      <div class="card">
-        <div class="loading-state" style="padding:48px 0;">
-          <div class="spinner"></div>
-          <div class="muted">Loading PostgreSQL Hacking Observatory…</div>
-        </div>
-      </div>
-    `;
+    return renderHackersSkeleton();
   }
   if (error && !overview) {
     return `<div class="card"><div class="empty-state">Failed to load hacking stats: ${esc(error)}</div></div>`;
@@ -791,14 +785,7 @@ export function renderHackerProfilePage(params: {
 }): string {
   const { profile, loading, error, activeTab, backLabel } = params;
   if (loading && !profile) {
-    return `
-      <div class="card">
-        <div class="loading-state" style="padding:56px 0;">
-          <div class="spinner"></div>
-          <div class="muted">Loading contributor profile…</div>
-        </div>
-      </div>
-    `;
+    return renderHackerProfileSkeleton();
   }
   if (error || !profile) {
     return `

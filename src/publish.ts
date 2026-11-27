@@ -4,12 +4,73 @@
 // (e.g. https://pgroast.postgres.ai). Runs the Public-Confidentiality Hard Gate locally
 // before sending anything over HTTP. Never posts to pgsql-hackers or CommitFest.
 
-import { existsSync, readFileSync, statSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { normalizeRoastFlavour, normalizeRoastLevel } from "./roast/flavours.ts";
 import type { Roast } from "./roast/schema.ts";
 
 export const DEFAULT_HUB_URL = "https://pgroast.postgres.ai";
+export const AUTH_FILE_PATH = join(homedir(), ".pgroast", "auth.json");
+
+export interface SavedAuth {
+  hubUrl: string;
+  token: string;
+  savedAt: string;
+}
+
+export function loadSavedAuth(): SavedAuth | null {
+  try {
+    if (!existsSync(AUTH_FILE_PATH)) return null;
+    const raw = JSON.parse(readFileSync(AUTH_FILE_PATH, "utf8")) as Partial<SavedAuth>;
+    if (!raw.token || typeof raw.token !== "string") return null;
+    return {
+      hubUrl: typeof raw.hubUrl === "string" && raw.hubUrl.trim() ? raw.hubUrl.trim() : DEFAULT_HUB_URL,
+      token: raw.token.trim(),
+      savedAt: typeof raw.savedAt === "string" ? raw.savedAt : "",
+    };
+  } catch {
+    return null;
+  }
+}
+
+export function saveAuth(auth: { hubUrl: string; token: string }): void {
+  const dir = dirname(AUTH_FILE_PATH);
+  mkdirSync(dir, { recursive: true });
+  const data: SavedAuth = {
+    hubUrl: auth.hubUrl.trim().replace(/\/$/, "") || DEFAULT_HUB_URL,
+    token: auth.token.trim(),
+    savedAt: new Date().toISOString(),
+  };
+  writeFileSync(AUTH_FILE_PATH, JSON.stringify(data, null, 2) + "\n", { mode: 0o600 });
+  try {
+    chmodSync(AUTH_FILE_PATH, 0o600);
+  } catch {
+    // ignore on non-POSIX
+  }
+}
+
+export function resolvePublishToken(explicitToken?: string): { token: string; source: string; hubUrl?: string } {
+  if (explicitToken && explicitToken.trim()) return { token: explicitToken.trim(), source: "--token" };
+  if (process.env.PGROAST_PUBLISH_TOKEN?.trim()) {
+    return { token: process.env.PGROAST_PUBLISH_TOKEN.trim(), source: "PGROAST_PUBLISH_TOKEN" };
+  }
+  const saved = loadSavedAuth();
+  if (saved?.token) return { token: saved.token, source: AUTH_FILE_PATH, hubUrl: saved.hubUrl };
+  // Fallback to contribute.json if user already configured it there
+  try {
+    const contribPath = join(homedir(), ".pgroast", "contribute.json");
+    if (existsSync(contribPath)) {
+      const cfg = JSON.parse(readFileSync(contribPath, "utf8")) as { publishToken?: string; hubUrl?: string };
+      if (cfg.publishToken?.trim()) {
+        return { token: cfg.publishToken.trim(), source: contribPath, hubUrl: cfg.hubUrl };
+      }
+    }
+  } catch {
+    // ignore
+  }
+  return { token: "", source: "none" };
+}
 
 const SECRET_AND_PATH_RULES: Array<{ name: string; re: RegExp }> = [
   { name: "pgroast publish token", re: /pgroast_pub_[A-Za-z0-9_-]{12,}/ },
@@ -247,7 +308,7 @@ export async function publishRoastOpinion(opts: {
   }
   if (!opts.token.trim()) {
     throw new Error(
-      `Missing publish token. Mint a publish-only token at ${hubBase}/?tab=connect and set PGROAST_PUBLISH_TOKEN or pass --token.`,
+      `Missing publish token. Mint a publish-only token at ${hubBase}/?tab=connect and save it once with:\n  npx pgroast@next login --token <pgroast_pub_...>`,
     );
   }
 
@@ -288,8 +349,9 @@ Options:
 
 export async function publishMain(argv: string[]): Promise<number> {
   let target = "";
-  let hubUrl = process.env.PGROAST_PUBLIC_HUB_URL || DEFAULT_HUB_URL;
-  let token = process.env.PGROAST_PUBLISH_TOKEN || "";
+  const resolved = resolvePublishToken();
+  let hubUrl = process.env.PGROAST_PUBLIC_HUB_URL || resolved.hubUrl || DEFAULT_HUB_URL;
+  let token = resolved.token;
   let cfIdOverride: number | undefined;
   let dryRun = false;
 
@@ -352,5 +414,86 @@ export async function publishMain(argv: string[]): Promise<number> {
   }
   console.log(`Published opinion for CF ${res.cfId} (${res.payload.verdict}, ${res.payload.backend} / ${res.payload.roast_level} / ${res.payload.roast_flavour})`);
   console.log(`View patch page: ${res.patchUrl}`);
+  return 0;
+}
+
+const LOGIN_USAGE = `Usage: pgroast login --token <pgroast_pub_...> [--hub URL]
+       pgroast login --logout
+       pgroast whoami
+
+  Saves your publish-only pgroast token locally in ~/.pgroast/auth.json (mode 0600)
+  so \`npx pgroast publish\` and \`npx pgroast contribute --publish\` recognize you
+  without needing a global install or passing --token every time.
+
+  Note: Local roasting (\`npx pgroast 7388 --level light\`) needs NO login at all —
+  it uses your local Claude / Codex / agy CLI login and writes local files only.`;
+
+export async function loginMain(argv: string[], mode: "login" | "whoami" = "login"): Promise<number> {
+  if (mode === "whoami") {
+    const r = resolvePublishToken();
+    if (!r.token) {
+      console.log("Not logged in to a pgroast Public App hub.");
+      console.log(`Local roasting needs no login. To publish opinions, mint a token at ${DEFAULT_HUB_URL}/?tab=connect and run:`);
+      console.log("  npx pgroast@next login --token <pgroast_pub_...>");
+      return 0;
+    }
+    const prefix = r.token.slice(0, 18);
+    console.log(`Publish token configured (${prefix}…)`);
+    console.log(`Source: ${r.source}`);
+    console.log(`Hub:    ${process.env.PGROAST_PUBLIC_HUB_URL || r.hubUrl || DEFAULT_HUB_URL}`);
+    return 0;
+  }
+
+  let token = "";
+  let hubUrl = process.env.PGROAST_PUBLIC_HUB_URL || DEFAULT_HUB_URL;
+  let logout = false;
+  const rest = [...argv];
+  while (rest.length) {
+    const tok = rest.shift()!;
+    if (tok === "-h" || tok === "--help") {
+      console.log(LOGIN_USAGE);
+      return 0;
+    } else if (tok === "--token") {
+      token = rest.shift() || "";
+    } else if (tok === "--hub") {
+      hubUrl = rest.shift() || DEFAULT_HUB_URL;
+    } else if (tok === "--logout") {
+      logout = true;
+    } else if (!token && tok.startsWith("pgroast_pub_")) {
+      token = tok;
+    } else {
+      console.error(`pgroast login: unknown option ${tok}\n\n${LOGIN_USAGE}`);
+      return 2;
+    }
+  }
+
+  if (logout) {
+    if (existsSync(AUTH_FILE_PATH)) {
+      rmSync(AUTH_FILE_PATH, { force: true });
+      console.log(`Removed saved publish token (${AUTH_FILE_PATH}).`);
+    } else {
+      console.log("No saved publish token found.");
+    }
+    return 0;
+  }
+
+  if (!token.trim()) {
+    console.log(`How pgroast recognizes you when publishing:`);
+    console.log(`  1. Open ${hubUrl.replace(/\/$/, "")}/?tab=connect and mint a publish-only token via GitHub or Google.`);
+    console.log(`  2. Save it once locally (mode 0600 in ~/.pgroast/auth.json):`);
+    console.log(`     npx pgroast@next login --token <pgroast_pub_...>`);
+    console.log(`\nNote: Local roasting (\`npx pgroast@next 7388 --level light\`) needs NO pgroast login.`);
+    return 0;
+  }
+
+  if (!token.trim().startsWith("pgroast_pub_")) {
+    console.error('pgroast login: expected a publish token starting with "pgroast_pub_".');
+    return 2;
+  }
+
+  saveAuth({ hubUrl, token });
+  console.log(`Saved publish token (${token.trim().slice(0, 18)}…) to ${AUTH_FILE_PATH} (mode 0600).`);
+  console.log(`Hub: ${hubUrl.replace(/\/$/, "")}`);
+  console.log(`Future \`npx pgroast@next publish\` and \`contribute --publish\` runs will recognize you automatically.`);
   return 0;
 }

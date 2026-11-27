@@ -1,5 +1,13 @@
 import { renderAboutTab } from "./about-view.ts";
 import {
+  renderBriefSkeleton,
+  renderConnectSkeleton,
+  renderDiffSkeleton,
+  renderDiscussionSkeleton,
+  renderListPageSkeleton,
+  renderPatchOverviewSkeleton,
+} from "./skeletons.ts";
+import {
   API_ENDPOINTS,
   buildApiCodeSnippet,
   buildEndpointPath,
@@ -354,6 +362,7 @@ const state = {
   statsError: "",
   statsQueueFilter: "all" as StatsQueueFilter,
   statsDarkFilter: "all" as StatsDarkFilter,
+  bootLoading: true,
   health: null as HealthInfo | null,
   views: null as PageViewsInfo | null,
   briefs: [] as BriefSummary[],
@@ -921,6 +930,11 @@ async function loadAll(): Promise<void> {
     const route = parseRouteFromLocation();
     state.tab = route.tab;
 
+    // Immediately paint static pages (/about, /docs) or route-matched grayscale skeleton rectangles
+    if (!route.patchId && !route.hackerSlug) {
+      render();
+    }
+
     // On direct /patch/:id or /hacker/:slug visits, start fetching details immediately in parallel so first paint is instant!
     const patchPromise = route.patchId ? openPatchPage(route.patchId, false, route.mrTab) : null;
     const hackerPromise = route.hackerSlug ? openHackerProfile(route.hackerSlug, false) : null;
@@ -998,6 +1012,7 @@ async function loadAll(): Promise<void> {
     }
     syncTopBackofficeLink();
 
+    state.bootLoading = false;
     if (patchPromise) {
       await patchPromise;
       render();
@@ -1012,6 +1027,7 @@ async function loadAll(): Promise<void> {
       }
     }
   } catch (err) {
+    state.bootLoading = false;
     const root = document.getElementById("web-main");
     if (root) {
       root.innerHTML = `<div class="card"><div class="empty-state">Failed to load companion data: ${esc(err instanceof Error ? err.message : String(err))}</div></div>`;
@@ -1328,14 +1344,7 @@ function quotePreviewLine(raw: string, maxLen = 84): string {
 
 function renderMrDiscussionTab(cfId: number, backofficeHref: string): string {
   if (state.mrDiscussionLoading) {
-    return `
-      <div class="card">
-        <div class="loading-state" style="padding:36px 0;">
-          <div class="spinner"></div>
-          <div class="muted">Loading pgsql-hackers discussion thread for CF ${cfId}…</div>
-        </div>
-      </div>
-    `;
+    return renderDiscussionSkeleton();
   }
   if (state.mrDiscussionError) {
     return `
@@ -1552,14 +1561,7 @@ function renderMrDiscussionTab(cfId: number, backofficeHref: string): string {
 
 function renderMrDiffTab(cfId: number, backofficeHref: string): string {
   if (state.mrDiffLoading) {
-    return `
-      <div class="card">
-        <div class="loading-state" style="padding:36px 0;">
-          <div class="spinner"></div>
-          <div class="muted">Fetching latest CFBot unified diff (master…cf/${cfId}) and matching -hackers comments…</div>
-        </div>
-      </div>
-    `;
+    return renderDiffSkeleton();
   }
   if (state.mrDiffError) {
     return `
@@ -1892,20 +1894,21 @@ function renderPatchPage(): string {
       <div class="patch-main">
         <!-- 1. Common Ground & Consensus -->
         <section class="consensus-card">
+          ${
+            state.patchLoading && opinions.length === 0
+              ? renderPatchOverviewSkeleton()
+              : `
           <div class="card-head" style="margin-bottom:6px;">
-            <h2>Common Ground &amp; Consensus</h2>
+            <h2>${opinions.length >= 2 ? "Common Ground &amp; Consensus" : opinions.length === 1 ? "Single AI Opinion" : "Baseline Triage Summary (Automated)"}</h2>
             ${consensusBadge}
           </div>
           <p class="consensus-headline">
-            ${
-              state.patchLoading
-                ? "Loading reviewer opinions and consensus…"
-                : esc(
-                    consensus?.headline ||
-                      "Compare multiple reviewers' local AI runs on this patch to find where models and reviewers agree or disagree.",
-                  )
-            }
-          </p>
+            ${esc(
+              consensus?.headline ||
+                "Compare multiple reviewers' local AI runs on this patch to find where models and reviewers agree or disagree.",
+            )}
+          </p>`
+          }
           ${
             barTotal > 0
               ? `
@@ -2033,14 +2036,13 @@ function renderPatchPage(): string {
 
             <!-- Contribute CTA -->
             <div class="collab-cta">
-              <div style="font-weight:600;font-size:13.5px;">Add your AI's opinion on CF ${cfId}</div>
+              <div style="font-weight:600;font-size:13.5px;">Roast CF ${cfId} with your own AI</div>
               <div class="muted" style="font-size:12.5px;line-height:1.5;">
-                Each reviewer runs their own local <strong>Personal Backoffice</strong> with their preferred AI (Claude, Gemini, Codex, etc.) and local PostgreSQL build, then clicks <strong>Publish Opinion</strong> to share sanitized findings here so the team can compare perspectives and derive common ground.
+                No account or Backoffice needed to try locally: run <code class="mono">npx pgroast@next ${cfId} --level light</code> (uses your local Claude, Codex, or agy login). Save a publish token once via <code class="mono">npx pgroast@next login</code> to share findings here.
               </div>
               <div class="row" style="gap:8px;margin-top:2px;flex-wrap:wrap;">
-                <button type="button" class="btn btn-primary btn-sm" data-goto-connect="1">Set up Personal Backoffice →</button>
-                <a class="btn btn-backoffice btn-sm" href="${esc(backofficeHref)}" target="_blank" rel="noopener" title="Already running bun run app:local locally?">Open locally (127.0.0.1) ↗</a>
-                <button type="button" class="btn btn-secondary btn-sm" id="patch-copy-local-cta">Copy local link</button>
+                <button type="button" class="btn btn-primary btn-sm" id="patch-goto-quickstart-btn">5-Min CLI Tutorial →</button>
+                <button type="button" class="btn btn-secondary btn-sm" data-goto-connect="1">Sign in / Setup Backoffice →</button>
               </div>
             </div>
           </div>
@@ -2108,21 +2110,24 @@ function renderPatchPage(): string {
         }
 
         <div class="card" style="margin-bottom:0;">
-          <div class="sheet-section-label" style="margin-bottom:8px;">Run via CLI (<code class="mono">npx pgroast</code>)</div>
+          <div class="sheet-section-label" style="margin-bottom:8px;">Try via CLI (no install needed)</div>
           <div class="cli-bar" style="margin-bottom:6px;">
-            <span class="cli-bar-label">Roast</span>
-            <code class="mono cli-bar-cmd">npx pgroast ${cfId} --roast-level medium --flavour default</code>
-            <button type="button" class="btn btn-ghost btn-sm" data-copy-cli="npx pgroast ${cfId} --roast-level medium --flavour default">Copy</button>
+            <span class="cli-bar-label">Light</span>
+            <code class="mono cli-bar-cmd">npx pgroast@next ${cfId} --level light</code>
+            <button type="button" class="btn btn-ghost btn-sm" data-copy-cli="npx pgroast@next ${cfId} --level light">Copy</button>
           </div>
           <div class="cli-bar" style="margin-bottom:6px;">
-            <span class="cli-bar-label">Thread</span>
-            <code class="mono cli-bar-cmd">npx pgroast pushback ${cfId}</code>
-            <button type="button" class="btn btn-ghost btn-sm" data-copy-cli="npx pgroast pushback ${cfId}">Copy</button>
+            <span class="cli-bar-label">Code</span>
+            <code class="mono cli-bar-cmd">npx pgroast@next ${cfId} --level medium</code>
+            <button type="button" class="btn btn-ghost btn-sm" data-copy-cli="npx pgroast@next ${cfId} --level medium">Copy</button>
           </div>
           <div class="cli-bar">
             <span class="cli-bar-label">Publish</span>
-            <code class="mono cli-bar-cmd">npx pgroast publish ./out/cf-${cfId}/roast.json</code>
-            <button type="button" class="btn btn-ghost btn-sm" data-copy-cli="npx pgroast publish ./out/cf-${cfId}/roast.json">Copy</button>
+            <code class="mono cli-bar-cmd">npx pgroast@next publish ./out/cf-${cfId}/roast.json</code>
+            <button type="button" class="btn btn-ghost btn-sm" data-copy-cli="npx pgroast@next publish ./out/cf-${cfId}/roast.json">Copy</button>
+          </div>
+          <div class="dim" style="font-size:11px;margin-top:6px;">
+            Local runs need no account. Save your publish identity once with <code class="mono">npx pgroast@next login</code>.
           </div>
         </div>
 
@@ -2264,95 +2269,44 @@ function renderIntroCard(): string {
       <div class="intro-collapsed">
         <div class="intro-collapsed-text">
           <span class="intro-bean" aria-hidden="true">☕</span>
-          <span><strong>How pgroast works:</strong> reviewers and AIs roast CommitFest patches (and their own drafts) by level and flavour; humans verify findings and deliver reviews to <code class="mono">pgsql-hackers</code>. <button type="button" class="about-link-inline" data-open-about="">What is a roast?</button></span>
+          <span><strong>pgroast:</strong> AI-assisted PostgreSQL patch scrutiny — idea &amp; design first at every roast level. <button type="button" class="about-link-inline" data-open-about="">What is a roast?</button></span>
         </div>
-        <button type="button" class="btn btn-secondary btn-sm" id="intro-toggle-btn">Show guide ▾</button>
+        <button type="button" class="btn btn-secondary btn-sm" id="intro-toggle-btn">Show intro ▾</button>
       </div>
     `;
   }
 
   return `
-    <section class="intro-card" aria-label="How pgroast works">
-      <div class="intro-head">
-        <div>
-          <div class="intro-kicker">Open-source PostgreSQL CommitFest collaboration</div>
-          <h2 class="intro-title">Review CommitFest patches together — humans + AIs</h2>
-          <p class="intro-lead">
-            CommitFest has hundreds of open patches waiting for review. Each contributor runs a private local <strong>Backoffice</strong> with their own AI models to review and scrutinize (&ldquo;roast&rdquo;) patches — starting with the idea itself, then testing the code — and publishes sanitized opinions here so we can compare notes. <button type="button" class="about-link-inline" data-open-about="">Read why we roast patches →</button>
-          </p>
+    <section class="home-welcome" aria-label="About pgroast">
+      <div class="home-welcome-top">
+        <div style="flex:1;min-width:240px;">
+          <div style="font-size:14.5px;font-weight:650;color:var(--text);margin-bottom:4px;">
+            AI-assisted pre-review ("roasting") for PostgreSQL CommitFest patches
+          </div>
+          <div class="muted" style="font-size:13px;line-height:1.5;">
+            We scrutinize patches early to surface design blockers, past <code class="mono">pgsql-hackers</code> history, and build/SQL bugs before committers spend hours reviewing. Nothing auto-posts to <code class="mono">pgsql-hackers</code> — humans verify every finding.
+          </div>
         </div>
-        <button type="button" class="btn btn-secondary btn-sm intro-hide-btn" id="intro-toggle-btn" title="Collapse intro guide">Hide guide ▴</button>
-      </div>
-
-      <div class="intro-grid">
-        <div class="intro-step">
-          <div class="intro-step-head">
-            <span class="intro-num">1</span>
-            <strong>Roast any patch — or your own</strong>
-          </div>
-          <p>
-            Run design and architecture pre-reviews against any CommitFest entry or <code class="mono">pgsql-hackers</code> thread, checked against 2,500+ prior rejected attempts and reverts. Authors can also roast their own local draft (<code class="mono">pgroast --self</code>) before submitting.
-          </p>
-        </div>
-
-        <div class="intro-step">
-          <div class="intro-step-head">
-            <span class="intro-num">2</span>
-            <strong>Choose a roast level</strong>
-          </div>
-          <div class="intro-pills">
-            <span class="intro-rbadge intro-rbadge-light">Light</span>
-            <span class="intro-rbadge intro-rbadge-medium">Medium</span>
-            <span class="intro-rbadge intro-rbadge-dark">Dark</span>
-          </div>
-          <p>
-            <strong>Light</strong> gives constructive author pre-flight feedback. <strong>Medium</strong> runs a balanced committer review. <strong>Dark</strong> stress-tests maintenance burden, demand, WAL/locking edge cases, and core vs. extension fit without pulling punches.
-          </p>
-        </div>
-
-        <div class="intro-step">
-          <div class="intro-step-head">
-            <span class="intro-num">3</span>
-            <strong>Pick a reviewer archetype</strong>
-          </div>
-          <div class="intro-flavour-list">
-            <span class="chip">House Blend</span>
-            <span class="chip">The Edge-Case Hunter</span>
-            <span class="chip">The Spec Lawyer</span>
-            <span class="chip">The Systems Architect</span>
-            <span class="chip">The Perf Hawk</span>
-            <span class="chip">The Storage Skeptic</span>
-            <span class="chip">The Index Specialist</span>
-            <span class="chip">The Production DBA</span>
-          </div>
-          <p>
-            Fictional PostgreSQL review personas that focus the AI on specific risk areas — never real human committers (AI makes mistakes all the time). Every report and opinion records its roast level and archetype.
-          </p>
-        </div>
-
-        <div class="intro-step intro-step-human">
-          <div class="intro-step-head">
-            <span class="intro-num">4</span>
-            <strong>A human takes ownership → <code class="mono">pgsql-hackers</code></strong>
-          </div>
-          <p>
-            AI roasts are starting points, never committer decisions, and nothing is ever auto-posted. A human reviewer claims a patch, reads the code and thread, checks every finding, and sends their own verified review to <code class="mono">pgsql-hackers</code>.
-          </p>
+        <div class="row" style="gap:6px;flex-wrap:wrap;align-items:center;">
+          <button type="button" class="btn btn-primary btn-sm" id="intro-quickstart-btn">Roast 1 patch (5 min) →</button>
+          <button type="button" class="btn btn-secondary btn-sm" data-open-about="">What is a roast?</button>
+          <button type="button" class="btn btn-ghost btn-sm" id="intro-toggle-btn" title="Collapse intro">Hide ▴</button>
         </div>
       </div>
-
-      <div class="intro-foot">
-        <div class="row" style="gap:8px;flex-wrap:wrap;">
-          <button type="button" class="btn btn-primary btn-sm" id="intro-setup-btn">Set up your Backoffice →</button>
-          <button type="button" class="btn btn-secondary btn-sm" id="intro-opinions-btn">See live opinions (${state.opinions.length})</button>
-        </div>
-        <span class="dim" style="font-size:12px;">Tap any patch below to open its consensus, <code class="mono">-hackers</code> discussion, and live diff.</span>
+      <div class="home-depth-strip">
+        <strong style="color:var(--text);">Every level starts with the idea &amp; design:</strong>
+        <span><span class="pill p-warn" style="font-size:10.5px;padding:1px 7px;">Light</span> idea, thread &amp; 2,547 precedents</span>
+        <span><span class="pill p-info" style="font-size:10.5px;padding:1px 7px;">Medium</span> + C/SQL diff, compile &amp; tests</span>
+        <span><span class="pill p-danger" style="font-size:10.5px;padding:1px 7px;">Dark</span> + live patched PG SQL stress</span>
       </div>
     </section>
   `;
 }
 
 function renderBriefTab(): string {
+  if (state.bootLoading && !state.briefDetail) {
+    return renderBriefSkeleton();
+  }
   const brief = state.briefDetail;
   if (!brief) {
     return `
@@ -2422,12 +2376,6 @@ function renderBriefTab(): string {
 
     ${renderIntroCard()}
 
-    <div class="cli-bar" style="margin-bottom:14px;">
-      <span class="cli-bar-label">CLI</span>
-      <code class="mono cli-bar-cmd">npx pgroast batch 62 --out ./out/cf62 --status open --concurrency 3 &amp;&amp; npx pgroast shortlist ./out/cf62</code>
-      <button type="button" class="btn btn-ghost btn-sm" data-copy-cli="npx pgroast batch 62 --out ./out/cf62 --status open --concurrency 3 && npx pgroast shortlist ./out/cf62">Copy</button>
-    </div>
-
     <div class="kpis">
       <button type="button" class="kpi" data-jump-verdict="all">
         <div class="kpi-l">Roasted / Total</div>
@@ -2461,9 +2409,9 @@ function renderBriefTab(): string {
       </button>
     </div>
 
-    <details class="insights-fold" ${window.innerWidth >= 768 ? "open" : ""}>
+    <details class="insights-fold">
       <summary>
-        <span>Charts &amp; Status Matrix</span>
+        <span>Brief Snapshot Charts &amp; Matrix <span class="dim" style="font-weight:400;font-size:12px;">(for live queue &amp; bottlenecks, see Stats)</span></span>
         <svg class="fold-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
       </summary>
       <div class="insights-body">
@@ -2634,6 +2582,9 @@ function updateEntriesListOnly(): void {
 }
 
 function renderEntriesTab(): string {
+  if (state.bootLoading && state.entries.length === 0) {
+    return renderListPageSkeleton("Loading CommitFest entries");
+  }
   const filtered = getFilteredEntries();
   const verdictChips: Array<[string, string, string]> = [
     ["all", "All verdicts", ""],
@@ -2867,6 +2818,9 @@ function updateOpinionsListOnly(): void {
 }
 
 function renderOpinionsTab(): string {
+  if (state.bootLoading && state.opinions.length === 0) {
+    return renderListPageSkeleton("Loading community opinions");
+  }
   const filtered = getFilteredOpinions();
   const darkCnt = state.opinions.filter((o) => (o.roast_level || "light").toLowerCase() === "dark").length;
   const medCnt = state.opinions.filter((o) => (o.roast_level || "light").toLowerCase() === "medium").length;
@@ -3003,6 +2957,9 @@ function buildBackofficeInstallPrompt(): string {
 }
 
 function renderConnectTab(): string {
+  if (state.bootLoading && !state.health) {
+    return renderConnectSkeleton();
+  }
   const oauth = state.health?.oauth;
   const backofficeHref = getLocalBackofficeUrl();
   const agentPrompt = buildBackofficeInstallPrompt();
@@ -3634,12 +3591,12 @@ function render(): void {
 
     // Interactive CLI Playground builder
     const updateCliPlayground = () => {
-      const cmd = (document.getElementById("pg-cli-cmd") as HTMLSelectElement | null)?.value || "contribute";
-      const backend = (document.getElementById("pg-cli-backend") as HTMLSelectElement | null)?.value || "codex";
+      const cmd = (document.getElementById("pg-cli-cmd") as HTMLSelectElement | null)?.value || "roast";
+      const backend = (document.getElementById("pg-cli-backend") as HTMLSelectElement | null)?.value || "claude";
       const modelRaw = ((document.getElementById("pg-cli-model") as HTMLInputElement | null)?.value || "").trim();
       const flavour = (document.getElementById("pg-cli-flavour") as HTMLSelectElement | null)?.value || "default";
-      const level = (document.getElementById("pg-cli-level") as HTMLSelectElement | null)?.value || "medium";
-      const target = ((document.getElementById("pg-cli-target") as HTMLInputElement | null)?.value || "7508").trim() || "7508";
+      const level = (document.getElementById("pg-cli-level") as HTMLSelectElement | null)?.value || "light";
+      const target = ((document.getElementById("pg-cli-target") as HTMLInputElement | null)?.value || "7388").trim() || "7388";
 
       const mMatch = modelRaw.match(/^(.+?):(low|medium|high|xhigh|max|ultra)$/i);
       const baseModel = mMatch ? mMatch[1]! : modelRaw;
@@ -3656,10 +3613,10 @@ function render(): void {
       let built = "";
       if (cmd === "roast") {
         const fl = flavour === "auto-by-subsystem" ? "default" : flavour;
-        built = `${envPrefix}npx pgroast@next ${target} --backend ${backend} --roast-level ${level} --flavour ${fl}`;
+        built = `${envPrefix}npx pgroast@next ${target} --backend ${backend} --level ${level} --flavour ${fl}`;
       } else if (cmd === "contribute") {
         const qb = backend === "dual" ? "claude" : backend;
-        built = `PGROAST_PUBLISH_TOKEN=pgroast_pub_YOUR_TOKEN npx pgroast@next contribute --once --backend ${qb}${baseModel ? ` --model ${baseModel}` : ""}${effort ? ` --effort ${effort}` : ""} --flavour ${flavour} --level ${level} --publish`;
+        built = `npx pgroast@next contribute --once --backend ${qb}${baseModel ? ` --model ${baseModel}` : ""}${effort ? ` --effort ${effort}` : ""} --flavour ${flavour} --level ${level} --publish`;
       } else if (cmd === "batch") {
         const fl = flavour === "auto-by-subsystem" ? "default" : flavour;
         const cfNum = /^\d{1,3}$/.test(target) ? target : "62";
@@ -4108,7 +4065,14 @@ document.getElementById("footer-about-link")?.addEventListener("click", (ev) => 
 });
 
 document.getElementById("web-main")?.addEventListener("click", (ev) => {
-  const trigger = (ev.target as Element | null)?.closest<HTMLElement>("[data-open-about]");
+  const el = ev.target as Element | null;
+  const qsBtn = el?.closest<HTMLElement>("#intro-quickstart-btn, #patch-goto-quickstart-btn");
+  if (qsBtn) {
+    ev.preventDefault();
+    navigateToTab("docs", true, "#quickstart");
+    return;
+  }
+  const trigger = el?.closest<HTMLElement>("[data-open-about]");
   if (!trigger) return;
   ev.preventDefault();
   ev.stopPropagation();

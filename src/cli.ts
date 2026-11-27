@@ -45,6 +45,8 @@ const USAGE = `Usage: bun run src/cli.ts <cf-id|cf-url|message-id|thread-url> [o
        bun run src/cli.ts shortlist <batch-dir> [--top 20] [--reject 50] [--pg-repo PATH] [--out DIR]
        bun run src/cli.ts bugs [--days 14] [--limit 30] [--backend NAME] [--out DIR] [--offline] [--dry-run]
        bun run src/cli.ts publish <roast.json|dir> [--hub URL] [--token TOK] [--dry-run]
+       bun run src/cli.ts login [--token TOK] [--hub URL] [--logout]
+       bun run src/cli.ts whoami      show saved pgroast publish token & hub
        bun run src/cli.ts contribute [--init|--status|--dry-run|--once|--auto] [--backend NAME] [--publish]
        bun run src/cli.ts doctor      check the installed CLIs and their login
        bun run src/cli.ts init-db     create the precedent database and load the shipped index
@@ -363,6 +365,8 @@ async function main(): Promise<number> {
   if (process.argv[2] === "shortlist") return (await import("./shortlist.ts")).shortlistMain(process.argv.slice(3));
   if (process.argv[2] === "bugs") return (await import("./bugs.ts")).bugsMain(process.argv.slice(3));
   if (process.argv[2] === "publish") return (await import("./publish.ts")).publishMain(process.argv.slice(3));
+  if (process.argv[2] === "login") return (await import("./publish.ts")).loginMain(process.argv.slice(3), "login");
+  if (process.argv[2] === "whoami") return (await import("./publish.ts")).loginMain(process.argv.slice(3), "whoami");
   if (process.argv[2] === "contribute") return (await import("./contribute.ts")).contributeMain(process.argv.slice(3));
   let args: CliArgs | "help";
   try {

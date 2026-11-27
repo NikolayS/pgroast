@@ -1,3 +1,4 @@
+import { renderListsSkeleton } from "./skeletons.ts";
 import {
   renderInlineSparklineSvg,
   renderMailingListAreaMaSvg,
@@ -116,14 +117,7 @@ export function renderListsTab(params: {
   const { overview, loading, error, selectedList, search, attachmentsOnly, messages } = params;
 
   if (loading && !overview) {
-    return `
-      <div class="card">
-        <div class="loading-state" style="padding:48px 0;">
-          <div class="spinner"></div>
-          <div class="muted">Loading PostgreSQL Mailing Lists Archive…</div>
-        </div>
-      </div>
-    `;
+    return renderListsSkeleton();
   }
   if (error && !overview) {
     return `<div class="card"><div class="empty-state">Failed to load mailing lists archive: ${esc(error)}</div></div>`;
