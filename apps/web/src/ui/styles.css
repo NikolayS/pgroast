@@ -946,20 +946,27 @@ input, select { height: 34px; }
   color: inherit;
   font-family: inherit;
   cursor: pointer;
-  transition: border-color 120ms ease, background 120ms ease;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-width: 0;
+  transition: border-color 120ms ease, background-color 120ms ease;
 }
 .kpi:hover { border-color: var(--border-s); background: var(--surface-2); }
 .kpi:active { transform: scale(0.99); }
 .kpi-l {
   font-size: 11.5px;
+  line-height: 1.3;
   color: var(--muted);
   font-weight: 500;
   display: flex;
   align-items: center;
   gap: 5px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: normal;
+  overflow-wrap: break-word;
+}
+.kpi-l .dot {
+  flex-shrink: 0;
 }
 .kpi-v {
   font-size: 20px;
