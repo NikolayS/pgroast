@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.3.0-alpha.27 (2026-11-27)
+
+This release fixes mobile viewport clipping on the `/docs` step-by-step tutorial Copy buttons and hardens narrow-screen (`375px`) CSS grids and patch MR tabs across the site.
+
+### Changes
+
+- **Mobile Grid & Copy Button Containment (`apps/web/src/ui/styles.css`):**
+  - Replaced single-column `grid-template-columns: 1fr` rules with `minmax(0, 1fr)` and added `min-width: 0; max-width: 100%` on `.qs-step`, `.qs-cmd`, `.about-level-box`, `.about-subbox`, `.intro-step`, `.docs-cli-row`, and `.cli-bar` so long inline CLI commands scroll horizontally inside their code box while keeping the `Copy` button 100% inside the mobile viewport.
+  - Tightened `.mr-tab` padding on narrow screens (`<= 640px`) so `Overview & Consensus`, `Discussion`, and `Changes` all fit cleanly on `375px` phones without clipping.
+
 ## v0.3.0-alpha.26 (2026-11-27)
 
 This release makes authors, reviewers, and committers on every patch page clickable links to their `/hacker/<slug>` contributor profiles, adds live on-demand fetching from `commitfest.postgresql.org` for any unindexed CommitFest patch, and adds `bun run web:sync-cf` to keep active CommitFests (including PG20-4 `#63`) synced.
