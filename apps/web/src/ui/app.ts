@@ -1399,6 +1399,10 @@ function renderMrDiscussionTab(cfId: number, backofficeHref: string): string {
       : disc.messages;
   const hasLongQuotes = visibleMessages.some((m) => m.blocks.some((b) => b.kind === "quote" && b.lineCount > 6));
 
+  const firstMsgIndex = disc.messages[0]?.index ?? 1;
+  const latestMsgIndex = disc.messages[disc.messages.length - 1]?.index ?? disc.messages.length;
+  const cleanParticipantName = (name: string) => name.trim().replace(/^"(.*)"$/, "$1").trim() || name;
+
   return `
     ${
       tldr
@@ -1415,20 +1419,26 @@ function renderMrDiscussionTab(cfId: number, backofficeHref: string): string {
           ${
             tldr.pitch
               ? `
-            <div class="mr-tldr-box">
-              <div class="mr-tldr-label">${disc.messages[0]?.isAuthor ? "Opening pitch" : "Opening post"} (#1 · ${esc(disc.messages[0]?.from || "Starter")}${disc.messages[0]?.isThreadStarter && !disc.messages[0]?.isAuthor ? " · Thread starter" : ""})</div>
+            <button type="button" class="mr-tldr-box mr-tldr-link" data-jump-msg="${firstMsgIndex}" title="Jump to full message #${firstMsgIndex}">
+              <div class="mr-tldr-label">
+                <span>${disc.messages[0]?.isAuthor ? "Opening pitch" : "Opening post"} (#${firstMsgIndex} · ${esc(cleanParticipantName(disc.messages[0]?.from || "Starter"))}${disc.messages[0]?.isThreadStarter && !disc.messages[0]?.isAuthor ? " · Thread starter" : ""})</span>
+                <span class="mr-tldr-jump" aria-hidden="true">↓</span>
+              </div>
               <p>${esc(tldr.pitch)}</p>
-            </div>
+            </button>
           `
               : ""
           }
           ${
             disc.messages.length > 1 && tldr.latestSummary
               ? `
-            <div class="mr-tldr-box">
-              <div class="mr-tldr-label">Latest reply (#${disc.messages.length} · ${esc(tldr.latestBy)})</div>
+            <button type="button" class="mr-tldr-box mr-tldr-link" data-jump-msg="${latestMsgIndex}" title="Jump to full message #${latestMsgIndex}">
+              <div class="mr-tldr-label">
+                <span>Latest reply (#${latestMsgIndex} · ${esc(cleanParticipantName(tldr.latestBy))})</span>
+                <span class="mr-tldr-jump" aria-hidden="true">↓</span>
+              </div>
               <p>${esc(tldr.latestSummary)}</p>
-            </div>
+            </button>
           `
               : ""
           }
@@ -1475,14 +1485,14 @@ function renderMrDiscussionTab(cfId: number, backofficeHref: string): string {
     ${
       disc.participants.length > 1
         ? `
-      <div class="chips" style="margin-bottom:12px;" aria-label="Filter by participant">
+      <div class="mr-participants-bar" aria-label="Filter by participant">
         <button type="button" class="chip ${state.mrAuthorFilter === "all" ? "active" : ""}" data-mr-author="all">All (${disc.messageCount})</button>
         ${disc.participants
-          .slice(0, 10)
+          .slice(0, 14)
           .map(
             (p) => `
           <button type="button" class="chip ${state.mrAuthorFilter === p.name ? "active" : ""}" data-mr-author="${esc(p.name)}">
-            ${esc(p.name)}${p.isAuthor ? " · Patch Author" : p.isThreadStarter ? " · Starter" : ""} <span class="dim">(${p.count})</span>
+            ${esc(cleanParticipantName(p.name))}${p.isAuthor ? " · Patch Author" : p.isThreadStarter ? " · Starter" : ""} <span class="dim">(${p.count})</span>
           </button>
         `,
           )
@@ -3419,11 +3429,19 @@ function render(): void {
     });
     document.querySelectorAll<HTMLButtonElement>("[data-jump-msg]").forEach((btn) => {
       btn.addEventListener("click", () => {
+        const msgId = btn.dataset.jumpMsg || "";
         if (state.mrAuthorFilter !== "all") {
           state.mrAuthorFilter = "all";
           render();
         }
-        document.getElementById(`mr-msg-${btn.dataset.jumpMsg}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+        const targetEl = document.getElementById(`mr-msg-${msgId}`);
+        if (targetEl) {
+          targetEl.scrollIntoView({ behavior: "smooth", block: "start" });
+          targetEl.classList.remove("is-jump-target");
+          void targetEl.offsetWidth;
+          targetEl.classList.add("is-jump-target");
+          window.setTimeout(() => targetEl.classList.remove("is-jump-target"), 1800);
+        }
       });
     });
 
