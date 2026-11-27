@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.3.0-alpha.21 (2026-11-27)
+
+This release adds a configurable **System (Auto Day / Night)** theme mode across both the Public App and Personal Backoffice, defaulting new sessions to **Warm Paper** during the day and **Espresso** at night.
+
+### Changes
+
+- **System (Auto Day / Night) Theme Selector (`apps/web`, `apps/local`):**
+  - Added a **System** option at the top of the theme menu with dedicated **☀ Day** and **☾ Night** theme pickers (defaulting to **Warm Paper** for Day and **Espresso** for Night, customizable to any of the 8 themes).
+  - Made `system` (`Warm Paper` / `Espresso`) the default appearance for new visitors, tracking OS `prefers-color-scheme` changes live via `matchMedia` while preserving manual single-theme overrides.
+
 ## v0.3.0-alpha.20 (2026-11-27)
 
 This release fixes two mobile layout and navigation bugs caught on live testing: full-width stacking of `.page-head` titles/subtitles on narrow viewports and preventing the mobile bottom-nav `More` button from navigating to `Brief` when opened.

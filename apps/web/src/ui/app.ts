@@ -4114,34 +4114,77 @@ const WEB_THEMES: Array<{ id: string; label: string; bg: string; accent: string 
   { id: "contrast", label: "High Contrast", bg: "#000000", accent: "#6cb6ff" },
 ];
 const validWebThemeIds = new Set(WEB_THEMES.map((t) => t.id));
+const DEFAULT_DAY_THEME = "paper";
+const DEFAULT_NIGHT_THEME = "espresso";
 
-function applyWebTheme(themeId: string, persist = true): void {
-  const id = validWebThemeIds.has(themeId) ? themeId : "dark";
-  document.documentElement.setAttribute("data-theme", id);
+let webThemeMode: string = "system";
+let webDayTheme: string = DEFAULT_DAY_THEME;
+let webNightTheme: string = DEFAULT_NIGHT_THEME;
+const systemDarkMq = window.matchMedia ? window.matchMedia("(prefers-color-scheme: dark)") : null;
+
+function isSystemNight(): boolean {
+  if (systemDarkMq) return systemDarkMq.matches;
+  return false;
+}
+
+function getResolvedWebTheme(): string {
+  if (webThemeMode === "system") {
+    return isSystemNight() ? webNightTheme : webDayTheme;
+  }
+  return validWebThemeIds.has(webThemeMode) ? webThemeMode : DEFAULT_DAY_THEME;
+}
+
+function renderWebThemeMenu(): void {
+  const menu = document.getElementById("web-theme-menu");
+  if (!menu) return;
+  const isSys = webThemeMode === "system";
+  const dayInfo = WEB_THEMES.find((t) => t.id === webDayTheme) || WEB_THEMES[2]!;
+  const nightInfo = WEB_THEMES.find((t) => t.id === webNightTheme) || WEB_THEMES[3]!;
+  const nowLabel = isSystemNight() ? "Night" : "Day";
+  const optsHtml = (selected: string) =>
+    WEB_THEMES.map((t) => `<option value="${t.id}" ${t.id === selected ? "selected" : ""}>${esc(t.label)}</option>`).join("");
+
+  menu.innerHTML =
+    `<div class="theme-menu-head">Appearance</div>` +
+    `<button type="button" class="theme-opt ${isSys ? "active" : ""}" role="menuitemradio" aria-checked="${isSys}" data-pick-theme="system">` +
+    `<span class="theme-swatch" style="background:linear-gradient(135deg,${dayInfo.bg} 50%,${nightInfo.bg} 50%);"><span class="theme-swatch-accent" style="background:${isSystemNight() ? nightInfo.accent : dayInfo.accent};"></span></span>` +
+    `<span>System <span class="dim" style="font-size:11px;">(${nowLabel})</span></span>` +
+    `${isSys ? `<span class="theme-check">✓</span>` : ""}` +
+    `</button>` +
+    `<div class="theme-sys-box">` +
+    `<label class="theme-sys-row"><span>☀ Day</span><select id="web-theme-day-sel" aria-label="Day theme">${optsHtml(webDayTheme)}</select></label>` +
+    `<label class="theme-sys-row"><span>☾ Night</span><select id="web-theme-night-sel" aria-label="Night theme">${optsHtml(webNightTheme)}</select></label>` +
+    `</div>` +
+    `<div class="theme-menu-divider"></div>` +
+    `<div class="theme-menu-head">Fixed Theme</div>` +
+    WEB_THEMES.map(
+      (t) => `
+      <button type="button" class="theme-opt ${!isSys && t.id === webThemeMode ? "active" : ""}" role="menuitemradio" aria-checked="${!isSys && t.id === webThemeMode}" data-pick-theme="${t.id}">
+        <span class="theme-swatch" style="background:${t.bg};"><span class="theme-swatch-accent" style="background:${t.accent};"></span></span>
+        <span>${esc(t.label)}</span>
+        ${!isSys && t.id === webThemeMode ? `<span class="theme-check">✓</span>` : ""}
+      </button>
+    `,
+    ).join("");
+}
+
+function applyWebTheme(modeOrId: string, persist = true): void {
+  webThemeMode = modeOrId === "system" || validWebThemeIds.has(modeOrId) ? modeOrId : "system";
+  const resolved = getResolvedWebTheme();
+  document.documentElement.setAttribute("data-theme", resolved);
   const meta = document.getElementById("meta-theme-color");
-  const info = WEB_THEMES.find((t) => t.id === id);
+  const info = WEB_THEMES.find((t) => t.id === resolved);
   if (meta && info) meta.setAttribute("content", info.bg);
   if (persist) {
     try {
-      localStorage.setItem("pgroast-web-theme", id);
+      localStorage.setItem("pgroast-web-theme", webThemeMode);
+      localStorage.setItem("pgroast-web-theme-day", webDayTheme);
+      localStorage.setItem("pgroast-web-theme-night", webNightTheme);
     } catch {
       // ignore private browsing storage errors
     }
   }
-  const menu = document.getElementById("web-theme-menu");
-  if (menu) {
-    menu.innerHTML =
-      `<div class="theme-menu-head">Theme</div>` +
-      WEB_THEMES.map(
-        (t) => `
-        <button type="button" class="theme-opt ${t.id === id ? "active" : ""}" role="menuitemradio" aria-checked="${t.id === id}" data-pick-theme="${t.id}">
-          <span class="theme-swatch" style="background:${t.bg};"><span class="theme-swatch-accent" style="background:${t.accent};"></span></span>
-          <span>${esc(t.label)}</span>
-          ${t.id === id ? `<span class="theme-check">✓</span>` : ""}
-        </button>
-      `,
-      ).join("");
-  }
+  renderWebThemeMenu();
 }
 
 function closeThemeMenu(): void {
@@ -4157,6 +4200,7 @@ document.getElementById("web-theme-btn")?.addEventListener("click", (ev) => {
   const btn = document.getElementById("web-theme-btn");
   if (!menu) return;
   const opening = menu.hidden;
+  if (opening) renderWebThemeMenu();
   menu.hidden = !opening;
   btn?.setAttribute("aria-expanded", String(opening));
 });
@@ -4166,7 +4210,23 @@ document.getElementById("web-theme-menu")?.addEventListener("click", (ev) => {
   const pick = (ev.target as HTMLElement).closest<HTMLButtonElement>("[data-pick-theme]");
   if (!pick?.dataset.pickTheme) return;
   applyWebTheme(pick.dataset.pickTheme, true);
-  closeThemeMenu();
+  if (pick.dataset.pickTheme !== "system") closeThemeMenu();
+});
+
+document.getElementById("web-theme-menu")?.addEventListener("change", (ev) => {
+  ev.stopPropagation();
+  const target = ev.target as HTMLSelectElement;
+  if (target.id === "web-theme-day-sel" && validWebThemeIds.has(target.value)) {
+    webDayTheme = target.value;
+    applyWebTheme("system", true);
+  } else if (target.id === "web-theme-night-sel" && validWebThemeIds.has(target.value)) {
+    webNightTheme = target.value;
+    applyWebTheme("system", true);
+  }
+});
+
+systemDarkMq?.addEventListener?.("change", () => {
+  if (webThemeMode === "system") applyWebTheme("system", false);
 });
 
 // Close dropdown menus when clicking outside
@@ -4229,18 +4289,20 @@ document.addEventListener("keydown", (ev) => {
   }
 });
 
-// Restore saved or system theme on load
+// Restore saved or system theme on load (default: System -> Warm Paper at day, Espresso at night)
 try {
+  const savedDay = localStorage.getItem("pgroast-web-theme-day");
+  const savedNight = localStorage.getItem("pgroast-web-theme-night");
+  if (savedDay && validWebThemeIds.has(savedDay)) webDayTheme = savedDay;
+  if (savedNight && validWebThemeIds.has(savedNight)) webNightTheme = savedNight;
   const saved = localStorage.getItem("pgroast-web-theme");
-  if (saved && validWebThemeIds.has(saved)) {
+  if (saved && (saved === "system" || validWebThemeIds.has(saved))) {
     applyWebTheme(saved, false);
-  } else if (window.matchMedia?.("(prefers-color-scheme: light)").matches) {
-    applyWebTheme("light", false);
   } else {
-    applyWebTheme("dark", false);
+    applyWebTheme("system", false);
   }
 } catch {
-  applyWebTheme("dark", false);
+  applyWebTheme("system", false);
 }
 
 initVizInteractions();

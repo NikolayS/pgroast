@@ -190,7 +190,9 @@
   position: absolute;
   top: calc(100% + 8px);
   right: 0;
-  min-width: 196px;
+  min-width: 228px;
+  max-height: min(82dvh, 460px);
+  overflow-y: auto;
   padding: 6px;
   border-radius: 12px;
   background: var(--surface);
@@ -200,6 +202,41 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
+}
+.theme-sys-box {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 6px 8px;
+  margin: 2px 2px 4px;
+  border-radius: 8px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+}
+.theme-sys-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.theme-sys-row span {
+  white-space: nowrap;
+  font-weight: 500;
+}
+.theme-sys-row select {
+  height: 26px;
+  padding: 0 6px;
+  font-size: 11.5px;
+  border-radius: 6px;
+  min-width: 122px;
+  background: var(--surface);
+}
+.theme-menu-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 4px 4px;
 }
 .theme-menu[hidden] {
   display: none;

@@ -6060,24 +6060,55 @@ function initGlobalControls(): void {
   ];
 
   const validThemeIds = new Set(THEMES.map((t) => t.id));
-  const applyTheme = (themeId: string) => {
-    const id = validThemeIds.has(themeId) ? themeId : "dark";
-    document.documentElement.setAttribute("data-theme", id);
-    localStorage.setItem("pgroast-theme", id);
+  const localDarkMq = window.matchMedia ? window.matchMedia("(prefers-color-scheme: dark)") : null;
+  let localThemeMode = localStorage.getItem("pgroast-theme") || "system";
+  let localDayTheme = localStorage.getItem("pgroast-theme-day") || "paper";
+  let localNightTheme = localStorage.getItem("pgroast-theme-night") || "espresso";
+  if (!validThemeIds.has(localDayTheme)) localDayTheme = "paper";
+  if (!validThemeIds.has(localNightTheme)) localNightTheme = "espresso";
+
+  const applyTheme = (modeOrId: string, persist = true) => {
+    localThemeMode = modeOrId === "system" || validThemeIds.has(modeOrId) ? modeOrId : "system";
+    const isNight = Boolean(localDarkMq?.matches);
+    const resolved = localThemeMode === "system" ? (isNight ? localNightTheme : localDayTheme) : localThemeMode;
+    document.documentElement.setAttribute("data-theme", resolved);
+    if (persist) {
+      localStorage.setItem("pgroast-theme", localThemeMode);
+      localStorage.setItem("pgroast-theme-day", localDayTheme);
+      localStorage.setItem("pgroast-theme-night", localNightTheme);
+    }
     const menu = document.getElementById("theme-menu");
     if (menu) {
-      menu.innerHTML = THEMES.map(
-        (t) => `
-          <button type="button" class="theme-opt ${t.id === id ? "active" : ""}" data-pick-theme="${t.id}">
-            <span class="theme-swatch" style="background:${t.swatch};"></span>
-            <span>${esc(t.label)}</span>
-          </button>
-        `,
-      ).join("");
+      const isSys = localThemeMode === "system";
+      const dayInfo = THEMES.find((t) => t.id === localDayTheme) || THEMES[2]!;
+      const nightInfo = THEMES.find((t) => t.id === localNightTheme) || THEMES[3]!;
+      const optsHtml = (selected: string) =>
+        THEMES.map((t) => `<option value="${t.id}" ${t.id === selected ? "selected" : ""}>${esc(t.label)}</option>`).join("");
+      menu.innerHTML =
+        `<button type="button" class="theme-opt ${isSys ? "active" : ""}" data-pick-theme="system">` +
+        `<span class="theme-swatch" style="background:linear-gradient(135deg,${dayInfo.swatch} 50%,${nightInfo.swatch} 50%);"></span>` +
+        `<span>System (${isNight ? "Night" : "Day"})</span>` +
+        `</button>` +
+        `<div class="theme-sys-box">` +
+        `<label class="theme-sys-row"><span>☀ Day</span><select id="local-theme-day-sel">${optsHtml(localDayTheme)}</select></label>` +
+        `<label class="theme-sys-row"><span>☾ Night</span><select id="local-theme-night-sel">${optsHtml(localNightTheme)}</select></label>` +
+        `</div>` +
+        `<div class="theme-menu-divider"></div>` +
+        THEMES.map(
+          (t) => `
+            <button type="button" class="theme-opt ${!isSys && t.id === localThemeMode ? "active" : ""}" data-pick-theme="${t.id}">
+              <span class="theme-swatch" style="background:${t.swatch};"></span>
+              <span>${esc(t.label)}</span>
+            </button>
+          `,
+        ).join("");
     }
   };
 
-  applyTheme(localStorage.getItem("pgroast-theme") || "dark");
+  applyTheme(localThemeMode, false);
+  localDarkMq?.addEventListener?.("change", () => {
+    if (localThemeMode === "system") applyTheme("system", false);
+  });
 
   document.getElementById("toggle-theme-btn")?.addEventListener("click", (ev) => {
     ev.stopPropagation();
@@ -6086,11 +6117,26 @@ function initGlobalControls(): void {
   });
 
   document.getElementById("theme-menu")?.addEventListener("click", (ev) => {
+    ev.stopPropagation();
     const btn = (ev.target as HTMLElement).closest<HTMLButtonElement>("[data-pick-theme]");
     if (!btn?.dataset.pickTheme) return;
-    applyTheme(btn.dataset.pickTheme);
-    const menu = document.getElementById("theme-menu");
-    if (menu) menu.hidden = true;
+    applyTheme(btn.dataset.pickTheme, true);
+    if (btn.dataset.pickTheme !== "system") {
+      const menu = document.getElementById("theme-menu");
+      if (menu) menu.hidden = true;
+    }
+  });
+
+  document.getElementById("theme-menu")?.addEventListener("change", (ev) => {
+    ev.stopPropagation();
+    const target = ev.target as HTMLSelectElement;
+    if (target.id === "local-theme-day-sel" && validThemeIds.has(target.value)) {
+      localDayTheme = target.value;
+      applyTheme("system", true);
+    } else if (target.id === "local-theme-night-sel" && validThemeIds.has(target.value)) {
+      localNightTheme = target.value;
+      applyTheme("system", true);
+    }
   });
 
   document.addEventListener("click", (ev) => {

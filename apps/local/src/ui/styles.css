@@ -1474,7 +1474,7 @@ tbody tr.clickable:hover {
   bottom: 32px;
   right: 0;
   left: auto;
-  min-width: 184px;
+  min-width: 222px;
   background: var(--bg-card);
   border: 1px solid var(--border-strong);
   border-radius: 10px;
@@ -1484,6 +1484,39 @@ tbody tr.clickable:hover {
   display: flex;
   flex-direction: column;
   gap: 2px;
+}
+.theme-sys-box {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 7px;
+  margin: 2px 0 4px;
+  border-radius: 7px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+}
+.theme-sys-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.theme-sys-row select {
+  height: 24px;
+  padding: 0 5px;
+  font-size: 11px;
+  border-radius: 5px;
+  min-width: 116px;
+  background: var(--bg-card);
+  color: var(--text);
+  border: 1px solid var(--border-strong);
+}
+.theme-menu-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 3px 2px;
 }
 
 .theme-opt {
