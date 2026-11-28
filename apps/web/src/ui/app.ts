@@ -324,7 +324,7 @@ const state = {
   hackersOverview: null as HackersOverviewData | null,
   hackersLoading: false,
   hackersError: "",
-  hackersWindow: "1y" as HackerWindow,
+  hackersWindow: "PG20" as HackerWindow,
   hackersLbTab: "committers" as HackerLbKind,
   hackersDirectory: [] as HackerListItem[],
   hackersDirSearch: "",
@@ -3903,7 +3903,7 @@ function render(): void {
     bindHackerClicks(root);
     document.querySelectorAll<HTMLButtonElement>("[data-hacker-window]").forEach((btn) => {
       btn.addEventListener("click", () => {
-        const nextWin = (btn.dataset.hackerWindow as HackerWindow) || "1y";
+        const nextWin = (btn.dataset.hackerWindow as HackerWindow) || "PG20";
         void loadHackersOverview(nextWin);
       });
     });

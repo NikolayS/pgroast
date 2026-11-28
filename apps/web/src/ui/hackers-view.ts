@@ -410,12 +410,12 @@ export function renderHackersTab(params: {
 }): string {
   const { overview, loading, error, window: win, lbTab, directory, dirSearch, dirRole, dirSort } = params;
   const windows: Array<{ id: HackerWindow; label: string }> = [
-    { id: "30d", label: "30d" },
-    { id: "90d", label: "90d" },
-    { id: "1y", label: "1 year" },
     { id: "PG20", label: "PG20" },
     { id: "PG19", label: "PG19" },
     { id: "PG18", label: "PG18" },
+    { id: "30d", label: "30d" },
+    { id: "90d", label: "90d" },
+    { id: "1y", label: "1 year" },
     { id: "5y", label: "5 years" },
     { id: "all", label: "All-time" },
   ];

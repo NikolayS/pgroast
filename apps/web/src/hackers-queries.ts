@@ -6,8 +6,8 @@ export type HackerWindow = "30d" | "90d" | "1y" | "5y" | "PG20" | "PG19" | "PG18
 const VALID_WINDOWS = new Set<HackerWindow>(["30d", "90d", "1y", "5y", "PG20", "PG19", "PG18", "PG17", "all"]);
 
 export function parseHackerWindow(raw?: string | null): HackerWindow {
-  const v = (raw || "1y").trim() as HackerWindow;
-  return VALID_WINDOWS.has(v) ? v : "1y";
+  const v = (raw || "PG20").trim() as HackerWindow;
+  return VALID_WINDOWS.has(v) ? v : "PG20";
 }
 
 function resolveWindowFilter(

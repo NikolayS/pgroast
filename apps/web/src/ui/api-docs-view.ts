@@ -197,7 +197,7 @@ export const API_ENDPOINTS: ApiEndpointDef[] = [
     auth: "public",
     summary: "Returns full PostgreSQL git analytics: PG17–PG20 weekly release cycle race, annual committer concentration & 50% bus factor, subsystem effective committers (1/HHI), 7×24 UTC rhythm heatmap, and 5 leaderboards.",
     params: [
-      { name: "window", in: "query", type: "string", defaultValue: "1y", options: ["30d", "90d", "1y", "PG20", "PG19", "PG18", "PG17", "5y", "all"], description: "Time window or PostgreSQL major release cycle." },
+      { name: "window", in: "query", type: "string", defaultValue: "PG20", options: ["PG20", "PG19", "PG18", "PG17", "30d", "90d", "1y", "5y", "all"], description: "Time window or PostgreSQL major release cycle." },
     ],
     responseFields: [
       { name: "totals", type: "object", description: "Commits, active hackers, reviews credited, bugs reported, % committed for others." },
