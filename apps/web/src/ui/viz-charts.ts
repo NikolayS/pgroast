@@ -42,23 +42,34 @@ export interface ReleaseCycleSeries {
   points: Array<{ week: number; commits: number; cumCommits: number; cumReviewed: number; reviewPct: number }>;
 }
 
-export function renderReleaseCycleRaceSvg(cycles: ReleaseCycleSeries[]): { headline: string; subline: string; svg: string } {
+export function renderReleaseCycleRaceSvg(
+  cycles: ReleaseCycleSeries[],
+  focusMajor: string = "PG20",
+): { headline: string; subline: string; svg: string } {
   if (!cycles || cycles.length === 0) {
     return { headline: "Release-Cycle Pace", subline: "No PG17–PG20 cycle data synced yet.", svg: `<div class="empty-state">No cycle data yet.</div>` };
   }
 
   const pg20 = cycles.find((c) => c.major === "PG20");
-  const pg19 = cycles.find((c) => c.major === "PG19");
   const pg20Last = pg20?.points[pg20.points.length - 1];
-  const pg19AtSameWk = pg20Last ? pg19?.points.filter((p) => p.week <= pg20Last.week).pop() : undefined;
+  const focus = cycles.find((c) => c.major === focusMajor) || pg20 || cycles[cycles.length - 1]!;
+  const focusNum = Number(focus.major.replace(/^PG/i, "")) || 20;
+  const prevMajor = `PG${focusNum - 1}`;
+  const prev = cycles.find((c) => c.major === prevMajor);
+  const focusLast = focus.points[focus.points.length - 1];
+  const prevAtSameWk = focusLast ? prev?.points.filter((p) => p.week <= focusLast.week).pop() : undefined;
 
-  let headline = "PostgreSQL Release-Cycle Pace (PG17–PG20)";
+  let headline = `Postgres Release-Cycle Pace (${focus.major})`;
   let subline = "Cumulative master commits by week since June 25 branch cut";
-  if (pg20Last && pg19AtSameWk && pg19AtSameWk.cumCommits > 0) {
-    const deltaPct = Math.round(((pg20Last.cumCommits - pg19AtSameWk.cumCommits) / pg19AtSameWk.cumCommits) * 100);
+  if (focusLast && prevAtSameWk && prevAtSameWk.cumCommits > 0) {
+    const deltaPct = Math.round(((focusLast.cumCommits - prevAtSameWk.cumCommits) / prevAtSameWk.cumCommits) * 100);
     const sign = deltaPct >= 0 ? "+" : "";
-    headline = `Through week ${pg20Last.week} of PG20: ${fmtNum(pg20Last.cumCommits)} commits vs ${fmtNum(pg19AtSameWk.cumCommits)} in PG19 (${sign}${deltaPct}%)`;
-    subline = `Credited Reviewed-by coverage: ${pg20Last.reviewPct}% in PG20 vs ${pg19AtSameWk.reviewPct}% at week ${pg20Last.week} of PG19 · June 25 cycle boundary`;
+    const wkLabel = focusLast.week >= 52 ? `Full ${focus.major} cycle` : `Through week ${focusLast.week} of ${focus.major}`;
+    headline = `${wkLabel}: ${fmtNum(focusLast.cumCommits)} commits vs ${fmtNum(prevAtSameWk.cumCommits)} in ${prevMajor} (${sign}${deltaPct}%)`;
+    subline = `Credited Reviewed-by coverage: ${focusLast.reviewPct}% in ${focus.major} vs ${prevAtSameWk.reviewPct}% in ${prevMajor} · June 25 cycle boundary`;
+  } else if (focusLast) {
+    headline = `${focus.major}: ${fmtNum(focusLast.cumCommits)} commits through week ${focusLast.week}`;
+    subline = `Credited Reviewed-by coverage: ${focusLast.reviewPct}% · June 25 cycle boundary`;
   }
 
   const w = 680;
@@ -99,11 +110,14 @@ export function renderReleaseCycleRaceSvg(cycles: ReleaseCycleSeries[]): { headl
     })
     .join("");
 
-  const colors: Record<string, { stroke: string; width: number; opacity: number }> = {
-    PG17: { stroke: "var(--viz-muted-line)", width: 1.4, opacity: 0.55 },
-    PG18: { stroke: "var(--viz-muted-line)", width: 1.6, opacity: 0.75 },
-    PG19: { stroke: "var(--viz-2)", width: 2.1, opacity: 0.9 },
-    PG20: { stroke: "var(--viz-1)", width: 3.0, opacity: 1 },
+  const styleFor = (major: string): { stroke: string; width: number; opacity: number; labelColor: string; bold: boolean } => {
+    if (major === focus.major) {
+      return { stroke: "var(--viz-1)", width: 3.0, opacity: 1, labelColor: "var(--viz-1)", bold: true };
+    }
+    if (major === prevMajor) {
+      return { stroke: "var(--viz-2)", width: 2.1, opacity: 0.9, labelColor: "var(--viz-2)", bold: true };
+    }
+    return { stroke: "var(--viz-muted-line)", width: 1.5, opacity: 0.65, labelColor: "var(--muted)", bold: false };
   };
 
   // Prevent overlapping end labels
@@ -111,7 +125,7 @@ export function renderReleaseCycleRaceSvg(cycles: ReleaseCycleSeries[]): { headl
 
   const paths = cycles
     .map((c) => {
-      const style = colors[c.major] || { stroke: "var(--viz-axis)", width: 1.5, opacity: 0.7 };
+      const style = styleFor(c.major);
       const pts = c.points.map((p) => `${xOf(p.week).toFixed(1)},${yOf(p.cumCommits).toFixed(1)}`).join(" ");
       const last = c.points[c.points.length - 1];
       if (last) {
@@ -119,16 +133,16 @@ export function renderReleaseCycleRaceSvg(cycles: ReleaseCycleSeries[]): { headl
           major: c.major,
           x: xOf(last.week) + 6,
           y: yOf(last.cumCommits) + 3.5,
-          color: c.major === "PG20" ? "var(--viz-1)" : c.major === "PG19" ? "var(--viz-2)" : "var(--muted)",
-          bold: c.major === "PG20" || c.major === "PG19",
+          color: style.labelColor,
+          bold: style.bold,
         });
       }
       const area =
-        c.major === "PG20" && c.points.length >= 2
+        c.major === focus.major && c.points.length >= 2
           ? `<polygon points="${xOf(c.points[0]!.week).toFixed(1)},${(padT + plotH).toFixed(1)} ${pts} ${xOf(last!.week).toFixed(1)},${(padT + plotH).toFixed(1)}" fill="var(--viz-1)" fill-opacity="0.10" />`
           : "";
       const endDot = last
-        ? `<circle cx="${xOf(last.week).toFixed(1)}" cy="${yOf(last.cumCommits).toFixed(1)}" r="${c.major === "PG20" ? 4.2 : 2.8}" fill="${style.stroke}" />`
+        ? `<circle cx="${xOf(last.week).toFixed(1)}" cy="${yOf(last.cumCommits).toFixed(1)}" r="${c.major === focus.major ? 4.2 : 2.8}" fill="${style.stroke}" />`
         : "";
       return `${area}<polyline fill="none" stroke="${style.stroke}" stroke-width="${style.width}" stroke-opacity="${style.opacity}" stroke-linejoin="round" stroke-linecap="round" points="${pts}" />${endDot}`;
     })

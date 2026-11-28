@@ -585,48 +585,69 @@ export function renderHackersTab(params: {
       </div>
     </div>
 
-    <!-- 1. Editorial Hero Graphic: PG17 -> PG20 Release-Cycle Velocity Race -->
+    <!-- 1. Hero Chart: obeys selected time window (Release-Cycle Race for PG20/PG19/PG18; Window Activity Timeline for 30d/90d/1y/5y/all) -->
     ${(() => {
-      if (!overview.releaseCycles?.length) return "";
-      const race = renderReleaseCycleRaceSvg(overview.releaseCycles);
-      return `
-      <section class="card viz-card">
-        <div class="card-head">
-          <div>
-            <div class="viz-kicker">Release-Cycle Velocity Race</div>
-            <h2 class="viz-headline">${esc(race.headline)}</h2>
-            <div class="dim" style="font-size:12px;margin-top:2px;">${esc(race.subline)}</div>
-          </div>
-        </div>
-        ${race.svg}
-      </section>
-      `;
-    })()}
+      const isPgCycleWindow = win === "PG20" || win === "PG19" || win === "PG18";
+      const focusMajor = isPgCycleWindow ? win : "PG20";
+      const winLabel = windows.find((w) => w.id === win)?.label || win;
+      const race = overview.releaseCycles?.length ? renderReleaseCycleRaceSvg(overview.releaseCycles, focusMajor) : null;
 
-    <!-- 2. Sponsorship Velocity + 7x24 UTC Rhythm -->
-    <div class="grid2" style="margin-bottom:14px;">
-      <div class="card viz-card" style="margin-bottom:0;">
+      const sponsorshipCard = (isHero: boolean) => `
+      <${isHero ? "section" : "div"} class="card viz-card" ${isHero ? "" : 'style="margin-bottom:0;"'}>
         <div class="card-head">
           <div>
-            <div class="viz-kicker">Sponsorship &amp; Review Throughput</div>
-            <h2>${t.committedForOthersPct}% of commits were landed for other authors</h2>
-            <div class="dim" style="font-size:12px;">Window: ${esc(win)} · Hover any period for breakdown</div>
+            <div class="viz-kicker">Sponsorship &amp; Review Throughput (${esc(winLabel)})</div>
+            <h2${isHero ? ' class="viz-headline"' : ""}>${fmtNum(t.commits)} commits · ${t.committedForOthersPct}% landed for other authors</h2>
+            <div class="dim" style="font-size:12px;">Window: ${esc(winLabel)} · ${fmtNum(t.reviewsGiven)} Reviewed-by credits across ${fmtNum(t.activeHackers)} active hackers · Hover any bar for breakdown</div>
           </div>
         </div>
         ${renderSponsorshipTimelineSvg(overview.timeline)}
-      </div>
+      </${isHero ? "section" : "div"}>`;
 
+      const raceCard = (isHero: boolean) =>
+        race
+          ? `
+      <${isHero ? "section" : "div"} class="card viz-card" ${isHero ? "" : 'style="margin-bottom:0;"'}>
+        <div class="card-head">
+          <div>
+            <div class="viz-kicker">Release-Cycle Pace (${isHero ? esc(focusMajor) : "Cross-release PG17–PG20"})</div>
+            <h2${isHero ? ' class="viz-headline"' : ""}>${esc(race.headline)}</h2>
+            <div class="dim" style="font-size:12px;margin-top:2px;">${esc(race.subline)}</div>
+          </div>
+          ${!isHero ? `<span class="tag-micro">Full PG17–PG20 cycles</span>` : ""}
+        </div>
+        ${race.svg}
+      </${isHero ? "section" : "div"}>`
+          : "";
+
+      const cadenceCard = `
       <div class="card viz-card" style="margin-bottom:0;">
         <div class="card-head">
           <div>
-            <div class="viz-kicker">Global Circadian Cadence</div>
+            <div class="viz-kicker">Global Circadian Cadence (${esc(winLabel)})</div>
             <h2>When Does Postgres Hacking Happen?</h2>
             <div class="dim" style="font-size:12px;">7×24 UTC commit heatmap · Hover any cell</div>
           </div>
         </div>
         ${renderGlobalRhythmHeatmap(overview.rhythmHeatmap)}
-      </div>
-    </div>
+      </div>`;
+
+      if (isPgCycleWindow && race) {
+        return `
+      ${raceCard(true)}
+      <div class="grid2" style="margin-bottom:14px;">
+        ${sponsorshipCard(false)}
+        ${cadenceCard}
+      </div>`;
+      }
+
+      return `
+      ${sponsorshipCard(true)}
+      <div class="grid2" style="margin-bottom:14px;">
+        ${race ? raceCard(false) : ""}
+        ${cadenceCard}
+      </div>`;
+    })()}
 
     <!-- 3. Subsystem Bus-Factor Quadrant + Annual Committer Concentration -->
     <div class="grid2" style="margin-bottom:14px;">

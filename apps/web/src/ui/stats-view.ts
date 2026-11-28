@@ -43,29 +43,26 @@ function verdictLabel(v: string): string {
   return "Unroasted";
 }
 
-function renderTriageRows(rows: TriageTableRow[], emptyMsg: string): string {
+function renderTriageRows(rows: TriageTableRow[], emptyMsg: string, previewCount = 5): string {
   if (rows.length === 0) {
     return `<div class="muted" style="font-size:12.5px;padding:12px 0;">${esc(emptyMsg)}</div>`;
   }
-  return `
-    <div class="st-triage-list">
-      ${rows
-        .map((r) => {
-          const reasonCls =
-            r.reasonTag === "Likely reject" || r.reasonTag.includes("conflict") || r.reasonTag.includes("failed")
-              ? "p-danger"
-              : r.reasonTag === "Dark verified"
-                ? "p-ok"
-                : r.reasonTag === "Design debate"
-                  ? "p-warn"
-                  : "p-info";
-          const commitsBadge =
-            r.authorPriorCommits == null
-              ? "new"
-              : r.authorPriorCommits === 0
-                ? "0 commits"
-                : `${fmtNum(r.authorPriorCommits)} commits`;
-          return `
+  const renderOne = (r: TriageTableRow) => {
+    const reasonCls =
+      r.reasonTag === "Likely reject" || r.reasonTag.includes("conflict") || r.reasonTag.includes("failed")
+        ? "p-danger"
+        : r.reasonTag === "Dark verified"
+          ? "p-ok"
+          : r.reasonTag === "Design debate"
+            ? "p-warn"
+            : "p-info";
+    const commitsBadge =
+      r.authorPriorCommits == null
+        ? "new"
+        : r.authorPriorCommits === 0
+          ? "0 commits"
+          : `${fmtNum(r.authorPriorCommits)} commits`;
+    return `
         <button type="button" class="st-triage-row" data-open-patch="${r.cf_id}">
           <div class="st-triage-top">
             <span class="mono" style="font-weight:700;color:var(--accent-t);">CF ${r.cf_id}</span>
@@ -81,9 +78,25 @@ function renderTriageRows(rows: TriageTableRow[], emptyMsg: string): string {
           </div>
         </button>
       `;
-        })
-        .join("")}
+  };
+  const head = rows.slice(0, previewCount);
+  const rest = rows.slice(previewCount);
+  return `
+    <div class="st-triage-list">
+      ${head.map(renderOne).join("")}
     </div>
+    ${
+      rest.length > 0
+        ? `
+      <details class="st-more-toggle">
+        <summary>Show ${rest.length} more (all ${rows.length})</summary>
+        <div class="st-triage-list st-triage-scroll">
+          ${rest.map(renderOne).join("")}
+        </div>
+      </details>
+    `
+        : ""
+    }
   `;
 }
 
@@ -268,7 +281,7 @@ export function renderStatsObservatory(params: {
             <div class="dim" style="font-size:12px;">Marked RFC on CommitFest, yet AI flagged Likely Reject, Design Debate, or a Dark apply/test failure</div>
           </div>
         </div>
-        ${renderTriageRows(warnings.slice(0, 8), "No Ready-for-Committer disagreements right now.")}
+        ${renderTriageRows(warnings, "No Ready-for-Committer disagreements right now.", 5)}
       </section>
 
       <section class="card viz-card" style="margin-bottom:0;">
@@ -279,7 +292,7 @@ export function renderStatsObservatory(params: {
             <div class="dim" style="font-size:12px;">No fundamental objection survived counter-check — sorted by Dark verification &amp; priority score</div>
           </div>
         </div>
-        ${renderTriageRows(pickups.slice(0, 8), "No clean Needs-review candidates right now.")}
+        ${renderTriageRows(pickups, "No clean Needs-review candidates right now.", 5)}
       </section>
     </div>
 
@@ -557,16 +570,16 @@ export function renderStatsObservatory(params: {
       </section>
     </div>
 
-    <!-- 6. DARK EVIDENCE MATRIX: 1 ROW PER UNIQUE DARK-VERIFIED PATCH -->
+    <!-- 6. DARK ROAST BUILD, TEST & LIVE SQL CHECKS: 1 ROW PER VERIFIED PATCH -->
     <section class="card viz-card" id="stats-verification-pipeline">
       <div class="card-head">
         <div>
-          <div class="viz-kicker">6. Real Postgres 20devel Dark Evidence Matrix</div>
+          <div class="viz-kicker">6. Build, Test &amp; Live SQL Results (Dark Roasts)</div>
           <h2 class="viz-headline">
             ${fmtNum(v.gitApplyClean)}/${fmtNum(v.codeRead)} applied to master · ${fmtNum(v.compilePass)}/${fmtNum(v.compilePass + v.compileFail)} compiled (-Dcassert, median ${v.medianCompileSec}s) · ${fmtNum(v.testPass)}/${fmtNum(v.testPass + v.testFail)} passed meson test · ${fmtNum(v.totalSqlCases)} live SQL cases
           </h2>
           <div class="dim" style="font-size:12px;margin-top:2px;">
-            1 row per unique verified patch (n=${data.darkMatrix.length}), sorted by the step where it falls off · Click any row to read the full build log and SQL findings
+            Patches checked against Postgres master with git apply, meson compile, meson test, and live SQL runs (n=${data.darkMatrix.length}), sorted by failure stage · Click any row for full logs
           </div>
         </div>
         <div class="chips" role="tablist" aria-label="Filter Dark evidence matrix" style="margin:0;">

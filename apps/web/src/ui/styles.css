@@ -2492,6 +2492,23 @@ span.term-tip:not(.pill):not(.viz-legend-chip) {
 .term-tip:focus-visible {
   color: var(--text);
 }
+.st-more-toggle {
+  margin-top: 8px;
+}
+.st-more-toggle > summary {
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--accent-t);
+  padding: 4px 2px;
+  user-select: none;
+}
+.st-triage-scroll {
+  margin-top: 6px;
+  max-height: 360px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
 .mr-rev-strip {
   display: flex;
   align-items: center;
