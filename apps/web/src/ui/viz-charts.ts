@@ -103,6 +103,15 @@ export interface CveYearPoint {
   dosLogic: number;
 }
 
+export interface MailingListByDayPoint {
+  day: string;
+  hackers: number;
+  committers: number;
+  bugs: number;
+  other: number;
+  total: number;
+}
+
 export function renderReleaseCycleRaceSvg(
   cycles: ReleaseCycleSeries[],
   focusMajor: string = "PG20",
@@ -768,10 +777,100 @@ export function renderBackpatchChurnSvg(
       ${pctDots}
     </svg>
     <div class="obs-chart-legend">
-      <span><span class="dot" style="background:var(--viz-1);opacity:0.94"></span>5+ branches (ancient bugs)</span>
+      <span><span class="dot" style="background:var(--viz-1);opacity:0.94"></span>5+ branches (latent)</span>
       <span><span class="dot" style="background:var(--viz-1);opacity:0.45"></span>2–4 branches</span>
       <span><span class="dot" style="background:var(--viz-3);opacity:0.78"></span>1 branch (recent)</span>
+      <span><span class="dot" style="background:var(--viz-axis);opacity:0.35"></span>Untagged (pre-trailer)</span>
       <span><span class="dot" style="background:var(--viz-2)"></span>Backpatch % (right)</span>
+    </div>
+  `;
+
+  return { headline, subline, svg };
+}
+
+/* ============================================================================
+ * 4B2. HACKERS/LISTS: Mailing List Activity by List (Stacked Daily Bars)
+ * ============================================================================ */
+export function renderMailingListByListStackedSvg(
+  days: MailingListByDayPoint[],
+): { headline: string; subline: string; svg: string } {
+  if (!days || days.length === 0) {
+    return { headline: "Mailing list activity", subline: "No mailing list messages indexed yet.", svg: `<div class="empty-state">No mailing list data yet.</div>` };
+  }
+
+  const total = days.reduce((a, d) => a + d.total, 0);
+  const hackersTot = days.reduce((a, d) => a + d.hackers, 0);
+  const hackersPct = total > 0 ? Math.round((hackersTot / total) * 100) : 0;
+  const peak = days.reduce((a, b) => (b.total > a.total ? b : a), days[0]!);
+
+  const headline = `${fmtNum(total)} messages across ${days.length} days (${hackersPct}% on pgsql-hackers)`;
+  const subline = `Peak day: ${peak.day} (${fmtNum(peak.total)} messages) · Stacked by mailing list · Hover any day`;
+
+  const w = 520;
+  const h = 196;
+  const padL = 38;
+  const padR = 12;
+  const padT = 16;
+  const padB = 26;
+  const plotW = w - padL - padR;
+  const plotH = h - padT - padB;
+
+  const maxY = Math.max(20, Math.ceil(Math.max(...days.map((d) => d.total)) / 25) * 25);
+  const step = plotW / Math.max(1, days.length);
+  const barW = Math.max(10, Math.min(26, step * 0.66));
+  const lblStep = Math.max(1, Math.ceil(days.length / 6));
+
+  const bars = days
+    .map((d, i) => {
+      const cx = padL + i * step + step / 2;
+      const x = cx - barW / 2;
+      const hH = (d.hackers / maxY) * plotH;
+      const hC = (d.committers / maxY) * plotH;
+      const hB = (d.bugs / maxY) * plotH;
+      const hO = (d.other / maxY) * plotH;
+
+      let cy = padT + plotH;
+      const yH = cy - hH;
+      cy = yH;
+      const yC = cy - hC;
+      cy = yC;
+      const yB = cy - hB;
+      cy = yB;
+      const yO = cy - hO;
+
+      const showLbl = i === 0 || i === days.length - 1 || i % lblStep === 0;
+      const tipTitle = `${d.day} · ${fmtNum(d.total)} messages`;
+      const tipBody = `pgsql-hackers: ${d.hackers} · pgsql-committers: ${d.committers} · pgsql-bugs: ${d.bugs}`;
+      const tipSub = `Other lists: ${d.other}`;
+
+      return `
+        <g class="viz-hoverable" tabindex="0" data-tip-title="${esc(tipTitle)}" data-tip-body="${esc(tipBody)}" data-tip-sub="${esc(tipSub)}">
+          <rect x="${(cx - step / 2).toFixed(1)}" y="${padT}" width="${step.toFixed(1)}" height="${plotH}" fill="transparent" />
+          ${hO > 0 ? `<rect x="${x.toFixed(1)}" y="${yO.toFixed(1)}" width="${barW.toFixed(1)}" height="${hO.toFixed(1)}" rx="1.5" fill="var(--viz-axis)" opacity="0.48" />` : ""}
+          ${hB > 0 ? `<rect x="${x.toFixed(1)}" y="${yB.toFixed(1)}" width="${barW.toFixed(1)}" height="${hB.toFixed(1)}" rx="1.5" fill="var(--viz-2)" opacity="0.90" />` : ""}
+          ${hC > 0 ? `<rect x="${x.toFixed(1)}" y="${yC.toFixed(1)}" width="${barW.toFixed(1)}" height="${hC.toFixed(1)}" rx="1.5" fill="var(--viz-3)" opacity="0.88" />` : ""}
+          ${hH > 0 ? `<rect x="${x.toFixed(1)}" y="${yH.toFixed(1)}" width="${barW.toFixed(1)}" height="${hH.toFixed(1)}" rx="1.5" fill="var(--viz-1)" opacity="0.92" />` : ""}
+          ${showLbl ? `<text x="${cx.toFixed(1)}" y="${h - 7}" text-anchor="middle" fill="${i === days.length - 1 ? "var(--ink)" : "var(--viz-axis)"}" font-size="9.5" class="mono">${esc(d.day.slice(5))}</text>` : ""}
+        </g>
+      `;
+    })
+    .join("");
+
+  const svg = `
+    <svg viewBox="0 0 ${w} ${h}" class="obs-chart-svg" role="img" aria-label="Daily Postgres mailing list activity stacked by list">
+      <line x1="${padL}" y1="${padT}" x2="${w - padR}" y2="${padT}" stroke="var(--viz-grid)" stroke-dasharray="3 3" />
+      <line x1="${padL}" y1="${(padT + plotH / 2).toFixed(1)}" x2="${w - padR}" y2="${(padT + plotH / 2).toFixed(1)}" stroke="var(--viz-grid)" stroke-dasharray="3 3" />
+      <line x1="${padL}" y1="${padT + plotH}" x2="${w - padR}" y2="${padT + plotH}" stroke="var(--border)" />
+      <text x="${padL - 6}" y="${padT + 4}" text-anchor="end" fill="var(--viz-axis)" font-size="9.5" class="mono">${maxY}</text>
+      <text x="${padL - 6}" y="${(padT + plotH / 2 + 3).toFixed(1)}" text-anchor="end" fill="var(--viz-axis)" font-size="9.5" class="mono">${Math.round(maxY / 2)}</text>
+      <text x="${padL - 6}" y="${padT + plotH}" text-anchor="end" fill="var(--viz-axis)" font-size="9.5" class="mono">0</text>
+      ${bars}
+    </svg>
+    <div class="obs-chart-legend">
+      <span><span class="dot" style="background:var(--viz-1)"></span>pgsql-hackers</span>
+      <span><span class="dot" style="background:var(--viz-3)"></span>pgsql-committers</span>
+      <span><span class="dot" style="background:var(--viz-2)"></span>pgsql-bugs</span>
+      <span><span class="dot" style="background:var(--viz-axis);opacity:0.55"></span>Other lists</span>
     </div>
   `;
 

@@ -326,7 +326,7 @@ const state = {
   hackersLoading: false,
   hackersError: "",
   hackersWindow: "PG20" as HackerWindow,
-  hackersLbTab: "committers" as HackerLbKind,
+  hackersLbTab: "authors" as HackerLbKind,
   hackersRightTab: "tax" as "tax" | "subsystems",
   hackersDirectory: [] as HackerListItem[],
   hackersDirSearch: "",
@@ -3954,6 +3954,11 @@ function render(): void {
       btn.addEventListener("click", () => {
         state.statsSection = "git";
         navigateToTab("stats");
+      });
+    });
+    document.querySelectorAll<HTMLElement>("[data-goto-lists]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        navigateToTab("lists");
       });
     });
     const dirInput = document.getElementById("hacker-dir-search") as HTMLInputElement | null;

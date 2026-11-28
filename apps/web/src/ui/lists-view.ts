@@ -140,13 +140,13 @@ export function renderListsTab(params: {
   return `
     <div class="page-head">
       <div>
-        <h1 class="page-title">PostgreSQL Mailing Lists Archive</h1>
+        <h1 class="page-title">Postgres mailing lists archive</h1>
         <div class="page-sub">
-          ${overview.catalogCount} public PostgreSQL lists cataloged · ${overview.syncedListsCount} synced · ${fmtNum(t.totalMessages)} messages indexed
+          ${overview.catalogCount} public Postgres lists cataloged · ${overview.syncedListsCount} synced · ${fmtNum(t.totalMessages)} messages indexed
           ${overview.lastSyncedAt ? ` · Last synced ${esc(overview.lastSyncedAt.slice(0, 16).replace("T", " "))} UTC` : ""}
         </div>
       </div>
-      <span class="pill p-ok">Continuous Sync</span>
+      <span class="pill p-ok">Continuous sync</span>
     </div>
 
     <div class="kpis">
@@ -161,7 +161,7 @@ export function renderListsTab(params: {
         <div class="kpi-sub">${fmtNum(t.totalThreads)} threads</div>
       </div>
       <div class="kpi" style="cursor:default;">
-        <div class="kpi-l"><span class="dot" style="background:var(--ok)"></span>Last 24h / 7d</div>
+        <div class="kpi-l"><span class="dot" style="background:var(--ok)"></span>Last 24 h / 7 days</div>
         <div class="kpi-v">${fmtNum(t.last24h)}</div>
         <div class="kpi-sub">${fmtNum(t.last7d)} in last 7 days</div>
       </div>
@@ -171,7 +171,7 @@ export function renderListsTab(params: {
         <div class="kpi-sub">Messages with 📎</div>
       </div>
       <div class="kpi" style="cursor:default;">
-        <div class="kpi-l">Linked to Hacker Profiles</div>
+        <div class="kpi-l">Linked to hacker profiles</div>
         <div class="kpi-v">${linkedPct}%</div>
         <div class="kpi-sub">${fmtNum(t.uniqueHackers)} unified contributors</div>
       </div>
@@ -181,7 +181,7 @@ export function renderListsTab(params: {
       <div class="card viz-card" style="margin-bottom:0;">
         <div class="card-head">
           <div>
-            <div class="viz-kicker">30-Day Mail Velocity</div>
+            <div class="viz-kicker">30-day mail velocity</div>
             <h2>${fmtNum(t.last30d)} messages · ${linkedPct}% from git-linked hackers</h2>
             <div class="dim" style="font-size:12px;">Stacked daily volume with 7-day trailing average · Hover any day</div>
           </div>
@@ -192,8 +192,8 @@ export function renderListsTab(params: {
       <div class="card viz-card" style="margin-bottom:0;">
         <div class="card-head">
           <div>
-            <div class="viz-kicker">Thread Depth vs Breadth</div>
-            <h2>Active Discussion Heat (Messages × Participants)</h2>
+            <div class="viz-kicker">Thread depth vs. breadth</div>
+            <h2>Active discussion heat (messages vs. participants)</h2>
             <div class="dim" style="font-size:12px;">Distinguishes long 1-on-1 threads from broad multi-hacker debates · Click any dot</div>
           </div>
         </div>
@@ -204,8 +204,8 @@ export function renderListsTab(params: {
     <div class="grid2" style="margin-bottom:14px;">
       <div class="card" style="margin-bottom:0;">
         <div class="card-head">
-          <h2>Ranked Active Lists (14d Sparklines)</h2>
-          <span class="dim" style="font-size:12px;">Tap any list to filter messages below</span>
+          <h2>Ranked active lists (14-day sparklines)</h2>
+          <span class="dim" style="font-size:12px;">Click any list to filter messages below</span>
         </div>
         <div class="viz-spark-table">
           ${activeLists

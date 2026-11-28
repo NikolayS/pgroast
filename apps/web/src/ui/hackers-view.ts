@@ -6,6 +6,7 @@ import {
   renderCollabConstellationSvg,
   renderCommitterConcentrationSvg,
   renderCveCategoriesByYearSvg,
+  renderMailingListByListStackedSvg,
   renderMaintainerBottleneckSvg,
   renderMonthlyInflectionSvg,
   renderQualityUnderLoadSvg,
@@ -15,6 +16,7 @@ import {
   renderSponsorshipTimelineSvg,
   type ConcentrationYearPoint,
   type CveYearPoint,
+  type MailingListByDayPoint,
   type MonthlyInflectionPoint,
   type ReleaseCycleSeries,
   type ReleaseTrendPoint,
@@ -84,6 +86,7 @@ export interface HackersOverviewData {
     bp20Pct: number;
     sec20: number;
   }>;
+  mailingListsByDay?: MailingListByDayPoint[];
   concentrationByYear?: ConcentrationYearPoint[];
   rhythmHeatmap: number[][];
   subsystems: SubsystemBusFactorItem[];
@@ -101,6 +104,9 @@ export interface HackersOverviewData {
       authored: number;
       reviewed: number;
       reported: number;
+      recent30d?: number;
+      prior30d?: number;
+      delta30d?: number;
       totalActivity: number;
     }>;
   };
@@ -440,8 +446,8 @@ export const HACKER_WINDOWS: Array<{ id: HackerWindow; label: string }> = [
   { id: "PG20", label: "PG20" },
   { id: "PG19", label: "PG19" },
   { id: "PG18", label: "PG18" },
-  { id: "30d", label: "30d" },
-  { id: "90d", label: "90d" },
+  { id: "30d", label: "30 d" },
+  { id: "90d", label: "90 d" },
   { id: "1y", label: "1 year" },
   { id: "5y", label: "5 years" },
   { id: "all", label: "All-time" },
@@ -510,8 +516,8 @@ export function renderPostgresGitStatsSections(overview: HackersOverviewData, wi
     <div class="card viz-card" style="margin-bottom:0;">
       <div class="card-head">
         <div>
-          <div class="viz-kicker">Global Circadian Cadence (${esc(winLabel)})</div>
-          <h2>When Does Postgres Hacking Happen?</h2>
+          <div class="viz-kicker">Global circadian cadence (${esc(winLabel)})</div>
+          <h2>When does Postgres hacking happen?</h2>
           <div class="dim" style="font-size:12px;">7×24 UTC commit heatmap · Hover any cell</div>
         </div>
       </div>
@@ -574,7 +580,7 @@ export function renderPostgresGitStatsSections(overview: HackersOverviewData, wi
         <div class="card viz-card" style="margin-bottom:0;">
           <div class="card-head">
             <div>
-              <div class="viz-kicker">Annual CVEs &amp; AI-Assisted Security Wave (2015–2026)</div>
+              <div class="viz-kicker">Annual CVEs and AI-assisted security wave (2015–2026)</div>
               <h2 class="viz-headline">${esc(sec.headline)}</h2>
               <div class="dim" style="font-size:11.5px;margin-top:2px;">${esc(sec.subline)}</div>
             </div>
@@ -584,7 +590,7 @@ export function renderPostgresGitStatsSections(overview: HackersOverviewData, wi
         <div class="card viz-card" style="margin-bottom:0;">
           <div class="card-head">
             <div>
-              <div class="viz-kicker">CVEs by Vulnerability Category (2015–2026)</div>
+              <div class="viz-kicker">CVEs by vulnerability category (2015–2026)</div>
               <h2 class="viz-headline">${esc(cveCats.headline)}</h2>
               <div class="dim" style="font-size:11.5px;margin-top:2px;">${esc(cveCats.subline)}</div>
             </div>
@@ -600,7 +606,7 @@ export function renderPostgresGitStatsSections(overview: HackersOverviewData, wi
         <div class="card viz-card" style="margin-bottom:0;">
           <div class="card-head">
             <div>
-              <div class="viz-kicker">Backpatch Anatomy: Latent Archaeology vs. Stabilization (PG11–PG20)</div>
+              <div class="viz-kicker">Backpatch anatomy: latent bugs vs. stabilization (PG11–PG20)</div>
               <h2 class="viz-headline">${esc(bp.headline)}</h2>
               <div class="dim" style="font-size:11.5px;margin-top:2px;">${esc(bp.subline)}</div>
             </div>
@@ -610,7 +616,7 @@ export function renderPostgresGitStatsSections(overview: HackersOverviewData, wi
         <div class="card viz-card" style="margin-bottom:0;">
           <div class="card-head">
             <div>
-              <div class="viz-kicker">Quality Under Load: Reviews vs. Reverts &amp; Oversights (PG11–PG20)</div>
+              <div class="viz-kicker">Quality under load: reviews vs. reverts and oversights (PG11–PG20)</div>
               <h2 class="viz-headline">${esc(qual.headline)}</h2>
               <div class="dim" style="font-size:11.5px;margin-top:2px;">${esc(qual.subline)}</div>
             </div>
@@ -625,7 +631,7 @@ export function renderPostgresGitStatsSections(overview: HackersOverviewData, wi
       <section class="card viz-card" style="margin-bottom:14px;">
         <div class="card-head">
           <div>
-            <div class="viz-kicker">Monthly Regime Shift (Last 24 Months)</div>
+            <div class="viz-kicker">Monthly regime shift (last 24 months)</div>
             <h2 class="viz-headline">${esc(monthly.headline)}</h2>
             <div class="dim" style="font-size:11.5px;margin-top:2px;">${esc(monthly.subline)}</div>
           </div>
@@ -639,7 +645,7 @@ export function renderPostgresGitStatsSections(overview: HackersOverviewData, wi
       <div class="card viz-card" style="margin-bottom:14px;">
         <div class="card-head">
           <div>
-            <div class="viz-kicker">Maintainer Bottleneck &amp; Bench Decentralization (PG11–PG20)</div>
+            <div class="viz-kicker">Maintainer bottleneck and bench decentralization (PG11–PG20)</div>
             <h2 class="viz-headline">${esc(mb.headline)}</h2>
             <div class="dim" style="font-size:11.5px;margin-top:2px;">${esc(mb.subline)}</div>
           </div>
@@ -1001,26 +1007,51 @@ export function renderHackersTab(params: {
     if (lbTab === "rising") {
       const rows = overview.leaderboards.rising;
       if (rows.length === 0) return `<div class="empty-state">No first-time contributors recorded in this window.</div>`;
+      const maxTot = Math.max(1, ...rows.map((r) => r.totalActivity));
       return rows
-        .map(
-          (r, i) => `
+        .map((r, i) => {
+          const rec = r.recent30d ?? 0;
+          const pri = r.prior30d ?? 0;
+          const delta = r.delta30d ?? rec - pri;
+          const pctAll = Math.max(8, Math.round((r.totalActivity / maxTot) * 100));
+          const roleSum = Math.max(1, r.authored + r.reviewed + r.reported);
+          const pAuth = Math.round((r.authored / roleSum) * 100);
+          const pRev = Math.round((r.reviewed / roleSum) * 100);
+          const pRep = Math.max(0, 100 - pAuth - pRev);
+
+          let momentumBadge = `<span class="tag-micro dim">→ steady</span>`;
+          if (rec > 0 && pri === 0) {
+            momentumBadge = `<span class="pill p-ok mono" style="font-size:10px;padding:1px 6px;" title="${rec} credits in last 30 days (brand new burst)">↗ +${rec} (30 d)</span>`;
+          } else if (delta > 0) {
+            momentumBadge = `<span class="pill p-ok mono" style="font-size:10px;padding:1px 6px;" title="${rec} credits in last 30 d vs ${pri} in prior 30 d">↗ +${delta} (30 d)</span>`;
+          } else if (delta < 0) {
+            momentumBadge = `<span class="tag-micro mono dim" title="${rec} credits in last 30 d vs ${pri} in prior 30 d">↘ ${delta} (30 d)</span>`;
+          }
+
+          return `
         <button type="button" class="obs-lb-row" data-open-hacker="${esc(r.slug)}">
           <span class="lb-rank mono">${i + 1}</span>
           <span class="obs-avatar" style="background:${avatarColor(r.name)};">${esc(personInitials(r.name))}</span>
           <div class="obs-lb-info">
             <div class="obs-lb-top">
               <strong>${esc(r.name)}</strong>
+              ${momentumBadge}
               <span class="tag-micro">First seen ${esc(r.firstSeen)}</span>
             </div>
-            <div class="muted" style="font-size:11.5px;">${r.authored} authored · ${r.reviewed} reviewed · ${r.reported} reported</div>
+            <div class="obs-lb-bar-wrap" style="width:${pctAll}%;" title="${r.authored} authored · ${r.reviewed} reviewed · ${r.reported} reported">
+              ${pAuth > 0 ? `<div style="width:${pAuth}%;background:var(--viz-1);"></div>` : ""}
+              ${pRev > 0 ? `<div style="width:${pRev}%;background:var(--viz-2);"></div>` : ""}
+              ${pRep > 0 ? `<div style="width:${pRep}%;background:var(--viz-3);"></div>` : ""}
+            </div>
+            <div class="muted" style="font-size:11px;">${r.authored} authored · ${r.reviewed} reviewed · ${r.reported} reported</div>
           </div>
           <div class="obs-lb-num">
             <strong class="mono">${fmtNum(r.totalActivity)}</strong>
             <span class="dim" style="font-size:11px;">credits</span>
           </div>
         </button>
-      `,
-        )
+      `;
+        })
         .join("");
     }
     const rows =
@@ -1058,17 +1089,19 @@ export function renderHackersTab(params: {
   };
 
   const taxLeaders = overview.backpatchTaxLeaders || [];
+  const mlByDay = overview.mailingListsByDay || [];
+  const mlStacked = mlByDay.length >= 2 ? renderMailingListByListStackedSvg(mlByDay) : null;
 
   return `
     <div class="page-head">
       <div>
-        <h1 class="page-title">Postgres Hackers</h1>
+        <h1 class="page-title">Postgres hackers</h1>
         <div class="page-sub">
           ${fmtNum(meta.totalPeople || 0)} unified contributors (${fmtNum(meta.multiEmailPeople || 0)} merged across multiple emails) · ${fmtNum(meta.totalCommitsAll || 0)} commits indexed · Latest commit ${esc((meta.lastCommitAt || "").slice(0, 10))}
         </div>
       </div>
       <div class="row" style="gap:8px;align-items:center;flex-wrap:wrap;">
-        <button type="button" class="btn btn-ghost btn-sm" data-goto-stats="1">Release, CVE &amp; Backpatch Stats →</button>
+        <button type="button" class="btn btn-ghost btn-sm" data-goto-stats="1">Release, CVE, and backpatch stats →</button>
         <div class="chips" role="tablist" aria-label="Time window" style="margin-bottom:0;">
           ${windows
             .map(
@@ -1089,11 +1122,6 @@ export function renderHackersTab(params: {
         <div class="kpi-sub">+${fmtNum(t.newHackers)} first-time in window</div>
       </div>
       <div class="kpi" style="cursor:default;">
-        <div class="kpi-l"><span class="dot" style="background:var(--accent)"></span>Committers</div>
-        <div class="kpi-v">${fmtNum(t.committers)}</div>
-        <div class="kpi-sub">${fmtNum(t.commits)} commits landed</div>
-      </div>
-      <div class="kpi" style="cursor:default;">
         <div class="kpi-l"><span class="dot" style="background:var(--ok)"></span>Credited authors</div>
         <div class="kpi-v" style="color:var(--ok)">${fmtNum(t.authors)}</div>
         <div class="kpi-sub">${win === "all" ? "Across all indexed history" : `${t.committedForOthersPct}% committed by others`}</div>
@@ -1102,6 +1130,11 @@ export function renderHackersTab(params: {
         <div class="kpi-l"><span class="dot" style="background:#4cb782"></span>Reviewers</div>
         <div class="kpi-v">${fmtNum(t.reviewers)}</div>
         <div class="kpi-sub">${fmtNum(t.reviewsGiven)} Reviewed-by credits</div>
+      </div>
+      <div class="kpi" style="cursor:default;">
+        <div class="kpi-l"><span class="dot" style="background:var(--accent)"></span>Committers</div>
+        <div class="kpi-v">${fmtNum(t.committers)}</div>
+        <div class="kpi-sub">${fmtNum(t.commits)} commits landed</div>
       </div>
       <div class="kpi" style="cursor:default;">
         <div class="kpi-l"><span class="dot" style="background:var(--warn)"></span>Bug hunters</div>
@@ -1115,8 +1148,8 @@ export function renderHackersTab(params: {
       </div>
     </div>
 
-    <!-- 1. Leaderboards + Maintainer Load / Subsystems -->
-    <div class="grid2" style="margin-bottom:14px;">
+    <!-- 1. Leaderboards + Maintainer load & Mailing list activity -->
+    <div class="grid2" style="margin-bottom:14px;align-items:start;">
       <div class="card" style="margin-bottom:0;">
         <div class="card-head">
           <div>
@@ -1125,89 +1158,109 @@ export function renderHackersTab(params: {
           </div>
         </div>
         <div class="chips" role="tablist" aria-label="Leaderboard type">
-          <button type="button" class="chip ${lbTab === "committers" ? "active" : ""}" data-hacker-lb="committers">Committers</button>
           <button type="button" class="chip ${lbTab === "authors" ? "active" : ""}" data-hacker-lb="authors">Authors</button>
           <button type="button" class="chip ${lbTab === "reviewers" ? "active" : ""}" data-hacker-lb="reviewers">Reviewers</button>
-          <button type="button" class="chip ${lbTab === "reporters" ? "active" : ""}" data-hacker-lb="reporters">Bug Hunters</button>
-          <button type="button" class="chip ${lbTab === "rising" ? "active" : ""}" data-hacker-lb="rising">Rising Stars</button>
+          <button type="button" class="chip ${lbTab === "committers" ? "active" : ""}" data-hacker-lb="committers">Committers</button>
+          <button type="button" class="chip ${lbTab === "reporters" ? "active" : ""}" data-hacker-lb="reporters">Bug hunters</button>
+          <button type="button" class="chip ${lbTab === "rising" ? "active" : ""}" data-hacker-lb="rising">Rising stars</button>
         </div>
         <div class="obs-lb-list">
           ${renderLeaderboardBody()}
         </div>
       </div>
 
-      <div class="card" style="margin-bottom:0;">
-        <div class="card-head">
-          <div>
-            <h2>${rightTab === "tax" && taxLeaders.length > 0 ? "Maintainer Backpatch &amp; Sponsorship Load" : "Subsystem Breakdown &amp; 50% Bus Factor"}</h2>
-            <div class="dim" style="font-size:12px;">${
-              rightTab === "tax" && taxLeaders.length > 0
-                ? "How PG20 backpatches &amp; security fixes shifted sponsorship load per committer (PG18 → PG20)"
-                : "Minimum committers covering half of each subsystem's commits in selected window"
-            }</div>
+      <div style="display:flex;flex-direction:column;gap:14px;min-width:0;">
+        <div class="card" style="margin-bottom:0;">
+          <div class="card-head">
+            <div>
+              <h2>${rightTab === "tax" && taxLeaders.length > 0 ? "Maintainer backpatch and sponsorship load" : "Subsystem breakdown and 50% bus factor"}</h2>
+              <div class="dim" style="font-size:12px;">${
+                rightTab === "tax" && taxLeaders.length > 0
+                  ? "How PG20 backpatches and security fixes shifted sponsorship load per committer (PG18 → PG20)"
+                  : "Minimum committers covering half of each subsystem's commits in selected window"
+              }</div>
+            </div>
           </div>
-        </div>
-        <div class="chips" role="tablist" aria-label="Maintainer view">
-          ${taxLeaders.length > 0 ? `<button type="button" class="chip ${rightTab === "tax" ? "active" : ""}" data-hacker-right-tab="tax">Maintainer Load (PG18→PG20)</button>` : ""}
-          <button type="button" class="chip ${rightTab === "subsystems" || taxLeaders.length === 0 ? "active" : ""}" data-hacker-right-tab="subsystems">Subsystems &amp; Bus Factor</button>
-        </div>
-        ${
-          rightTab === "tax" && taxLeaders.length > 0
-            ? `
-          <div class="table-scroll">
-            <table class="dm-table">
-              <thead>
-                <tr>
-                  <th>Committer</th>
-                  <th class="num">PG18 spon%</th>
-                  <th class="num">PG19 spon%</th>
-                  <th class="num">PG20 spon%</th>
-                  <th class="num">PG20 BP</th>
-                  <th class="num">Sec</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${taxLeaders
-                  .map(
-                    (c) => `
+          <div class="chips" role="tablist" aria-label="Maintainer view">
+            ${taxLeaders.length > 0 ? `<button type="button" class="chip ${rightTab === "tax" ? "active" : ""}" data-hacker-right-tab="tax">Maintainer load (PG18→PG20)</button>` : ""}
+            <button type="button" class="chip ${rightTab === "subsystems" || taxLeaders.length === 0 ? "active" : ""}" data-hacker-right-tab="subsystems">Subsystems and bus factor</button>
+          </div>
+          ${
+            rightTab === "tax" && taxLeaders.length > 0
+              ? `
+            <div class="table-scroll">
+              <table class="dm-table">
+                <thead>
                   <tr>
-                    <td><button type="button" class="link-btn" data-open-hacker="${esc(c.slug)}">${esc(c.name)}</button></td>
-                    <td class="num mono dim">${c.spon18Pct}%</td>
-                    <td class="num mono dim">${c.spon19Pct}%</td>
-                    <td class="num mono" style="${c.spon20Pct >= 70 ? "color:var(--accent-t);font-weight:600;" : ""}">${c.spon20Pct}%</td>
-                    <td class="num mono"><strong>${c.bp20}</strong> <span class="dim">(${c.bp20Pct}%)</span></td>
-                    <td class="num mono" style="${c.sec20 >= 10 ? "color:var(--warn);font-weight:600;" : ""}">${c.sec20}</td>
+                    <th>Committer</th>
+                    <th class="num">PG18 spon %</th>
+                    <th class="num">PG19 spon %</th>
+                    <th class="num">PG20 spon %</th>
+                    <th class="num">PG20 BP</th>
+                    <th class="num">Sec</th>
                   </tr>
-                `,
-                  )
-                  .join("")}
-              </tbody>
-            </table>
-          </div>
-          <div class="dim" style="font-size:11px;margin-top:8px;">
-            <strong>spon%</strong> = share of commits landed for other authors. <strong>Sec</strong> = PG20 <code class="mono">Security:</code> commits. See full PG11–PG20 charts in <button type="button" class="link-btn" data-goto-stats="1">Stats</button>.
-          </div>
-        `
-            : `
-          <div class="subsys-list">
-            ${overview.subsystems
-              .map((s) => {
-                const w = Math.max(5, Math.round((s.commits / maxSubsys) * 100));
-                const bf = s.busFactor ?? 1;
-                const lowBusFactor = s.commits >= 20 && bf <= 2;
-                return `
-                  <div class="subsys-row" style="cursor:default;">
-                    <div class="subsys-head">
-                      <span class="hbar-label">${esc(s.name)} ${lowBusFactor ? `<span class="tag-micro tag-wa" title="Bus factor ${bf}: ${bf} committer(s) landed ${s.bfCommits ?? 0}/${s.commits}">BF=${bf}</span>` : `<span class="tag-micro mono">BF=${bf}</span>`}</span>
-                      <span class="mono dim">${fmtNum(s.commits)} · ${s.authors} auth · ${s.committers} comm</span>
+                </thead>
+                <tbody>
+                  ${taxLeaders
+                    .map(
+                      (c) => `
+                    <tr>
+                      <td><button type="button" class="link-btn" data-open-hacker="${esc(c.slug)}">${esc(c.name)}</button></td>
+                      <td class="num mono dim">${c.spon18Pct}%</td>
+                      <td class="num mono dim">${c.spon19Pct}%</td>
+                      <td class="num mono" style="${c.spon20Pct >= 70 ? "color:var(--accent-t);font-weight:600;" : ""}">${c.spon20Pct}%</td>
+                      <td class="num mono"><strong>${c.bp20}</strong> <span class="dim">(${c.bp20Pct}%)</span></td>
+                      <td class="num mono" style="${c.sec20 >= 10 ? "color:var(--warn);font-weight:600;" : ""}">${c.sec20}</td>
+                    </tr>
+                  `,
+                    )
+                    .join("")}
+                </tbody>
+              </table>
+            </div>
+            <div class="dim" style="font-size:11px;margin-top:8px;">
+              <strong>spon %</strong> = share of commits landed for other authors. <strong>Sec</strong> = PG20 <code class="mono">Security:</code> commits. See full PG11–PG20 charts in <button type="button" class="link-btn" data-goto-stats="1">Stats</button>.
+            </div>
+          `
+              : `
+            <div class="subsys-list">
+              ${overview.subsystems
+                .map((s) => {
+                  const w = Math.max(5, Math.round((s.commits / maxSubsys) * 100));
+                  const bf = s.busFactor ?? 1;
+                  const lowBusFactor = s.commits >= 20 && bf <= 2;
+                  return `
+                    <div class="subsys-row" style="cursor:default;">
+                      <div class="subsys-head">
+                        <span class="hbar-label">${esc(s.name)} ${lowBusFactor ? `<span class="tag-micro tag-wa" title="Bus factor ${bf}: ${bf} committer(s) landed ${s.bfCommits ?? 0}/${s.commits}">BF=${bf}</span>` : `<span class="tag-micro mono">BF=${bf}</span>`}</span>
+                        <span class="mono dim">${fmtNum(s.commits)} · ${s.authors} auth · ${s.committers} comm</span>
+                      </div>
+                      <div class="hbar-track"><div class="hbar-fill" style="width:${w}%;"></div></div>
                     </div>
-                    <div class="hbar-track"><div class="hbar-fill" style="width:${w}%;"></div></div>
-                  </div>
-                `;
-              })
-              .join("")}
+                  `;
+                })
+                .join("")}
+            </div>
+          `
+          }
+        </div>
+
+        ${
+          mlStacked
+            ? `
+        <div class="card viz-card" style="margin-bottom:0;">
+          <div class="card-head">
+            <div>
+              <div class="viz-kicker">Mailing list activity (stacked by list)</div>
+              <h2 class="viz-headline">${esc(mlStacked.headline)}</h2>
+              <div class="dim" style="font-size:11.5px;margin-top:2px;">${esc(mlStacked.subline)}</div>
+            </div>
+            <button type="button" class="btn btn-ghost btn-sm" data-goto-lists="1">All lists →</button>
           </div>
+          ${mlStacked.svg}
+        </div>
         `
+            : ""
         }
       </div>
     </div>
@@ -1216,7 +1269,7 @@ export function renderHackersTab(params: {
     <div class="card">
       <div class="card-head">
         <div>
-          <h2>Explore All Contributors (${fmtNum(meta.totalPeople || 0)})</h2>
+          <h2>Explore all contributors (${fmtNum(meta.totalPeople || 0)})</h2>
           <div class="dim" style="font-size:12px;">Search by name, alias, company, or email domain (e.g. <code>fujitsu</code>, <code>enterprisedb</code>, <code>amazon</code>)</div>
         </div>
       </div>
@@ -1582,9 +1635,9 @@ export function renderHackerProfilePage(params: {
             ${p.affiliations.map((a) => `<span class="tag-micro">${esc(a)}</span>`).join("")}
           </div>
           <div class="muted" style="font-size:12.5px;margin-top:5px;">
-            ${p.firstSeen ? `Active <strong>${esc(p.firstSeen.slice(0, 4))} – ${esc((p.lastSeen || p.firstSeen).slice(0, 4))}</strong>` : "PostgreSQL contributor"}
+            ${p.firstSeen ? `Active <strong>${esc(p.firstSeen.slice(0, 4))} – ${esc((p.lastSeen || p.firstSeen).slice(0, 4))}</strong>` : "Postgres contributor"}
             · <strong class="mono">${fmtNum(profile.rhythm.activeDays)}</strong> active days
-            ${profile.rhythm.longestStreakDays >= 2 ? ` · longest streak <strong class="mono">${profile.rhythm.longestStreakDays}d</strong>` : ""}
+            ${profile.rhythm.longestStreakDays >= 2 ? ` · longest streak <strong class="mono">${profile.rhythm.longestStreakDays} d</strong>` : ""}
           </div>
           ${
             p.emailCount > 0 || p.aliases.length > 0
@@ -1667,7 +1720,7 @@ export function renderHackerProfilePage(params: {
     <div class="card">
       <div class="card-head">
         <div>
-          <h2>Contribution Activity (${profile.selectedYear})</h2>
+          <h2>Contribution activity (${profile.selectedYear})</h2>
           <div class="dim" style="font-size:12px;">Commits, reviews, and bug reports credited by day</div>
         </div>
         <div class="chips" style="margin-bottom:0;">
@@ -1687,8 +1740,8 @@ export function renderHackerProfilePage(params: {
       <div class="card viz-card" style="margin-bottom:0;">
         <div class="card-head">
           <div>
-            <div class="viz-kicker">Career Trajectory</div>
-            <h2>Annual PostgreSQL Credits by Role</h2>
+            <div class="viz-kicker">Career trajectory</div>
+            <h2>Annual Postgres credits by role</h2>
           </div>
           <span class="dim" style="font-size:12px;">Authored · Reviewed · Reported</span>
         </div>
@@ -1698,8 +1751,8 @@ export function renderHackerProfilePage(params: {
       <div class="card viz-card" style="margin-bottom:0;">
         <div class="card-head">
           <div>
-            <div class="viz-kicker">Subsystem Signature (vs PG Average)</div>
-            <h2>Subsystem DNA &amp; Specialization Over-Index</h2>
+            <div class="viz-kicker">Subsystem signature (vs. PG average)</div>
+            <h2>Subsystem DNA and specialization over-index</h2>
           </div>
         </div>
         <div class="subsys-list">
@@ -1737,8 +1790,8 @@ export function renderHackerProfilePage(params: {
       <div class="card viz-card" style="margin-bottom:0;">
         <div class="card-head">
           <div>
-            <div class="viz-kicker">Circadian Fingerprint (UTC)</div>
-            <h2>24-Hour Hacking Clock &amp; Day-of-Week Ring</h2>
+            <div class="viz-kicker">Circadian fingerprint (UTC)</div>
+            <h2>24-hour hacking clock and day-of-week ring</h2>
             <div class="dim" style="font-size:12px;">Wedge radius ∝ √activity · Outer ring = Sun–Sat UTC</div>
           </div>
         </div>
@@ -1748,8 +1801,8 @@ export function renderHackerProfilePage(params: {
       <div class="card viz-card" style="margin-bottom:0;">
         <div class="card-head">
           <div>
-            <div class="viz-kicker">Collaboration Constellation</div>
-            <h2>Who ${esc(p.name)} Works Most With</h2>
+            <div class="viz-kicker">Collaboration constellation</div>
+            <h2>Who ${esc(p.name)} works most with</h2>
             <div class="dim" style="font-size:12px;">3 deterministic 120° sectors · Click any collaborator to jump</div>
           </div>
         </div>
@@ -1760,8 +1813,8 @@ export function renderHackerProfilePage(params: {
     <div class="card">
       <div class="card-head">
         <div>
-          <h2>Collaboration Pairs (Full Breakdown)</h2>
-          <div class="dim" style="font-size:12px;">Derived from git Author, Committer, and Reviewed-by links — tap anyone to open their profile</div>
+          <h2>Collaboration pairs (full breakdown)</h2>
+          <div class="dim" style="font-size:12px;">Derived from git Author, Committer, and Reviewed-by links — click anyone to open their profile</div>
         </div>
       </div>
       <div class="obs-collab-grid">

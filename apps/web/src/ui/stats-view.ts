@@ -250,8 +250,8 @@ export function renderStatsObservatory(params: {
   return `
     <div class="page-head">
       <div class="page-head-main">
-        <div class="viz-kicker">Postgres &amp; CommitFest Stats Observatory</div>
-        <h1 class="page-title">Postgres Release Trends, Security &amp; CommitFest Stats</h1>
+        <div class="viz-kicker">Postgres and CommitFest stats</div>
+        <h1 class="page-title">Postgres release trends, security, and CommitFest stats</h1>
         <div class="page-sub">
           ${gitMeta ? `${fmtNum(gitMeta.totalCommitsAll || 0)} git commits (1996–2026) · ${fmtNum(gitMeta.totalPeople || 0)} contributors` : ""}
           ${gitMeta && t ? " · " : ""}
@@ -269,9 +269,9 @@ export function renderStatsObservatory(params: {
     <!-- Section Switcher -->
     <div class="row" style="justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px;">
       <div class="chips" role="tablist" aria-label="Stats section" style="margin:0;">
-        <button type="button" class="chip ${section === "all" ? "active" : ""}" data-stats-section="all">All Stats</button>
-        <button type="button" class="chip ${section === "git" ? "active" : ""}" data-stats-section="git">Postgres Git &amp; Releases (PG11–PG20)</button>
-        <button type="button" class="chip ${section === "commitfest" ? "active" : ""}" data-stats-section="commitfest">CommitFest &amp; Roasts</button>
+        <button type="button" class="chip ${section === "all" ? "active" : ""}" data-stats-section="all">All stats</button>
+        <button type="button" class="chip ${section === "git" ? "active" : ""}" data-stats-section="git">Postgres git and releases (PG11–PG20)</button>
+        <button type="button" class="chip ${section === "commitfest" ? "active" : ""}" data-stats-section="commitfest">CommitFest and roasts</button>
       </div>
       ${
         showGit
@@ -304,8 +304,8 @@ export function renderStatsObservatory(params: {
         ? `
     <div style="margin:22px 0 12px;padding-top:14px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px;">
       <div>
-        <div class="viz-kicker">CommitFest Intelligence</div>
-        <h2 style="margin:2px 0 0;font-size:18px;">${esc(data.commitfestLabel)} — Queue, Proof &amp; Bottlenecks</h2>
+        <div class="viz-kicker">CommitFest intelligence</div>
+        <h2 style="margin:2px 0 0;font-size:18px;">${esc(data.commitfestLabel)} — queue, proof, and bottlenecks</h2>
       </div>
       <div class="dim" style="font-size:12px;">
         ${fmtNum(t.total)} patches (${fmtNum(t.open)} open · ${fmtNum(t.closed)} closed: ${cb.committed} committed, ${cb.moved} moved, ${cb.withdrawn} withdrawn, ${cb.rejected + cb.returned} rejected/returned) · Open roast coverage: <strong>${pctWithN(t.roastedOpen, t.open)}</strong>
@@ -319,7 +319,7 @@ export function renderStatsObservatory(params: {
     <section class="card viz-card" id="stats-queue-hero">
       <div class="card-head">
         <div>
-          <div class="viz-kicker">1. The Queue — Every Patch as One Clickable Square</div>
+          <div class="viz-kicker">1. The queue — every patch as one clickable square</div>
           <h2 class="viz-headline">
             ${fmtNum(t.open)} open patches (${fmtNum(t.needsReviewOpen)} Needs review · ${fmtNum(t.waitingOpen)} Waiting · ${fmtNum(t.rfcOpen)} Ready for Committer)
           </h2>
@@ -342,8 +342,8 @@ export function renderStatsObservatory(params: {
       <section class="card viz-card" style="margin-bottom:0;">
         <div class="card-head">
           <div>
-            <div class="viz-kicker">2A. Committer Warnings</div>
-            <h2>Ready for Committer with Flags (${warnings.length})</h2>
+            <div class="viz-kicker">2A. Committer warnings</div>
+            <h2>Ready for Committer with flags (${warnings.length})</h2>
             <div class="dim" style="font-size:12px;">Marked RFC on CommitFest, yet AI flagged Likely Reject, Design Debate, or a Dark apply/test failure</div>
           </div>
         </div>
@@ -353,9 +353,9 @@ export function renderStatsObservatory(params: {
       <section class="card viz-card" style="margin-bottom:0;">
         <div class="card-head">
           <div>
-            <div class="viz-kicker">2B. Cheapest Clean Pickups</div>
-            <h2>Needs Review Roasted Clean (${pickups.length})</h2>
-            <div class="dim" style="font-size:12px;">No fundamental objection survived counter-check — sorted by Dark verification &amp; priority score</div>
+            <div class="viz-kicker">2B. Cheapest clean pickups</div>
+            <h2>Needs review roasted clean (${pickups.length})</h2>
+            <div class="dim" style="font-size:12px;">No fundamental objection survived counter-check — sorted by Dark verification and priority score</div>
           </div>
         </div>
         ${renderTriageRows(pickups, "No clean Needs-review candidates right now.", 5)}
@@ -366,7 +366,7 @@ export function renderStatsObservatory(params: {
     <section class="card viz-card">
       <div class="card-head">
         <div>
-          <div class="viz-kicker">3. Structural Bottlenecks — CommitFest Queue × Postgres Git Capacity</div>
+          <div class="viz-kicker">3. Structural bottlenecks — CommitFest queue vs. Postgres git capacity</div>
           <h2 class="viz-headline">
             ${
               topBottle && topBottle.openPerCommitter != null
@@ -385,7 +385,7 @@ export function renderStatsObservatory(params: {
     <section class="card viz-card">
       <div class="card-head">
         <div>
-          <div class="viz-kicker">4. Author Track Record vs. Queue Status (Beeswarm)</div>
+          <div class="viz-kicker">4. Author track record vs. queue status (beeswarm)</div>
           <h2 class="viz-headline">
             ${fmtNum(bs.firstTimerCount)} open patches from first-time authors — ${fmtNum(bs.firstTimerStuckInReview)} in Needs review, ${fmtNum(bs.firstTimerClean)} roasted clean
           </h2>
@@ -640,9 +640,9 @@ export function renderStatsObservatory(params: {
     <section class="card viz-card" id="stats-verification-pipeline">
       <div class="card-head">
         <div>
-          <div class="viz-kicker">6. Build, Test &amp; Live SQL Results (Dark Roasts)</div>
+          <div class="viz-kicker">6. Build, test, and live SQL results (Dark roasts)</div>
           <h2 class="viz-headline">
-            ${fmtNum(v.gitApplyClean)}/${fmtNum(v.codeRead)} applied to master · ${fmtNum(v.compilePass)}/${fmtNum(v.compilePass + v.compileFail)} compiled (-Dcassert, median ${v.medianCompileSec}s) · ${fmtNum(v.testPass)}/${fmtNum(v.testPass + v.testFail)} passed meson test · ${fmtNum(v.totalSqlCases)} live SQL cases
+            ${fmtNum(v.gitApplyClean)}/${fmtNum(v.codeRead)} applied to master · ${fmtNum(v.compilePass)}/${fmtNum(v.compilePass + v.compileFail)} compiled (-Dcassert, median ${v.medianCompileSec} s) · ${fmtNum(v.testPass)}/${fmtNum(v.testPass + v.testFail)} passed meson test · ${fmtNum(v.totalSqlCases)} live SQL cases
           </h2>
           <div class="dim" style="font-size:12px;margin-top:2px;">
             Patches checked against Postgres master with git apply, meson compile, meson test, and live SQL runs (n=${data.darkMatrix.length}), sorted by failure stage · Click any row for full logs

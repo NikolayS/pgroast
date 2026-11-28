@@ -250,11 +250,17 @@ export async function getHackersOverview(db: WebDatabase, rawWindow?: string | n
       wf.params,
     ) as Promise<Array<{ slug: string; name: string; role: string; email_count: number; count: number }>>,
     db.sql.unsafe(
-      `SELECT
+      `WITH latest AS (
+         SELECT COALESCE(MAX(LEFT(committed_at, 10)::date), CURRENT_DATE) AS d
+         FROM ${db.t("pg_commits")}
+       )
+       SELECT
          p.slug, p.canonical_name AS name, p.pg_role AS role, p.email_count, p.first_seen_at,
          COUNT(*) FILTER (WHERE cc.credit_kind IN ('author', 'co_author'))::int AS authored,
          COUNT(*) FILTER (WHERE cc.credit_kind = 'reviewer')::int AS reviewed,
          COUNT(*) FILTER (WHERE cc.credit_kind = 'reporter')::int AS reported,
+         COUNT(*) FILTER (WHERE LEFT(cc.committed_at, 10)::date >= (SELECT d - 30 FROM latest))::int AS recent_30d,
+         COUNT(*) FILTER (WHERE LEFT(cc.committed_at, 10)::date >= (SELECT d - 60 FROM latest) AND LEFT(cc.committed_at, 10)::date < (SELECT d - 30 FROM latest))::int AS prior_30d,
          COUNT(*)::int AS total_activity
        FROM ${db.t("commit_credits")} cc
        JOIN ${db.t("people")} p ON p.id = cc.person_id
@@ -273,6 +279,8 @@ export async function getHackersOverview(db: WebDatabase, rawWindow?: string | n
         authored: number;
         reviewed: number;
         reported: number;
+        recent_30d: number;
+        prior_30d: number;
         total_activity: number;
       }>
     >,
@@ -318,6 +326,7 @@ export async function getHackersOverview(db: WebDatabase, rawWindow?: string | n
     monthlyInflectionRows,
     recentAiRows,
     backpatchTaxRows,
+    mlByDayRows,
   ] = await Promise.all([
     db.sql.unsafe(
       `WITH cycles(pg_major, start_d) AS (
@@ -724,6 +733,29 @@ export async function getHackersOverview(db: WebDatabase, rawWindow?: string | n
         sec20: number;
       }>
     >,
+    db.sql.unsafe(
+      `SELECT
+         LEFT(sent_at, 10) AS day,
+         COUNT(*) FILTER (WHERE list_name = 'pgsql-hackers')::int AS hackers,
+         COUNT(*) FILTER (WHERE list_name = 'pgsql-committers')::int AS committers,
+         COUNT(*) FILTER (WHERE list_name = 'pgsql-bugs')::int AS bugs,
+         COUNT(*) FILTER (WHERE list_name NOT IN ('pgsql-hackers', 'pgsql-committers', 'pgsql-bugs'))::int AS other,
+         COUNT(*)::int AS total
+       FROM ${db.t("mailing_list_messages")}
+       WHERE sent_at != ''
+       GROUP BY 1
+       ORDER BY 1 DESC
+       LIMIT 16`,
+    ) as Promise<
+      Array<{
+        day: string;
+        hackers: number;
+        committers: number;
+        bugs: number;
+        other: number;
+        total: number;
+      }>
+    >,
   ]);
 
   // Build cumulative series per PG release cycle
@@ -908,6 +940,16 @@ export async function getHackersOverview(db: WebDatabase, rawWindow?: string | n
         sec20: Number(r.sec20 || 0),
       };
     }),
+    mailingListsByDay: [...mlByDayRows]
+      .reverse()
+      .map((r) => ({
+        day: r.day,
+        hackers: Number(r.hackers || 0),
+        committers: Number(r.committers || 0),
+        bugs: Number(r.bugs || 0),
+        other: Number(r.other || 0),
+        total: Number(r.total || 0),
+      })),
     concentrationByYear: concYearRows.map((r) => {
       const tot = Math.max(1, Number(r.total || 0));
       return {
@@ -968,17 +1010,24 @@ export async function getHackersOverview(db: WebDatabase, rawWindow?: string | n
         emailCount: Number(r.email_count || 0),
         count: Number(r.count || 0),
       })),
-      rising: risingRows.map((r) => ({
-        slug: r.slug,
-        name: r.name,
-        role: r.role,
-        emailCount: Number(r.email_count || 0),
-        firstSeen: (r.first_seen_at || "").slice(0, 10),
-        authored: Number(r.authored || 0),
-        reviewed: Number(r.reviewed || 0),
-        reported: Number(r.reported || 0),
-        totalActivity: Number(r.total_activity || 0),
-      })),
+      rising: risingRows.map((r) => {
+        const recent30d = Number(r.recent_30d || 0);
+        const prior30d = Number(r.prior_30d || 0);
+        return {
+          slug: r.slug,
+          name: r.name,
+          role: r.role,
+          emailCount: Number(r.email_count || 0),
+          firstSeen: (r.first_seen_at || "").slice(0, 10),
+          authored: Number(r.authored || 0),
+          reviewed: Number(r.reviewed || 0),
+          reported: Number(r.reported || 0),
+          recent30d,
+          prior30d,
+          delta30d: recent30d - prior30d,
+          totalActivity: Number(r.total_activity || 0),
+        };
+      }),
     },
   };
 }
