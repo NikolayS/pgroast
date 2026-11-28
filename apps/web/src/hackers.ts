@@ -40,6 +40,10 @@ export interface ParsedCommit {
   discussionUrls: string[];
   isRevert: boolean;
   isBackpatch: boolean;
+  backpatchThrough: number | null;
+  hasSecurityTrailer: boolean;
+  cveIds: string[];
+  aiSignal: string;
   filesChanged: number;
   insertions: number;
   deletions: number;
@@ -346,14 +350,27 @@ export function classifyPgMajor(isoDate: string): string {
   return "PG<=9.6";
 }
 
-export function parseCommitTrailers(body: string): {
+const AI_SIGNAL_RE =
+  /\b(claude|chatgpt|openai|anthropic|llms?|coding agent|ai agent|ai-assisted|ai-generated|copilot|codex|gemini|deepseek|oss-scanner|mythos|ai tool|generative ai)\b/gi;
+const CVE_ID_RE = /\bCVE-\d{4}-\d+\b/gi;
+
+export function parseCommitTrailers(
+  body: string,
+  subject = "",
+): {
   trailers: Array<{ kind: CreditKind; person: ParsedPersonRef }>;
   discussionUrls: string[];
   isBackpatch: boolean;
+  backpatchThrough: number | null;
+  hasSecurityTrailer: boolean;
+  cveIds: string[];
+  aiSignal: string;
 } {
   const trailers: Array<{ kind: CreditKind; person: ParsedPersonRef }> = [];
   const discussionUrls: string[] = [];
   let isBackpatch = false;
+  let backpatchThrough: number | null = null;
+  let hasSecurityTrailer = false;
 
   const lines = body.split(/\r?\n/);
   const trailerMap: Array<{ re: RegExp; kind: CreditKind }> = [
@@ -370,8 +387,16 @@ export function parseCommitTrailers(body: string): {
   for (const rawLine of lines) {
     const line = rawLine.trim();
     if (!line) continue;
-    if (/^Backpatch-through:/i.test(line) || /\bback-?patch(?:ed|ing)?\s+to\b/i.test(line)) {
+    const bpMatch = line.match(/^Backpatch-through:\s*(\d{1,2})\b/i);
+    if (bpMatch?.[1]) {
       isBackpatch = true;
+      const ver = Number(bpMatch[1]);
+      if (ver >= 9 && ver <= 30) backpatchThrough = ver;
+    } else if (/^Backpatch-through:/i.test(line) || /\bback-?patch(?:ed|ing)?\s+to\b/i.test(line)) {
+      isBackpatch = true;
+    }
+    if (/^Security:/i.test(line)) {
+      hasSecurityTrailer = true;
     }
     const discMatch = line.match(/^Discussion:\s*(\S+)/i);
     if (discMatch?.[1]) {
@@ -389,7 +414,28 @@ export function parseCommitTrailers(body: string): {
       }
     }
   }
-  return { trailers, discussionUrls, isBackpatch };
+
+  const fullText = `${subject}\n${body}`;
+  const cveSet = new Set<string>();
+  for (const m of fullText.matchAll(CVE_ID_RE)) {
+    cveSet.add(m[0].toUpperCase());
+  }
+  const aiSet = new Set<string>();
+  for (const m of fullText.matchAll(AI_SIGNAL_RE)) {
+    const tok = m[1]!.toLowerCase();
+    if (tok === "llms") aiSet.add("llm");
+    else aiSet.add(tok);
+  }
+
+  return {
+    trailers,
+    discussionUrls,
+    isBackpatch,
+    backpatchThrough,
+    hasSecurityTrailer,
+    cveIds: Array.from(cveSet).sort(),
+    aiSignal: Array.from(aiSet).sort().join(","),
+  };
 }
 
 export interface ContributorRoleSeed {
@@ -982,7 +1028,8 @@ export async function readPostgresGitLog(
     };
     const gitCommitter = parsePersonRef(`${cn} <${ce}>`) || gitAuthor;
 
-    const { trailers, discussionUrls, isBackpatch } = parseCommitTrailers(body);
+    const { trailers, discussionUrls, isBackpatch, backpatchThrough, hasSecurityTrailer, cveIds, aiSignal } =
+      parseCommitTrailers(body, subject);
     const isRevert = /^revert\b/i.test(subject);
 
     let filesChanged = 0;
@@ -1017,6 +1064,10 @@ export async function readPostgresGitLog(
       discussionUrls,
       isRevert,
       isBackpatch,
+      backpatchThrough,
+      hasSecurityTrailer,
+      cveIds,
+      aiSignal,
       filesChanged,
       insertions,
       deletions,
@@ -1216,6 +1267,10 @@ export async function syncHackersToDb(
     committerIdx: number;
     isRevert: boolean;
     isBackpatch: boolean;
+    backpatchThrough: number | null;
+    hasSecurityTrailer: boolean;
+    cveIdsJson: string;
+    aiSignal: string;
     primarySubsystem: string;
     subsystemsJson: string;
     discussionUrlsJson: string;
@@ -1295,6 +1350,10 @@ export async function syncHackersToDb(
       committerIdx,
       isRevert: c.isRevert,
       isBackpatch: c.isBackpatch,
+      backpatchThrough: c.backpatchThrough,
+      hasSecurityTrailer: c.hasSecurityTrailer,
+      cveIdsJson: JSON.stringify(c.cveIds),
+      aiSignal: c.aiSignal,
       primarySubsystem: c.primarySubsystem,
       subsystemsJson: JSON.stringify(c.subsystems),
       discussionUrlsJson: JSON.stringify(c.discussionUrls.slice(0, 4)),
@@ -1421,6 +1480,10 @@ export async function syncHackersToDb(
         indexToDbId[c.committerIdx]!,
         c.isRevert,
         c.isBackpatch,
+        c.backpatchThrough,
+        c.hasSecurityTrailer,
+        c.cveIdsJson,
+        c.aiSignal,
         c.primarySubsystem,
         c.subsystemsJson,
         c.discussionUrlsJson,
@@ -1430,13 +1493,14 @@ export async function syncHackersToDb(
         c.pgMajor,
       );
       tuples.push(
-        `($${b + 1},$${b + 2},$${b + 3},$${b + 4},$${b + 5},$${b + 6},$${b + 7},$${b + 8},$${b + 9},$${b + 10},$${b + 11},$${b + 12},$${b + 13},$${b + 14},$${b + 15})`,
+        `($${b + 1},$${b + 2},$${b + 3},$${b + 4},$${b + 5},$${b + 6},$${b + 7},$${b + 8},$${b + 9},$${b + 10},$${b + 11},$${b + 12},$${b + 13},$${b + 14},$${b + 15},$${b + 16},$${b + 17},$${b + 18},$${b + 19})`,
       );
     }
     await db.sql.unsafe(
       `INSERT INTO ${db.t("pg_commits")} (
         sha, committed_at, authored_at, subject, author_person_id, committer_person_id,
-        is_revert, is_backpatch, primary_subsystem, subsystems_json, discussion_urls_json,
+        is_revert, is_backpatch, backpatch_through, has_security_trailer, cve_ids_json, ai_signal,
+        primary_subsystem, subsystems_json, discussion_urls_json,
         files_changed, insertions, deletions, pg_major
       ) VALUES ${tuples.join(",")} ON CONFLICT (sha) DO NOTHING`,
       params,

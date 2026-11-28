@@ -49,14 +49,45 @@ export interface ReleaseTrendPoint {
   avgLines: number;
   backpatched: number;
   backpatchPct: number;
+  bpDeep5Plus: number;
+  bpMid2_4: number;
+  bpRecent1: number;
   reverts: number;
+  revertPct: number;
+  oversightFixes: number;
+  oversightPct: number;
+  securityCommits: number;
+  distinctCves: number;
+  aiCommits: number;
+  reviewedPct: number;
+  multiReviewedPct: number;
+  reportedPct: number;
   committers: number;
   authors: number;
+  oneShotPct: number;
+  coreAuthors5Plus: number;
+  top5CommitterPct: number;
   commitsPerCommitter: number;
   authorsPerCommitter: number;
   nonCommitterPct: number;
   committerAuthoredPct: number;
   isInProgress: boolean;
+}
+
+export interface MonthlyInflectionPoint {
+  ym: string;
+  commits: number;
+  backpatched: number;
+  backpatchPct: number;
+  bpDeep5Plus: number;
+  bpRecent1: number;
+  forOthers: number;
+  forOthersPct: number;
+  securityCommits: number;
+  distinctCves: number;
+  aiCommits: number;
+  authors: number;
+  committers: number;
 }
 
 export function renderReleaseCycleRaceSvg(
@@ -622,61 +653,75 @@ export function renderAllTimeGrowthSvg(
 }
 
 /* ============================================================================
- * 4B. HACKERS: Release-over-Release Backpatch Surge & Code Churn (PG11-PG20)
+ * 4B. HACKERS: Backpatch Anatomy — Latent Bugs (5+ branches) vs Recent Fixes (PG11-PG20)
  * ============================================================================ */
 export function renderBackpatchChurnSvg(
   trends: ReleaseTrendPoint[],
 ): { headline: string; subline: string; svg: string } {
   if (!trends || trends.length === 0) {
-    return { headline: "Backpatch Surge & Churn", subline: "No release trend data synced yet.", svg: `<div class="empty-state">No data yet.</div>` };
+    return { headline: "Backpatch Anatomy", subline: "No release trend data synced yet.", svg: `<div class="empty-state">No data yet.</div>` };
   }
 
   const completed = trends.filter((t) => !t.isInProgress);
   const latestComplete = completed[completed.length - 1] || trends[trends.length - 1]!;
   const latest = trends[trends.length - 1]!;
-  const peakChurn = trends.reduce((a, b) => (b.linesChanged > a.linesChanged ? b : a), trends[0]!);
+  const pg17 = trends.find((t) => t.major === "PG17");
+  const deepJump = pg17 && pg17.bpDeep5Plus > 0 ? `${(latest.bpDeep5Plus / pg17.bpDeep5Plus).toFixed(1)}×` : "";
   const fmtK = (n: number) => (n >= 1_000_000 ? `${(n / 1_000_000).toFixed(2)}M` : n >= 1_000 ? `${Math.round(n / 1_000)}k` : String(n));
 
   const headline = latest.isInProgress
-    ? `${latestComplete.major} hit ${fmtNum(latestComplete.backpatched)} backpatches (${latestComplete.backpatchPct}%); ${latest.major} is at ${latest.backpatchPct}% so far`
+    ? `${fmtNum(latest.bpDeep5Plus)} deep backpatches (5+ branches) in ${latest.major} — ${deepJump || "4×"} PG17 in half a year`
     : `${latest.major} hit ${fmtNum(latest.backpatched)} backpatches (${latest.backpatchPct}% of commits)`;
-  const subline = `Code churn peaked at ${fmtK(peakChurn.linesChanged)} lines in ${peakChurn.major} (${fmtNum(peakChurn.avgLines)} avg/commit) · Hover any release`;
+  const subline = `Splits backpatches into 5+-branch ancient bugs vs 1-branch ${latestComplete.major} stabilization · Peak churn: ${fmtK(latestComplete.linesChanged)} lines (${latestComplete.major})`;
 
   const w = 520;
   const h = 216;
-  const padL = 44;
+  const padL = 42;
   const padR = 44;
   const padT = 18;
   const padB = 28;
   const plotW = w - padL - padR;
   const plotH = h - padT - padB;
 
-  const maxCommits = Math.max(100, ...trends.map((d) => d.commits));
+  const maxBp = Math.max(100, ...trends.map((d) => d.backpatched));
   const maxPct = Math.max(40, Math.ceil(Math.max(...trends.map((d) => d.backpatchPct)) / 10) * 10);
   const step = plotW / Math.max(1, trends.length);
   const barW = Math.max(12, Math.min(30, step * 0.62));
 
-  const yCommit = (v: number) => padT + plotH - (v / maxCommits) * plotH;
   const yPct = (v: number) => padT + plotH - (v / maxPct) * plotH;
 
   const bars = trends
     .map((d, i) => {
       const cx = padL + i * step + step / 2;
       const x = cx - barW / 2;
-      const hTotal = (d.commits / maxCommits) * plotH;
-      const hBack = (d.backpatched / maxCommits) * plotH;
-      const hMain = Math.max(0, hTotal - hBack);
-      const yTop = padT + plotH - hTotal;
-      const yBack = padT + plotH - hBack;
+      const taggedSum = d.bpDeep5Plus + d.bpMid2_4 + d.bpRecent1;
+      const untagged = Math.max(0, d.backpatched - taggedSum);
+      const hDeep = (d.bpDeep5Plus / maxBp) * plotH;
+      const hMid = (d.bpMid2_4 / maxBp) * plotH;
+      const hRec = (d.bpRecent1 / maxBp) * plotH;
+      const hUnt = (untagged / maxBp) * plotH;
+
+      let cursorY = padT + plotH;
+      const yDeep = cursorY - hDeep;
+      cursorY = yDeep;
+      const yMid = cursorY - hMid;
+      cursorY = yMid;
+      const yRec = cursorY - hRec;
+      cursorY = yRec;
+      const yUnt = cursorY - hUnt;
+      const hAll = hDeep + hMid + hRec + hUnt;
+
       const tipTitle = d.isInProgress ? `${d.major} (in progress)` : d.major;
-      const tipBody = `${fmtNum(d.commits)} commits · ${fmtNum(d.backpatched)} backpatched (${d.backpatchPct}%) · ${d.reverts} reverts`;
-      const tipSub = `${fmtK(d.linesChanged)} lines changed (${fmtNum(d.avgLines)} avg/commit)`;
+      const tipBody = `${fmtNum(d.backpatched)} backpatched (${d.backpatchPct}% of ${fmtNum(d.commits)} commits)`;
+      const tipSub = `5+ branches deep: ${fmtNum(d.bpDeep5Plus)} · 2–4 branches: ${fmtNum(d.bpMid2_4)} · 1 branch: ${fmtNum(d.bpRecent1)} · ${fmtK(d.linesChanged)} churn`;
       return `
         <g class="viz-hoverable" tabindex="0" data-tip-title="${esc(tipTitle)}" data-tip-body="${esc(tipBody)}" data-tip-sub="${esc(tipSub)}">
           <rect x="${(cx - step / 2).toFixed(1)}" y="${padT}" width="${step.toFixed(1)}" height="${plotH}" fill="transparent" />
-          ${hMain > 0 ? `<rect x="${x.toFixed(1)}" y="${yTop.toFixed(1)}" width="${barW.toFixed(1)}" height="${hMain.toFixed(1)}" rx="2" fill="var(--viz-1)" opacity="${d.isInProgress ? "0.22" : "0.32"}" />` : ""}
-          ${hBack > 0 ? `<rect x="${x.toFixed(1)}" y="${yBack.toFixed(1)}" width="${barW.toFixed(1)}" height="${hBack.toFixed(1)}" rx="2" fill="var(--viz-1)" opacity="${d.isInProgress ? "0.78" : "0.92"}" />` : ""}
-          ${d.isInProgress ? `<rect x="${x.toFixed(1)}" y="${yTop.toFixed(1)}" width="${barW.toFixed(1)}" height="${hTotal.toFixed(1)}" rx="2" fill="none" stroke="var(--viz-1)" stroke-width="1" stroke-dasharray="3 2" />` : ""}
+          ${hUnt > 0 ? `<rect x="${x.toFixed(1)}" y="${yUnt.toFixed(1)}" width="${barW.toFixed(1)}" height="${hUnt.toFixed(1)}" rx="1.5" fill="var(--viz-axis)" opacity="0.28" />` : ""}
+          ${hRec > 0 ? `<rect x="${x.toFixed(1)}" y="${yRec.toFixed(1)}" width="${barW.toFixed(1)}" height="${hRec.toFixed(1)}" rx="1.5" fill="var(--viz-3)" opacity="0.78" />` : ""}
+          ${hMid > 0 ? `<rect x="${x.toFixed(1)}" y="${yMid.toFixed(1)}" width="${barW.toFixed(1)}" height="${hMid.toFixed(1)}" rx="1.5" fill="var(--viz-1)" opacity="0.45" />` : ""}
+          ${hDeep > 0 ? `<rect x="${x.toFixed(1)}" y="${yDeep.toFixed(1)}" width="${barW.toFixed(1)}" height="${hDeep.toFixed(1)}" rx="1.5" fill="var(--viz-1)" opacity="0.94" />` : ""}
+          ${d.isInProgress && hAll > 0 ? `<rect x="${x.toFixed(1)}" y="${yUnt.toFixed(1)}" width="${barW.toFixed(1)}" height="${hAll.toFixed(1)}" rx="1.5" fill="none" stroke="var(--ink)" stroke-width="0.9" stroke-dasharray="3 2" opacity="0.6" />` : ""}
           <text x="${cx.toFixed(1)}" y="${h - 8}" text-anchor="middle" fill="${d.isInProgress ? "var(--ink)" : "var(--viz-axis)"}" font-size="9.5" font-weight="${d.isInProgress ? "700" : "400"}" class="mono">${esc(d.major)}${d.isInProgress ? "*" : ""}</text>
         </g>
       `;
@@ -686,35 +731,34 @@ export function renderBackpatchChurnSvg(
   const pctPts = trends
     .map((d, i) => `${(padL + i * step + step / 2).toFixed(1)},${yPct(d.backpatchPct).toFixed(1)}`)
     .join(" ");
-
   const pctDots = trends
     .map((d, i) => {
       const cx = padL + i * step + step / 2;
       const cy = yPct(d.backpatchPct);
-      const isLast = i === trends.length - 1;
-      return `<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${isLast ? "4" : "3"}" fill="var(--viz-3)" stroke="var(--surface)" stroke-width="1.4" pointer-events="none" />`;
+      return `<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${i === trends.length - 1 ? "4" : "3"}" fill="var(--viz-2)" stroke="var(--surface)" stroke-width="1.3" pointer-events="none" />`;
     })
     .join("");
 
   const svg = `
-    <svg viewBox="0 0 ${w} ${h}" class="obs-chart-svg" role="img" aria-label="PG11 through PG20 commits, backpatches, and backpatch share percentage">
+    <svg viewBox="0 0 ${w} ${h}" class="obs-chart-svg" role="img" aria-label="PG11 through PG20 backpatch depth breakdown and backpatch share percentage">
       <line x1="${padL}" y1="${padT}" x2="${w - padR}" y2="${padT}" stroke="var(--viz-grid)" stroke-dasharray="3 3" />
       <line x1="${padL}" y1="${(padT + plotH / 2).toFixed(1)}" x2="${w - padR}" y2="${(padT + plotH / 2).toFixed(1)}" stroke="var(--viz-grid)" stroke-dasharray="3 3" />
       <line x1="${padL}" y1="${padT + plotH}" x2="${w - padR}" y2="${padT + plotH}" stroke="var(--border)" />
-      <text x="${padL - 6}" y="${padT + 4}" text-anchor="end" fill="var(--viz-axis)" font-size="9.5" class="mono">${fmtNum(maxCommits)}</text>
-      <text x="${padL - 6}" y="${(padT + plotH / 2 + 3).toFixed(1)}" text-anchor="end" fill="var(--viz-axis)" font-size="9.5" class="mono">${fmtNum(Math.round(maxCommits / 2))}</text>
+      <text x="${padL - 6}" y="${padT + 4}" text-anchor="end" fill="var(--viz-axis)" font-size="9.5" class="mono">${fmtNum(maxBp)}</text>
+      <text x="${padL - 6}" y="${(padT + plotH / 2 + 3).toFixed(1)}" text-anchor="end" fill="var(--viz-axis)" font-size="9.5" class="mono">${fmtNum(Math.round(maxBp / 2))}</text>
       <text x="${padL - 6}" y="${padT + plotH}" text-anchor="end" fill="var(--viz-axis)" font-size="9.5" class="mono">0</text>
-      <text x="${w - padR + 6}" y="${padT + 4}" text-anchor="start" fill="var(--viz-3)" font-size="9.5" class="mono">${maxPct}%</text>
-      <text x="${w - padR + 6}" y="${(padT + plotH / 2 + 3).toFixed(1)}" text-anchor="start" fill="var(--viz-3)" font-size="9.5" class="mono">${Math.round(maxPct / 2)}%</text>
-      <text x="${w - padR + 6}" y="${padT + plotH}" text-anchor="start" fill="var(--viz-3)" font-size="9.5" class="mono">0%</text>
+      <text x="${w - padR + 6}" y="${padT + 4}" text-anchor="start" fill="var(--viz-2)" font-size="9.5" class="mono">${maxPct}%</text>
+      <text x="${w - padR + 6}" y="${(padT + plotH / 2 + 3).toFixed(1)}" text-anchor="start" fill="var(--viz-2)" font-size="9.5" class="mono">${Math.round(maxPct / 2)}%</text>
+      <text x="${w - padR + 6}" y="${padT + plotH}" text-anchor="start" fill="var(--viz-2)" font-size="9.5" class="mono">0%</text>
       ${bars}
-      <polyline fill="none" stroke="var(--viz-3)" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round" points="${pctPts}" pointer-events="none" />
+      <polyline fill="none" stroke="var(--viz-2)" stroke-width="2.3" stroke-linejoin="round" stroke-linecap="round" points="${pctPts}" pointer-events="none" />
       ${pctDots}
     </svg>
     <div class="obs-chart-legend">
-      <span><span class="dot" style="background:var(--viz-1);opacity:0.92"></span>Backpatched commits</span>
-      <span><span class="dot" style="background:var(--viz-1);opacity:0.32"></span>Master-only commits</span>
-      <span><span class="dot" style="background:var(--viz-3)"></span>Backpatch share % (right axis)</span>
+      <span><span class="dot" style="background:var(--viz-1);opacity:0.94"></span>5+ branches (ancient bugs)</span>
+      <span><span class="dot" style="background:var(--viz-1);opacity:0.45"></span>2–4 branches</span>
+      <span><span class="dot" style="background:var(--viz-3);opacity:0.78"></span>1 branch (recent)</span>
+      <span><span class="dot" style="background:var(--viz-2)"></span>Backpatch % (right)</span>
     </div>
   `;
 
@@ -722,7 +766,185 @@ export function renderBackpatchChurnSvg(
 }
 
 /* ============================================================================
- * 4C. HACKERS: Maintainer Bottleneck — Flat Committers vs Surging Authors (PG11-PG20)
+ * 4C. HACKERS: The CVE & AI-Assisted Security Wave (PG11-PG20)
+ * ============================================================================ */
+export function renderSecurityAiWaveSvg(
+  trends: ReleaseTrendPoint[],
+): { headline: string; subline: string; svg: string } {
+  if (!trends || trends.length === 0) {
+    return { headline: "CVE & AI Security Wave", subline: "No security data synced yet.", svg: `<div class="empty-state">No data yet.</div>` };
+  }
+
+  const latest = trends[trends.length - 1]!;
+  const pg11to18Cves = trends
+    .filter((d) => !["PG19", "PG20"].includes(d.major))
+    .reduce((a, b) => a + b.distinctCves, 0);
+  const pg19 = trends.find((d) => d.major === "PG19");
+
+  const headline = `${fmtNum(latest.distinctCves)} distinct CVEs in ${latest.major} so far — more than PG11–PG18 combined (${fmtNum(pg11to18Cves)})`;
+  const subline = `Explicit AI/LLM-credited commits: 0 (PG11–18) → ${pg19?.aiCommits ?? 0} (PG19) → ${fmtNum(latest.aiCommits)} (${latest.major}) · ${fmtNum(latest.securityCommits)} Security: commits`;
+
+  const w = 520;
+  const h = 216;
+  const padL = 40;
+  const padR = 16;
+  const padT = 22;
+  const padB = 28;
+  const plotW = w - padL - padR;
+  const plotH = h - padT - padB;
+
+  const maxY = Math.max(20, Math.ceil(Math.max(...trends.map((d) => Math.max(d.securityCommits, d.distinctCves, d.aiCommits))) / 20) * 20);
+  const step = plotW / Math.max(1, trends.length);
+  const pairW = Math.max(14, Math.min(34, step * 0.72));
+  const bw = pairW / 2 - 1.5;
+
+  const bars = trends
+    .map((d, i) => {
+      const cx = padL + i * step + step / 2;
+      const x1 = cx - pairW / 2;
+      const x2 = cx + 1.5;
+      const hSec = (d.securityCommits / maxY) * plotH;
+      const hCve = (d.distinctCves / maxY) * plotH;
+      const hAi = (d.aiCommits / maxY) * plotH;
+      const ySec = padT + plotH - hSec;
+      const yCve = padT + plotH - hCve;
+      const yAi = padT + plotH - hAi;
+
+      const tipTitle = d.isInProgress ? `${d.major} (in progress)` : d.major;
+      const tipBody = `${fmtNum(d.distinctCves)} distinct CVEs · ${fmtNum(d.securityCommits)} Security: commits · ${fmtNum(d.aiCommits)} AI/LLM-credited`;
+      const tipSub = d.aiCommits > 0 ? "Includes Anthropic OSS, Claude, OpenAI Security & LLM-guided audits" : "Zero explicit AI/LLM commit attributions in git history";
+      const showTopLbl = d.distinctCves >= 20 || d.aiCommits >= 10;
+
+      return `
+        <g class="viz-hoverable" tabindex="0" data-tip-title="${esc(tipTitle)}" data-tip-body="${esc(tipBody)}" data-tip-sub="${esc(tipSub)}">
+          <rect x="${(cx - step / 2).toFixed(1)}" y="${padT}" width="${step.toFixed(1)}" height="${plotH}" fill="transparent" />
+          ${hSec > 0 ? `<rect x="${x1.toFixed(1)}" y="${ySec.toFixed(1)}" width="${bw.toFixed(1)}" height="${hSec.toFixed(1)}" rx="1.5" fill="var(--viz-1)" opacity="0.28" />` : ""}
+          ${hCve > 0 ? `<rect x="${x1.toFixed(1)}" y="${yCve.toFixed(1)}" width="${bw.toFixed(1)}" height="${hCve.toFixed(1)}" rx="1.5" fill="var(--viz-1)" opacity="0.92" />` : ""}
+          ${hAi > 0 ? `<rect x="${x2.toFixed(1)}" y="${yAi.toFixed(1)}" width="${bw.toFixed(1)}" height="${hAi.toFixed(1)}" rx="1.5" fill="var(--viz-2)" opacity="0.92" />` : ""}
+          ${showTopLbl && d.distinctCves > 0 ? `<text x="${(x1 + bw / 2).toFixed(1)}" y="${Math.max(12, ySec - 4).toFixed(1)}" text-anchor="middle" fill="var(--viz-1)" font-size="9" font-weight="700" class="mono">${d.distinctCves}</text>` : ""}
+          ${showTopLbl && d.aiCommits > 0 ? `<text x="${(x2 + bw / 2).toFixed(1)}" y="${Math.max(12, yAi - 4).toFixed(1)}" text-anchor="middle" fill="var(--viz-2)" font-size="9" font-weight="700" class="mono">${d.aiCommits}</text>` : ""}
+          <text x="${cx.toFixed(1)}" y="${h - 8}" text-anchor="middle" fill="${d.isInProgress ? "var(--ink)" : "var(--viz-axis)"}" font-size="9.5" font-weight="${d.isInProgress ? "700" : "400"}" class="mono">${esc(d.major)}${d.isInProgress ? "*" : ""}</text>
+        </g>
+      `;
+    })
+    .join("");
+
+  const svg = `
+    <svg viewBox="0 0 ${w} ${h}" class="obs-chart-svg" role="img" aria-label="PG11 through PG20 distinct CVEs, Security trailer commits, and AI-credited commits">
+      <line x1="${padL}" y1="${padT}" x2="${w - padR}" y2="${padT}" stroke="var(--viz-grid)" stroke-dasharray="3 3" />
+      <line x1="${padL}" y1="${(padT + plotH / 2).toFixed(1)}" x2="${w - padR}" y2="${(padT + plotH / 2).toFixed(1)}" stroke="var(--viz-grid)" stroke-dasharray="3 3" />
+      <line x1="${padL}" y1="${padT + plotH}" x2="${w - padR}" y2="${padT + plotH}" stroke="var(--border)" />
+      <text x="${padL - 6}" y="${padT + 4}" text-anchor="end" fill="var(--viz-axis)" font-size="9.5" class="mono">${maxY}</text>
+      <text x="${padL - 6}" y="${(padT + plotH / 2 + 3).toFixed(1)}" text-anchor="end" fill="var(--viz-axis)" font-size="9.5" class="mono">${Math.round(maxY / 2)}</text>
+      <text x="${padL - 6}" y="${padT + plotH}" text-anchor="end" fill="var(--viz-axis)" font-size="9.5" class="mono">0</text>
+      ${bars}
+    </svg>
+    <div class="obs-chart-legend">
+      <span><span class="dot" style="background:var(--viz-1);opacity:0.92"></span>Distinct CVEs</span>
+      <span><span class="dot" style="background:var(--viz-1);opacity:0.28"></span>Security: commits</span>
+      <span><span class="dot" style="background:var(--viz-2)"></span>AI / LLM-credited commits</span>
+    </div>
+  `;
+
+  return { headline, subline, svg };
+}
+
+/* ============================================================================
+ * 4D. HACKERS: Quality Under Load — Review Discipline vs Revert & Oversight Rates
+ * ============================================================================ */
+export function renderQualityUnderLoadSvg(
+  trends: ReleaseTrendPoint[],
+): { headline: string; subline: string; svg: string } {
+  if (!trends || trends.length === 0) {
+    return { headline: "Quality Under Load", subline: "No quality data synced yet.", svg: `<div class="empty-state">No data yet.</div>` };
+  }
+
+  const first = trends[0]!;
+  const latest = trends[trends.length - 1]!;
+  const completed = trends.filter((t) => !t.isInProgress);
+  const lowestRevert = completed.reduce((a, b) => (b.revertPct < a.revertPct ? b : a), completed[0] || first);
+
+  const headline = `Reverts hit a 10-yr low (${lowestRevert.revertPct}% in ${lowestRevert.major}) as 2+-reviewer coverage jumped ${first.multiReviewedPct}% → ${latest.multiReviewedPct}%`;
+  const subline = `Follow-up oversight/thinko fixes fell ${first.oversightPct}% → ${latest.oversightPct}% · Reported-by bug-fixes surged ${first.reportedPct}% → ${latest.reportedPct}%`;
+
+  const w = 520;
+  const h = 216;
+  const padL = 40;
+  const padR = 44;
+  const padT = 18;
+  const padB = 28;
+  const plotW = w - padL - padR;
+  const plotH = h - padT - padB;
+
+  const maxRevPct = Math.max(70, Math.ceil(Math.max(...trends.map((d) => d.reviewedPct)) / 10) * 10);
+  const maxErrPct = Math.max(2, Math.ceil(Math.max(...trends.map((d) => Math.max(d.revertPct, d.oversightPct))) * 2) / 2);
+  const step = plotW / Math.max(1, trends.length);
+  const barW = Math.max(12, Math.min(30, step * 0.62));
+
+  const yErr = (v: number) => padT + plotH - (v / maxErrPct) * plotH;
+
+  const bars = trends
+    .map((d, i) => {
+      const cx = padL + i * step + step / 2;
+      const x = cx - barW / 2;
+      const hRev = (d.reviewedPct / maxRevPct) * plotH;
+      const hMulti = (d.multiReviewedPct / maxRevPct) * plotH;
+      const yRev = padT + plotH - hRev;
+      const yMulti = padT + plotH - hMulti;
+      const tipTitle = d.isInProgress ? `${d.major} (in progress)` : d.major;
+      const tipBody = `${d.reviewedPct}% reviewed (${d.multiReviewedPct}% with 2+ reviewers) · ${d.reportedPct}% bug-reported`;
+      const tipSub = `Reverts: ${d.reverts} (${d.revertPct}%) · Oversight/thinko/buildfarm fixes: ${d.oversightFixes} (${d.oversightPct}%)`;
+      return `
+        <g class="viz-hoverable" tabindex="0" data-tip-title="${esc(tipTitle)}" data-tip-body="${esc(tipBody)}" data-tip-sub="${esc(tipSub)}">
+          <rect x="${(cx - step / 2).toFixed(1)}" y="${padT}" width="${step.toFixed(1)}" height="${plotH}" fill="transparent" />
+          <rect x="${x.toFixed(1)}" y="${yRev.toFixed(1)}" width="${barW.toFixed(1)}" height="${hRev.toFixed(1)}" rx="2" fill="var(--viz-2)" opacity="0.26" />
+          <rect x="${x.toFixed(1)}" y="${yMulti.toFixed(1)}" width="${barW.toFixed(1)}" height="${hMulti.toFixed(1)}" rx="2" fill="var(--viz-2)" opacity="0.72" />
+          <text x="${cx.toFixed(1)}" y="${h - 8}" text-anchor="middle" fill="${d.isInProgress ? "var(--ink)" : "var(--viz-axis)"}" font-size="9.5" font-weight="${d.isInProgress ? "700" : "400"}" class="mono">${esc(d.major)}${d.isInProgress ? "*" : ""}</text>
+        </g>
+      `;
+    })
+    .join("");
+
+  const revPts = trends.map((d, i) => `${(padL + i * step + step / 2).toFixed(1)},${yErr(d.revertPct).toFixed(1)}`).join(" ");
+  const ovPts = trends.map((d, i) => `${(padL + i * step + step / 2).toFixed(1)},${yErr(d.oversightPct).toFixed(1)}`).join(" ");
+
+  const revDots = trends
+    .map((d, i) => `<circle cx="${(padL + i * step + step / 2).toFixed(1)}" cy="${yErr(d.revertPct).toFixed(1)}" r="3" fill="var(--viz-1)" stroke="var(--surface)" stroke-width="1.2" pointer-events="none" />`)
+    .join("");
+  const ovDots = trends
+    .map((d, i) => `<circle cx="${(padL + i * step + step / 2).toFixed(1)}" cy="${yErr(d.oversightPct).toFixed(1)}" r="2.8" fill="var(--viz-3)" stroke="var(--surface)" stroke-width="1.2" pointer-events="none" />`)
+    .join("");
+
+  const svg = `
+    <svg viewBox="0 0 ${w} ${h}" class="obs-chart-svg" role="img" aria-label="PG11 through PG20 review coverage versus revert and follow-up oversight fix rates">
+      <line x1="${padL}" y1="${padT}" x2="${w - padR}" y2="${padT}" stroke="var(--viz-grid)" stroke-dasharray="3 3" />
+      <line x1="${padL}" y1="${(padT + plotH / 2).toFixed(1)}" x2="${w - padR}" y2="${(padT + plotH / 2).toFixed(1)}" stroke="var(--viz-grid)" stroke-dasharray="3 3" />
+      <line x1="${padL}" y1="${padT + plotH}" x2="${w - padR}" y2="${padT + plotH}" stroke="var(--border)" />
+      <text x="${padL - 6}" y="${padT + 4}" text-anchor="end" fill="var(--viz-2)" font-size="9.5" class="mono">${maxRevPct}%</text>
+      <text x="${padL - 6}" y="${(padT + plotH / 2 + 3).toFixed(1)}" text-anchor="end" fill="var(--viz-2)" font-size="9.5" class="mono">${Math.round(maxRevPct / 2)}%</text>
+      <text x="${padL - 6}" y="${padT + plotH}" text-anchor="end" fill="var(--viz-axis)" font-size="9.5" class="mono">0%</text>
+      <text x="${w - padR + 6}" y="${padT + 4}" text-anchor="start" fill="var(--viz-1)" font-size="9.5" class="mono">${maxErrPct.toFixed(1)}%</text>
+      <text x="${w - padR + 6}" y="${(padT + plotH / 2 + 3).toFixed(1)}" text-anchor="start" fill="var(--viz-1)" font-size="9.5" class="mono">${(maxErrPct / 2).toFixed(1)}%</text>
+      <text x="${w - padR + 6}" y="${padT + plotH}" text-anchor="start" fill="var(--viz-axis)" font-size="9.5" class="mono">0%</text>
+      ${bars}
+      <polyline fill="none" stroke="var(--viz-1)" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round" points="${revPts}" pointer-events="none" />
+      ${revDots}
+      <polyline fill="none" stroke="var(--viz-3)" stroke-width="2.0" stroke-dasharray="4 2" stroke-linejoin="round" stroke-linecap="round" points="${ovPts}" pointer-events="none" />
+      ${ovDots}
+    </svg>
+    <div class="obs-chart-legend">
+      <span><span class="dot" style="background:var(--viz-2);opacity:0.26"></span>Any Reviewed-by %</span>
+      <span><span class="dot" style="background:var(--viz-2);opacity:0.72"></span>2+ Reviewers %</span>
+      <span><span class="dot" style="background:var(--viz-1)"></span>Revert % (right)</span>
+      <span><span class="dot" style="background:var(--viz-3)"></span>Oversight/thinko % (right)</span>
+    </div>
+  `;
+
+  return { headline, subline, svg };
+}
+
+/* ============================================================================
+ * 4E. HACKERS: Maintainer Bottleneck & Bench Decentralization (PG11-PG20)
  * ============================================================================ */
 export function renderMaintainerBottleneckSvg(
   trends: ReleaseTrendPoint[],
@@ -739,8 +961,8 @@ export function renderMaintainerBottleneckSvg(
   const maxComm = Math.max(...trends.map((d) => d.committers));
   const peakAuthors = trends.reduce((a, b) => (b.authors > a.authors ? b : a), first);
 
-  const headline = `Committers stayed flat (${minComm}–${maxComm}) while non-committer share jumped ${first.nonCommitterPct}% → ${latest.nonCommitterPct}%`;
-  const subline = `Unique authors climbed ${fmtNum(first.authors)} → ${fmtNum(peakAuthors.authors)} (${latestComplete.authorsPerCommitter} authors/committer in ${latestComplete.major}) · Hover any release`;
+  const headline = `Committers stayed flat (${minComm}–${maxComm}), but Top-5 load fell ${first.top5CommitterPct}% → ${latest.top5CommitterPct}%`;
+  const subline = `Non-committer share rose ${first.nonCommitterPct}% → ${latest.nonCommitterPct}% · Repeat authors (5+ commits) nearly tripled (${first.coreAuthors5Plus} → ${latestComplete.coreAuthors5Plus} in ${latestComplete.major})`;
 
   const w = 520;
   const h = 216;
@@ -751,12 +973,11 @@ export function renderMaintainerBottleneckSvg(
   const plotW = w - padL - padR;
   const plotH = h - padT - padB;
 
-  const maxPct = Math.max(60, Math.ceil(Math.max(...trends.map((d) => d.nonCommitterPct)) / 10) * 10);
+  const maxPct = Math.max(60, Math.ceil(Math.max(...trends.map((d) => Math.max(d.nonCommitterPct, d.top5CommitterPct))) / 10) * 10);
   const maxPeople = Math.max(100, Math.ceil(Math.max(...trends.map((d) => d.authors)) / 50) * 50);
   const step = plotW / Math.max(1, trends.length);
   const barW = Math.max(12, Math.min(30, step * 0.62));
 
-  const yPct = (v: number) => padT + plotH - (v / maxPct) * plotH;
   const yPpl = (v: number) => padT + plotH - (v / maxPeople) * plotH;
 
   const bars = trends
@@ -766,8 +987,8 @@ export function renderMaintainerBottleneckSvg(
       const bh = (d.nonCommitterPct / maxPct) * plotH;
       const y = padT + plotH - bh;
       const tipTitle = d.isInProgress ? `${d.major} (in progress)` : d.major;
-      const tipBody = `${d.committers} committers · ${fmtNum(d.authors)} authors (${d.authorsPerCommitter}×) · ${d.commitsPerCommitter} commits/committer`;
-      const tipSub = `${d.nonCommitterPct}% non-committer-authored (${d.committerAuthoredPct}% self-authored)`;
+      const tipBody = `${d.committers} committers (Top-5: ${d.top5CommitterPct}%) · ${fmtNum(d.authors)} authors (${d.coreAuthors5Plus} with 5+ commits)`;
+      const tipSub = `${d.nonCommitterPct}% non-committer-authored · ${d.authorsPerCommitter} authors/committer · ${d.oneShotPct}% one-commit authors`;
       return `
         <g class="viz-hoverable" tabindex="0" data-tip-title="${esc(tipTitle)}" data-tip-body="${esc(tipBody)}" data-tip-sub="${esc(tipSub)}">
           <rect x="${(cx - step / 2).toFixed(1)}" y="${padT}" width="${step.toFixed(1)}" height="${plotH}" fill="transparent" />
@@ -779,26 +1000,14 @@ export function renderMaintainerBottleneckSvg(
     })
     .join("");
 
-  const authorPts = trends
-    .map((d, i) => `${(padL + i * step + step / 2).toFixed(1)},${yPpl(d.authors).toFixed(1)}`)
-    .join(" ");
-  const commPts = trends
-    .map((d, i) => `${(padL + i * step + step / 2).toFixed(1)},${yPpl(d.committers).toFixed(1)}`)
-    .join(" ");
+  const authorPts = trends.map((d, i) => `${(padL + i * step + step / 2).toFixed(1)},${yPpl(d.authors).toFixed(1)}`).join(" ");
+  const commPts = trends.map((d, i) => `${(padL + i * step + step / 2).toFixed(1)},${yPpl(d.committers).toFixed(1)}`).join(" ");
 
   const authorDots = trends
-    .map((d, i) => {
-      const cx = padL + i * step + step / 2;
-      const cy = yPpl(d.authors);
-      return `<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="3.2" fill="var(--viz-2)" stroke="var(--surface)" stroke-width="1.3" pointer-events="none" />`;
-    })
+    .map((d, i) => `<circle cx="${(padL + i * step + step / 2).toFixed(1)}" cy="${yPpl(d.authors).toFixed(1)}" r="3.2" fill="var(--viz-2)" stroke="var(--surface)" stroke-width="1.3" pointer-events="none" />`)
     .join("");
   const commDots = trends
-    .map((d, i) => {
-      const cx = padL + i * step + step / 2;
-      const cy = yPpl(d.committers);
-      return `<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="2.8" fill="var(--viz-3)" stroke="var(--surface)" stroke-width="1.2" pointer-events="none" />`;
-    })
+    .map((d, i) => `<circle cx="${(padL + i * step + step / 2).toFixed(1)}" cy="${yPpl(d.committers).toFixed(1)}" r="2.8" fill="var(--viz-3)" stroke="var(--surface)" stroke-width="1.2" pointer-events="none" />`)
     .join("");
 
   const svg = `
@@ -822,6 +1031,108 @@ export function renderMaintainerBottleneckSvg(
       <span><span class="dot" style="background:var(--viz-1);opacity:0.42"></span>Non-committer share % (left)</span>
       <span><span class="dot" style="background:var(--viz-2)"></span>Unique authors (right)</span>
       <span><span class="dot" style="background:var(--viz-3)"></span>Active committers (right)</span>
+    </div>
+  `;
+
+  return { headline, subline, svg };
+}
+
+/* ============================================================================
+ * 4F. HACKERS: Monthly Inflection Radar (Last 24 Months — The Jul–Nov 2026 Shift)
+ * ============================================================================ */
+export function renderMonthlyInflectionSvg(
+  months: MonthlyInflectionPoint[],
+): { headline: string; subline: string; svg: string } {
+  if (!months || months.length < 4) {
+    return { headline: "Monthly Inflection Radar", subline: "Not enough monthly data synced yet.", svg: `<div class="empty-state">No monthly data yet.</div>` };
+  }
+
+  const latest = months[months.length - 1]!;
+  const peakCveMonth = months.reduce((a, b) => (b.distinctCves > a.distinctCves ? b : a), months[0]!);
+  const headline = `${latest.ym}: ${latest.backpatchPct}% of all commits were backpatches (${fmtNum(latest.backpatched)} of ${fmtNum(latest.commits)})`;
+  const subline = `${latest.forOthersPct}% committed for other authors across ${latest.authors} unique authors · Security spike: ${fmtNum(peakCveMonth.distinctCves)} distinct CVEs in ${peakCveMonth.ym}`;
+
+  const w = 920;
+  const h = 212;
+  const padL = 44;
+  const padR = 46;
+  const padT = 22;
+  const padB = 28;
+  const plotW = w - padL - padR;
+  const plotH = h - padT - padB;
+
+  const maxCommits = Math.max(100, Math.ceil(Math.max(...months.map((m) => m.commits)) / 50) * 50);
+  const maxPct = 100;
+  const step = plotW / months.length;
+  const barW = Math.max(10, Math.min(24, step * 0.66));
+
+  const yPct = (v: number) => padT + plotH - (v / maxPct) * plotH;
+
+  // Highlight post-2026-07 regime shift zone
+  const shiftIdx = months.findIndex((m) => m.ym >= "2026-07");
+  const shiftZone =
+    shiftIdx >= 0
+      ? (() => {
+          const sx = padL + shiftIdx * step;
+          return `
+            <rect x="${sx.toFixed(1)}" y="${padT}" width="${(w - padR - sx).toFixed(1)}" height="${plotH}" fill="var(--viz-1)" opacity="0.06" />
+            <line x1="${sx.toFixed(1)}" y1="${padT}" x2="${sx.toFixed(1)}" y2="${padT + plotH}" stroke="var(--viz-1)" stroke-dasharray="4 3" opacity="0.65" />
+            <text x="${(sx + 6).toFixed(1)}" y="${padT + 11}" fill="var(--viz-1)" font-size="9.5" font-weight="600">Jul 2026: backpatch &amp; security regime shift</text>
+          `;
+        })()
+      : "";
+
+  const bars = months
+    .map((m, i) => {
+      const cx = padL + i * step + step / 2;
+      const x = cx - barW / 2;
+      const hTot = (m.commits / maxCommits) * plotH;
+      const hBp = (m.backpatched / maxCommits) * plotH;
+      const hMain = Math.max(0, hTot - hBp);
+      const yTop = padT + plotH - hTot;
+      const yBp = padT + plotH - hBp;
+      const showLbl = i === 0 || i === months.length - 1 || i % 3 === 0;
+      const tipTitle = m.ym;
+      const tipBody = `${fmtNum(m.commits)} commits · ${fmtNum(m.backpatched)} backpatched (${m.backpatchPct}%) · ${m.forOthersPct}% for others`;
+      const tipSub = `5+ deep: ${m.bpDeep5Plus} · 1-br: ${m.bpRecent1} · CVEs: ${m.distinctCves} · AI-credited: ${m.aiCommits} · ${m.authors} authors`;
+      return `
+        <g class="viz-hoverable" tabindex="0" data-tip-title="${esc(tipTitle)}" data-tip-body="${esc(tipBody)}" data-tip-sub="${esc(tipSub)}">
+          <rect x="${(cx - step / 2).toFixed(1)}" y="${padT}" width="${step.toFixed(1)}" height="${plotH}" fill="transparent" />
+          ${hMain > 0 ? `<rect x="${x.toFixed(1)}" y="${yTop.toFixed(1)}" width="${barW.toFixed(1)}" height="${hMain.toFixed(1)}" rx="1.5" fill="var(--viz-3)" opacity="0.28" />` : ""}
+          ${hBp > 0 ? `<rect x="${x.toFixed(1)}" y="${yBp.toFixed(1)}" width="${barW.toFixed(1)}" height="${hBp.toFixed(1)}" rx="1.5" fill="var(--viz-1)" opacity="${m.backpatchPct >= 50 ? "0.90" : "0.55"}" />` : ""}
+          ${m.distinctCves >= 10 ? `<circle cx="${cx.toFixed(1)}" cy="${Math.max(padT + 4, yTop - 6).toFixed(1)}" r="3.5" fill="var(--viz-2)" />` : ""}
+          ${showLbl ? `<text x="${cx.toFixed(1)}" y="${h - 8}" text-anchor="middle" fill="${i === months.length - 1 ? "var(--ink)" : "var(--viz-axis)"}" font-size="9.5" font-weight="${i === months.length - 1 ? "700" : "400"}" class="mono">${esc(m.ym.slice(2))}</text>` : ""}
+        </g>
+      `;
+    })
+    .join("");
+
+  const pctPts = months.map((m, i) => `${(padL + i * step + step / 2).toFixed(1)},${yPct(m.backpatchPct).toFixed(1)}`).join(" ");
+  const pctDots = months
+    .map((m, i) => `<circle cx="${(padL + i * step + step / 2).toFixed(1)}" cy="${yPct(m.backpatchPct).toFixed(1)}" r="${i === months.length - 1 ? "4" : "2.6"}" fill="var(--viz-3)" stroke="var(--surface)" stroke-width="1.2" pointer-events="none" />`)
+    .join("");
+
+  const svg = `
+    <svg viewBox="0 0 ${w} ${h}" class="obs-chart-svg" role="img" aria-label="Monthly Postgres commits and backpatch share over the last 24 months">
+      ${shiftZone}
+      <line x1="${padL}" y1="${padT}" x2="${w - padR}" y2="${padT}" stroke="var(--viz-grid)" stroke-dasharray="3 3" />
+      <line x1="${padL}" y1="${(padT + plotH / 2).toFixed(1)}" x2="${w - padR}" y2="${(padT + plotH / 2).toFixed(1)}" stroke="var(--viz-grid)" stroke-dasharray="3 3" />
+      <line x1="${padL}" y1="${padT + plotH}" x2="${w - padR}" y2="${padT + plotH}" stroke="var(--border)" />
+      <text x="${padL - 6}" y="${padT + 4}" text-anchor="end" fill="var(--viz-axis)" font-size="9.5" class="mono">${maxCommits}</text>
+      <text x="${padL - 6}" y="${(padT + plotH / 2 + 3).toFixed(1)}" text-anchor="end" fill="var(--viz-axis)" font-size="9.5" class="mono">${Math.round(maxCommits / 2)}</text>
+      <text x="${padL - 6}" y="${padT + plotH}" text-anchor="end" fill="var(--viz-axis)" font-size="9.5" class="mono">0</text>
+      <text x="${w - padR + 6}" y="${padT + 4}" text-anchor="start" fill="var(--viz-3)" font-size="9.5" class="mono">100%</text>
+      <text x="${w - padR + 6}" y="${(padT + plotH / 2 + 3).toFixed(1)}" text-anchor="start" fill="var(--viz-3)" font-size="9.5" class="mono">50%</text>
+      <text x="${w - padR + 6}" y="${padT + plotH}" text-anchor="start" fill="var(--viz-3)" font-size="9.5" class="mono">0%</text>
+      ${bars}
+      <polyline fill="none" stroke="var(--viz-3)" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round" points="${pctPts}" pointer-events="none" />
+      ${pctDots}
+    </svg>
+    <div class="obs-chart-legend">
+      <span><span class="dot" style="background:var(--viz-1);opacity:0.9"></span>Backpatched commits</span>
+      <span><span class="dot" style="background:var(--viz-3);opacity:0.28"></span>Master-only commits</span>
+      <span><span class="dot" style="background:var(--viz-3)"></span>Backpatch share % (right axis)</span>
+      <span><span class="dot" style="background:var(--viz-2)"></span>Major CVE release month (10+ CVEs)</span>
     </div>
   `;
 

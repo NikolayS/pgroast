@@ -6,10 +6,14 @@ import {
   renderCollabConstellationSvg,
   renderCommitterConcentrationSvg,
   renderMaintainerBottleneckSvg,
+  renderMonthlyInflectionSvg,
+  renderQualityUnderLoadSvg,
   renderRadialUtcClockSvg,
   renderReleaseCycleRaceSvg,
+  renderSecurityAiWaveSvg,
   renderSponsorshipTimelineSvg,
   type ConcentrationYearPoint,
+  type MonthlyInflectionPoint,
   type ReleaseCycleSeries,
   type ReleaseTrendPoint,
   type SubsystemBusFactorItem,
@@ -50,6 +54,33 @@ export interface HackersOverviewData {
   timeline: Array<{ period: string; commits: number; forOthers?: number; reviews: number; activeHackers: number }>;
   releaseCycles?: ReleaseCycleSeries[];
   releaseTrends?: ReleaseTrendPoint[];
+  monthlyInflection?: MonthlyInflectionPoint[];
+  recentAiCommits?: Array<{
+    sha: string;
+    date: string;
+    subject: string;
+    aiSignal: string;
+    backpatchThrough: number | null;
+    cveIds: string[];
+    pgMajor: string;
+    committer: string;
+    committerSlug: string;
+  }>;
+  backpatchTaxLeaders?: Array<{
+    slug: string;
+    name: string;
+    tot18: number;
+    spon18Pct: number;
+    tot19: number;
+    spon19: number;
+    spon19Pct: number;
+    tot20: number;
+    spon20: number;
+    spon20Pct: number;
+    bp20: number;
+    bp20Pct: number;
+    sec20: number;
+  }>;
   concentrationByYear?: ConcentrationYearPoint[];
   rhythmHeatmap: number[][];
   subsystems: SubsystemBusFactorItem[];
@@ -707,19 +738,24 @@ export function renderHackersTab(params: {
       </div>`;
     })()}
 
-    <!-- 2B. Release-over-Release Trends (PG11–PG20): Backpatch Surge, Code Churn & Committer Bottleneck -->
+    <!-- 2B. Deep Release Intelligence (PG11–PG20): Backpatch Anatomy, CVE & AI Wave, Quality Under Load, Maintainer Bottleneck & Monthly Regime Shift -->
     ${(() => {
       const trends = overview.releaseTrends || [];
       if (trends.length < 3) return "";
       const bp = renderBackpatchChurnSvg(trends);
+      const sec = renderSecurityAiWaveSvg(trends);
+      const qual = renderQualityUnderLoadSvg(trends);
       const mb = renderMaintainerBottleneckSvg(trends);
+      const monthly = overview.monthlyInflection?.length ? renderMonthlyInflectionSvg(overview.monthlyInflection) : null;
+      const aiCommits = overview.recentAiCommits || [];
+      const taxLeaders = overview.backpatchTaxLeaders || [];
       const fmtK = (n: number) => (n >= 1_000_000 ? `${(n / 1_000_000).toFixed(2)}M` : n >= 1_000 ? `${Math.round(n / 1_000)}k` : String(n));
       return `
       <div class="grid2" style="margin-bottom:14px;">
         <div class="card viz-card" style="margin-bottom:0;">
           <div class="card-head">
             <div>
-              <div class="viz-kicker">Backpatch Surge &amp; Code Churn (PG11–PG20)</div>
+              <div class="viz-kicker">Backpatch Anatomy: Latent Archaeology vs. Stabilization (PG11–PG20)</div>
               <h2 class="viz-headline">${esc(bp.headline)}</h2>
               <div class="dim" style="font-size:11.5px;margin-top:2px;">${esc(bp.subline)}</div>
             </div>
@@ -729,7 +765,30 @@ export function renderHackersTab(params: {
         <div class="card viz-card" style="margin-bottom:0;">
           <div class="card-head">
             <div>
-              <div class="viz-kicker">Maintainer Bottleneck (PG11–PG20)</div>
+              <div class="viz-kicker">Security &amp; AI-Assisted Audit Wave (PG11–PG20)</div>
+              <h2 class="viz-headline">${esc(sec.headline)}</h2>
+              <div class="dim" style="font-size:11.5px;margin-top:2px;">${esc(sec.subline)}</div>
+            </div>
+          </div>
+          ${sec.svg}
+        </div>
+      </div>
+
+      <div class="grid2" style="margin-bottom:14px;">
+        <div class="card viz-card" style="margin-bottom:0;">
+          <div class="card-head">
+            <div>
+              <div class="viz-kicker">Quality Under Load: Reviews vs. Reverts &amp; Oversights (PG11–PG20)</div>
+              <h2 class="viz-headline">${esc(qual.headline)}</h2>
+              <div class="dim" style="font-size:11.5px;margin-top:2px;">${esc(qual.subline)}</div>
+            </div>
+          </div>
+          ${qual.svg}
+        </div>
+        <div class="card viz-card" style="margin-bottom:0;">
+          <div class="card-head">
+            <div>
+              <div class="viz-kicker">Maintainer Bottleneck &amp; Bench Decentralization (PG11–PG20)</div>
               <h2 class="viz-headline">${esc(mb.headline)}</h2>
               <div class="dim" style="font-size:11.5px;margin-top:2px;">${esc(mb.subline)}</div>
             </div>
@@ -737,22 +796,44 @@ export function renderHackersTab(params: {
           ${mb.svg}
         </div>
       </div>
+
+      ${
+        monthly
+          ? `
+      <section class="card viz-card" style="margin-bottom:14px;">
+        <div class="card-head">
+          <div>
+            <div class="viz-kicker">Monthly Regime Shift (Last 24 Months)</div>
+            <h2 class="viz-headline">${esc(monthly.headline)}</h2>
+            <div class="dim" style="font-size:11.5px;margin-top:2px;">${esc(monthly.subline)}</div>
+          </div>
+        </div>
+        ${monthly.svg}
+      </section>
+      `
+          : ""
+      }
+
       <div class="card" style="padding:12px 16px;margin-bottom:14px;">
         <details class="st-more-toggle" style="margin-top:0;">
-          <summary>Release-by-release numbers table (PG11–PG20: commits, lines changed, backpatches, reverts, committers, authors)</summary>
+          <summary>Full PG11–PG20 evidence table (commits, churn, 5+-branch deep backpatches, CVEs, AI-credited, reverts, reviews, top-5 bench share)</summary>
           <div class="table-scroll" style="margin-top:10px;">
             <table class="dm-table">
               <thead>
                 <tr>
                   <th>Release</th>
                   <th class="num">Commits</th>
-                  <th class="num">Lines changed</th>
-                  <th class="num">Avg lines</th>
+                  <th class="num">Churn</th>
                   <th class="num">Backpatched</th>
-                  <th class="num">Reverts</th>
+                  <th class="num">5+ br deep</th>
+                  <th class="num">CVEs</th>
+                  <th class="num">AI-credited</th>
+                  <th class="num">Revert %</th>
+                  <th class="num">2+ Rev %</th>
                   <th class="num">Committers</th>
-                  <th class="num">Authors</th>
-                  <th class="num">Non-committer %</th>
+                  <th class="num">Top-5 %</th>
+                  <th class="num">Authors (5+)</th>
+                  <th class="num">Non-comm %</th>
                 </tr>
               </thead>
               <tbody>
@@ -761,14 +842,18 @@ export function renderHackersTab(params: {
                   .map(
                     (r) => `
                   <tr${r.major === "PG20" || r.major === "PG19" || r.major === "PG18" ? ` class="dm-row" data-hacker-window="${esc(r.major)}" tabindex="0"` : ""}>
-                    <td class="mono" style="font-weight:700;">${esc(r.major)}${r.isInProgress ? ` <span class="dim" style="font-weight:400;">(in progress)</span>` : ""}</td>
+                    <td class="mono" style="font-weight:700;">${esc(r.major)}${r.isInProgress ? ` <span class="dim" style="font-weight:400;">*</span>` : ""}</td>
                     <td class="num mono">${fmtNum(r.commits)}</td>
-                    <td class="num mono">${fmtK(r.linesChanged)}</td>
-                    <td class="num mono dim">${fmtNum(r.avgLines)}</td>
+                    <td class="num mono dim">${fmtK(r.linesChanged)}</td>
                     <td class="num mono" style="${r.backpatchPct >= 25 ? "color:var(--warn);font-weight:600;" : ""}">${fmtNum(r.backpatched)} <span class="dim">(${r.backpatchPct}%)</span></td>
-                    <td class="num mono dim">${r.reverts}</td>
+                    <td class="num mono">${fmtNum(r.bpDeep5Plus)}</td>
+                    <td class="num mono" style="${r.distinctCves >= 20 ? "color:var(--accent-t);font-weight:600;" : ""}">${r.distinctCves}</td>
+                    <td class="num mono" style="${r.aiCommits >= 1 ? "color:var(--ok);font-weight:600;" : ""}">${r.aiCommits}</td>
+                    <td class="num mono dim">${r.revertPct}%</td>
+                    <td class="num mono">${r.multiReviewedPct}%</td>
                     <td class="num mono">${r.committers}</td>
-                    <td class="num mono">${r.authors}</td>
+                    <td class="num mono dim">${r.top5CommitterPct}%</td>
+                    <td class="num mono">${r.authors} <span class="dim">(${r.coreAuthors5Plus})</span></td>
                     <td class="num mono" style="${r.nonCommitterPct >= 40 ? "color:var(--accent-t);font-weight:600;" : ""}">${r.nonCommitterPct}%</td>
                   </tr>
                 `,
@@ -778,9 +863,99 @@ export function renderHackersTab(params: {
             </table>
           </div>
           <div class="dim" style="font-size:11px;margin-top:8px;">
-            Measured on Postgres <code class="mono">master</code> commits grouped by June 25 major branch-cut boundaries. Backpatched commits include bugfixes also applied to stable branches (note: post-June-25 PG19 stabilization fixes land on <code class="mono">master</code> during the PG20 cycle and count as PG20 backpatches).
+            *PG20 is in progress. Measured on Postgres <code class="mono">master</code> grouped by June 25 branch-cut boundaries. <strong>5+ br deep</strong> counts commits with <code class="mono">Backpatch-through</code> spanning 5+ major branches (latent multi-year bugs). <strong>AI-credited</strong> counts commits explicitly naming Anthropic, Claude, OpenAI, Codex, or LLM-guided audits in commit messages/trailers (zero SQL <code class="mono">cursor</code> false positives).
           </div>
         </details>
+
+        ${
+          taxLeaders.length > 0 || aiCommits.length > 0
+            ? `
+        <details class="st-more-toggle" style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border);">
+          <summary>Audit log: Maintainer backpatch tax (PG18 → PG20) &amp; latest ${aiCommits.length} AI/LLM-credited Postgres commits</summary>
+          <div class="grid2" style="margin-top:10px;align-items:start;">
+            ${
+              taxLeaders.length > 0
+                ? `
+            <div>
+              <div class="viz-kicker" style="margin-bottom:6px;">Maintainer Backpatch &amp; Sponsorship Tax (PG18 → PG20)</div>
+              <div class="table-scroll">
+                <table class="dm-table">
+                  <thead>
+                    <tr>
+                      <th>Committer</th>
+                      <th class="num">PG18 spon%</th>
+                      <th class="num">PG19 spon%</th>
+                      <th class="num">PG20 spon%</th>
+                      <th class="num">PG20 BP</th>
+                      <th class="num">Sec</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${taxLeaders
+                      .map(
+                        (c) => `
+                      <tr>
+                        <td><button type="button" class="link-btn" data-hacker-slug="${esc(c.slug)}">${esc(c.name)}</button></td>
+                        <td class="num mono dim">${c.spon18Pct}%</td>
+                        <td class="num mono dim">${c.spon19Pct}%</td>
+                        <td class="num mono" style="${c.spon20Pct >= 70 ? "color:var(--accent-t);font-weight:600;" : ""}">${c.spon20Pct}%</td>
+                        <td class="num mono"><strong>${c.bp20}</strong> <span class="dim">(${c.bp20Pct}%)</span></td>
+                        <td class="num mono" style="${c.sec20 >= 10 ? "color:var(--warn);font-weight:600;" : ""}">${c.sec20}</td>
+                      </tr>
+                    `,
+                      )
+                      .join("")}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            `
+                : ""
+            }
+            ${
+              aiCommits.length > 0
+                ? `
+            <div>
+              <div class="viz-kicker" style="margin-bottom:6px;">Latest AI / LLM-Credited Commits in Postgres Git</div>
+              <div class="table-scroll">
+                <table class="dm-table">
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>Commit</th>
+                      <th>Signal</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${aiCommits
+                      .slice(0, 15)
+                      .map(
+                        (c) => `
+                      <tr>
+                        <td class="mono dim" style="white-space:nowrap;">${esc(c.date)}</td>
+                        <td>
+                          <a href="https://git.postgresql.org/gitweb/?p=postgresql.git;a=commit;h=${esc(c.sha)}" target="_blank" rel="noopener noreferrer" style="color:var(--ink);text-decoration:none;font-weight:500;">${esc(c.subject.length > 64 ? `${c.subject.slice(0, 62)}…` : c.subject)}</a>
+                          <div class="dim" style="font-size:10.5px;">
+                            <code class="mono">${esc(c.sha.slice(0, 10))}</code>${c.backpatchThrough ? ` · BP→v${c.backpatchThrough}` : ""}${c.cveIds.length ? ` · ${esc(c.cveIds[0])}${c.cveIds.length > 1 ? ` +${c.cveIds.length - 1}` : ""}` : ""}${c.committer ? ` · ${esc(c.committer)}` : ""}
+                          </div>
+                        </td>
+                        <td style="white-space:nowrap;"><span class="tag-micro">${esc(c.aiSignal.split(",")[0] || "ai")}</span></td>
+                      </tr>
+                    `,
+                      )
+                      .join("")}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            `
+                : ""
+            }
+          </div>
+        </details>
+        `
+            : ""
+        }
       </div>
       `;
     })()}

@@ -309,7 +309,15 @@ export async function getHackersOverview(db: WebDatabase, rawWindow?: string | n
   // 2) Subsystem committer concentration (Bus Factor 50%, Effective Committers 1/HHI, top committer)
   // 3) Annual committer concentration (top1 / 2-5 / 6-10 / rest + bus factor step line)
   const cWhereAliased = cWhere.replace(/\bcommitted_at\b/g, "c.committed_at").replace(/\bpg_major\b/g, "c.pg_major");
-  const [cycleRows, subsysBfRows, concYearRows, releaseTrendRows] = await Promise.all([
+  const [
+    cycleRows,
+    subsysBfRows,
+    concYearRows,
+    releaseTrendRows,
+    monthlyInflectionRows,
+    recentAiRows,
+    backpatchTaxRows,
+  ] = await Promise.all([
     db.sql.unsafe(
       `WITH cycles(pg_major, start_d) AS (
          VALUES ('PG17', DATE '2023-06-25'), ('PG18', DATE '2024-06-25'), ('PG19', DATE '2025-06-25'), ('PG20', DATE '2026-06-25')
@@ -410,20 +418,101 @@ export async function getHackersOverview(db: WebDatabase, rawWindow?: string | n
       }>
     >,
     db.sql.unsafe(
-      `SELECT
-         pg_major,
+      `WITH base AS (
+         SELECT
+           c.sha,
+           c.pg_major,
+           (SUBSTRING(c.pg_major FROM 3))::int AS major_num,
+           c.insertions + c.deletions AS churn,
+           c.is_backpatch,
+           c.backpatch_through,
+           c.is_revert,
+           c.has_security_trailer,
+           c.cve_ids_json,
+           c.ai_signal,
+           c.committer_person_id,
+           c.author_person_id,
+           (c.subject ~* '(oversight|thinko|buildfarm|compiler warning|fixup|fix bug in commit|missed in)') AS is_oversight
+         FROM ${db.t("pg_commits")} c
+         WHERE c.pg_major ~ '^PG(1[1-9]|20)$'
+       ),
+       cred_per_commit AS (
+         SELECT
+           commit_sha,
+           COUNT(*) FILTER (WHERE credit_kind = 'reviewer')::int AS n_rev,
+           COUNT(*) FILTER (WHERE credit_kind = 'reporter')::int AS n_rep
+         FROM ${db.t("commit_credits")}
+         WHERE pg_major ~ '^PG(1[1-9]|20)$' AND credit_kind IN ('reviewer', 'reporter')
+         GROUP BY commit_sha
+       ),
+       cve_distinct AS (
+         SELECT b.pg_major, COUNT(DISTINCT j.cve)::int AS distinct_cves
+         FROM base b
+         CROSS JOIN LATERAL jsonb_array_elements_text(
+           CASE WHEN b.cve_ids_json LIKE '[%' THEN b.cve_ids_json::jsonb ELSE '[]'::jsonb END
+         ) AS j(cve)
+         GROUP BY b.pg_major
+       ),
+       author_counts AS (
+         SELECT pg_major, author_person_id, COUNT(*)::int AS cnt
+         FROM base
+         WHERE author_person_id IS NOT NULL
+         GROUP BY 1, 2
+       ),
+       author_stats AS (
+         SELECT
+           pg_major,
+           COUNT(*) FILTER (WHERE cnt = 1)::int AS one_shot_authors,
+           COUNT(*) FILTER (WHERE cnt >= 5)::int AS core_authors_5plus
+         FROM author_counts
+         GROUP BY 1
+       ),
+       comm_ranked AS (
+         SELECT
+           pg_major,
+           COUNT(*)::int AS cnt,
+           ROW_NUMBER() OVER (PARTITION BY pg_major ORDER BY COUNT(*) DESC, committer_person_id)::int AS rk
+         FROM base
+         WHERE committer_person_id IS NOT NULL
+         GROUP BY pg_major, committer_person_id
+       ),
+       comm_top5 AS (
+         SELECT
+           pg_major,
+           ROUND(100.0 * COALESCE(SUM(cnt) FILTER (WHERE rk <= 5), 0) / NULLIF(SUM(cnt), 0), 1)::float AS top5_pct
+         FROM comm_ranked
+         GROUP BY pg_major
+       )
+       SELECT
+         b.pg_major,
          COUNT(*)::int AS commits,
-         COALESCE(SUM(insertions + deletions), 0)::bigint AS lines_changed,
-         ROUND(COALESCE(AVG(insertions + deletions), 0))::int AS avg_lines,
-         COUNT(*) FILTER (WHERE is_backpatch)::int AS backpatched,
-         COUNT(*) FILTER (WHERE is_revert)::int AS reverts,
-         COUNT(DISTINCT committer_person_id)::int AS committers,
-         COUNT(DISTINCT author_person_id)::int AS authors,
-         COUNT(*) FILTER (WHERE author_person_id IS NOT NULL AND committer_person_id IS NOT NULL AND author_person_id != committer_person_id)::int AS for_others
-       FROM ${db.t("pg_commits")}
-       WHERE pg_major ~ '^PG(1[1-9]|20)$'
-       GROUP BY pg_major
-       ORDER BY (SUBSTRING(pg_major FROM 3))::int ASC`,
+         COALESCE(SUM(b.churn), 0)::bigint AS lines_changed,
+         ROUND(COALESCE(AVG(b.churn), 0))::int AS avg_lines,
+         COUNT(*) FILTER (WHERE b.is_backpatch)::int AS backpatched,
+         COUNT(*) FILTER (WHERE b.backpatch_through IS NOT NULL AND (b.major_num - b.backpatch_through) >= 5)::int AS bp_deep_5plus,
+         COUNT(*) FILTER (WHERE b.backpatch_through IS NOT NULL AND (b.major_num - b.backpatch_through) BETWEEN 2 AND 4)::int AS bp_mid_2_4,
+         COUNT(*) FILTER (WHERE b.backpatch_through IS NOT NULL AND (b.major_num - b.backpatch_through) <= 1)::int AS bp_recent_1,
+         COUNT(*) FILTER (WHERE b.is_revert)::int AS reverts,
+         COUNT(*) FILTER (WHERE b.is_oversight)::int AS oversight_fixes,
+         COUNT(*) FILTER (WHERE b.has_security_trailer)::int AS security_commits,
+         COALESCE(MAX(cd.distinct_cves), 0)::int AS distinct_cves,
+         COUNT(*) FILTER (WHERE b.ai_signal != '')::int AS ai_commits,
+         COUNT(*) FILTER (WHERE COALESCE(cc.n_rev, 0) >= 1)::int AS reviewed_commits,
+         COUNT(*) FILTER (WHERE COALESCE(cc.n_rev, 0) >= 2)::int AS multi_reviewed_commits,
+         COUNT(*) FILTER (WHERE COALESCE(cc.n_rep, 0) >= 1)::int AS reported_commits,
+         COUNT(DISTINCT b.committer_person_id)::int AS committers,
+         COUNT(DISTINCT b.author_person_id)::int AS authors,
+         COALESCE(MAX(ast.one_shot_authors), 0)::int AS one_shot_authors,
+         COALESCE(MAX(ast.core_authors_5plus), 0)::int AS core_authors_5plus,
+         COALESCE(MAX(ct5.top5_pct), 0)::float AS top5_committer_pct,
+         COUNT(*) FILTER (WHERE b.author_person_id IS NOT NULL AND b.committer_person_id IS NOT NULL AND b.author_person_id != b.committer_person_id)::int AS for_others
+       FROM base b
+       LEFT JOIN cred_per_commit cc ON cc.commit_sha = b.sha
+       LEFT JOIN cve_distinct cd ON cd.pg_major = b.pg_major
+       LEFT JOIN author_stats ast ON ast.pg_major = b.pg_major
+       LEFT JOIN comm_top5 ct5 ON ct5.pg_major = b.pg_major
+       GROUP BY b.pg_major
+       ORDER BY (SUBSTRING(b.pg_major FROM 3))::int ASC`,
     ) as Promise<
       Array<{
         pg_major: string;
@@ -431,10 +520,139 @@ export async function getHackersOverview(db: WebDatabase, rawWindow?: string | n
         lines_changed: string | number;
         avg_lines: number;
         backpatched: number;
+        bp_deep_5plus: number;
+        bp_mid_2_4: number;
+        bp_recent_1: number;
         reverts: number;
+        oversight_fixes: number;
+        security_commits: number;
+        distinct_cves: number;
+        ai_commits: number;
+        reviewed_commits: number;
+        multi_reviewed_commits: number;
+        reported_commits: number;
         committers: number;
         authors: number;
+        one_shot_authors: number;
+        core_authors_5plus: number;
+        top5_committer_pct: number;
         for_others: number;
+      }>
+    >,
+    db.sql.unsafe(
+      `WITH m_base AS (
+         SELECT
+           LEFT(committed_at, 7) AS ym,
+           CASE WHEN pg_major ~ '^PG[0-9]+$' THEN (SUBSTRING(pg_major FROM 3))::int ELSE 0 END AS major_num,
+           is_backpatch,
+           backpatch_through,
+           has_security_trailer,
+           cve_ids_json,
+           ai_signal,
+           author_person_id,
+           committer_person_id
+         FROM ${db.t("pg_commits")}
+         WHERE committed_at >= '2024-12-01'
+       ),
+       m_cve AS (
+         SELECT mb.ym, COUNT(DISTINCT j.cve)::int AS distinct_cves
+         FROM m_base mb
+         CROSS JOIN LATERAL jsonb_array_elements_text(
+           CASE WHEN mb.cve_ids_json LIKE '[%' THEN mb.cve_ids_json::jsonb ELSE '[]'::jsonb END
+         ) AS j(cve)
+         GROUP BY mb.ym
+       )
+       SELECT
+         mb.ym,
+         COUNT(*)::int AS commits,
+         COUNT(*) FILTER (WHERE mb.is_backpatch)::int AS backpatched,
+         COUNT(*) FILTER (WHERE mb.backpatch_through IS NOT NULL AND mb.major_num > 0 AND (mb.major_num - mb.backpatch_through) >= 5)::int AS bp_deep_5plus,
+         COUNT(*) FILTER (WHERE mb.backpatch_through IS NOT NULL AND mb.major_num > 0 AND (mb.major_num - mb.backpatch_through) <= 1)::int AS bp_recent_1,
+         COUNT(*) FILTER (WHERE mb.author_person_id IS NOT NULL AND mb.committer_person_id IS NOT NULL AND mb.author_person_id != mb.committer_person_id)::int AS for_others,
+         COUNT(*) FILTER (WHERE mb.has_security_trailer)::int AS security_commits,
+         COALESCE(MAX(mc.distinct_cves), 0)::int AS distinct_cves,
+         COUNT(*) FILTER (WHERE mb.ai_signal != '')::int AS ai_commits,
+         COUNT(DISTINCT mb.author_person_id)::int AS authors,
+         COUNT(DISTINCT mb.committer_person_id)::int AS committers
+       FROM m_base mb
+       LEFT JOIN m_cve mc ON mc.ym = mb.ym
+       GROUP BY mb.ym
+       ORDER BY mb.ym ASC`,
+    ) as Promise<
+      Array<{
+        ym: string;
+        commits: number;
+        backpatched: number;
+        bp_deep_5plus: number;
+        bp_recent_1: number;
+        for_others: number;
+        security_commits: number;
+        distinct_cves: number;
+        ai_commits: number;
+        authors: number;
+        committers: number;
+      }>
+    >,
+    db.sql.unsafe(
+      `SELECT
+         c.sha,
+         LEFT(c.committed_at, 10) AS date,
+         c.subject,
+         c.ai_signal,
+         c.backpatch_through,
+         c.cve_ids_json,
+         c.pg_major,
+         COALESCE(p.canonical_name, '') AS committer,
+         COALESCE(p.slug, '') AS committer_slug
+       FROM ${db.t("pg_commits")} c
+       LEFT JOIN ${db.t("people")} p ON p.id = c.committer_person_id
+       WHERE c.ai_signal != ''
+       ORDER BY c.committed_at DESC
+       LIMIT 20`,
+    ) as Promise<
+      Array<{
+        sha: string;
+        date: string;
+        subject: string;
+        ai_signal: string;
+        backpatch_through: number | null;
+        cve_ids_json: string;
+        pg_major: string;
+        committer: string;
+        committer_slug: string;
+      }>
+    >,
+    db.sql.unsafe(
+      `SELECT
+         p.slug,
+         p.canonical_name AS name,
+         COUNT(*) FILTER (WHERE c.pg_major = 'PG18')::int AS tot18,
+         COUNT(*) FILTER (WHERE c.pg_major = 'PG18' AND c.author_person_id IS NOT NULL AND c.author_person_id != c.committer_person_id)::int AS spon18,
+         COUNT(*) FILTER (WHERE c.pg_major = 'PG19')::int AS tot19,
+         COUNT(*) FILTER (WHERE c.pg_major = 'PG19' AND c.author_person_id IS NOT NULL AND c.author_person_id != c.committer_person_id)::int AS spon19,
+         COUNT(*) FILTER (WHERE c.pg_major = 'PG20')::int AS tot20,
+         COUNT(*) FILTER (WHERE c.pg_major = 'PG20' AND c.author_person_id IS NOT NULL AND c.author_person_id != c.committer_person_id)::int AS spon20,
+         COUNT(*) FILTER (WHERE c.pg_major = 'PG20' AND c.is_backpatch)::int AS bp20,
+         COUNT(*) FILTER (WHERE c.pg_major = 'PG20' AND c.has_security_trailer)::int AS sec20
+       FROM ${db.t("pg_commits")} c
+       JOIN ${db.t("people")} p ON p.id = c.committer_person_id
+       WHERE c.pg_major IN ('PG18', 'PG19', 'PG20')
+       GROUP BY p.id
+       HAVING COUNT(*) FILTER (WHERE c.pg_major = 'PG20') >= 15
+       ORDER BY bp20 DESC, tot20 DESC
+       LIMIT 10`,
+    ) as Promise<
+      Array<{
+        slug: string;
+        name: string;
+        tot18: number;
+        spon18: number;
+        tot19: number;
+        spon19: number;
+        tot20: number;
+        spon20: number;
+        bp20: number;
+        sec20: number;
       }>
     >,
   ]);
@@ -507,6 +725,8 @@ export async function getHackersOverview(db: WebDatabase, rawWindow?: string | n
     releaseTrends: releaseTrendRows.map((r) => {
       const commits = Number(r.commits || 0);
       const backpatched = Number(r.backpatched || 0);
+      const reverts = Number(r.reverts || 0);
+      const oversightFixes = Number(r.oversight_fixes || 0);
       const committers = Number(r.committers || 0);
       const authors = Number(r.authors || 0);
       const forOthers = Number(r.for_others || 0);
@@ -518,14 +738,93 @@ export async function getHackersOverview(db: WebDatabase, rawWindow?: string | n
         avgLines: Number(r.avg_lines || 0),
         backpatched,
         backpatchPct: commits > 0 ? Math.round((backpatched / commits) * 1000) / 10 : 0,
-        reverts: Number(r.reverts || 0),
+        bpDeep5Plus: Number(r.bp_deep_5plus || 0),
+        bpMid2_4: Number(r.bp_mid_2_4 || 0),
+        bpRecent1: Number(r.bp_recent_1 || 0),
+        reverts,
+        revertPct: commits > 0 ? Math.round((reverts / commits) * 10000) / 100 : 0,
+        oversightFixes,
+        oversightPct: commits > 0 ? Math.round((oversightFixes / commits) * 1000) / 10 : 0,
+        securityCommits: Number(r.security_commits || 0),
+        distinctCves: Number(r.distinct_cves || 0),
+        aiCommits: Number(r.ai_commits || 0),
+        reviewedPct: commits > 0 ? Math.round((Number(r.reviewed_commits || 0) / commits) * 1000) / 10 : 0,
+        multiReviewedPct: commits > 0 ? Math.round((Number(r.multi_reviewed_commits || 0) / commits) * 1000) / 10 : 0,
+        reportedPct: commits > 0 ? Math.round((Number(r.reported_commits || 0) / commits) * 1000) / 10 : 0,
         committers,
         authors,
+        oneShotPct: authors > 0 ? Math.round((Number(r.one_shot_authors || 0) / authors) * 1000) / 10 : 0,
+        coreAuthors5Plus: Number(r.core_authors_5plus || 0),
+        top5CommitterPct: Number(r.top5_committer_pct || 0),
         commitsPerCommitter: committers > 0 ? Math.round((commits / committers) * 10) / 10 : 0,
         authorsPerCommitter: committers > 0 ? Math.round((authors / committers) * 10) / 10 : 0,
         nonCommitterPct,
         committerAuthoredPct: commits > 0 ? Math.round((100 - nonCommitterPct) * 10) / 10 : 0,
         isInProgress: r.pg_major === "PG20",
+      };
+    }),
+    monthlyInflection: monthlyInflectionRows.map((r) => {
+      const commits = Number(r.commits || 0);
+      const backpatched = Number(r.backpatched || 0);
+      const forOthers = Number(r.for_others || 0);
+      return {
+        ym: r.ym,
+        commits,
+        backpatched,
+        backpatchPct: commits > 0 ? Math.round((backpatched / commits) * 1000) / 10 : 0,
+        bpDeep5Plus: Number(r.bp_deep_5plus || 0),
+        bpRecent1: Number(r.bp_recent_1 || 0),
+        forOthers,
+        forOthersPct: commits > 0 ? Math.round((forOthers / commits) * 1000) / 10 : 0,
+        securityCommits: Number(r.security_commits || 0),
+        distinctCves: Number(r.distinct_cves || 0),
+        aiCommits: Number(r.ai_commits || 0),
+        authors: Number(r.authors || 0),
+        committers: Number(r.committers || 0),
+      };
+    }),
+    recentAiCommits: recentAiRows.map((r) => {
+      let cveIds: string[] = [];
+      try {
+        const parsed = JSON.parse(r.cve_ids_json || "[]");
+        if (Array.isArray(parsed)) cveIds = parsed.map(String);
+      } catch {
+        // ignore
+      }
+      return {
+        sha: r.sha,
+        date: r.date,
+        subject: r.subject,
+        aiSignal: r.ai_signal,
+        backpatchThrough: r.backpatch_through,
+        cveIds,
+        pgMajor: r.pg_major,
+        committer: r.committer,
+        committerSlug: r.committer_slug,
+      };
+    }),
+    backpatchTaxLeaders: backpatchTaxRows.map((r) => {
+      const tot18 = Number(r.tot18 || 0);
+      const spon18 = Number(r.spon18 || 0);
+      const tot19 = Number(r.tot19 || 0);
+      const spon19 = Number(r.spon19 || 0);
+      const tot20 = Number(r.tot20 || 0);
+      const spon20 = Number(r.spon20 || 0);
+      const bp20 = Number(r.bp20 || 0);
+      return {
+        slug: r.slug,
+        name: r.name,
+        tot18,
+        spon18Pct: tot18 > 0 ? Math.round((spon18 / tot18) * 1000) / 10 : 0,
+        tot19,
+        spon19,
+        spon19Pct: tot19 > 0 ? Math.round((spon19 / tot19) * 1000) / 10 : 0,
+        tot20,
+        spon20,
+        spon20Pct: tot20 > 0 ? Math.round((spon20 / tot20) * 1000) / 10 : 0,
+        bp20,
+        bp20Pct: tot20 > 0 ? Math.round((bp20 / tot20) * 1000) / 10 : 0,
+        sec20: Number(r.sec20 || 0),
       };
     }),
     concentrationByYear: concYearRows.map((r) => {

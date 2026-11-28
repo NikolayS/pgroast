@@ -309,8 +309,16 @@ export class WebDatabase {
         files_changed INTEGER NOT NULL DEFAULT 0,
         insertions INTEGER NOT NULL DEFAULT 0,
         deletions INTEGER NOT NULL DEFAULT 0,
-        pg_major TEXT NOT NULL DEFAULT ''
+        pg_major TEXT NOT NULL DEFAULT '',
+        backpatch_through INTEGER,
+        has_security_trailer BOOLEAN NOT NULL DEFAULT FALSE,
+        cve_ids_json TEXT NOT NULL DEFAULT '[]',
+        ai_signal TEXT NOT NULL DEFAULT ''
       )`,
+      `ALTER TABLE ${this.t("pg_commits")} ADD COLUMN IF NOT EXISTS backpatch_through INTEGER`,
+      `ALTER TABLE ${this.t("pg_commits")} ADD COLUMN IF NOT EXISTS has_security_trailer BOOLEAN NOT NULL DEFAULT FALSE`,
+      `ALTER TABLE ${this.t("pg_commits")} ADD COLUMN IF NOT EXISTS cve_ids_json TEXT NOT NULL DEFAULT '[]'`,
+      `ALTER TABLE ${this.t("pg_commits")} ADD COLUMN IF NOT EXISTS ai_signal TEXT NOT NULL DEFAULT ''`,
       `CREATE INDEX IF NOT EXISTS idx_${this.schema}_pg_commits_date ON ${this.t("pg_commits")}(committed_at DESC)`,
       `CREATE INDEX IF NOT EXISTS idx_${this.schema}_pg_commits_major ON ${this.t("pg_commits")}(pg_major, committed_at DESC)`,
       `CREATE INDEX IF NOT EXISTS idx_${this.schema}_pg_commits_subsys ON ${this.t("pg_commits")}(primary_subsystem, committed_at DESC)`,
