@@ -50,6 +50,7 @@ import {
   renderStatsObservatory,
   type StatsDarkFilter,
   type StatsQueueFilter,
+  type StatsSection,
 } from "./stats-view.ts";
 import { initVizInteractions } from "./viz-engine.ts";
 
@@ -326,6 +327,7 @@ const state = {
   hackersError: "",
   hackersWindow: "PG20" as HackerWindow,
   hackersLbTab: "committers" as HackerLbKind,
+  hackersRightTab: "tax" as "tax" | "subsystems",
   hackersDirectory: [] as HackerListItem[],
   hackersDirSearch: "",
   hackersDirRole: "all",
@@ -376,6 +378,7 @@ const state = {
   statsError: "",
   statsQueueFilter: "all" as StatsQueueFilter,
   statsDarkFilter: "all" as StatsDarkFilter,
+  statsSection: "all" as StatsSection,
   bootLoading: true,
   health: null as HealthInfo | null,
   views: null as PageViewsInfo | null,
@@ -808,6 +811,9 @@ async function loadDocsCoverage(force = false): Promise<void> {
 }
 
 async function loadStatsOverview(force = false): Promise<void> {
+  if ((!state.hackersOverview || force) && !state.hackersLoading) {
+    void loadHackersOverview();
+  }
   if (state.statsLoading) return;
   if (state.statsOverview && !force) return;
   state.statsLoading = true;
@@ -2296,6 +2302,10 @@ function renderStatsTab(): string {
     error: state.statsError,
     queueFilter: state.statsQueueFilter,
     darkFilter: state.statsDarkFilter,
+    section: state.statsSection,
+    gitOverview: state.hackersOverview,
+    gitWindow: state.hackersWindow,
+    gitLoading: state.hackersLoading,
   });
 }
 
@@ -3636,6 +3646,7 @@ function render(): void {
       error: state.hackersError,
       window: state.hackersWindow,
       lbTab: state.hackersLbTab,
+      rightTab: state.hackersRightTab,
       directory: state.hackersDirectory,
       dirSearch: state.hackersDirSearch,
       dirRole: state.hackersDirRole,
@@ -3933,6 +3944,18 @@ function render(): void {
         render();
       });
     });
+    document.querySelectorAll<HTMLButtonElement>("[data-hacker-right-tab]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        state.hackersRightTab = (btn.dataset.hackerRightTab as "tax" | "subsystems") || "tax";
+        render();
+      });
+    });
+    document.querySelectorAll<HTMLElement>("[data-goto-stats]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        state.statsSection = "git";
+        navigateToTab("stats");
+      });
+    });
     const dirInput = document.getElementById("hacker-dir-search") as HTMLInputElement | null;
     dirInput?.addEventListener("input", () => {
       state.hackersDirSearch = dirInput.value;
@@ -3985,6 +4008,28 @@ function render(): void {
     bindPatchRowClicks(root);
     bindHackerClicks(root);
     document.getElementById("stats-refresh-btn")?.addEventListener("click", () => void loadStatsOverview(true));
+    document.querySelectorAll<HTMLButtonElement>("[data-stats-section]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        state.statsSection = (btn.dataset.statsSection as StatsSection) || "all";
+        render();
+      });
+    });
+    document.querySelectorAll<HTMLElement>("[data-hacker-window]").forEach((el) => {
+      const trigger = () => {
+        const nextWin = (el.dataset.hackerWindow as HackerWindow) || "PG20";
+        void loadHackersOverview(nextWin);
+        if (el.tagName === "TR") window.scrollTo({ top: 0, behavior: "smooth" });
+      };
+      el.addEventListener("click", trigger);
+      if (el.tagName === "TR") {
+        el.addEventListener("keydown", (ev) => {
+          if (ev.key === "Enter" || ev.key === " ") {
+            ev.preventDefault();
+            trigger();
+          }
+        });
+      }
+    });
     document.querySelectorAll<HTMLButtonElement>("[data-stats-qfilter]").forEach((btn) => {
       btn.addEventListener("click", () => {
         state.statsQueueFilter = (btn.dataset.statsQfilter as StatsQueueFilter) || "all";

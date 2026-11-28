@@ -433,278 +433,93 @@ function renderCareerChartSvg(
   `;
 }
 
-export function renderHackersTab(params: {
-  overview: HackersOverviewData | null;
-  loading: boolean;
-  error: string;
-  window: HackerWindow;
-  lbTab: HackerLbKind;
-  directory: HackerListItem[];
-  dirSearch: string;
-  dirRole: string;
-  dirSort: string;
-}): string {
-  const { overview, loading, error, window: win, lbTab, directory, dirSearch, dirRole, dirSort } = params;
-  const windows: Array<{ id: HackerWindow; label: string }> = [
-    { id: "PG20", label: "PG20" },
-    { id: "PG19", label: "PG19" },
-    { id: "PG18", label: "PG18" },
-    { id: "30d", label: "30d" },
-    { id: "90d", label: "90d" },
-    { id: "1y", label: "1 year" },
-    { id: "5y", label: "5 years" },
-    { id: "all", label: "All-time" },
-  ];
+export const HACKER_WINDOWS: Array<{ id: HackerWindow; label: string }> = [
+  { id: "PG20", label: "PG20" },
+  { id: "PG19", label: "PG19" },
+  { id: "PG18", label: "PG18" },
+  { id: "30d", label: "30d" },
+  { id: "90d", label: "90d" },
+  { id: "1y", label: "1 year" },
+  { id: "5y", label: "5 years" },
+  { id: "all", label: "All-time" },
+];
 
-  if (loading && !overview) {
-    return renderHackersSkeleton();
-  }
-  if (error && !overview) {
-    return `<div class="card"><div class="empty-state">Failed to load hacking stats: ${esc(error)}</div></div>`;
-  }
-  if (!overview || !overview.synced || !overview.totals) {
-    return `
-      <div class="card">
-        <div class="empty-state">
-          <div style="font-weight:600;color:var(--text);margin-bottom:6px;">Hacking Observatory not synced yet</div>
-          <p class="muted" style="max-width:520px;margin:0 auto;">Run <code class="mono">bun run web:sync-hackers --fetch</code> to ingest PostgreSQL git history, multi-email identities, and recognized contributors.</p>
-        </div>
-      </div>
-    `;
-  }
-
+export function renderPostgresGitStatsSections(overview: HackersOverviewData, win: HackerWindow): string {
+  if (!overview.synced || !overview.totals) return "";
   const t = overview.totals;
   const meta = overview.syncMeta;
-  const maxSubsys = Math.max(1, ...overview.subsystems.map((s) => s.commits));
+  const isPgCycleWindow = win === "PG20" || win === "PG19" || win === "PG18";
+  const focusMajor = isPgCycleWindow ? win : "PG20";
+  const winLabel = HACKER_WINDOWS.find((w) => w.id === win)?.label || win;
+  const race = overview.releaseCycles?.length ? renderReleaseCycleRaceSvg(overview.releaseCycles, focusMajor) : null;
 
-  const renderLeaderboardBody = (): string => {
-    if (lbTab === "committers") {
-      const rows = overview.leaderboards.committers;
-      const maxTot = Math.max(1, ...rows.map((r) => r.total));
-      return rows
-        .map((r, i) => {
-          const pctAll = Math.max(6, Math.round((r.total / maxTot) * 100));
-          const pctOthers = r.total > 0 ? Math.round((r.forOthers / r.total) * 100) : 0;
+  // For All-time, filter Sponsorship & Review Ratio to the git trailer era (2011+) so pre-2011 CVS commits do not skew the ratio
+  const sponsorTimeline =
+    win === "all"
+      ? overview.timeline.filter((d) => Number(d.period.slice(0, 4)) >= 2011)
+      : overview.timeline;
+  const sponsorCommits = sponsorTimeline.reduce((a, d) => a + d.commits, 0);
+  const sponsorForOthers = sponsorTimeline.reduce((a, d) => a + (d.forOthers ?? 0), 0);
+  const sponsorPct =
+    win === "all"
+      ? sponsorCommits > 0
+        ? Math.round((sponsorForOthers / sponsorCommits) * 100)
+        : 0
+      : t.committedForOthersPct;
+
+  const sponsorshipCard = (isHero: boolean) => `
+    <${isHero ? "section" : "div"} class="card viz-card" ${isHero ? "" : 'style="margin-bottom:0;"'}>
+      <div class="card-head">
+        <div>
+          <div class="viz-kicker">Sponsorship &amp; Review Ratio (${win === "all" ? "Git trailer era · 2011+" : esc(winLabel)})</div>
+          <h2${isHero ? ' class="viz-headline"' : ""}>${
+            win === "all"
+              ? `${sponsorPct}% of commits since 2011 were landed for other authors`
+              : `${fmtNum(t.commits)} commits · ${t.committedForOthersPct}% landed for other authors`
+          }</h2>
+          <div class="dim" style="font-size:12px;">${
+            win === "all"
+              ? "Pre-2011 CVS commits rarely used Author:/Reviewed-by: headers, so this ratio is scoped to 2011+ · Hover any year"
+              : `Window: ${esc(winLabel)} · ${fmtNum(t.reviewsGiven)} Reviewed-by credits across ${fmtNum(t.activeHackers)} active hackers · Hover any bar`
+          }</div>
+        </div>
+      </div>
+      ${renderSponsorshipTimelineSvg(sponsorTimeline)}
+    </${isHero ? "section" : "div"}>`;
+
+  const raceCard = (isHero: boolean) =>
+    race
+      ? `
+    <${isHero ? "section" : "div"} class="card viz-card" ${isHero ? "" : 'style="margin-bottom:0;"'}>
+      <div class="card-head">
+        <div>
+          <div class="viz-kicker">Release-Cycle Pace (${isHero ? esc(focusMajor) : "Cross-release PG17–PG20"})</div>
+          <h2${isHero ? ' class="viz-headline"' : ""}>${esc(race.headline)}</h2>
+          <div class="dim" style="font-size:12px;margin-top:2px;">${esc(race.subline)}</div>
+        </div>
+        ${!isHero ? `<span class="tag-micro">Full PG17–PG20 cycles</span>` : ""}
+      </div>
+      ${race.svg}
+    </${isHero ? "section" : "div"}>`
+      : "";
+
+  const cadenceCard = `
+    <div class="card viz-card" style="margin-bottom:0;">
+      <div class="card-head">
+        <div>
+          <div class="viz-kicker">Global Circadian Cadence (${esc(winLabel)})</div>
+          <h2>When Does Postgres Hacking Happen?</h2>
+          <div class="dim" style="font-size:12px;">7×24 UTC commit heatmap · Hover any cell</div>
+        </div>
+      </div>
+      ${renderGlobalRhythmHeatmap(overview.rhythmHeatmap)}
+    </div>`;
+
+  const heroBlock =
+    win === "all"
+      ? (() => {
+          const growth = renderAllTimeGrowthSvg(overview.timeline);
           return `
-            <button type="button" class="obs-lb-row" data-open-hacker="${esc(r.slug)}">
-              <span class="lb-rank mono">${i + 1}</span>
-              <span class="obs-avatar" style="background:${avatarColor(r.name)};">${esc(personInitials(r.name))}</span>
-              <div class="obs-lb-info">
-                <div class="obs-lb-top">
-                  <strong>${esc(r.name)}</strong>
-                  ${roleBadge(r.role)}
-                  ${r.emailCount >= 2 ? `<span class="tag-micro" title="Unified across ${r.emailCount} email addresses">${r.emailCount} emails</span>` : ""}
-                </div>
-                <div class="obs-lb-bar-wrap" style="width:${pctAll}%;">
-                  <div class="obs-lb-bar-others" style="width:${pctOthers}%;" title="${r.forOthers} committed for other authors"></div>
-                  <div class="obs-lb-bar-own" style="flex:1;" title="${r.own} own commits"></div>
-                </div>
-              </div>
-              <div class="obs-lb-num">
-                <strong class="mono">${fmtNum(r.total)}</strong>
-                <span class="dim" style="font-size:11px;">${pctOthers}% for others</span>
-              </div>
-            </button>
-          `;
-        })
-        .join("");
-    }
-    if (lbTab === "rising") {
-      const rows = overview.leaderboards.rising;
-      if (rows.length === 0) return `<div class="empty-state">No first-time contributors recorded in this window.</div>`;
-      return rows
-        .map(
-          (r, i) => `
-        <button type="button" class="obs-lb-row" data-open-hacker="${esc(r.slug)}">
-          <span class="lb-rank mono">${i + 1}</span>
-          <span class="obs-avatar" style="background:${avatarColor(r.name)};">${esc(personInitials(r.name))}</span>
-          <div class="obs-lb-info">
-            <div class="obs-lb-top">
-              <strong>${esc(r.name)}</strong>
-              <span class="tag-micro">First seen ${esc(r.firstSeen)}</span>
-            </div>
-            <div class="muted" style="font-size:11.5px;">${r.authored} authored · ${r.reviewed} reviewed · ${r.reported} reported</div>
-          </div>
-          <div class="obs-lb-num">
-            <strong class="mono">${fmtNum(r.totalActivity)}</strong>
-            <span class="dim" style="font-size:11px;">credits</span>
-          </div>
-        </button>
-      `,
-        )
-        .join("");
-    }
-    const rows =
-      lbTab === "authors"
-        ? overview.leaderboards.authors
-        : lbTab === "reviewers"
-          ? overview.leaderboards.reviewers
-          : overview.leaderboards.reporters;
-    const maxCnt = Math.max(1, ...rows.map((r) => r.count));
-    const unit = lbTab === "authors" ? "commits" : lbTab === "reviewers" ? "reviews" : "bugs";
-    const color = lbTab === "authors" ? "var(--accent)" : lbTab === "reviewers" ? "var(--ok)" : "var(--warn)";
-    return rows
-      .map((r, i) => {
-        const w = Math.max(5, Math.round((r.count / maxCnt) * 100));
-        return `
-          <button type="button" class="obs-lb-row" data-open-hacker="${esc(r.slug)}">
-            <span class="lb-rank mono">${i + 1}</span>
-            <span class="obs-avatar" style="background:${avatarColor(r.name)};">${esc(personInitials(r.name))}</span>
-            <div class="obs-lb-info">
-              <div class="obs-lb-top">
-                <strong>${esc(r.name)}</strong>
-                ${roleBadge(r.role)}
-                ${r.emailCount >= 2 ? `<span class="tag-micro">${r.emailCount} emails</span>` : ""}
-              </div>
-              <div class="obs-lb-bar-wrap" style="width:${w}%;"><div style="width:100%;background:${color};"></div></div>
-            </div>
-            <div class="obs-lb-num">
-              <strong class="mono">${fmtNum(r.count)}</strong>
-              <span class="dim" style="font-size:11px;">${unit}</span>
-            </div>
-          </button>
-        `;
-      })
-      .join("");
-  };
-
-  return `
-    <div class="page-head">
-      <div>
-        <h1 class="page-title">PostgreSQL Hacking Observatory</h1>
-        <div class="page-sub">
-          ${fmtNum(meta.totalCommitsAll || 0)} commits · ${fmtNum(meta.totalPeople || 0)} unified contributors (${fmtNum(meta.multiEmailPeople || 0)} merged across multiple emails) · Latest commit ${esc((meta.lastCommitAt || "").slice(0, 10))}
-        </div>
-      </div>
-      <div class="chips" role="tablist" aria-label="Time window" style="margin-bottom:0;">
-        ${windows
-          .map(
-            (w) => `
-          <button type="button" class="chip ${win === w.id ? "active" : ""}" data-hacker-window="${w.id}">${esc(w.label)}</button>
-        `,
-          )
-          .join("")}
-      </div>
-    </div>
-
-    <!-- Hero Infographic KPI Strip -->
-    <div class="kpis">
-      <div class="kpi" style="cursor:default;">
-        <div class="kpi-l">Active hackers</div>
-        <div class="kpi-v">${fmtNum(t.activeHackers)}</div>
-        <div class="kpi-sub">+${fmtNum(t.newHackers)} first-time in window</div>
-      </div>
-      <div class="kpi" style="cursor:default;">
-        <div class="kpi-l"><span class="dot" style="background:var(--accent)"></span>Commits landed</div>
-        <div class="kpi-v">${fmtNum(t.commits)}</div>
-        <div class="kpi-sub">${fmtNum(t.backpatches)} backpatched · ${t.reverts} reverts</div>
-      </div>
-      ${
-        win === "all"
-          ? `
-      <div class="kpi" style="cursor:default;">
-        <div class="kpi-l"><span class="dot" style="background:var(--ok)"></span>Committers</div>
-        <div class="kpi-v" style="color:var(--ok)">${fmtNum(t.committers)}</div>
-        <div class="kpi-sub">${fmtNum(t.authors)} credited authors</div>
-      </div>
-      `
-          : `
-      <div class="kpi" style="cursor:default;">
-        <div class="kpi-l"><span class="dot" style="background:var(--ok)"></span>Committed for others</div>
-        <div class="kpi-v" style="color:var(--ok)">${t.committedForOthersPct}%</div>
-        <div class="kpi-sub">${fmtNum(t.committedForOthers)} of ${fmtNum(t.commits)} commits</div>
-      </div>
-      `
-      }
-      <div class="kpi" style="cursor:default;">
-        <div class="kpi-l"><span class="dot" style="background:#4cb782"></span>Reviewed-by credits</div>
-        <div class="kpi-v">${fmtNum(t.reviewsGiven)}</div>
-        <div class="kpi-sub">${fmtNum(t.reviewers)} reviewers${win === "all" ? " (trailers ~2010+)" : ""}</div>
-      </div>
-      <div class="kpi" style="cursor:default;">
-        <div class="kpi-l"><span class="dot" style="background:var(--warn)"></span>Bugs reported → fixed</div>
-        <div class="kpi-v">${fmtNum(t.bugsReported)}</div>
-        <div class="kpi-sub">${fmtNum(t.reporters)} reporters${win === "all" ? " (trailers ~2010+)" : ""}</div>
-      </div>
-      <div class="kpi" style="cursor:default;">
-        <div class="kpi-l">Multi-email unified</div>
-        <div class="kpi-v">${fmtNum(meta.multiEmailPeople || 0)}</div>
-        <div class="kpi-sub">${fmtNum(meta.totalIdentities || 0)} total identities linked</div>
-      </div>
-    </div>
-
-    <!-- 1. Hero Chart: obeys selected time window (All-time: 30-Year Growth; PG20/19/18: Release-Cycle Race; 30d/90d/1y/5y: Sponsorship & Review Throughput) -->
-    ${(() => {
-      const isPgCycleWindow = win === "PG20" || win === "PG19" || win === "PG18";
-      const focusMajor = isPgCycleWindow ? win : "PG20";
-      const winLabel = windows.find((w) => w.id === win)?.label || win;
-      const race = overview.releaseCycles?.length ? renderReleaseCycleRaceSvg(overview.releaseCycles, focusMajor) : null;
-
-      // For All-time, filter Sponsorship & Review Ratio to the git trailer era (2011+) so pre-2011 CVS commits do not skew the ratio
-      const sponsorTimeline =
-        win === "all"
-          ? overview.timeline.filter((d) => Number(d.period.slice(0, 4)) >= 2011)
-          : overview.timeline;
-      const sponsorCommits = sponsorTimeline.reduce((a, d) => a + d.commits, 0);
-      const sponsorForOthers = sponsorTimeline.reduce((a, d) => a + (d.forOthers ?? 0), 0);
-      const sponsorPct =
-        win === "all"
-          ? sponsorCommits > 0
-            ? Math.round((sponsorForOthers / sponsorCommits) * 100)
-            : 0
-          : t.committedForOthersPct;
-
-      const sponsorshipCard = (isHero: boolean) => `
-      <${isHero ? "section" : "div"} class="card viz-card" ${isHero ? "" : 'style="margin-bottom:0;"'}>
-        <div class="card-head">
-          <div>
-            <div class="viz-kicker">Sponsorship &amp; Review Ratio (${win === "all" ? "Git trailer era · 2011+" : esc(winLabel)})</div>
-            <h2${isHero ? ' class="viz-headline"' : ""}>${
-              win === "all"
-                ? `${sponsorPct}% of commits since 2011 were landed for other authors`
-                : `${fmtNum(t.commits)} commits · ${t.committedForOthersPct}% landed for other authors`
-            }</h2>
-            <div class="dim" style="font-size:12px;">${
-              win === "all"
-                ? "Pre-2011 CVS commits rarely used Author:/Reviewed-by: headers, so this ratio is scoped to 2011+ · Hover any year"
-                : `Window: ${esc(winLabel)} · ${fmtNum(t.reviewsGiven)} Reviewed-by credits across ${fmtNum(t.activeHackers)} active hackers · Hover any bar`
-            }</div>
-          </div>
-        </div>
-        ${renderSponsorshipTimelineSvg(sponsorTimeline)}
-      </${isHero ? "section" : "div"}>`;
-
-      const raceCard = (isHero: boolean) =>
-        race
-          ? `
-      <${isHero ? "section" : "div"} class="card viz-card" ${isHero ? "" : 'style="margin-bottom:0;"'}>
-        <div class="card-head">
-          <div>
-            <div class="viz-kicker">Release-Cycle Pace (${isHero ? esc(focusMajor) : "Cross-release PG17–PG20"})</div>
-            <h2${isHero ? ' class="viz-headline"' : ""}>${esc(race.headline)}</h2>
-            <div class="dim" style="font-size:12px;margin-top:2px;">${esc(race.subline)}</div>
-          </div>
-          ${!isHero ? `<span class="tag-micro">Full PG17–PG20 cycles</span>` : ""}
-        </div>
-        ${race.svg}
-      </${isHero ? "section" : "div"}>`
-          : "";
-
-      const cadenceCard = `
-      <div class="card viz-card" style="margin-bottom:0;">
-        <div class="card-head">
-          <div>
-            <div class="viz-kicker">Global Circadian Cadence (${esc(winLabel)})</div>
-            <h2>When Does Postgres Hacking Happen?</h2>
-            <div class="dim" style="font-size:12px;">7×24 UTC commit heatmap · Hover any cell</div>
-          </div>
-        </div>
-        ${renderGlobalRhythmHeatmap(overview.rhythmHeatmap)}
-      </div>`;
-
-      if (win === "all") {
-        const growth = renderAllTimeGrowthSvg(overview.timeline);
-        return `
       <section class="card viz-card">
         <div class="card-head">
           <div>
@@ -719,38 +534,34 @@ export function renderHackersTab(params: {
         ${sponsorshipCard(false)}
         ${cadenceCard}
       </div>`;
-      }
-
-      if (isPgCycleWindow && race) {
-        return `
+        })()
+      : isPgCycleWindow && race
+        ? `
       ${raceCard(true)}
       <div class="grid2" style="margin-bottom:14px;">
         ${sponsorshipCard(false)}
         ${cadenceCard}
-      </div>`;
-      }
-
-      return `
+      </div>`
+        : `
       ${sponsorshipCard(true)}
       <div class="grid2" style="margin-bottom:14px;">
         ${race ? raceCard(false) : ""}
         ${cadenceCard}
       </div>`;
-    })()}
 
-    <!-- 2B. Deep Release Intelligence (PG11–PG20): Backpatch Anatomy, CVE & AI Wave, Quality Under Load, Maintainer Bottleneck & Monthly Regime Shift -->
-    ${(() => {
-      const trends = overview.releaseTrends || [];
-      if (trends.length < 3) return "";
-      const bp = renderBackpatchChurnSvg(trends);
-      const sec = renderSecurityAiWaveSvg(trends);
-      const qual = renderQualityUnderLoadSvg(trends);
-      const mb = renderMaintainerBottleneckSvg(trends);
-      const monthly = overview.monthlyInflection?.length ? renderMonthlyInflectionSvg(overview.monthlyInflection) : null;
-      const aiCommits = overview.recentAiCommits || [];
-      const taxLeaders = overview.backpatchTaxLeaders || [];
-      const fmtK = (n: number) => (n >= 1_000_000 ? `${(n / 1_000_000).toFixed(2)}M` : n >= 1_000 ? `${Math.round(n / 1_000)}k` : String(n));
-      return `
+  const trends = overview.releaseTrends || [];
+  const deepIntelBlock =
+    trends.length >= 3
+      ? (() => {
+          const bp = renderBackpatchChurnSvg(trends);
+          const sec = renderSecurityAiWaveSvg(trends);
+          const qual = renderQualityUnderLoadSvg(trends);
+          const mb = renderMaintainerBottleneckSvg(trends);
+          const monthly = overview.monthlyInflection?.length ? renderMonthlyInflectionSvg(overview.monthlyInflection) : null;
+          const aiCommits = overview.recentAiCommits || [];
+          const taxLeaders = overview.backpatchTaxLeaders || [];
+          const fmtK = (n: number) => (n >= 1_000_000 ? `${(n / 1_000_000).toFixed(2)}M` : n >= 1_000 ? `${Math.round(n / 1_000)}k` : String(n));
+          return `
       <div class="grid2" style="margin-bottom:14px;">
         <div class="card viz-card" style="margin-bottom:0;">
           <div class="card-head">
@@ -895,7 +706,7 @@ export function renderHackersTab(params: {
                       .map(
                         (c) => `
                       <tr>
-                        <td><button type="button" class="link-btn" data-hacker-slug="${esc(c.slug)}">${esc(c.name)}</button></td>
+                        <td><button type="button" class="link-btn" data-open-hacker="${esc(c.slug)}">${esc(c.name)}</button></td>
                         <td class="num mono dim">${c.spon18Pct}%</td>
                         <td class="num mono dim">${c.spon19Pct}%</td>
                         <td class="num mono" style="${c.spon20Pct >= 70 ? "color:var(--accent-t);font-weight:600;" : ""}">${c.spon20Pct}%</td>
@@ -958,27 +769,12 @@ export function renderHackersTab(params: {
         }
       </div>
       `;
-    })()}
+        })()
+      : "";
 
-    <!-- 3. Subsystem Bus-Factor Quadrant + Annual Committer Concentration -->
-    <div class="grid2" style="margin-bottom:14px;">
-      ${(() => {
-        const bf = renderBusFactorQuadrantSvg(overview.subsystems);
-        return `
-        <div class="card viz-card" style="margin-bottom:0;">
-          <div class="card-head">
-            <div>
-              <div class="viz-kicker">Subsystem Bus Factor</div>
-              <h2 class="viz-headline">${esc(bf.headline)}</h2>
-              <div class="dim" style="font-size:11.5px;margin-top:2px;">${esc(bf.subline)}</div>
-            </div>
-          </div>
-          ${bf.svg}
-        </div>
-        `;
-      })()}
-      ${(() => {
-        if (!overview.concentrationByYear?.length) return "";
+  const bf = renderBusFactorQuadrantSvg(overview.subsystems);
+  const concCard = overview.concentrationByYear?.length
+    ? (() => {
         const conc = renderCommitterConcentrationSvg(overview.concentrationByYear);
         return `
         <div class="card viz-card" style="margin-bottom:0;">
@@ -990,18 +786,270 @@ export function renderHackersTab(params: {
             </div>
           </div>
           ${conc.svg}
-        </div>
-        `;
-      })()}
+        </div>`;
+      })()
+    : "";
+
+  return `
+    <!-- Postgres Git KPI Strip -->
+    <div class="kpis">
+      <div class="kpi" style="cursor:default;">
+        <div class="kpi-l">Active hackers</div>
+        <div class="kpi-v">${fmtNum(t.activeHackers)}</div>
+        <div class="kpi-sub">+${fmtNum(t.newHackers)} first-time in window</div>
+      </div>
+      <div class="kpi" style="cursor:default;">
+        <div class="kpi-l"><span class="dot" style="background:var(--accent)"></span>Commits landed</div>
+        <div class="kpi-v">${fmtNum(t.commits)}</div>
+        <div class="kpi-sub">${fmtNum(t.backpatches)} backpatched · ${t.reverts} reverts</div>
+      </div>
+      ${
+        win === "all"
+          ? `
+      <div class="kpi" style="cursor:default;">
+        <div class="kpi-l"><span class="dot" style="background:var(--ok)"></span>Committers</div>
+        <div class="kpi-v" style="color:var(--ok)">${fmtNum(t.committers)}</div>
+        <div class="kpi-sub">${fmtNum(t.authors)} credited authors</div>
+      </div>
+      `
+          : `
+      <div class="kpi" style="cursor:default;">
+        <div class="kpi-l"><span class="dot" style="background:var(--ok)"></span>Committed for others</div>
+        <div class="kpi-v" style="color:var(--ok)">${t.committedForOthersPct}%</div>
+        <div class="kpi-sub">${fmtNum(t.committedForOthers)} of ${fmtNum(t.commits)} commits</div>
+      </div>
+      `
+      }
+      <div class="kpi" style="cursor:default;">
+        <div class="kpi-l"><span class="dot" style="background:#4cb782"></span>Reviewed-by credits</div>
+        <div class="kpi-v">${fmtNum(t.reviewsGiven)}</div>
+        <div class="kpi-sub">${fmtNum(t.reviewers)} reviewers${win === "all" ? " (trailers ~2010+)" : ""}</div>
+      </div>
+      <div class="kpi" style="cursor:default;">
+        <div class="kpi-l"><span class="dot" style="background:var(--warn)"></span>Bugs reported → fixed</div>
+        <div class="kpi-v">${fmtNum(t.bugsReported)}</div>
+        <div class="kpi-sub">${fmtNum(t.reporters)} reporters${win === "all" ? " (trailers ~2010+)" : ""}</div>
+      </div>
+      <div class="kpi" style="cursor:default;">
+        <div class="kpi-l">Multi-email unified</div>
+        <div class="kpi-v">${fmtNum(meta.multiEmailPeople || 0)}</div>
+        <div class="kpi-sub">${fmtNum(meta.totalIdentities || 0)} total identities linked</div>
+      </div>
     </div>
 
-    <!-- 4. Leaderboards + Subsystem Detail Bars -->
+    ${deepIntelBlock}
+    ${heroBlock}
+
+    <!-- Subsystem Bus-Factor Quadrant + Annual Committer Concentration -->
+    <div class="grid2" style="margin-bottom:14px;">
+      <div class="card viz-card" style="margin-bottom:0;">
+        <div class="card-head">
+          <div>
+            <div class="viz-kicker">Subsystem Bus Factor (${esc(winLabel)})</div>
+            <h2 class="viz-headline">${esc(bf.headline)}</h2>
+            <div class="dim" style="font-size:11.5px;margin-top:2px;">${esc(bf.subline)}</div>
+          </div>
+        </div>
+        ${bf.svg}
+      </div>
+      ${concCard}
+    </div>
+  `;
+}
+
+export function renderHackersTab(params: {
+  overview: HackersOverviewData | null;
+  loading: boolean;
+  error: string;
+  window: HackerWindow;
+  lbTab: HackerLbKind;
+  rightTab?: "tax" | "subsystems";
+  directory: HackerListItem[];
+  dirSearch: string;
+  dirRole: string;
+  dirSort: string;
+}): string {
+  const { overview, loading, error, window: win, lbTab, directory, dirSearch, dirRole, dirSort } = params;
+  const rightTab = params.rightTab || "tax";
+  const windows = HACKER_WINDOWS;
+
+  if (loading && !overview) {
+    return renderHackersSkeleton();
+  }
+  if (error && !overview) {
+    return `<div class="card"><div class="empty-state">Failed to load hacking stats: ${esc(error)}</div></div>`;
+  }
+  if (!overview || !overview.synced || !overview.totals) {
+    return `
+      <div class="card">
+        <div class="empty-state">
+          <div style="font-weight:600;color:var(--text);margin-bottom:6px;">Hacking Observatory not synced yet</div>
+          <p class="muted" style="max-width:520px;margin:0 auto;">Run <code class="mono">bun run web:sync-hackers --fetch</code> to ingest PostgreSQL git history, multi-email identities, and recognized contributors.</p>
+        </div>
+      </div>
+    `;
+  }
+
+  const t = overview.totals;
+  const meta = overview.syncMeta;
+  const maxSubsys = Math.max(1, ...overview.subsystems.map((s) => s.commits));
+
+  const renderLeaderboardBody = (): string => {
+    if (lbTab === "committers") {
+      const rows = overview.leaderboards.committers;
+      const maxTot = Math.max(1, ...rows.map((r) => r.total));
+      return rows
+        .map((r, i) => {
+          const pctAll = Math.max(6, Math.round((r.total / maxTot) * 100));
+          const pctOthers = r.total > 0 ? Math.round((r.forOthers / r.total) * 100) : 0;
+          return `
+            <button type="button" class="obs-lb-row" data-open-hacker="${esc(r.slug)}">
+              <span class="lb-rank mono">${i + 1}</span>
+              <span class="obs-avatar" style="background:${avatarColor(r.name)};">${esc(personInitials(r.name))}</span>
+              <div class="obs-lb-info">
+                <div class="obs-lb-top">
+                  <strong>${esc(r.name)}</strong>
+                  ${roleBadge(r.role)}
+                  ${r.emailCount >= 2 ? `<span class="tag-micro" title="Unified across ${r.emailCount} email addresses">${r.emailCount} emails</span>` : ""}
+                </div>
+                <div class="obs-lb-bar-wrap" style="width:${pctAll}%;">
+                  <div class="obs-lb-bar-others" style="width:${pctOthers}%;" title="${r.forOthers} committed for other authors"></div>
+                  <div class="obs-lb-bar-own" style="flex:1;" title="${r.own} own commits"></div>
+                </div>
+              </div>
+              <div class="obs-lb-num">
+                <strong class="mono">${fmtNum(r.total)}</strong>
+                <span class="dim" style="font-size:11px;">${pctOthers}% for others</span>
+              </div>
+            </button>
+          `;
+        })
+        .join("");
+    }
+    if (lbTab === "rising") {
+      const rows = overview.leaderboards.rising;
+      if (rows.length === 0) return `<div class="empty-state">No first-time contributors recorded in this window.</div>`;
+      return rows
+        .map(
+          (r, i) => `
+        <button type="button" class="obs-lb-row" data-open-hacker="${esc(r.slug)}">
+          <span class="lb-rank mono">${i + 1}</span>
+          <span class="obs-avatar" style="background:${avatarColor(r.name)};">${esc(personInitials(r.name))}</span>
+          <div class="obs-lb-info">
+            <div class="obs-lb-top">
+              <strong>${esc(r.name)}</strong>
+              <span class="tag-micro">First seen ${esc(r.firstSeen)}</span>
+            </div>
+            <div class="muted" style="font-size:11.5px;">${r.authored} authored · ${r.reviewed} reviewed · ${r.reported} reported</div>
+          </div>
+          <div class="obs-lb-num">
+            <strong class="mono">${fmtNum(r.totalActivity)}</strong>
+            <span class="dim" style="font-size:11px;">credits</span>
+          </div>
+        </button>
+      `,
+        )
+        .join("");
+    }
+    const rows =
+      lbTab === "authors"
+        ? overview.leaderboards.authors
+        : lbTab === "reviewers"
+          ? overview.leaderboards.reviewers
+          : overview.leaderboards.reporters;
+    const maxCnt = Math.max(1, ...rows.map((r) => r.count));
+    const unit = lbTab === "authors" ? "commits" : lbTab === "reviewers" ? "reviews" : "bugs";
+    const color = lbTab === "authors" ? "var(--accent)" : lbTab === "reviewers" ? "var(--ok)" : "var(--warn)";
+    return rows
+      .map((r, i) => {
+        const w = Math.max(5, Math.round((r.count / maxCnt) * 100));
+        return `
+          <button type="button" class="obs-lb-row" data-open-hacker="${esc(r.slug)}">
+            <span class="lb-rank mono">${i + 1}</span>
+            <span class="obs-avatar" style="background:${avatarColor(r.name)};">${esc(personInitials(r.name))}</span>
+            <div class="obs-lb-info">
+              <div class="obs-lb-top">
+                <strong>${esc(r.name)}</strong>
+                ${roleBadge(r.role)}
+                ${r.emailCount >= 2 ? `<span class="tag-micro">${r.emailCount} emails</span>` : ""}
+              </div>
+              <div class="obs-lb-bar-wrap" style="width:${w}%;"><div style="width:100%;background:${color};"></div></div>
+            </div>
+            <div class="obs-lb-num">
+              <strong class="mono">${fmtNum(r.count)}</strong>
+              <span class="dim" style="font-size:11px;">${unit}</span>
+            </div>
+          </button>
+        `;
+      })
+      .join("");
+  };
+
+  const taxLeaders = overview.backpatchTaxLeaders || [];
+
+  return `
+    <div class="page-head">
+      <div>
+        <h1 class="page-title">Postgres Hackers</h1>
+        <div class="page-sub">
+          ${fmtNum(meta.totalPeople || 0)} unified contributors (${fmtNum(meta.multiEmailPeople || 0)} merged across multiple emails) · ${fmtNum(meta.totalCommitsAll || 0)} commits indexed · Latest commit ${esc((meta.lastCommitAt || "").slice(0, 10))}
+        </div>
+      </div>
+      <div class="row" style="gap:8px;align-items:center;flex-wrap:wrap;">
+        <button type="button" class="btn btn-ghost btn-sm" data-goto-stats="1">Release, CVE &amp; Backpatch Stats →</button>
+        <div class="chips" role="tablist" aria-label="Time window" style="margin-bottom:0;">
+          ${windows
+            .map(
+              (w) => `
+            <button type="button" class="chip ${win === w.id ? "active" : ""}" data-hacker-window="${w.id}">${esc(w.label)}</button>
+          `,
+            )
+            .join("")}
+        </div>
+      </div>
+    </div>
+
+    <!-- People KPI Strip -->
+    <div class="kpis">
+      <div class="kpi" style="cursor:default;">
+        <div class="kpi-l">Active hackers</div>
+        <div class="kpi-v">${fmtNum(t.activeHackers)}</div>
+        <div class="kpi-sub">+${fmtNum(t.newHackers)} first-time in window</div>
+      </div>
+      <div class="kpi" style="cursor:default;">
+        <div class="kpi-l"><span class="dot" style="background:var(--accent)"></span>Committers</div>
+        <div class="kpi-v">${fmtNum(t.committers)}</div>
+        <div class="kpi-sub">${fmtNum(t.commits)} commits landed</div>
+      </div>
+      <div class="kpi" style="cursor:default;">
+        <div class="kpi-l"><span class="dot" style="background:var(--ok)"></span>Credited authors</div>
+        <div class="kpi-v" style="color:var(--ok)">${fmtNum(t.authors)}</div>
+        <div class="kpi-sub">${win === "all" ? "Across all indexed history" : `${t.committedForOthersPct}% committed by others`}</div>
+      </div>
+      <div class="kpi" style="cursor:default;">
+        <div class="kpi-l"><span class="dot" style="background:#4cb782"></span>Reviewers</div>
+        <div class="kpi-v">${fmtNum(t.reviewers)}</div>
+        <div class="kpi-sub">${fmtNum(t.reviewsGiven)} Reviewed-by credits</div>
+      </div>
+      <div class="kpi" style="cursor:default;">
+        <div class="kpi-l"><span class="dot" style="background:var(--warn)"></span>Bug hunters</div>
+        <div class="kpi-v">${fmtNum(t.reporters)}</div>
+        <div class="kpi-sub">${fmtNum(t.bugsReported)} Reported-by fixes</div>
+      </div>
+      <div class="kpi" style="cursor:default;">
+        <div class="kpi-l">Multi-email unified</div>
+        <div class="kpi-v">${fmtNum(meta.multiEmailPeople || 0)}</div>
+        <div class="kpi-sub">${fmtNum(meta.totalIdentities || 0)} total identities linked</div>
+      </div>
+    </div>
+
+    <!-- 1. Leaderboards + Maintainer Load / Subsystems -->
     <div class="grid2" style="margin-bottom:14px;">
       <div class="card" style="margin-bottom:0;">
         <div class="card-head">
           <div>
             <h2>Leaderboards</h2>
-            <div class="dim" style="font-size:12px;">Tap any person to open their full personal profile</div>
+            <div class="dim" style="font-size:12px;">Click any contributor to open their full personal profile</div>
           </div>
         </div>
         <div class="chips" role="tablist" aria-label="Leaderboard type">
@@ -1019,28 +1067,76 @@ export function renderHackersTab(params: {
       <div class="card" style="margin-bottom:0;">
         <div class="card-head">
           <div>
-            <h2>Subsystem Breakdown &amp; 50% Bus Factor</h2>
-            <div class="dim" style="font-size:12px;">Minimum committers covering half of each subsystem's commits</div>
+            <h2>${rightTab === "tax" && taxLeaders.length > 0 ? "Maintainer Backpatch &amp; Sponsorship Load" : "Subsystem Breakdown &amp; 50% Bus Factor"}</h2>
+            <div class="dim" style="font-size:12px;">${
+              rightTab === "tax" && taxLeaders.length > 0
+                ? "How PG20 backpatches &amp; security fixes shifted sponsorship load per committer (PG18 → PG20)"
+                : "Minimum committers covering half of each subsystem's commits in selected window"
+            }</div>
           </div>
         </div>
-        <div class="subsys-list">
-          ${overview.subsystems
-            .map((s) => {
-              const w = Math.max(5, Math.round((s.commits / maxSubsys) * 100));
-              const bf = s.busFactor ?? 1;
-              const lowBusFactor = s.commits >= 20 && bf <= 2;
-              return `
-                <div class="subsys-row" style="cursor:default;">
-                  <div class="subsys-head">
-                    <span class="hbar-label">${esc(s.name)} ${lowBusFactor ? `<span class="tag-micro tag-wa" title="Bus factor ${bf}: ${bf} committer(s) landed ${s.bfCommits ?? 0}/${s.commits}">BF=${bf}</span>` : `<span class="tag-micro mono">BF=${bf}</span>`}</span>
-                    <span class="mono dim">${fmtNum(s.commits)} · ${s.authors} auth · ${s.committers} comm</span>
-                  </div>
-                  <div class="hbar-track"><div class="hbar-fill" style="width:${w}%;"></div></div>
-                </div>
-              `;
-            })
-            .join("")}
+        <div class="chips" role="tablist" aria-label="Maintainer view">
+          ${taxLeaders.length > 0 ? `<button type="button" class="chip ${rightTab === "tax" ? "active" : ""}" data-hacker-right-tab="tax">Maintainer Load (PG18→PG20)</button>` : ""}
+          <button type="button" class="chip ${rightTab === "subsystems" || taxLeaders.length === 0 ? "active" : ""}" data-hacker-right-tab="subsystems">Subsystems &amp; Bus Factor</button>
         </div>
+        ${
+          rightTab === "tax" && taxLeaders.length > 0
+            ? `
+          <div class="table-scroll">
+            <table class="dm-table">
+              <thead>
+                <tr>
+                  <th>Committer</th>
+                  <th class="num">PG18 spon%</th>
+                  <th class="num">PG19 spon%</th>
+                  <th class="num">PG20 spon%</th>
+                  <th class="num">PG20 BP</th>
+                  <th class="num">Sec</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${taxLeaders
+                  .map(
+                    (c) => `
+                  <tr>
+                    <td><button type="button" class="link-btn" data-open-hacker="${esc(c.slug)}">${esc(c.name)}</button></td>
+                    <td class="num mono dim">${c.spon18Pct}%</td>
+                    <td class="num mono dim">${c.spon19Pct}%</td>
+                    <td class="num mono" style="${c.spon20Pct >= 70 ? "color:var(--accent-t);font-weight:600;" : ""}">${c.spon20Pct}%</td>
+                    <td class="num mono"><strong>${c.bp20}</strong> <span class="dim">(${c.bp20Pct}%)</span></td>
+                    <td class="num mono" style="${c.sec20 >= 10 ? "color:var(--warn);font-weight:600;" : ""}">${c.sec20}</td>
+                  </tr>
+                `,
+                  )
+                  .join("")}
+              </tbody>
+            </table>
+          </div>
+          <div class="dim" style="font-size:11px;margin-top:8px;">
+            <strong>spon%</strong> = share of commits landed for other authors. <strong>Sec</strong> = PG20 <code class="mono">Security:</code> commits. See full PG11–PG20 charts in <button type="button" class="link-btn" data-goto-stats="1">Stats</button>.
+          </div>
+        `
+            : `
+          <div class="subsys-list">
+            ${overview.subsystems
+              .map((s) => {
+                const w = Math.max(5, Math.round((s.commits / maxSubsys) * 100));
+                const bf = s.busFactor ?? 1;
+                const lowBusFactor = s.commits >= 20 && bf <= 2;
+                return `
+                  <div class="subsys-row" style="cursor:default;">
+                    <div class="subsys-head">
+                      <span class="hbar-label">${esc(s.name)} ${lowBusFactor ? `<span class="tag-micro tag-wa" title="Bus factor ${bf}: ${bf} committer(s) landed ${s.bfCommits ?? 0}/${s.commits}">BF=${bf}</span>` : `<span class="tag-micro mono">BF=${bf}</span>`}</span>
+                      <span class="mono dim">${fmtNum(s.commits)} · ${s.authors} auth · ${s.committers} comm</span>
+                    </div>
+                    <div class="hbar-track"><div class="hbar-fill" style="width:${w}%;"></div></div>
+                  </div>
+                `;
+              })
+              .join("")}
+          </div>
+        `
+        }
       </div>
     </div>
 

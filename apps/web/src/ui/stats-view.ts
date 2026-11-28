@@ -1,4 +1,10 @@
 import type { DarkMatrixRow, StatsOverviewData, TriageTableRow } from "../stats-queries.ts";
+import {
+  HACKER_WINDOWS,
+  renderPostgresGitStatsSections,
+  type HackersOverviewData,
+  type HackerWindow,
+} from "./hackers-view.ts";
 import { renderStatsSkeleton } from "./skeletons.ts";
 import {
   renderAuthorBeeswarmSvg,
@@ -6,6 +12,7 @@ import {
   renderQueueUnitChartSvg,
 } from "./viz-charts.ts";
 
+export type StatsSection = "all" | "git" | "commitfest";
 export type StatsQueueFilter = "all" | "dark" | "warnings" | "clean";
 export type StatsDarkFilter = "all" | "issues" | "clean";
 
@@ -198,56 +205,115 @@ export function renderStatsObservatory(params: {
   error: string;
   queueFilter: StatsQueueFilter;
   darkFilter: StatsDarkFilter;
+  section?: StatsSection;
+  gitOverview?: HackersOverviewData | null;
+  gitWindow?: HackerWindow;
+  gitLoading?: boolean;
 }): string {
-  const { data, loading, error, queueFilter, darkFilter } = params;
+  const { data, loading, error, queueFilter, darkFilter, gitOverview, gitLoading } = params;
+  const section: StatsSection = params.section || "all";
+  const gitWindow: HackerWindow = params.gitWindow || "PG20";
 
-  if (loading && !data) {
+  if (loading && !data && !gitOverview) {
     return renderStatsSkeleton();
   }
-  if (error && !data) {
+  if (error && !data && !gitOverview) {
     return `
       <div class="card">
         <div class="empty-state">
-          <div style="font-weight:600;color:var(--text);margin-bottom:6px;">Could not load live CommitFest stats</div>
+          <div style="font-weight:600;color:var(--text);margin-bottom:6px;">Could not load live stats</div>
           <div class="muted" style="margin-bottom:10px;">${esc(error)}</div>
           <button type="button" class="btn btn-primary btn-sm" id="stats-refresh-btn">Retry</button>
         </div>
       </div>
     `;
   }
-  if (!data) {
-    return `<div class="card"><div class="empty-state">No CommitFest data indexed yet.</div></div>`;
+  if (!data && !gitOverview) {
+    return `<div class="card"><div class="empty-state">No stats data indexed yet.</div></div>`;
   }
 
-  const t = data.totals;
-  const v = data.verification;
-  const cb = t.closedBreakdown;
-  const warnings = data.statusVsEvidence.committerWarnings;
-  const pickups = data.statusVsEvidence.cleanPickups;
-  const bs = data.authorBeeswarm;
-  const topBottle = data.loadVsCapacity[0];
+  const showGit = section === "all" || section === "git";
+  const showCf = section === "all" || section === "commitfest";
+  const gitMeta = gitOverview?.syncMeta;
 
-  const darkIssuesCnt = data.darkMatrix.filter((r) => r.breakRank < 5).length;
-  const darkCleanCnt = data.darkMatrix.filter((r) => r.breakRank === 5).length;
+  const t = data?.totals;
+  const v = data?.verification;
+  const cb = t?.closedBreakdown;
+  const warnings = data?.statusVsEvidence.committerWarnings || [];
+  const pickups = data?.statusVsEvidence.cleanPickups || [];
+  const bs = data?.authorBeeswarm;
+  const topBottle = data?.loadVsCapacity[0];
+
+  const darkIssuesCnt = (data?.darkMatrix || []).filter((r) => r.breakRank < 5).length;
+  const darkCleanCnt = (data?.darkMatrix || []).filter((r) => r.breakRank === 5).length;
 
   return `
     <div class="page-head">
       <div class="page-head-main">
-        <div class="viz-kicker">CommitFest Intelligence Observatory</div>
-        <h1 class="page-title">${esc(data.commitfestLabel)} — Queue, Proof &amp; Bottlenecks</h1>
+        <div class="viz-kicker">Postgres &amp; CommitFest Stats Observatory</div>
+        <h1 class="page-title">Postgres Release Trends, Security &amp; CommitFest Stats</h1>
         <div class="page-sub">
-          ${fmtNum(t.total)} patches (${fmtNum(t.open)} open · ${fmtNum(t.closed)} closed: ${cb.committed} committed, ${cb.moved} moved, ${cb.withdrawn} withdrawn, ${cb.rejected + cb.returned} rejected/returned) ·
-          Open roast coverage: <strong>${pctWithN(t.roastedOpen, t.open)}</strong> ·
-          <strong>${fmtNum(t.withDark)}</strong> unique Dark-verified patches (${fmtNum(v.darkRuns)} runs)
+          ${gitMeta ? `${fmtNum(gitMeta.totalCommitsAll || 0)} git commits (1996–2026) · ${fmtNum(gitMeta.totalPeople || 0)} contributors` : ""}
+          ${gitMeta && t ? " · " : ""}
+          ${t && v ? `${fmtNum(t.total)} CommitFest patches (${fmtNum(t.open)} open) · <strong>${fmtNum(t.withDark)}</strong> Dark-verified (${fmtNum(v.darkRuns)} runs)` : ""}
         </div>
       </div>
-      <div class="row" style="gap:6px;flex-wrap:wrap;">
+      <div class="row" style="gap:6px;flex-wrap:wrap;align-items:center;">
         <button type="button" class="btn btn-ghost btn-sm" data-open-about="#roast-levels">What is a roast?</button>
         <button type="button" class="btn btn-secondary btn-sm" id="stats-refresh-btn">Refresh live</button>
         <a class="btn btn-ghost btn-sm" href="/api/v1/stats/overview" target="_blank" rel="noopener">API JSON ↗</a>
-        ${data.latestBriefSlug ? `<a class="btn btn-ghost btn-sm" href="/briefs/${encodeURIComponent(data.latestBriefSlug)}/download.html">HTML</a>` : ""}
+        ${data?.latestBriefSlug ? `<a class="btn btn-ghost btn-sm" href="/briefs/${encodeURIComponent(data.latestBriefSlug)}/download.html">HTML</a>` : ""}
       </div>
     </div>
+
+    <!-- Section Switcher -->
+    <div class="row" style="justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px;">
+      <div class="chips" role="tablist" aria-label="Stats section" style="margin:0;">
+        <button type="button" class="chip ${section === "all" ? "active" : ""}" data-stats-section="all">All Stats</button>
+        <button type="button" class="chip ${section === "git" ? "active" : ""}" data-stats-section="git">Postgres Git &amp; Releases (PG11–PG20)</button>
+        <button type="button" class="chip ${section === "commitfest" ? "active" : ""}" data-stats-section="commitfest">CommitFest &amp; Roasts</button>
+      </div>
+      ${
+        showGit
+          ? `
+      <div class="chips" role="tablist" aria-label="Git time window" style="margin:0;">
+        ${HACKER_WINDOWS.map((w) => `<button type="button" class="chip ${gitWindow === w.id ? "active" : ""}" data-hacker-window="${w.id}">${esc(w.label)}</button>`).join("")}
+      </div>
+      `
+          : ""
+      }
+    </div>
+
+    ${
+      showGit
+        ? gitOverview && gitOverview.synced
+          ? `
+      ${renderPostgresGitStatsSections(gitOverview, gitWindow)}
+      `
+          : gitLoading
+            ? `<div class="card" style="padding:18px;margin-bottom:14px;"><div class="dim">Loading Postgres git &amp; PG11–PG20 release trends…</div></div>`
+            : ""
+        : ""
+    }
+
+    ${
+      showCf && data && t && v && cb && bs
+        ? `
+    ${
+      section === "all"
+        ? `
+    <div style="margin:22px 0 12px;padding-top:14px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px;">
+      <div>
+        <div class="viz-kicker">CommitFest Intelligence</div>
+        <h2 style="margin:2px 0 0;font-size:18px;">${esc(data.commitfestLabel)} — Queue, Proof &amp; Bottlenecks</h2>
+      </div>
+      <div class="dim" style="font-size:12px;">
+        ${fmtNum(t.total)} patches (${fmtNum(t.open)} open · ${fmtNum(t.closed)} closed: ${cb.committed} committed, ${cb.moved} moved, ${cb.withdrawn} withdrawn, ${cb.rejected + cb.returned} rejected/returned) · Open roast coverage: <strong>${pctWithN(t.roastedOpen, t.open)}</strong>
+      </div>
+    </div>
+    `
+        : ""
+    }
 
     <!-- 1. HERO UNIT CHART: THE QUEUE (ALL 736 PATCHES, 1 SQUARE = 1 PATCH) -->
     <section class="card viz-card" id="stats-queue-hero">
@@ -590,5 +656,8 @@ export function renderStatsObservatory(params: {
       </div>
       ${renderDarkEvidenceTable(data.darkMatrix, darkFilter)}
     </section>
+    `
+        : ""
+    }
   `;
 }

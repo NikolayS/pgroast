@@ -895,9 +895,9 @@ describe("pgroast-web public companion API & security gates", () => {
     const roastsHtml = await (await req("/roasts")).text();
     expect(roastsHtml).toContain("Community Roasts — pgroast");
     const hackersHtml = await (await req("/hackers")).text();
-    expect(hackersHtml).toContain("Postgres Hacking Observatory — pgroast");
+    expect(hackersHtml).toContain("Postgres Hackers — Leaderboards &amp; Contributor Catalog — pgroast");
     const statsHtml = await (await req("/stats")).text();
-    expect(statsHtml).toContain("CommitFest Stats Observatory — pgroast");
+    expect(statsHtml).toContain("Postgres &amp; CommitFest Stats Observatory — pgroast");
     const entriesHtml = await (await req("/entries")).text();
     expect(entriesHtml).toContain("CommitFest Entries — pgroast");
     const connectHtml = await (await req("/connect")).text();

@@ -835,8 +835,8 @@ export async function createWebHandler(opts?: {
       const staticPageMeta: Record<string, { canonicalPath: string; title: string; desc: string }> = {
         "/hackers": {
           canonicalPath: "/hackers",
-          title: "Postgres Hacking Observatory — pgroast",
-          desc: "Explore 30 years of Postgres git commits, active release-cycle velocity (PG20), subsystem bus factor, and unified multi-email contributor profiles.",
+          title: "Postgres Hackers — Leaderboards & Contributor Catalog — pgroast",
+          desc: "Postgres contributor leaderboards (committers, authors, reviewers, bug hunters, rising stars), maintainer sponsorship load, and searchable catalog of 2,100+ unified profiles.",
         },
         "/lists": {
           canonicalPath: "/lists",
@@ -845,8 +845,8 @@ export async function createWebHandler(opts?: {
         },
         "/stats": {
           canonicalPath: "/stats",
-          title: "CommitFest Stats Observatory — pgroast",
-          desc: "Live CommitFest queue overview, committer warnings, subsystem bottlenecks, build/test/SQL verification results, and Top Roasters leaderboard.",
+          title: "Postgres & CommitFest Stats Observatory — pgroast",
+          desc: "PG11–PG20 release trends, backpatch depth, CVE & AI security wave, quality under load, monthly inflection, CommitFest queue, bottlenecks, and Dark build/SQL verification.",
         },
         "/entries": {
           canonicalPath: "/entries",
