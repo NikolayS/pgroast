@@ -76,38 +76,38 @@ function renderRoastLevelsDiagram(): string {
     <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
       <svg viewBox="0 0 780 280" class="obs-chart-svg" style="min-width:640px;" role="img" aria-label="Roast levels diagram showing Core Idea and Design Scrutiny as the shared foundation across Light, Medium, and Dark roasts">
         <!-- Column titles -->
-        <text x="136" y="20" text-anchor="middle" fill="var(--text)" font-size="13" font-weight="700">Light Roast</text>
+        <text x="136" y="20" text-anchor="middle" fill="var(--text)" font-size="13" font-weight="700">Light roast</text>
         <text x="136" y="35" text-anchor="middle" fill="var(--dim)" font-size="10" class="mono">Fast triage · ~1 min</text>
 
-        <text x="390" y="20" text-anchor="middle" fill="var(--text)" font-size="13" font-weight="700">Medium Roast</text>
+        <text x="390" y="20" text-anchor="middle" fill="var(--text)" font-size="13" font-weight="700">Medium roast</text>
         <text x="390" y="35" text-anchor="middle" fill="var(--dim)" font-size="10" class="mono">Code + build + tests</text>
 
-        <text x="644" y="20" text-anchor="middle" fill="var(--text)" font-size="13" font-weight="700">Dark Roast</text>
+        <text x="644" y="20" text-anchor="middle" fill="var(--text)" font-size="13" font-weight="700">Dark roast</text>
         <text x="644" y="35" text-anchor="middle" fill="var(--dim)" font-size="10" class="mono">Full adversarial stress-test</text>
 
         <!-- Layer 3 (Dark only): Live PG SQL + Reflection -->
         <rect x="526" y="48" width="234" height="58" rx="9" fill="var(--viz-5)" fill-opacity="0.14" stroke="var(--viz-5)" stroke-opacity="0.55" stroke-width="1.3" />
-        <text x="540" y="68" fill="var(--text)" font-size="11" font-weight="650">+ Live Patched PG SQL &amp; Reflect</text>
+        <text x="540" y="68" fill="var(--text)" font-size="11" font-weight="650">+ Live patched Postgres SQL and reflect</text>
         <text x="540" y="84" fill="var(--muted)" font-size="10">Boots isolated PG 20devel (-Dcassert)</text>
-        <text x="540" y="98" fill="var(--muted)" font-size="10">SQL stress tests, EXPLAIN &amp; 2nd pass</text>
+        <text x="540" y="98" fill="var(--muted)" font-size="10">SQL stress tests, explain, and 2nd pass</text>
 
         <!-- Layer 2 (Medium + Dark): Code + Compile + Tests -->
         <rect x="272" y="114" width="488" height="56" rx="9" fill="var(--viz-1)" fill-opacity="0.13" stroke="var(--viz-1)" stroke-opacity="0.52" stroke-width="1.3" />
-        <text x="286" y="134" fill="var(--text)" font-size="11" font-weight="650">+ Real C / SQL Code Inspection, Build &amp; Targeted Tests</text>
-        <text x="286" y="150" fill="var(--muted)" font-size="10">Reads C/H/SQL diffs &amp; source · git apply on master · meson compile · meson test</text>
+        <text x="286" y="134" fill="var(--text)" font-size="11" font-weight="650">+ Real C/SQL code inspection, build, and targeted tests</text>
+        <text x="286" y="150" fill="var(--muted)" font-size="10">Reads C/H/SQL diffs and source · git apply on master · meson compile · meson test</text>
         <text x="286" y="163" fill="var(--dim)" font-size="9.5" class="mono">Catches bitrot, build errors, lock/WAL/null bugs, and failing suites</text>
 
         <!-- Layer 1 (ALL THREE LEVELS — THE FOUNDATION): Idea & Design Scrutiny -->
         <rect x="20" y="178" width="740" height="88" rx="10" fill="var(--viz-3)" fill-opacity="0.16" stroke="var(--viz-3)" stroke-opacity="0.7" stroke-width="1.6" />
-        <text x="36" y="200" fill="var(--text)" font-size="12" font-weight="700">FOUNDATION IN EVERY ROAST LEVEL: Idea, Desirability &amp; Design Scrutiny</text>
-        <text x="36" y="218" fill="var(--muted)" font-size="10.5">1. Review Pyramid — Level 1a (problem clear?), Level 1b (should PG do this?), Level 2 (design &amp; 15 touch points)</text>
+        <text x="36" y="200" fill="var(--text)" font-size="12" font-weight="700">Foundation in every roast level: idea, desirability, and design scrutiny</text>
+        <text x="36" y="218" fill="var(--muted)" font-size="10.5">1. Review Pyramid — Level 1a (problem clear?), Level 1b (should Postgres do this?), Level 2 (design and 15 touch points)</text>
         <text x="36" y="236" fill="var(--muted)" font-size="10.5">2. Checked against 2,547 historical pgsql-hackers precedents, past reverts, and Wiki "Features We Do Not Want"</text>
-        <text x="36" y="254" fill="var(--muted)" font-size="10.5">3. 7 independent review angles + adversarial Critic counter-check that throws out weak or wrong objections</text>
+        <text x="36" y="254" fill="var(--muted)" font-size="10.5">3. 7 independent review angles + adversarial Critic counter-check that drops weak or wrong objections</text>
 
         <!-- Subtle vertical column guide lines in top empty zones -->
         <rect x="20" y="48" width="232" height="122" rx="9" fill="none" stroke="var(--border)" stroke-dasharray="3 4" />
         <text x="136" y="106" text-anchor="middle" fill="var(--dim)" font-size="10.5">No code compile or SQL run</text>
-        <text x="136" y="122" text-anchor="middle" fill="var(--dim)" font-size="9.5">Explicitly marked as idea-only triage</text>
+        <text x="136" y="122" text-anchor="middle" fill="var(--dim)" font-size="9.5">No Postgres checkout needed · idea-only triage</text>
       </svg>
     </div>
   `;
@@ -198,8 +198,8 @@ export function renderAboutTab(): string {
         </div>
       </div>
       <div class="row" style="gap:6px;flex-wrap:wrap;">
-        <button type="button" class="btn btn-primary btn-sm" data-about-nav="brief">Open CommitFest Brief</button>
-        <button type="button" class="btn btn-secondary btn-sm" data-about-nav="docs">5-Min CLI Tutorial</button>
+        <button type="button" class="btn btn-primary btn-sm" data-about-nav="brief">Open CommitFest brief</button>
+        <button type="button" class="btn btn-secondary btn-sm" data-about-nav="docs">5-min CLI tutorial</button>
       </div>
     </div>
 
@@ -231,7 +231,7 @@ export function renderAboutTab(): string {
     <section class="card viz-card" id="roast-levels">
       <div class="card-head">
         <div>
-          <div class="viz-kicker">The Core Principle</div>
+          <div class="viz-kicker">The core principle</div>
           <h2 class="viz-headline">Scrutinizing the idea comes first in every roast level</h2>
           <div class="dim" style="font-size:12.5px;margin-top:4px;max-width:760px;line-height:1.5;">
             Clean C code that solves the wrong problem still gets rejected after months of review. We check the idea, desirability, and architecture fit first in Light, Medium, and Dark alike. Medium and Dark keep that base and layer real code review, compilation, tests, and live Postgres SQL checks on top.
@@ -240,45 +240,13 @@ export function renderAboutTab(): string {
       </div>
 
       ${renderRoastLevelsDiagram()}
-
-      <div class="about-levels-grid">
-        <div class="about-level-box">
-          <div class="row" style="gap:8px;align-items:center;margin-bottom:6px;">
-            <span class="pill p-warn">Light</span>
-            <strong style="font-size:13.5px;">Idea, Thread &amp; Precedents</strong>
-          </div>
-          <p class="muted" style="font-size:12.5px;margin:0;line-height:1.5;">
-            Checks the idea, thread, and doc hunks against 2,547 past <code class="mono">pgsql-hackers</code> rejections and reverts. Fast triage with no Postgres checkout needed.
-          </p>
-        </div>
-
-        <div class="about-level-box">
-          <div class="row" style="gap:8px;align-items:center;margin-bottom:6px;">
-            <span class="pill p-info">Medium</span>
-            <strong style="font-size:13.5px;">Idea + Code, Build &amp; Tests</strong>
-          </div>
-          <p class="muted" style="font-size:12.5px;margin:0;line-height:1.5;">
-            Runs the full Light check, reads C/H/SQL diffs, applies the patch to Postgres <code class="mono">master</code>, builds with <code class="mono">meson</code>, and runs targeted regression suites.
-          </p>
-        </div>
-
-        <div class="about-level-box">
-          <div class="row" style="gap:8px;align-items:center;margin-bottom:6px;">
-            <span class="pill p-danger">Dark</span>
-            <strong style="font-size:13.5px;">Idea + Build + Live Patched Postgres</strong>
-          </div>
-          <p class="muted" style="font-size:12.5px;margin:0;line-height:1.5;">
-            Builds with <code class="mono">-Dcassert=true</code>, starts an isolated patched Postgres cluster, runs SQL stress tests and <code class="mono">explain</code> checks, and adds a second reflection pass.
-          </p>
-        </div>
-      </div>
     </section>
 
     <!-- 3. HOW ONE ROAST RUNS -->
     <section class="card viz-card" id="how-a-roast-runs">
       <div class="card-head">
         <div>
-          <div class="viz-kicker">Inside the Pipeline</div>
+          <div class="viz-kicker">Inside the pipeline</div>
           <h2 class="viz-headline">Seven review angles plus a Critic that drops weak objections</h2>
           <div class="dim" style="font-size:12.5px;margin-top:4px;max-width:760px;line-height:1.5;">
             One prompt often invents nitpicks or misses history. We split review into seven angles, then run a Critic pass whose job is to disprove weak or wrong objections.
@@ -290,7 +258,7 @@ export function renderAboutTab(): string {
 
       <div class="grid2" style="margin-top:14px;">
         <div class="about-subbox">
-          <h3 style="margin:0 0 8px;font-size:14px;">Four Verdicts</h3>
+          <h3 style="margin:0 0 8px;font-size:14px;">Four verdicts</h3>
           <ul class="about-list">
             <li><span class="pill p-ok">No objection</span> No fatal design objection survived. Good candidate for human review.</li>
             <li><span class="pill p-info">Committer eyes</span> Sound direction with specific trade-offs for a committer to weigh.</li>
@@ -300,7 +268,7 @@ export function renderAboutTab(): string {
         </div>
 
         <div class="about-subbox">
-          <h3 style="margin:0 0 8px;font-size:14px;">Review Flavours</h3>
+          <h3 style="margin:0 0 8px;font-size:14px;">Review flavours</h3>
           <p class="muted" style="font-size:12.5px;margin:0 0 8px;line-height:1.5;">
             Pick an engineering lens: <code class="mono">House Blend</code>, <code class="mono">The Storage Skeptic</code>, <code class="mono">The Edge-Case Hunter</code>, <code class="mono">The Index Specialist</code>, <code class="mono">The Perf Hawk</code>, <code class="mono">The Spec Lawyer</code>, <code class="mono">The Systems Architect</code>, or <code class="mono">The Production DBA</code>.
           </p>
@@ -315,7 +283,7 @@ export function renderAboutTab(): string {
     <section class="card viz-card">
       <div class="card-head">
         <div>
-          <div class="viz-kicker">Put It to Work</div>
+          <div class="viz-kicker">Put it to work</div>
           <h2>How Postgres contributors use pgroast</h2>
         </div>
       </div>
@@ -325,15 +293,15 @@ export function renderAboutTab(): string {
           <p class="muted" style="font-size:12.5px;margin:0 0 10px;line-height:1.5;">
             Run <code class="mono">pgroast --self</code> on your draft before posting to <code class="mono">pgsql-hackers</code>. Catch prior rejections and bitrot privately first.
           </p>
-          <button type="button" class="btn btn-secondary btn-sm" data-about-nav="docs">Open CLI &amp; Tutorial →</button>
+          <button type="button" class="btn btn-secondary btn-sm" data-about-nav="docs">Open CLI and tutorial →</button>
         </div>
 
         <div class="about-level-box">
-          <strong style="font-size:13.5px;display:block;margin-bottom:6px;">Reviewers &amp; committers</strong>
+          <strong style="font-size:13.5px;display:block;margin-bottom:6px;">Reviewers and committers</strong>
           <p class="muted" style="font-size:12.5px;margin:0 0 10px;line-height:1.5;">
             Scan the CommitFest queue, check Dark build and SQL logs, and jump straight to RFC warnings or clean pickups.
           </p>
-          <button type="button" class="btn btn-secondary btn-sm" data-about-nav="stats">Open CommitFest Stats →</button>
+          <button type="button" class="btn btn-secondary btn-sm" data-about-nav="stats">Open CommitFest stats →</button>
         </div>
 
         <div class="about-level-box">
@@ -341,7 +309,7 @@ export function renderAboutTab(): string {
           <p class="muted" style="font-size:12.5px;margin:0 0 10px;line-height:1.5;">
             Spend leftover weekly AI quota before your reset to roast unroasted CommitFest patches and share findings here.
           </p>
-          <button type="button" class="btn btn-secondary btn-sm" data-about-nav="contribute">Auto-Contribute Quota →</button>
+          <button type="button" class="btn btn-secondary btn-sm" data-about-nav="contribute">Auto-contribute quota →</button>
         </div>
       </div>
     </section>
