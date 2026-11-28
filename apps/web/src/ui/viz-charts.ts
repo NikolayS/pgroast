@@ -282,100 +282,120 @@ export interface SubsystemBusFactorItem {
 
 export function renderBusFactorQuadrantSvg(subsystems: SubsystemBusFactorItem[]): { headline: string; subline: string; svg: string } {
   if (!subsystems || subsystems.length === 0) {
-    return { headline: "Subsystem Bus Factor", subline: "No subsystem data.", svg: `<div class="empty-state">No data.</div>` };
+    return { headline: "Subsystem bus factor", subline: "No subsystem data.", svg: `<div class="empty-state">No data.</div>` };
   }
-  const thin = subsystems.filter((s) => (s.effectiveCommitters ?? s.committers) <= 2.5 && s.commits >= 15);
-  const topSub = subsystems[0]!;
+
+  // Sort from most concentrated (highest single-committer share / lowest bus factor) to broadest bench
+  const sorted = [...subsystems].sort((a, b) => {
+    const tDiff = (b.top1Pct ?? 0) - (a.top1Pct ?? 0);
+    if (Math.abs(tDiff) >= 0.05) return tDiff;
+    const bfDiff = (a.busFactor ?? 99) - (b.busFactor ?? 99);
+    if (bfDiff !== 0) return bfDiff;
+    return b.commits - a.commits;
+  });
+
+  const mostConc = sorted[0]!;
+  const bf1 = sorted.filter((s) => (s.busFactor ?? 1) <= 1 || (s.top1Pct ?? 0) >= 50);
+  const thin = sorted.filter((s) => (s.busFactor ?? 99) <= 2 && s.commits >= 10);
   const headline =
-    thin.length > 0
-      ? `${thin.length} subsystem${thin.length === 1 ? "" : "s"} depend on ≤2.5 effective committers`
-      : `${topSub.name} leads with ${fmtNum(topSub.commits)} commits across ${topSub.committers} committers`;
-  const subline = "X: effective committers (1/HHI) · Y: commits · circle area: unique authors · red ring: single committer >50%";
+    bf1.length === 1
+      ? `${mostConc.name} has bus factor 1 — ${mostConc.topCommitter || "top committer"} landed ${Math.round(mostConc.top1Pct ?? 0)}% of commits`
+      : bf1.length > 1
+        ? `${bf1.length} subsystems have bus factor 1 (led by ${mostConc.name} at ${Math.round(mostConc.top1Pct ?? 0)}%)`
+        : thin.length > 0
+          ? `${thin.length} subsystems rely on ≤2 committers for 50% of commits (led by ${mostConc.name} at ${Math.round(mostConc.top1Pct ?? 0)}%)`
+          : `${mostConc.name} has the highest single-committer share (${Math.round(mostConc.top1Pct ?? 0)}% by ${mostConc.topCommitter || "top committer"})`;
 
-  const w = 660;
-  const h = 248;
-  const padL = 48;
-  const padR = 24;
-  const padT = 18;
-  const padB = 32;
-  const plotW = w - padL - padR;
-  const plotH = h - padT - padB;
+  const subline = "Sorted by top committer share · BF = committers needed for 50% of commits · Hover for effective committers & authors, click for profile";
 
-  const maxX = Math.max(8, ...subsystems.map((s) => s.effectiveCommitters ?? s.committers ?? 1)) * 1.1;
-  const maxY = Math.max(10, ...subsystems.map((s) => s.commits)) * 1.12;
-  const maxAuth = Math.max(1, ...subsystems.map((s) => s.authors));
+  const w = 720;
+  const rowH = 26;
+  const padT = 26;
+  const padB = 28;
+  const h = padT + sorted.length * rowH + padB;
 
-  const xOf = (v: number) => padL + (v / maxX) * plotW;
-  const yOf = (v: number) => padT + plotH - (v / maxY) * plotH;
-  const dangerX = xOf(Math.min(2.5, maxX));
+  const xLabelEnd = 166;
+  const barX = 176;
+  const barW = 228;
+  const bfX = 456;
+  const topX = 508;
+  const commitsX = 712;
 
-  const yTicks = [0, Math.round(maxY * 0.33), Math.round(maxY * 0.66), Math.round(maxY)];
-  const xTicks = [0, 2, 4, 6, 8, 10, 12].filter((v) => v <= maxX);
+  const maxTop1 = Math.max(55, ...sorted.map((s) => s.top1Pct ?? 0));
+  const scaleMax = Math.min(100, Math.max(60, Math.ceil(maxTop1 / 10) * 10 + 5));
+  const xPct = (pct: number) => barX + (Math.min(scaleMax, Math.max(0, pct)) / scaleMax) * barW;
+  const x50 = xPct(50);
 
-  const grid =
-    yTicks
-      .map((v) => {
-        const y = yOf(v);
-        return `<line x1="${padL}" y1="${y.toFixed(1)}" x2="${w - padR}" y2="${y.toFixed(1)}" stroke="var(--viz-grid)" stroke-dasharray="${v === 0 ? "" : "3 3"}" />
-                <text x="${padL - 7}" y="${(y + 3.5).toFixed(1)}" text-anchor="end" fill="var(--viz-axis)" font-size="10" class="mono">${fmtNum(v)}</text>`;
-      })
-      .join("") +
-    xTicks
-      .map((v) => {
-        const x = xOf(v);
-        return `<line x1="${x.toFixed(1)}" y1="${padT}" x2="${x.toFixed(1)}" y2="${padT + plotH}" stroke="var(--viz-grid)" />
-                <text x="${x.toFixed(1)}" y="${h - 8}" text-anchor="middle" fill="var(--viz-axis)" font-size="10" class="mono">${v}</text>`;
-      })
-      .join("");
-
-  const placedLabels: Array<{ x: number; y: number; text: string; anchor: string }> = [];
-  const dots = subsystems
-    .map((s) => {
-      const eff = s.effectiveCommitters ?? s.committers ?? 1;
-      const cx = xOf(eff);
-      const cy = yOf(s.commits);
-      const r = 5 + Math.sqrt(s.authors / maxAuth) * 11;
-      const top1 = s.top1Pct ?? 0;
-      const isRisk = top1 >= 50 || eff <= 2.5;
-      const fill = isRisk ? "var(--viz-3)" : "var(--viz-1)";
-      const ring = top1 >= 50 ? `stroke="var(--viz-5)" stroke-width="2.2"` : `stroke="var(--surface)" stroke-width="1.2"`;
-      const bfText = `${s.busFactor ?? 1} committer${(s.busFactor ?? 1) === 1 ? "" : "s"} landed ${fmtNum(s.bfCommits ?? s.commits)} of ${fmtNum(s.commits)} commits`;
-      const topText = s.topCommitter ? `Top: ${s.topCommitter} (${top1}%) · ${eff.toFixed(1)} effective committers · ${s.authors} authors` : `${s.committers} committers · ${s.authors} authors`;
-
-      // Label top 7 subsystems by commit volume or risk
-      if (s.commits >= maxY * 0.16 || isRisk) {
-        const anchor = cx > w - 135 ? "end" : "start";
-        let ly = cy - r - 4;
-        for (const prev of placedLabels) {
-          if (Math.abs(prev.x - cx) < 95 && Math.abs(prev.y - ly) < 13) {
-            ly = prev.y - 13;
-          }
-        }
-        if (ly < padT + 10) ly = cy + r + 12;
-        placedLabels.push({ x: anchor === "end" ? cx - r - 3 : cx + r + 3, y: ly, text: s.name.split("/")[0]!.trim(), anchor });
-      }
-
-      const clickAttr = s.topSlug ? `data-open-hacker="${esc(s.topSlug)}"` : "";
-      return `<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${r.toFixed(1)}" fill="${fill}" fill-opacity="0.76" ${ring} class="viz-hoverable" tabindex="0" ${clickAttr} data-tip-title="${esc(s.name)}" data-tip-body="${esc(bfText)}" data-tip-sub="${esc(topText)}" />`;
+  const ticks = [0, 25, 50, 75, 100].filter((v) => v <= scaleMax);
+  const grid = ticks
+    .map((v) => {
+      const x = xPct(v);
+      const is50 = v === 50;
+      return `<line x1="${x.toFixed(1)}" y1="${padT - 4}" x2="${x.toFixed(1)}" y2="${padT + sorted.length * rowH}" stroke="${is50 ? "var(--viz-5)" : "var(--viz-grid)"}" stroke-opacity="${is50 ? "0.55" : "1"}" stroke-dasharray="${is50 ? "3 3" : v === 0 ? "" : "2 3"}" />
+              <text x="${x.toFixed(1)}" y="${padT + sorted.length * rowH + 14}" text-anchor="middle" fill="${is50 ? "var(--viz-5)" : "var(--viz-axis)"}" font-size="9.5" font-weight="${is50 ? "600" : "400"}" class="mono">${v}%</text>`;
     })
     .join("");
 
-  const labels = placedLabels
-    .map(
-      (l) =>
-        `<text x="${l.x.toFixed(1)}" y="${l.y.toFixed(1)}" text-anchor="${l.anchor}" fill="var(--text)" font-size="10.5" font-weight="500" pointer-events="none">${esc(l.text)}</text>`,
-    )
+  const truncName = (s: string, max: number) => (s.length > max ? `${s.slice(0, max - 1)}…` : s);
+
+  const rows = sorted
+    .map((s, i) => {
+      const y = padT + i * rowH;
+      const cy = y + rowH / 2;
+      const top1 = s.top1Pct ?? 0;
+      const bf = s.busFactor ?? 1;
+      const eff = s.effectiveCommitters ?? s.committers ?? 1;
+      const bw = Math.max(3, xPct(top1) - barX);
+
+      const isHighRisk = top1 >= 50 || bf <= 1;
+      const isMedRisk = !isHighRisk && (top1 >= 35 || bf <= 2);
+      const barFill = isHighRisk ? "var(--viz-5)" : isMedRisk ? "var(--viz-3)" : "var(--viz-1)";
+      const bfBg = isHighRisk ? "var(--viz-5)" : isMedRisk ? "var(--viz-3)" : "var(--viz-axis)";
+      const bfFillOpacity = isHighRisk ? "0.16" : isMedRisk ? "0.16" : "0.11";
+      const bfTextColor = isHighRisk ? "var(--viz-5)" : isMedRisk ? "var(--viz-3)" : "var(--text-dim)";
+
+      const bfText = `Bus factor ${bf}: ${bf} committer${bf === 1 ? "" : "s"} landed ${fmtNum(s.bfCommits ?? s.commits)} of ${fmtNum(s.commits)} commits`;
+      const topText = s.topCommitter
+        ? `Top: ${s.topCommitter} (${top1.toFixed(1)}%) · ${eff.toFixed(1)} effective committers (${s.committers} total) · ${s.authors} authors`
+        : `${eff.toFixed(1)} effective committers (${s.committers} total) · ${s.authors} authors`;
+      const clickAttr = s.topSlug ? `data-open-hacker="${esc(s.topSlug)}" style="cursor:pointer;"` : "";
+
+      return `
+        <g class="viz-hoverable" tabindex="0" ${clickAttr} data-tip-title="${esc(s.name)}" data-tip-body="${esc(bfText)}" data-tip-sub="${esc(topText)}">
+          <rect x="0" y="${y}" width="${w}" height="${rowH}" fill="${i % 2 === 1 ? "var(--viz-grid)" : "transparent"}" fill-opacity="${i % 2 === 1 ? "0.28" : "0"}" rx="4" />
+          <text x="${xLabelEnd}" y="${(cy + 3.5).toFixed(1)}" text-anchor="end" fill="var(--text)" font-size="11" font-weight="${isHighRisk ? "600" : "500"}">${esc(truncName(s.name, 26))}</text>
+          <rect x="${barX}" y="${(cy - 6).toFixed(1)}" width="${barW}" height="12" rx="3" fill="var(--viz-grid)" fill-opacity="0.45" />
+          <rect x="${barX}" y="${(cy - 6).toFixed(1)}" width="${bw.toFixed(1)}" height="12" rx="3" fill="${barFill}" fill-opacity="0.88" />
+          <text x="${(barX + bw + 5).toFixed(1)}" y="${(cy + 3.5).toFixed(1)}" text-anchor="start" fill="${isHighRisk ? "var(--viz-5)" : "var(--text)"}" font-size="10.5" font-weight="600" class="mono">${top1.toFixed(1)}%</text>
+          <rect x="${bfX}" y="${(cy - 8).toFixed(1)}" width="42" height="16" rx="8" fill="${bfBg}" fill-opacity="${bfFillOpacity}" />
+          <text x="${bfX + 21}" y="${(cy + 3.2).toFixed(1)}" text-anchor="middle" fill="${bfTextColor}" font-size="9.5" font-weight="700" class="mono">BF ${bf}</text>
+          <text x="${topX}" y="${(cy + 3.5).toFixed(1)}" text-anchor="start" fill="var(--text-dim)" font-size="10.5">${esc(truncName(s.topCommitter || "—", 21))}</text>
+          <text x="${commitsX}" y="${(cy + 3.5).toFixed(1)}" text-anchor="end" fill="var(--viz-axis)" font-size="10" class="mono">${fmtNum(s.commits)}</text>
+        </g>
+      `;
+    })
     .join("");
+
+  const headers = `
+    <text x="${xLabelEnd}" y="14" text-anchor="end" fill="var(--viz-axis)" font-size="9.5" font-weight="600" letter-spacing="0.04em">SUBSYSTEM</text>
+    <text x="${barX}" y="14" text-anchor="start" fill="var(--viz-axis)" font-size="9.5" font-weight="600" letter-spacing="0.04em">TOP COMMITTER SHARE</text>
+    <text x="${bfX + 21}" y="14" text-anchor="middle" fill="var(--viz-axis)" font-size="9.5" font-weight="600" letter-spacing="0.04em">BF</text>
+    <text x="${topX}" y="14" text-anchor="start" fill="var(--viz-axis)" font-size="9.5" font-weight="600" letter-spacing="0.04em">TOP COMMITTER</text>
+    <text x="${commitsX}" y="14" text-anchor="end" fill="var(--viz-axis)" font-size="9.5" font-weight="600" letter-spacing="0.04em">COMMITS</text>
+  `;
 
   const svg = `
     <svg viewBox="0 0 ${w} ${h}" class="obs-chart-svg" role="img" aria-label="${esc(headline)}">
-      <rect x="${padL}" y="${padT}" width="${Math.max(0, dangerX - padL).toFixed(1)}" height="${plotH}" fill="var(--viz-5)" fill-opacity="0.07" />
-      <text x="${(padL + 5).toFixed(1)}" y="${padT + 12}" fill="var(--viz-5)" font-size="9.5" font-weight="600">Thin bench (≤2.5)</text>
+      ${headers}
       ${grid}
-      ${dots}
-      ${labels}
-      <text x="${(padL + plotW / 2).toFixed(1)}" y="${h - 0}" text-anchor="middle" fill="var(--viz-axis)" font-size="9.5">Effective committers (1 / HHI)</text>
+      ${rows}
+      <line x1="${x50.toFixed(1)}" y1="${padT - 4}" x2="${x50.toFixed(1)}" y2="${padT + sorted.length * rowH}" stroke="var(--viz-5)" stroke-opacity="0.55" stroke-dasharray="3 3" pointer-events="none" />
     </svg>
+    <div class="viz-legend-row" style="margin-top:6px;">
+      <span class="viz-legend-item"><span class="viz-swatch" style="background:var(--viz-5)"></span>High risk (BF 1 or ≥50% by one committer)</span>
+      <span class="viz-legend-item"><span class="viz-swatch" style="background:var(--viz-3)"></span>Thin bench (BF 2 or ≥35%)</span>
+      <span class="viz-legend-item"><span class="viz-swatch" style="background:var(--viz-1)"></span>Broad bench (BF 3+)</span>
+    </div>
   `;
   return { headline, subline, svg };
 }
