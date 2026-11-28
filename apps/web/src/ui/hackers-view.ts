@@ -581,35 +581,6 @@ export function renderPostgresGitStatsSections(
           const taxLeaders = overview.backpatchTaxLeaders || [];
           const fmtK = (n: number) => (n >= 1_000_000 ? `${(n / 1_000_000).toFixed(2)}M` : n >= 1_000 ? `${Math.round(n / 1_000)}k` : String(n));
           return `
-      ${
-        sec && cveCats
-          ? `
-      <div class="grid2" style="margin-bottom:14px;">
-        <div class="card viz-card" style="margin-bottom:0;">
-          <div class="card-head">
-            <div>
-              <div class="viz-kicker">Annual CVEs and AI-assisted security wave (2015–2026)</div>
-              <h2 class="viz-headline">${esc(sec.headline)}</h2>
-              <div class="dim" style="font-size:11.5px;margin-top:2px;">${esc(sec.subline)}</div>
-            </div>
-          </div>
-          ${sec.svg}
-        </div>
-        <div class="card viz-card" style="margin-bottom:0;">
-          <div class="card-head">
-            <div>
-              <div class="viz-kicker">CVEs by vulnerability category (2015–2026)</div>
-              <h2 class="viz-headline">${esc(cveCats.headline)}</h2>
-              <div class="dim" style="font-size:11.5px;margin-top:2px;">${esc(cveCats.subline)}</div>
-            </div>
-          </div>
-          ${cveCats.svg}
-        </div>
-      </div>
-      `
-          : ""
-      }
-
       <div class="grid2" style="margin-bottom:14px;">
         <div class="card viz-card" style="margin-bottom:0;">
           <div class="card-head">
@@ -680,6 +651,35 @@ export function renderPostgresGitStatsSections(
             : ""
         }
       </div>
+
+      ${
+        sec && cveCats
+          ? `
+      <div class="grid2" style="margin-bottom:14px;">
+        <div class="card viz-card" style="margin-bottom:0;">
+          <div class="card-head">
+            <div>
+              <div class="viz-kicker">Annual CVEs and AI-assisted security wave (2015–2026)</div>
+              <h2 class="viz-headline">${esc(sec.headline)}</h2>
+              <div class="dim" style="font-size:11.5px;margin-top:2px;">${esc(sec.subline)}</div>
+            </div>
+          </div>
+          ${sec.svg}
+        </div>
+        <div class="card viz-card" style="margin-bottom:0;">
+          <div class="card-head">
+            <div>
+              <div class="viz-kicker">CVEs by vulnerability category (2015–2026)</div>
+              <h2 class="viz-headline">${esc(cveCats.headline)}</h2>
+              <div class="dim" style="font-size:11.5px;margin-top:2px;">${esc(cveCats.subline)}</div>
+            </div>
+          </div>
+          ${cveCats.svg}
+        </div>
+      </div>
+      `
+          : ""
+      }
 
       <div class="card" style="padding:12px 16px;margin-bottom:14px;">
         ${
@@ -922,11 +922,11 @@ export function renderPostgresGitStatsSections(
 
   const trendsSection = deepIntelBlock
     ? `
-    <section id="stats-long-term-trends" style="margin-bottom:18px;">
+    <section id="stats-long-term-trends" style="margin-bottom:18px;${mode === "all" ? "padding-top:14px;border-top:1px solid var(--border);" : ""}">
       <div style="margin:6px 0 12px;display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px;">
         <div>
-          <div class="viz-kicker">Multi-year security and release trends</div>
-          <h2 style="margin:2px 0 0;font-size:18px;">CVEs (2015–2026) and release cycles (PG11–PG20)</h2>
+          <div class="viz-kicker">Multi-year release and security trends</div>
+          <h2 style="margin:2px 0 0;font-size:18px;">Release cycles (PG11–PG20) and annual CVEs (2015–2026)</h2>
         </div>
         <span class="tag-micro">Fixed multi-year horizon</span>
       </div>
@@ -936,7 +936,7 @@ export function renderPostgresGitStatsSections(
     : "";
 
   const windowSection = `
-    <section id="stats-window-activity" style="margin-bottom:18px;${mode === "all" ? "padding-top:14px;border-top:1px solid var(--border);" : ""}">
+    <section id="stats-window-activity" style="margin-bottom:18px;">
       <div class="sticky-window-bar">
         <div>
           <div class="viz-kicker" style="margin-bottom:1px;">Postgres activity by time window · ${esc(winLabel)}</div>
@@ -1011,7 +1011,7 @@ export function renderPostgresGitStatsSections(
 
   if (mode === "trends") return trendsSection;
   if (mode === "window") return windowSection;
-  return `${trendsSection}${windowSection}`;
+  return `${windowSection}${trendsSection}`;
 }
 
 export function renderHackersTab(params: {

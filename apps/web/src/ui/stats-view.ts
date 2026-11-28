@@ -270,8 +270,8 @@ export function renderStatsObservatory(params: {
     <div class="row" style="justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px;">
       <div class="chips" role="tablist" aria-label="Stats section" style="margin:0;">
         <button type="button" class="chip ${section === "all" ? "active" : ""}" data-stats-section="all">All stats</button>
-        <button type="button" class="chip ${section === "git" ? "active" : ""}" data-stats-section="git">CVEs and releases (2015–2026)</button>
         <button type="button" class="chip ${section === "window" ? "active" : ""}" data-stats-section="window">Activity by window</button>
+        <button type="button" class="chip ${section === "git" ? "active" : ""}" data-stats-section="git">Releases and CVEs (PG11–PG20)</button>
         <button type="button" class="chip ${section === "commitfest" ? "active" : ""}" data-stats-section="commitfest">CommitFest and roasts</button>
       </div>
     </div>

@@ -694,16 +694,33 @@ export class WebDatabase {
     if (opts?.search?.trim()) {
       params.push(`%${opts.search.trim()}%`);
       const p = `$${params.length}`;
-      where.push(`(CAST(cf_id AS TEXT) ILIKE ${p} OR title ILIKE ${p} OR authors ILIKE ${p} OR reviewers ILIKE ${p} OR committer ILIKE ${p} OR topic ILIKE ${p})`);
+      where.push(`(CAST(e.cf_id AS TEXT) ILIKE ${p} OR e.title ILIKE ${p} OR e.authors ILIKE ${p} OR e.reviewers ILIKE ${p} OR e.committer ILIKE ${p} OR e.topic ILIKE ${p})`);
     }
     if (opts?.verdict && opts.verdict !== "all") {
       params.push(opts.verdict);
-      where.push(`verdict = $${params.length}`);
+      where.push(`COALESCE(NULLIF(bo.verdict, ''), NULLIF(e.verdict, ''), 'UNROASTED') = $${params.length}`);
     }
     params.push(Math.min(opts?.limit ?? 300, 1000));
     const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
     return (await this.sql.unsafe(
-      `SELECT * FROM ${this.t("public_entries")} ${whereSql} ORDER BY recommended_score DESC, cf_id DESC LIMIT $${params.length}`,
+      `SELECT
+         e.cf_id, e.title, e.status, e.topic, e.authors, e.reviewers, e.committer, e.thread_url,
+         COALESCE(NULLIF(bo.verdict, ''), NULLIF(e.verdict, ''), 'UNROASTED') AS verdict,
+         COALESCE(NULLIF(bo.confidence, ''), e.confidence) AS confidence,
+         e.kind, e.seen_in_production, e.workaround, e.failing_summary, e.recommended_score, e.updated_at
+       FROM ${this.t("public_entries")} e
+       LEFT JOIN LATERAL (
+         SELECT o.verdict, o.confidence
+         FROM ${this.t("public_opinions")} o
+         WHERE o.cf_id = e.cf_id AND o.verdict != ''
+         ORDER BY
+           CASE LOWER(o.roast_level) WHEN 'dark' THEN 3 WHEN 'medium' THEN 2 WHEN 'light' THEN 1 ELSE 0 END DESC,
+           o.created_at DESC
+         LIMIT 1
+       ) bo ON TRUE
+       ${whereSql}
+       ORDER BY e.recommended_score DESC, e.cf_id DESC
+       LIMIT $${params.length}`,
       params,
     )) as PublicEntryRecord[];
   }

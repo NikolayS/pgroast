@@ -214,7 +214,7 @@ export async function getHackersOverview(db: WebDatabase, rawWindow?: string | n
        WHERE ${cWhere.replace(/\bcommitted_at\b/g, "c.committed_at").replace(/\bpg_major\b/g, "c.pg_major")}
        GROUP BY p.id
        ORDER BY total DESC
-       LIMIT 20`,
+       LIMIT 25`,
       wf.params,
     ) as Promise<
       Array<{ slug: string; name: string; role: string; email_count: number; total: number; for_others: number }>
@@ -226,7 +226,7 @@ export async function getHackersOverview(db: WebDatabase, rawWindow?: string | n
        WHERE ${ccWhere} AND cc.credit_kind IN ('author', 'co_author')
        GROUP BY p.id
        ORDER BY count DESC
-       LIMIT 20`,
+       LIMIT 25`,
       wf.params,
     ) as Promise<Array<{ slug: string; name: string; role: string; email_count: number; count: number }>>,
     db.sql.unsafe(
@@ -236,7 +236,7 @@ export async function getHackersOverview(db: WebDatabase, rawWindow?: string | n
        WHERE ${ccWhere} AND cc.credit_kind = 'reviewer'
        GROUP BY p.id
        ORDER BY count DESC
-       LIMIT 20`,
+       LIMIT 25`,
       wf.params,
     ) as Promise<Array<{ slug: string; name: string; role: string; email_count: number; count: number }>>,
     db.sql.unsafe(
@@ -246,7 +246,7 @@ export async function getHackersOverview(db: WebDatabase, rawWindow?: string | n
        WHERE ${ccWhere} AND cc.credit_kind = 'reporter'
        GROUP BY p.id
        ORDER BY count DESC
-       LIMIT 20`,
+       LIMIT 25`,
       wf.params,
     ) as Promise<Array<{ slug: string; name: string; role: string; email_count: number; count: number }>>,
     db.sql.unsafe(
@@ -267,7 +267,7 @@ export async function getHackersOverview(db: WebDatabase, rawWindow?: string | n
        WHERE ${ccWhere} AND p.first_seen_at >= $${wf.params.length + 1} AND p.first_seen_at != ''
        GROUP BY p.id
        ORDER BY total_activity DESC
-       LIMIT 20`,
+       LIMIT 25`,
       [...wf.params, wf.startIso],
     ) as Promise<
       Array<{
@@ -773,7 +773,7 @@ export async function getHackersOverview(db: WebDatabase, rawWindow?: string | n
        JOIN ${db.t("people")} p ON p.id = r.person_id
        GROUP BY p.id
        ORDER BY count DESC, p.canonical_name ASC
-       LIMIT 15`,
+       LIMIT 25`,
     ) as Promise<Array<{ slug: string; name: string; role: string; email_count: number; count: number }>>,
     db.sql.unsafe(
       `WITH cve_auth AS (
@@ -790,7 +790,7 @@ export async function getHackersOverview(db: WebDatabase, rawWindow?: string | n
        JOIN ${db.t("people")} p ON p.id = a.person_id
        GROUP BY p.id
        ORDER BY count DESC, p.canonical_name ASC
-       LIMIT 15`,
+       LIMIT 25`,
     ) as Promise<Array<{ slug: string; name: string; role: string; email_count: number; count: number }>>,
   ]);
 

@@ -1054,7 +1054,7 @@ async function loadAll(): Promise<void> {
         ? `<a class="footer-ver mono" href="https://github.com/NikolayS/pgroast/releases/tag/${encodeURIComponent(ver)}" target="_blank" rel="noopener">${esc(ver)}</a> · `
         : "";
       const viewTotal = safeInt(views?.total ?? health.views?.total ?? 0);
-      const viewsPart = ` · <a class="footer-ver" href="/?tab=stats#site-traffic" id="footer-views-link">${viewTotal} view${viewTotal === 1 ? "" : "s"}</a>`;
+      const viewsPart = ` · <a class="footer-ver" href="/stats#site-traffic" id="footer-views-link">${viewTotal} view${viewTotal === 1 ? "" : "s"}</a>`;
       f.innerHTML = `${verLink}${esc(health.database.version || "PostgreSQL")} · ${safeInt(health.counts.entries)} entries · ${safeInt(health.counts.opinions)} roasts${viewsPart}`;
       document.getElementById("footer-views-link")?.addEventListener("click", (ev) => {
         ev.preventDefault();
@@ -2467,13 +2467,28 @@ function renderBriefTab(): string {
   }
 
   const stats = brief.stats || {};
+  // Always compute live KPI & donut counts from state.entries (which merges live Dark > Medium > Light verdicts)
+  // so Brief KPIs match Entries filters and Stats Queue 100% with zero snapshot drift!
+  const closedStatuses = new Set(["committed", "returned with feedback", "rejected", "withdrawn", "moved to next cf"]);
+  const useLiveEntries = state.entries.length > 0;
+  const liveVerdictCounts: Record<string, number> = {};
+  let liveOpen = 0;
+  let liveClosed = 0;
+  if (useLiveEntries) {
+    for (const e of state.entries) {
+      const vk = e.verdict || "UNROASTED";
+      liveVerdictCounts[vk] = (liveVerdictCounts[vk] || 0) + 1;
+      if (closedStatuses.has((e.status || "").trim().toLowerCase())) liveClosed++;
+      else liveOpen++;
+    }
+  }
   const verdicts = stats.verdicts ?? [];
-  const vCount = (k: string) => verdicts.find((x) => x.verdict === k)?.all ?? 0;
-  const total = stats.totals?.total ?? brief.entries.length;
-  const openCount = stats.totals?.open ?? 0;
-  const closedCount = stats.totals?.closed ?? 0;
-  const roastedCount = stats.totals?.roasted ?? Math.max(0, total - vCount("UNROASTED"));
-  const unroastedCount = Math.max(0, total - roastedCount);
+  const vCount = (k: string) => (useLiveEntries ? liveVerdictCounts[k] || 0 : verdicts.find((x) => x.verdict === k)?.all ?? 0);
+  const total = useLiveEntries ? state.entries.length : stats.totals?.total ?? brief.entries.length;
+  const openCount = useLiveEntries ? liveOpen : stats.totals?.open ?? 0;
+  const closedCount = useLiveEntries ? liveClosed : stats.totals?.closed ?? 0;
+  const unroastedCount = vCount("UNROASTED");
+  const roastedCount = Math.max(0, total - unroastedCount);
 
   const donutSegments = [
     { key: "NO-FUNDAMENTAL-OBJECTION", label: "No fundamental objection", value: vCount("NO-FUNDAMENTAL-OBJECTION"), color: "#4cb782" },
