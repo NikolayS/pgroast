@@ -283,32 +283,11 @@ export function renderStatsObservatory(params: {
       </section>
     </div>
 
-    <!-- 3. DARK EVIDENCE MATRIX: 1 ROW PER UNIQUE DARK-VERIFIED PATCH -->
-    <section class="card viz-card" id="stats-verification-pipeline">
-      <div class="card-head">
-        <div>
-          <div class="viz-kicker">3. Real Postgres 20devel Dark Evidence Matrix</div>
-          <h2 class="viz-headline">
-            ${fmtNum(v.gitApplyClean)}/${fmtNum(v.codeRead)} applied to master · ${fmtNum(v.compilePass)}/${fmtNum(v.compilePass + v.compileFail)} compiled (-Dcassert, median ${v.medianCompileSec}s) · ${fmtNum(v.testPass)}/${fmtNum(v.testPass + v.testFail)} passed meson test · ${fmtNum(v.totalSqlCases)} live SQL cases
-          </h2>
-          <div class="dim" style="font-size:12px;margin-top:2px;">
-            1 row per unique verified patch (n=${data.darkMatrix.length}), sorted by the step where it falls off · Click any row to read the full build log and SQL findings
-          </div>
-        </div>
-        <div class="chips" role="tablist" aria-label="Filter Dark evidence matrix" style="margin:0;">
-          <button type="button" class="chip ${darkFilter === "all" ? "active" : ""}" data-stats-dfilter="all">All (${data.darkMatrix.length})</button>
-          <button type="button" class="chip ${darkFilter === "issues" ? "active" : ""}" data-stats-dfilter="issues">Breaks / SQL warnings (${darkIssuesCnt})</button>
-          <button type="button" class="chip ${darkFilter === "clean" ? "active" : ""}" data-stats-dfilter="clean">All clean (${darkCleanCnt})</button>
-        </div>
-      </div>
-      ${renderDarkEvidenceTable(data.darkMatrix, darkFilter)}
-    </section>
-
-    <!-- 4. REVIEW LOAD VS. COMMITTER CAPACITY + 5. AUTHOR TRACK RECORD BEESWARM -->
+    <!-- 3. REVIEW LOAD VS. COMMITTER CAPACITY + 4. AUTHOR TRACK RECORD BEESWARM -->
     <section class="card viz-card">
       <div class="card-head">
         <div>
-          <div class="viz-kicker">4. Structural Bottlenecks — CommitFest Queue × Postgres Git Capacity</div>
+          <div class="viz-kicker">3. Structural Bottlenecks — CommitFest Queue × Postgres Git Capacity</div>
           <h2 class="viz-headline">
             ${
               topBottle && topBottle.openPerCommitter != null
@@ -327,7 +306,7 @@ export function renderStatsObservatory(params: {
     <section class="card viz-card">
       <div class="card-head">
         <div>
-          <div class="viz-kicker">5. Author Track Record vs. Queue Status (Beeswarm)</div>
+          <div class="viz-kicker">4. Author Track Record vs. Queue Status (Beeswarm)</div>
           <h2 class="viz-headline">
             ${fmtNum(bs.firstTimerCount)} open patches from first-time authors — ${fmtNum(bs.firstTimerStuckInReview)} in Needs review, ${fmtNum(bs.firstTimerClean)} roasted clean
           </h2>
@@ -339,12 +318,12 @@ export function renderStatsObservatory(params: {
       ${renderAuthorBeeswarmSvg(bs.dots)}
     </section>
 
-    <!-- 6. PRODUCTION-REPORTED PATCHES (EXACT TABLE) + ROAST CALIBRATION (COUNTS ONLY) -->
+    <!-- 5. PRODUCTION-REPORTED PATCHES (EXACT TABLE) + ROAST CALIBRATION (COUNTS ONLY) -->
     <div class="grid2" style="margin-bottom:14px;">
       <section class="card viz-card" style="margin-bottom:0;">
         <div class="card-head">
           <div>
-            <div class="viz-kicker">6A. Production-Hit Patches (n=${data.productionHits.length})</div>
+            <div class="viz-kicker">5A. Production-Hit Patches (n=${data.productionHits.length})</div>
             <h2>
               ${
                 data.productionHits.length > 0 && data.productionHits.every((p) => p.status.toLowerCase().includes("needs review"))
@@ -396,7 +375,7 @@ export function renderStatsObservatory(params: {
       <section class="card viz-card" style="margin-bottom:0;">
         <div class="card-head">
           <div>
-            <div class="viz-kicker">6B. Calibration, Attention &amp; Provenance</div>
+            <div class="viz-kicker">5B. Calibration, Attention &amp; Provenance</div>
             <h2>
               ${
                 data.calibration.totalClosedWithVerdict > 0
@@ -577,5 +556,26 @@ export function renderStatsObservatory(params: {
         </div>
       </section>
     </div>
+
+    <!-- 6. DARK EVIDENCE MATRIX: 1 ROW PER UNIQUE DARK-VERIFIED PATCH -->
+    <section class="card viz-card" id="stats-verification-pipeline">
+      <div class="card-head">
+        <div>
+          <div class="viz-kicker">6. Real Postgres 20devel Dark Evidence Matrix</div>
+          <h2 class="viz-headline">
+            ${fmtNum(v.gitApplyClean)}/${fmtNum(v.codeRead)} applied to master · ${fmtNum(v.compilePass)}/${fmtNum(v.compilePass + v.compileFail)} compiled (-Dcassert, median ${v.medianCompileSec}s) · ${fmtNum(v.testPass)}/${fmtNum(v.testPass + v.testFail)} passed meson test · ${fmtNum(v.totalSqlCases)} live SQL cases
+          </h2>
+          <div class="dim" style="font-size:12px;margin-top:2px;">
+            1 row per unique verified patch (n=${data.darkMatrix.length}), sorted by the step where it falls off · Click any row to read the full build log and SQL findings
+          </div>
+        </div>
+        <div class="chips" role="tablist" aria-label="Filter Dark evidence matrix" style="margin:0;">
+          <button type="button" class="chip ${darkFilter === "all" ? "active" : ""}" data-stats-dfilter="all">All (${data.darkMatrix.length})</button>
+          <button type="button" class="chip ${darkFilter === "issues" ? "active" : ""}" data-stats-dfilter="issues">Breaks / SQL warnings (${darkIssuesCnt})</button>
+          <button type="button" class="chip ${darkFilter === "clean" ? "active" : ""}" data-stats-dfilter="clean">All clean (${darkCleanCnt})</button>
+        </div>
+      </div>
+      ${renderDarkEvidenceTable(data.darkMatrix, darkFilter)}
+    </section>
   `;
 }
