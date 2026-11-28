@@ -3911,11 +3911,21 @@ function render(): void {
   // Hackers Observatory tab events
   if (state.tab === "hackers") {
     bindHackerClicks(root);
-    document.querySelectorAll<HTMLButtonElement>("[data-hacker-window]").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        const nextWin = (btn.dataset.hackerWindow as HackerWindow) || "PG20";
+    document.querySelectorAll<HTMLElement>("[data-hacker-window]").forEach((el) => {
+      const trigger = () => {
+        const nextWin = (el.dataset.hackerWindow as HackerWindow) || "PG20";
         void loadHackersOverview(nextWin);
-      });
+        if (el.tagName === "TR") window.scrollTo({ top: 0, behavior: "smooth" });
+      };
+      el.addEventListener("click", trigger);
+      if (el.tagName === "TR") {
+        el.addEventListener("keydown", (ev) => {
+          if (ev.key === "Enter" || ev.key === " ") {
+            ev.preventDefault();
+            trigger();
+          }
+        });
+      }
     });
     document.querySelectorAll<HTMLButtonElement>("[data-hacker-lb]").forEach((btn) => {
       btn.addEventListener("click", () => {

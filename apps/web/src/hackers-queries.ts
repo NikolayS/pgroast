@@ -309,7 +309,7 @@ export async function getHackersOverview(db: WebDatabase, rawWindow?: string | n
   // 2) Subsystem committer concentration (Bus Factor 50%, Effective Committers 1/HHI, top committer)
   // 3) Annual committer concentration (top1 / 2-5 / 6-10 / rest + bus factor step line)
   const cWhereAliased = cWhere.replace(/\bcommitted_at\b/g, "c.committed_at").replace(/\bpg_major\b/g, "c.pg_major");
-  const [cycleRows, subsysBfRows, concYearRows] = await Promise.all([
+  const [cycleRows, subsysBfRows, concYearRows, releaseTrendRows] = await Promise.all([
     db.sql.unsafe(
       `WITH cycles(pg_major, start_d) AS (
          VALUES ('PG17', DATE '2023-06-25'), ('PG18', DATE '2024-06-25'), ('PG19', DATE '2025-06-25'), ('PG20', DATE '2026-06-25')
@@ -409,6 +409,34 @@ export async function getHackersOverview(db: WebDatabase, rawWindow?: string | n
         rest: number;
       }>
     >,
+    db.sql.unsafe(
+      `SELECT
+         pg_major,
+         COUNT(*)::int AS commits,
+         COALESCE(SUM(insertions + deletions), 0)::bigint AS lines_changed,
+         ROUND(COALESCE(AVG(insertions + deletions), 0))::int AS avg_lines,
+         COUNT(*) FILTER (WHERE is_backpatch)::int AS backpatched,
+         COUNT(*) FILTER (WHERE is_revert)::int AS reverts,
+         COUNT(DISTINCT committer_person_id)::int AS committers,
+         COUNT(DISTINCT author_person_id)::int AS authors,
+         COUNT(*) FILTER (WHERE author_person_id IS NOT NULL AND committer_person_id IS NOT NULL AND author_person_id != committer_person_id)::int AS for_others
+       FROM ${db.t("pg_commits")}
+       WHERE pg_major ~ '^PG(1[1-9]|20)$'
+       GROUP BY pg_major
+       ORDER BY (SUBSTRING(pg_major FROM 3))::int ASC`,
+    ) as Promise<
+      Array<{
+        pg_major: string;
+        commits: number;
+        lines_changed: string | number;
+        avg_lines: number;
+        backpatched: number;
+        reverts: number;
+        committers: number;
+        authors: number;
+        for_others: number;
+      }>
+    >,
   ]);
 
   // Build cumulative series per PG release cycle
@@ -476,6 +504,30 @@ export async function getHackersOverview(db: WebDatabase, rawWindow?: string | n
     },
     timeline,
     releaseCycles,
+    releaseTrends: releaseTrendRows.map((r) => {
+      const commits = Number(r.commits || 0);
+      const backpatched = Number(r.backpatched || 0);
+      const committers = Number(r.committers || 0);
+      const authors = Number(r.authors || 0);
+      const forOthers = Number(r.for_others || 0);
+      const nonCommitterPct = commits > 0 ? Math.round((forOthers / commits) * 1000) / 10 : 0;
+      return {
+        major: r.pg_major,
+        commits,
+        linesChanged: Number(r.lines_changed || 0),
+        avgLines: Number(r.avg_lines || 0),
+        backpatched,
+        backpatchPct: commits > 0 ? Math.round((backpatched / commits) * 1000) / 10 : 0,
+        reverts: Number(r.reverts || 0),
+        committers,
+        authors,
+        commitsPerCommitter: committers > 0 ? Math.round((commits / committers) * 10) / 10 : 0,
+        authorsPerCommitter: committers > 0 ? Math.round((authors / committers) * 10) / 10 : 0,
+        nonCommitterPct,
+        committerAuthoredPct: commits > 0 ? Math.round((100 - nonCommitterPct) * 10) / 10 : 0,
+        isInProgress: r.pg_major === "PG20",
+      };
+    }),
     concentrationByYear: concYearRows.map((r) => {
       const tot = Math.max(1, Number(r.total || 0));
       return {

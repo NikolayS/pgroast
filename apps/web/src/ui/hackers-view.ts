@@ -1,14 +1,17 @@
 import { renderHackerProfileSkeleton, renderHackersSkeleton } from "./skeletons.ts";
 import {
   renderAllTimeGrowthSvg,
+  renderBackpatchChurnSvg,
   renderBusFactorQuadrantSvg,
   renderCollabConstellationSvg,
   renderCommitterConcentrationSvg,
+  renderMaintainerBottleneckSvg,
   renderRadialUtcClockSvg,
   renderReleaseCycleRaceSvg,
   renderSponsorshipTimelineSvg,
   type ConcentrationYearPoint,
   type ReleaseCycleSeries,
+  type ReleaseTrendPoint,
   type SubsystemBusFactorItem,
 } from "./viz-charts.ts";
 
@@ -46,6 +49,7 @@ export interface HackersOverviewData {
   } | null;
   timeline: Array<{ period: string; commits: number; forOthers?: number; reviews: number; activeHackers: number }>;
   releaseCycles?: ReleaseCycleSeries[];
+  releaseTrends?: ReleaseTrendPoint[];
   concentrationByYear?: ConcentrationYearPoint[];
   rhythmHeatmap: number[][];
   subsystems: SubsystemBusFactorItem[];
@@ -701,6 +705,84 @@ export function renderHackersTab(params: {
         ${race ? raceCard(false) : ""}
         ${cadenceCard}
       </div>`;
+    })()}
+
+    <!-- 2B. Release-over-Release Trends (PG11–PG20): Backpatch Surge, Code Churn & Committer Bottleneck -->
+    ${(() => {
+      const trends = overview.releaseTrends || [];
+      if (trends.length < 3) return "";
+      const bp = renderBackpatchChurnSvg(trends);
+      const mb = renderMaintainerBottleneckSvg(trends);
+      const fmtK = (n: number) => (n >= 1_000_000 ? `${(n / 1_000_000).toFixed(2)}M` : n >= 1_000 ? `${Math.round(n / 1_000)}k` : String(n));
+      return `
+      <div class="grid2" style="margin-bottom:14px;">
+        <div class="card viz-card" style="margin-bottom:0;">
+          <div class="card-head">
+            <div>
+              <div class="viz-kicker">Backpatch Surge &amp; Code Churn (PG11–PG20)</div>
+              <h2 class="viz-headline">${esc(bp.headline)}</h2>
+              <div class="dim" style="font-size:11.5px;margin-top:2px;">${esc(bp.subline)}</div>
+            </div>
+          </div>
+          ${bp.svg}
+        </div>
+        <div class="card viz-card" style="margin-bottom:0;">
+          <div class="card-head">
+            <div>
+              <div class="viz-kicker">Maintainer Bottleneck (PG11–PG20)</div>
+              <h2 class="viz-headline">${esc(mb.headline)}</h2>
+              <div class="dim" style="font-size:11.5px;margin-top:2px;">${esc(mb.subline)}</div>
+            </div>
+          </div>
+          ${mb.svg}
+        </div>
+      </div>
+      <div class="card" style="padding:12px 16px;margin-bottom:14px;">
+        <details class="st-more-toggle" style="margin-top:0;">
+          <summary>Release-by-release numbers table (PG11–PG20: commits, lines changed, backpatches, reverts, committers, authors)</summary>
+          <div class="table-scroll" style="margin-top:10px;">
+            <table class="dm-table">
+              <thead>
+                <tr>
+                  <th>Release</th>
+                  <th class="num">Commits</th>
+                  <th class="num">Lines changed</th>
+                  <th class="num">Avg lines</th>
+                  <th class="num">Backpatched</th>
+                  <th class="num">Reverts</th>
+                  <th class="num">Committers</th>
+                  <th class="num">Authors</th>
+                  <th class="num">Non-committer %</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${[...trends]
+                  .reverse()
+                  .map(
+                    (r) => `
+                  <tr${r.major === "PG20" || r.major === "PG19" || r.major === "PG18" ? ` class="dm-row" data-hacker-window="${esc(r.major)}" tabindex="0"` : ""}>
+                    <td class="mono" style="font-weight:700;">${esc(r.major)}${r.isInProgress ? ` <span class="dim" style="font-weight:400;">(in progress)</span>` : ""}</td>
+                    <td class="num mono">${fmtNum(r.commits)}</td>
+                    <td class="num mono">${fmtK(r.linesChanged)}</td>
+                    <td class="num mono dim">${fmtNum(r.avgLines)}</td>
+                    <td class="num mono" style="${r.backpatchPct >= 25 ? "color:var(--warn);font-weight:600;" : ""}">${fmtNum(r.backpatched)} <span class="dim">(${r.backpatchPct}%)</span></td>
+                    <td class="num mono dim">${r.reverts}</td>
+                    <td class="num mono">${r.committers}</td>
+                    <td class="num mono">${r.authors}</td>
+                    <td class="num mono" style="${r.nonCommitterPct >= 40 ? "color:var(--accent-t);font-weight:600;" : ""}">${r.nonCommitterPct}%</td>
+                  </tr>
+                `,
+                  )
+                  .join("")}
+              </tbody>
+            </table>
+          </div>
+          <div class="dim" style="font-size:11px;margin-top:8px;">
+            Measured on Postgres <code class="mono">master</code> commits grouped by June 25 major branch-cut boundaries. Backpatched commits include bugfixes also applied to stable branches (note: post-June-25 PG19 stabilization fixes land on <code class="mono">master</code> during the PG20 cycle and count as PG20 backpatches).
+          </div>
+        </details>
+      </div>
+      `;
     })()}
 
     <!-- 3. Subsystem Bus-Factor Quadrant + Annual Committer Concentration -->

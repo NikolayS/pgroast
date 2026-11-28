@@ -42,6 +42,23 @@ export interface ReleaseCycleSeries {
   points: Array<{ week: number; commits: number; cumCommits: number; cumReviewed: number; reviewPct: number }>;
 }
 
+export interface ReleaseTrendPoint {
+  major: string;
+  commits: number;
+  linesChanged: number;
+  avgLines: number;
+  backpatched: number;
+  backpatchPct: number;
+  reverts: number;
+  committers: number;
+  authors: number;
+  commitsPerCommitter: number;
+  authorsPerCommitter: number;
+  nonCommitterPct: number;
+  committerAuthoredPct: number;
+  isInProgress: boolean;
+}
+
 export function renderReleaseCycleRaceSvg(
   cycles: ReleaseCycleSeries[],
   focusMajor: string = "PG20",
@@ -598,6 +615,213 @@ export function renderAllTimeGrowthSvg(
     <div class="obs-chart-legend">
       <span><span class="dot" style="background:var(--viz-1);opacity:0.55"></span>Annual commits (peak year darker)</span>
       <span><span class="dot" style="background:var(--viz-2)"></span>Active contributors / year</span>
+    </div>
+  `;
+
+  return { headline, subline, svg };
+}
+
+/* ============================================================================
+ * 4B. HACKERS: Release-over-Release Backpatch Surge & Code Churn (PG11-PG20)
+ * ============================================================================ */
+export function renderBackpatchChurnSvg(
+  trends: ReleaseTrendPoint[],
+): { headline: string; subline: string; svg: string } {
+  if (!trends || trends.length === 0) {
+    return { headline: "Backpatch Surge & Churn", subline: "No release trend data synced yet.", svg: `<div class="empty-state">No data yet.</div>` };
+  }
+
+  const completed = trends.filter((t) => !t.isInProgress);
+  const latestComplete = completed[completed.length - 1] || trends[trends.length - 1]!;
+  const latest = trends[trends.length - 1]!;
+  const peakChurn = trends.reduce((a, b) => (b.linesChanged > a.linesChanged ? b : a), trends[0]!);
+  const fmtK = (n: number) => (n >= 1_000_000 ? `${(n / 1_000_000).toFixed(2)}M` : n >= 1_000 ? `${Math.round(n / 1_000)}k` : String(n));
+
+  const headline = latest.isInProgress
+    ? `${latestComplete.major} hit ${fmtNum(latestComplete.backpatched)} backpatches (${latestComplete.backpatchPct}%); ${latest.major} is at ${latest.backpatchPct}% so far`
+    : `${latest.major} hit ${fmtNum(latest.backpatched)} backpatches (${latest.backpatchPct}% of commits)`;
+  const subline = `Code churn peaked at ${fmtK(peakChurn.linesChanged)} lines in ${peakChurn.major} (${fmtNum(peakChurn.avgLines)} avg/commit) · Hover any release`;
+
+  const w = 520;
+  const h = 216;
+  const padL = 44;
+  const padR = 44;
+  const padT = 18;
+  const padB = 28;
+  const plotW = w - padL - padR;
+  const plotH = h - padT - padB;
+
+  const maxCommits = Math.max(100, ...trends.map((d) => d.commits));
+  const maxPct = Math.max(40, Math.ceil(Math.max(...trends.map((d) => d.backpatchPct)) / 10) * 10);
+  const step = plotW / Math.max(1, trends.length);
+  const barW = Math.max(12, Math.min(30, step * 0.62));
+
+  const yCommit = (v: number) => padT + plotH - (v / maxCommits) * plotH;
+  const yPct = (v: number) => padT + plotH - (v / maxPct) * plotH;
+
+  const bars = trends
+    .map((d, i) => {
+      const cx = padL + i * step + step / 2;
+      const x = cx - barW / 2;
+      const hTotal = (d.commits / maxCommits) * plotH;
+      const hBack = (d.backpatched / maxCommits) * plotH;
+      const hMain = Math.max(0, hTotal - hBack);
+      const yTop = padT + plotH - hTotal;
+      const yBack = padT + plotH - hBack;
+      const tipTitle = d.isInProgress ? `${d.major} (in progress)` : d.major;
+      const tipBody = `${fmtNum(d.commits)} commits · ${fmtNum(d.backpatched)} backpatched (${d.backpatchPct}%) · ${d.reverts} reverts`;
+      const tipSub = `${fmtK(d.linesChanged)} lines changed (${fmtNum(d.avgLines)} avg/commit)`;
+      return `
+        <g class="viz-hoverable" tabindex="0" data-tip-title="${esc(tipTitle)}" data-tip-body="${esc(tipBody)}" data-tip-sub="${esc(tipSub)}">
+          <rect x="${(cx - step / 2).toFixed(1)}" y="${padT}" width="${step.toFixed(1)}" height="${plotH}" fill="transparent" />
+          ${hMain > 0 ? `<rect x="${x.toFixed(1)}" y="${yTop.toFixed(1)}" width="${barW.toFixed(1)}" height="${hMain.toFixed(1)}" rx="2" fill="var(--viz-1)" opacity="${d.isInProgress ? "0.22" : "0.32"}" />` : ""}
+          ${hBack > 0 ? `<rect x="${x.toFixed(1)}" y="${yBack.toFixed(1)}" width="${barW.toFixed(1)}" height="${hBack.toFixed(1)}" rx="2" fill="var(--viz-1)" opacity="${d.isInProgress ? "0.78" : "0.92"}" />` : ""}
+          ${d.isInProgress ? `<rect x="${x.toFixed(1)}" y="${yTop.toFixed(1)}" width="${barW.toFixed(1)}" height="${hTotal.toFixed(1)}" rx="2" fill="none" stroke="var(--viz-1)" stroke-width="1" stroke-dasharray="3 2" />` : ""}
+          <text x="${cx.toFixed(1)}" y="${h - 8}" text-anchor="middle" fill="${d.isInProgress ? "var(--ink)" : "var(--viz-axis)"}" font-size="9.5" font-weight="${d.isInProgress ? "700" : "400"}" class="mono">${esc(d.major)}${d.isInProgress ? "*" : ""}</text>
+        </g>
+      `;
+    })
+    .join("");
+
+  const pctPts = trends
+    .map((d, i) => `${(padL + i * step + step / 2).toFixed(1)},${yPct(d.backpatchPct).toFixed(1)}`)
+    .join(" ");
+
+  const pctDots = trends
+    .map((d, i) => {
+      const cx = padL + i * step + step / 2;
+      const cy = yPct(d.backpatchPct);
+      const isLast = i === trends.length - 1;
+      return `<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${isLast ? "4" : "3"}" fill="var(--viz-3)" stroke="var(--surface)" stroke-width="1.4" pointer-events="none" />`;
+    })
+    .join("");
+
+  const svg = `
+    <svg viewBox="0 0 ${w} ${h}" class="obs-chart-svg" role="img" aria-label="PG11 through PG20 commits, backpatches, and backpatch share percentage">
+      <line x1="${padL}" y1="${padT}" x2="${w - padR}" y2="${padT}" stroke="var(--viz-grid)" stroke-dasharray="3 3" />
+      <line x1="${padL}" y1="${(padT + plotH / 2).toFixed(1)}" x2="${w - padR}" y2="${(padT + plotH / 2).toFixed(1)}" stroke="var(--viz-grid)" stroke-dasharray="3 3" />
+      <line x1="${padL}" y1="${padT + plotH}" x2="${w - padR}" y2="${padT + plotH}" stroke="var(--border)" />
+      <text x="${padL - 6}" y="${padT + 4}" text-anchor="end" fill="var(--viz-axis)" font-size="9.5" class="mono">${fmtNum(maxCommits)}</text>
+      <text x="${padL - 6}" y="${(padT + plotH / 2 + 3).toFixed(1)}" text-anchor="end" fill="var(--viz-axis)" font-size="9.5" class="mono">${fmtNum(Math.round(maxCommits / 2))}</text>
+      <text x="${padL - 6}" y="${padT + plotH}" text-anchor="end" fill="var(--viz-axis)" font-size="9.5" class="mono">0</text>
+      <text x="${w - padR + 6}" y="${padT + 4}" text-anchor="start" fill="var(--viz-3)" font-size="9.5" class="mono">${maxPct}%</text>
+      <text x="${w - padR + 6}" y="${(padT + plotH / 2 + 3).toFixed(1)}" text-anchor="start" fill="var(--viz-3)" font-size="9.5" class="mono">${Math.round(maxPct / 2)}%</text>
+      <text x="${w - padR + 6}" y="${padT + plotH}" text-anchor="start" fill="var(--viz-3)" font-size="9.5" class="mono">0%</text>
+      ${bars}
+      <polyline fill="none" stroke="var(--viz-3)" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round" points="${pctPts}" pointer-events="none" />
+      ${pctDots}
+    </svg>
+    <div class="obs-chart-legend">
+      <span><span class="dot" style="background:var(--viz-1);opacity:0.92"></span>Backpatched commits</span>
+      <span><span class="dot" style="background:var(--viz-1);opacity:0.32"></span>Master-only commits</span>
+      <span><span class="dot" style="background:var(--viz-3)"></span>Backpatch share % (right axis)</span>
+    </div>
+  `;
+
+  return { headline, subline, svg };
+}
+
+/* ============================================================================
+ * 4C. HACKERS: Maintainer Bottleneck — Flat Committers vs Surging Authors (PG11-PG20)
+ * ============================================================================ */
+export function renderMaintainerBottleneckSvg(
+  trends: ReleaseTrendPoint[],
+): { headline: string; subline: string; svg: string } {
+  if (!trends || trends.length === 0) {
+    return { headline: "Maintainer Bottleneck", subline: "No release trend data synced yet.", svg: `<div class="empty-state">No data yet.</div>` };
+  }
+
+  const first = trends[0]!;
+  const latest = trends[trends.length - 1]!;
+  const completed = trends.filter((t) => !t.isInProgress);
+  const latestComplete = completed[completed.length - 1] || latest;
+  const minComm = Math.min(...trends.map((d) => d.committers));
+  const maxComm = Math.max(...trends.map((d) => d.committers));
+  const peakAuthors = trends.reduce((a, b) => (b.authors > a.authors ? b : a), first);
+
+  const headline = `Committers stayed flat (${minComm}–${maxComm}) while non-committer share jumped ${first.nonCommitterPct}% → ${latest.nonCommitterPct}%`;
+  const subline = `Unique authors climbed ${fmtNum(first.authors)} → ${fmtNum(peakAuthors.authors)} (${latestComplete.authorsPerCommitter} authors/committer in ${latestComplete.major}) · Hover any release`;
+
+  const w = 520;
+  const h = 216;
+  const padL = 40;
+  const padR = 44;
+  const padT = 18;
+  const padB = 28;
+  const plotW = w - padL - padR;
+  const plotH = h - padT - padB;
+
+  const maxPct = Math.max(60, Math.ceil(Math.max(...trends.map((d) => d.nonCommitterPct)) / 10) * 10);
+  const maxPeople = Math.max(100, Math.ceil(Math.max(...trends.map((d) => d.authors)) / 50) * 50);
+  const step = plotW / Math.max(1, trends.length);
+  const barW = Math.max(12, Math.min(30, step * 0.62));
+
+  const yPct = (v: number) => padT + plotH - (v / maxPct) * plotH;
+  const yPpl = (v: number) => padT + plotH - (v / maxPeople) * plotH;
+
+  const bars = trends
+    .map((d, i) => {
+      const cx = padL + i * step + step / 2;
+      const x = cx - barW / 2;
+      const bh = (d.nonCommitterPct / maxPct) * plotH;
+      const y = padT + plotH - bh;
+      const tipTitle = d.isInProgress ? `${d.major} (in progress)` : d.major;
+      const tipBody = `${d.committers} committers · ${fmtNum(d.authors)} authors (${d.authorsPerCommitter}×) · ${d.commitsPerCommitter} commits/committer`;
+      const tipSub = `${d.nonCommitterPct}% non-committer-authored (${d.committerAuthoredPct}% self-authored)`;
+      return `
+        <g class="viz-hoverable" tabindex="0" data-tip-title="${esc(tipTitle)}" data-tip-body="${esc(tipBody)}" data-tip-sub="${esc(tipSub)}">
+          <rect x="${(cx - step / 2).toFixed(1)}" y="${padT}" width="${step.toFixed(1)}" height="${plotH}" fill="transparent" />
+          <rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barW.toFixed(1)}" height="${bh.toFixed(1)}" rx="2" fill="var(--viz-1)" opacity="${d.isInProgress ? "0.42" : "0.30"}" />
+          ${d.isInProgress ? `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barW.toFixed(1)}" height="${bh.toFixed(1)}" rx="2" fill="none" stroke="var(--viz-1)" stroke-width="1" stroke-dasharray="3 2" />` : ""}
+          <text x="${cx.toFixed(1)}" y="${h - 8}" text-anchor="middle" fill="${d.isInProgress ? "var(--ink)" : "var(--viz-axis)"}" font-size="9.5" font-weight="${d.isInProgress ? "700" : "400"}" class="mono">${esc(d.major)}${d.isInProgress ? "*" : ""}</text>
+        </g>
+      `;
+    })
+    .join("");
+
+  const authorPts = trends
+    .map((d, i) => `${(padL + i * step + step / 2).toFixed(1)},${yPpl(d.authors).toFixed(1)}`)
+    .join(" ");
+  const commPts = trends
+    .map((d, i) => `${(padL + i * step + step / 2).toFixed(1)},${yPpl(d.committers).toFixed(1)}`)
+    .join(" ");
+
+  const authorDots = trends
+    .map((d, i) => {
+      const cx = padL + i * step + step / 2;
+      const cy = yPpl(d.authors);
+      return `<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="3.2" fill="var(--viz-2)" stroke="var(--surface)" stroke-width="1.3" pointer-events="none" />`;
+    })
+    .join("");
+  const commDots = trends
+    .map((d, i) => {
+      const cx = padL + i * step + step / 2;
+      const cy = yPpl(d.committers);
+      return `<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="2.8" fill="var(--viz-3)" stroke="var(--surface)" stroke-width="1.2" pointer-events="none" />`;
+    })
+    .join("");
+
+  const svg = `
+    <svg viewBox="0 0 ${w} ${h}" class="obs-chart-svg" role="img" aria-label="PG11 through PG20 active committers versus unique authors and non-committer commit share">
+      <line x1="${padL}" y1="${padT}" x2="${w - padR}" y2="${padT}" stroke="var(--viz-grid)" stroke-dasharray="3 3" />
+      <line x1="${padL}" y1="${(padT + plotH / 2).toFixed(1)}" x2="${w - padR}" y2="${(padT + plotH / 2).toFixed(1)}" stroke="var(--viz-grid)" stroke-dasharray="3 3" />
+      <line x1="${padL}" y1="${padT + plotH}" x2="${w - padR}" y2="${padT + plotH}" stroke="var(--border)" />
+      <text x="${padL - 6}" y="${padT + 4}" text-anchor="end" fill="var(--viz-axis)" font-size="9.5" class="mono">${maxPct}%</text>
+      <text x="${padL - 6}" y="${(padT + plotH / 2 + 3).toFixed(1)}" text-anchor="end" fill="var(--viz-axis)" font-size="9.5" class="mono">${Math.round(maxPct / 2)}%</text>
+      <text x="${padL - 6}" y="${padT + plotH}" text-anchor="end" fill="var(--viz-axis)" font-size="9.5" class="mono">0%</text>
+      <text x="${w - padR + 6}" y="${padT + 4}" text-anchor="start" fill="var(--viz-2)" font-size="9.5" class="mono">${maxPeople}</text>
+      <text x="${w - padR + 6}" y="${(padT + plotH / 2 + 3).toFixed(1)}" text-anchor="start" fill="var(--viz-2)" font-size="9.5" class="mono">${Math.round(maxPeople / 2)}</text>
+      <text x="${w - padR + 6}" y="${padT + plotH}" text-anchor="start" fill="var(--viz-3)" font-size="9.5" class="mono">0</text>
+      ${bars}
+      <polyline fill="none" stroke="var(--viz-2)" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round" points="${authorPts}" pointer-events="none" />
+      ${authorDots}
+      <polyline fill="none" stroke="var(--viz-3)" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round" points="${commPts}" pointer-events="none" />
+      ${commDots}
+    </svg>
+    <div class="obs-chart-legend">
+      <span><span class="dot" style="background:var(--viz-1);opacity:0.42"></span>Non-committer share % (left)</span>
+      <span><span class="dot" style="background:var(--viz-2)"></span>Unique authors (right)</span>
+      <span><span class="dot" style="background:var(--viz-3)"></span>Active committers (right)</span>
     </div>
   `;
 
