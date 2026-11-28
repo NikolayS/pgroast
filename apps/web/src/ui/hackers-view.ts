@@ -384,16 +384,44 @@ function renderCareerChartSvg(
   career: Array<{ year: string; authored: number; committed: number; reviewed: number; reported: number }>,
 ): string {
   if (career.length === 0) return `<div class="muted" style="font-size:12.5px;">No career timeline recorded yet.</div>`;
+
+  // Fill every contiguous calendar year (including 0-activity years) through current year
+  const byYear = new Map<number, { year: string; authored: number; committed: number; reviewed: number; reported: number }>();
+  let minYr = Infinity;
+  let maxYr = -Infinity;
+  for (const c of career) {
+    const yr = Number(c.year);
+    if (!Number.isFinite(yr) || yr < 1990 || yr > 2100) continue;
+    byYear.set(yr, c);
+    if (yr < minYr) minYr = yr;
+    if (yr > maxYr) maxYr = yr;
+  }
+  const currentYr = new Date().getFullYear();
+  if (!Number.isFinite(minYr)) return `<div class="muted" style="font-size:12.5px;">No career timeline recorded yet.</div>`;
+  const endYr = Math.max(maxYr, currentYr);
+  const filled: Array<{ year: string; authored: number; committed: number; reviewed: number; reported: number }> = [];
+  for (let y = minYr; y <= endYr; y++) {
+    filled.push(
+      byYear.get(y) ?? {
+        year: String(y),
+        authored: 0,
+        committed: 0,
+        reviewed: 0,
+        reported: 0,
+      },
+    );
+  }
+
   const W = 680;
   const H = 175;
   const padL = 34;
-  const padR = 10;
+  const padR = 12;
   const padT = 14;
   const padB = 24;
   const innerW = W - padL - padR;
   const innerH = H - padT - padB;
-  const maxTotal = Math.max(1, ...career.map((c) => c.authored + c.reviewed + c.reported));
-  const step = innerW / Math.max(1, career.length);
+  const maxTotal = Math.max(1, ...filled.map((c) => c.authored + c.reviewed + c.reported));
+  const step = innerW / Math.max(1, filled.length);
   const barW = Math.max(5, Math.min(26, step * 0.65));
 
   const grid = [0, 0.5, 1]
@@ -401,13 +429,20 @@ function renderCareerChartSvg(
       const y = padT + innerH * (1 - f);
       return `
       <line x1="${padL}" y1="${y.toFixed(1)}" x2="${W - padR}" y2="${y.toFixed(1)}" stroke="var(--border)" stroke-dasharray="${f === 0 ? "" : "3,3"}" />
-      <text x="${padL - 5}" y="${(y + 3).toFixed(1)}" text-anchor="end" fill="var(--dim)" font-size="9.5">${Math.round(maxTotal * f)}</text>
+      <text x="${padL - 5}" y="${(y + 3).toFixed(1)}" text-anchor="end" fill="var(--dim)" font-size="9.5" class="mono">${Math.round(maxTotal * f)}</text>
     `;
     })
     .join("");
 
-  const lblStep = Math.max(1, Math.ceil(career.length / 8));
-  const bars = career
+  // Compact 'YY labels allow labeling every year up to ~26 years with zero overlap
+  const lblStep = Math.max(1, Math.ceil(24 / step));
+  const fmtYearLbl = (yr: string, idx: number): string => {
+    if (filled.length <= 10) return yr;
+    if (idx === 0 && step >= 28) return yr;
+    return `'${yr.slice(-2)}`;
+  };
+
+  const bars = filled
     .map((c, i) => {
       const cx = padL + i * step + step / 2;
       const x = cx - barW / 2;
@@ -418,16 +453,17 @@ function renderCareerChartSvg(
       const yR = yA - hR;
       const yB = yR - hB;
       const total = c.authored + c.reviewed + c.reported;
-      const showLbl = career.length <= 12 || i === career.length - 1 || (i % lblStep === 0 && i < career.length - 2);
+      const showLbl = lblStep === 1 || i === filled.length - 1 || (i % lblStep === 0 && (filled.length - 1 - i) * step >= 22);
       const bodyTip = `${fmtNum(c.authored)} authored · ${fmtNum(c.reviewed)} reviewed · ${fmtNum(c.reported)} reported`;
       const subTip = `${fmtNum(c.committed)} committed · ${fmtNum(total)} total credits`;
       return `
       <g class="viz-hoverable" tabindex="0" data-tip-title="${esc(c.year)}" data-tip-body="${esc(bodyTip)}" data-tip-sub="${esc(subTip)}">
         <rect x="${(cx - step / 2).toFixed(1)}" y="${padT}" width="${step.toFixed(1)}" height="${innerH}" fill="transparent" />
+        ${total === 0 ? `<rect x="${x.toFixed(1)}" y="${(padT + innerH - 1.5).toFixed(1)}" width="${barW.toFixed(1)}" height="1.5" rx="0.75" fill="var(--border)" />` : ""}
         ${hA > 0 ? `<rect x="${x.toFixed(1)}" y="${yA.toFixed(1)}" width="${barW.toFixed(1)}" height="${hA.toFixed(1)}" rx="1.5" fill="var(--viz-1)" />` : ""}
         ${hR > 0 ? `<rect x="${x.toFixed(1)}" y="${yR.toFixed(1)}" width="${barW.toFixed(1)}" height="${hR.toFixed(1)}" rx="1.5" fill="var(--viz-2)" />` : ""}
         ${hB > 0 ? `<rect x="${x.toFixed(1)}" y="${yB.toFixed(1)}" width="${barW.toFixed(1)}" height="${hB.toFixed(1)}" rx="1.5" fill="var(--viz-3)" />` : ""}
-        ${showLbl ? `<text x="${cx.toFixed(1)}" y="${H - 6}" text-anchor="middle" fill="var(--viz-axis)" font-size="9.5" class="mono">${esc(c.year)}</text>` : ""}
+        ${showLbl ? `<text x="${cx.toFixed(1)}" y="${H - 6}" text-anchor="middle" fill="${total === 0 ? "var(--dim)" : "var(--viz-axis)"}" font-size="9.5" class="mono">${esc(fmtYearLbl(c.year, i))}</text>` : ""}
       </g>
     `;
     })
