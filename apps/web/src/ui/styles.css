@@ -3274,10 +3274,17 @@ span.term-tip:not(.pill):not(.viz-legend-chip) {
   --viz-3: var(--warn);
   --viz-4: #38bdf8;
   --viz-5: var(--danger);
+  --viz-sector-3: var(--warn);
   --viz-grid: color-mix(in oklch, var(--text) 10%, transparent);
   --viz-axis: var(--dim);
   --viz-muted-line: color-mix(in oklch, var(--muted) 65%, transparent);
   --viz-heat-0: var(--hover);
+}
+[data-theme="paper"] {
+  --viz-sector-3: #2c5d8a;
+}
+[data-theme="espresso"] {
+  --viz-sector-3: #5b9bd5;
 }
 [data-theme="contrast"] {
   --viz-grid: var(--border);

@@ -714,7 +714,7 @@ export function renderCollabConstellationSvg(
   }> = [
     { title: "Committed their patches", verb: "Landed patches by", color: "var(--viz-1)", baseDeg: 270, nodes: collaborators.committedBy.slice(0, 5) },
     { title: "Reviewed their patches", verb: "Reviewed patches by", color: "var(--viz-2)", baseDeg: 35, nodes: collaborators.reviewedBy.slice(0, 5) },
-    { title: "Authors they helped", verb: "Helped author", color: "var(--viz-3)", baseDeg: 145, nodes: collaborators.helpedAuthors.slice(0, 5) },
+    { title: "Authors they helped", verb: "Helped author", color: "var(--viz-sector-3)", baseDeg: 145, nodes: collaborators.helpedAuthors.slice(0, 5) },
   ];
 
   const totalNodes = sectors.reduce((a, s) => a + s.nodes.length, 0);
