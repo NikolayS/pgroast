@@ -82,7 +82,7 @@ const ARCHETYPE_LABELS: Record<string, string> = {
 
 export function buildQuotaAgentPrompt(origin: string): string {
   return [
-    "Set up pgroast Weekly Quota Auto-Contribute on this machine so unused weekly OAuth quota (Claude, Codex, or Antigravity) roasts open PostgreSQL CommitFest patches right before reset:",
+    "Set up PgRoast weekly quota auto-contribute on this machine so unused weekly OAuth quota (Claude, Codex, or Antigravity) roasts open Postgres CommitFest patches right before reset:",
     "",
     "1. Make sure pgroast is cloned and dependencies are installed (`bun install`), and run `bun run src/cli.ts doctor` to see which AI CLIs are signed in.",
     `2. Initialize the auto-contribute config pointing at ${origin}:`,

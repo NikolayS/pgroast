@@ -1,7 +1,7 @@
 {
   "id": "/",
-  "name": "pgroast — Postgres CommitFest Hub",
-  "short_name": "pgroast",
+  "name": "PgRoast — Postgres CommitFest Hub",
+  "short_name": "PgRoast",
   "description": "Humans and their AIs reviewing Postgres CommitFest patches together.",
   "start_url": "/",
   "scope": "/",

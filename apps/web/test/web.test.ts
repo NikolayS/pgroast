@@ -149,7 +149,7 @@ describe("pgroast-web public companion API & security gates", () => {
     const manifestRes = await req("/manifest.webmanifest");
     expect(manifestRes.status).toBe(200);
     const manifestJson = (await manifestRes.json()) as { short_name: string };
-    expect(manifestJson.short_name).toBe("pgroast");
+    expect(manifestJson.short_name).toBe("PgRoast");
 
     // SEO & GEO endpoints: robots.txt, sitemap.xml, llms.txt, llms-full.txt
     const robotsRes = await req("/robots.txt");
@@ -168,7 +168,7 @@ describe("pgroast-web public companion API & security gates", () => {
     const llmsRes = await req("/llms.txt");
     expect(llmsRes.status).toBe(200);
     const llmsText = await llmsRes.text();
-    expect(llmsText).toContain("# pgroast");
+    expect(llmsText).toContain("# PgRoast");
     expect(llmsText).toContain("Roast levels");
     expect(llmsText).toContain("/patch/5879");
 
@@ -817,7 +817,7 @@ describe("pgroast-web public companion API & security gates", () => {
 
       // SSR /hacker/:slug page metadata + JSON-LD + zero raw emails
       const ssrHacker = await (await req("/hacker/david-rowley")).text();
-      expect(ssrHacker).toContain("David Rowley (Contributor) — PostgreSQL Hacking Profile · pgroast");
+      expect(ssrHacker).toContain("David Rowley (Contributor) — Postgres Hacking Profile · PgRoast");
       expect(ssrHacker).toContain('"@type":"Person"');
       expect(ssrHacker).not.toContain("dgrowleyml@gmail.com");
     } finally {
@@ -887,21 +887,21 @@ describe("pgroast-web public companion API & security gates", () => {
 
     // 5. SSR /docs, /contribute, and /about routes render separate titles and OG metadata
     const docsHtml = await (await req("/docs")).text();
-    expect(docsHtml).toContain("Docs &amp; Complete Feature Catalog — pgroast");
+    expect(docsHtml).toContain("Docs &amp; Complete Feature Catalog — PgRoast");
     const contributeHtml = await (await req("/contribute")).text();
-    expect(contributeHtml).toContain("Weekly Quota Auto-Contribute &amp; Live CommitFest Coverage — pgroast");
+    expect(contributeHtml).toContain("Weekly Quota Auto-Contribute &amp; Live CommitFest Coverage — PgRoast");
     const aboutHtml = await (await req("/about")).text();
-    expect(aboutHtml).toContain("About pgroast — What Roasting Postgres Patches Means");
+    expect(aboutHtml).toContain("About PgRoast — What Roasting Postgres Patches Means");
     const roastsHtml = await (await req("/roasts")).text();
-    expect(roastsHtml).toContain("Community Roasts — pgroast");
+    expect(roastsHtml).toContain("Community Roasts — PgRoast");
     const hackersHtml = await (await req("/hackers")).text();
-    expect(hackersHtml).toContain("Postgres Hackers — Leaderboards &amp; Contributor Catalog — pgroast");
+    expect(hackersHtml).toContain("Postgres Hackers — Leaderboards &amp; Contributor Catalog — PgRoast");
     const statsHtml = await (await req("/stats")).text();
-    expect(statsHtml).toContain("Postgres &amp; CommitFest Stats Observatory — pgroast");
+    expect(statsHtml).toContain("Postgres &amp; CommitFest Stats Observatory — PgRoast");
     const entriesHtml = await (await req("/entries")).text();
-    expect(entriesHtml).toContain("CommitFest Entries — pgroast");
+    expect(entriesHtml).toContain("CommitFest Entries — PgRoast");
     const connectHtml = await (await req("/connect")).text();
-    expect(connectHtml).toContain("Setup Backoffice &amp; Publish Token — pgroast");
+    expect(connectHtml).toContain("Setup Backoffice &amp; Publish Token — PgRoast");
   });
 
   test("Mailing Lists Archive: catalog/since/mbox parsers, unified hacker linking, APIs, and /lists SSR", async () => {
@@ -958,7 +958,7 @@ describe("pgroast-web public companion API & security gates", () => {
 
     // SSR /lists route
     const listsHtml = await (await req("/lists")).text();
-    expect(listsHtml).toContain("PostgreSQL Mailing Lists Archive (Continuous Sync) — pgroast");
+    expect(listsHtml).toContain("Postgres Mailing Lists Archive (Continuous Sync) — PgRoast");
   });
 
   test("CommitFest Stats Observatory API (/api/v1/stats/overview) computes live verification funnel, queue units & unified authors", async () => {
@@ -1010,7 +1010,7 @@ describe("pgroast-web public companion API & security gates", () => {
     // 1. /auth/cli renders HTML sign-in helper
     const cliPage = await req("/auth/cli?port=54321&state=0123456789abcdef0123456789abcdef");
     expect(cliPage.status).toBe(200);
-    expect(await cliPage.text()).toContain("Sign in to pgroast CLI");
+    expect(await cliPage.text()).toContain("Sign in to PgRoast CLI");
 
     // 2. Reject invalid handles (400) and secrets/paths (422)
     const badHandle = await req("/api/v1/auth/cli-register", {

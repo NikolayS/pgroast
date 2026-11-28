@@ -191,7 +191,7 @@ export function renderAboutTab(): string {
   return `
     <div class="page-head">
       <div class="page-head-main">
-        <div class="viz-kicker">About pgroast</div>
+        <div class="viz-kicker">About PgRoast</div>
         <h1 class="page-title">Let's roast Postgres patches!</h1>
         <div class="page-sub">
           Humans and their AIs reviewing CommitFest patches together, starting with the idea itself.
@@ -284,7 +284,7 @@ export function renderAboutTab(): string {
       <div class="card-head">
         <div>
           <div class="viz-kicker">Put it to work</div>
-          <h2>How Postgres contributors use pgroast</h2>
+          <h2>How Postgres contributors can use PgRoast</h2>
         </div>
       </div>
       <div class="about-levels-grid">

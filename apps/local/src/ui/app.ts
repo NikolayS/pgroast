@@ -2923,7 +2923,7 @@ function renderWorkbenchView(): string {
           </div>
           ${
             opinionsList.length === 0
-              ? `<div class="muted" style="font-size:12px;">No roasts recorded yet. Run pgroast on the right or import a teammate's roast JSON.</div>`
+              ? `<div class="muted" style="font-size:12px;">No roasts recorded yet. Run PgRoast on the right or import a teammate's roast JSON.</div>`
               : `
             <div class="table-wrap" style="border:none;">
               <table>
@@ -3605,7 +3605,7 @@ function renderSettingsView(): string {
               Active mode: <strong>${skills?.mode === "custom" ? `Custom skills (${skills.count} loaded)` : `Built-in basic skills (${skills?.count ?? 3} default skills)`}</strong>
             </div>
           </div>
-          <div class="form-field"><label>pgroast v2 Repo</label><input type="text" id="set-pgroastRepo" value="${esc(s.pgroastRepo)}" placeholder="../pgroast or ~/pgroast" /></div>
+          <div class="form-field"><label>PgRoast v2 repo</label><input type="text" id="set-pgroastRepo" value="${esc(s.pgroastRepo)}" placeholder="../pgroast or ~/pgroast" /></div>
           <div class="form-field"><label>Roast Batch Data Dir (optional)</label><input type="text" id="set-roastDataDir" value="${esc(s.roastDataDir)}" placeholder="Optional folder of pre-computed roast.json files" /></div>
           <div class="form-field"><label>PostgreSQL Git Clone (optional — worktrees &amp; expert routing)</label><input type="text" id="set-postgresRepo" value="${esc(s.postgresRepo)}" placeholder="~/postgres" /></div>
           <div class="form-field"><label>Managed Worktrees Root</label><input type="text" id="set-worktreesRoot" value="${esc(s.worktreesRoot)}" /></div>
@@ -5778,7 +5778,7 @@ function renderOnboarding(): void {
   if (step === 1) {
     body.innerHTML = `
       <p style="margin-top:0;">
-        Welcome to <strong>pgroast-app</strong> — your local PostgreSQL CommitFest &amp; <code>-hackers</code> workbench.
+        Welcome to <strong>PgRoast</strong> — your local Postgres CommitFest &amp; <code>-hackers</code> workbench.
         Everything stays on <code>127.0.0.1</code> in your local PostgreSQL DB. All profile fields below are optional.
       </p>
       <div class="ob-card">
@@ -5927,7 +5927,7 @@ function renderOnboarding(): void {
 
       <div class="section-label">Local Repositories (Optional)</div>
       <div class="form-field">
-        <label>pgroast v2 CLI Folder (needed to launch new roasts)</label>
+        <label>PgRoast v2 CLI folder (needed to launch new roasts)</label>
         <input type="text" id="ob-pgroastRepo" value="${esc(s?.pgroastRepo || "")}" placeholder="../pgroast or ~/pgroast" />
       </div>
       <div class="form-field">
@@ -6574,10 +6574,10 @@ function initGlobalControls(): void {
     const bodyEl = document.getElementById("modal-body")!;
     const footerEl = document.getElementById("modal-footer")!;
 
-    titleEl.textContent = "How pgroast-app Works — Quick Guide";
+    titleEl.textContent = "How PgRoast Backoffice works — quick guide";
     bodyEl.innerHTML = `
       <p class="muted" style="margin-top:0;font-size:12px;">
-        <strong>pgroast-app</strong> is a local-only (<code>127.0.0.1</code>) PostgreSQL CommitFest &amp; <code>-hackers</code> triage workbench. Nothing is sent to mailing lists or pushed to GitHub without your explicit confirmation.
+        <strong>PgRoast Backoffice</strong> is a local-only (<code>127.0.0.1</code>) Postgres CommitFest &amp; <code>-hackers</code> triage workbench. Nothing is sent to mailing lists or pushed to GitHub without your explicit confirmation.
       </p>
       <div class="guide-grid">
         <div class="guide-card">

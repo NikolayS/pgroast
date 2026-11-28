@@ -47,7 +47,7 @@ export const API_ENDPOINTS: ApiEndpointDef[] = [
     pathTemplate: "/api/v1/health",
     title: "Service health & version",
     auth: "public",
-    summary: "Returns the live pgroast version, Postgres server version, indexed entry/roast/brief counts, and privacy-friendly view totals.",
+    summary: "Returns the live PgRoast version, Postgres server version, indexed entry/roast/brief counts, and privacy-friendly view totals.",
     params: [],
     cliExample: "npx pgroast doctor",
     responseFields: [
@@ -402,7 +402,7 @@ export function renderStripeApiExplorer(params: {
       <div class="stripe-docs-topbar">
         <div>
           <div class="viz-kicker">Interactive API Reference</div>
-          <h2 style="margin:0;font-size:18px;letter-spacing:-0.02em;">pgroast Public REST API</h2>
+          <h2 style="margin:0;font-size:18px;letter-spacing:-0.02em;">PgRoast public REST API</h2>
         </div>
         <div class="row" style="gap:6px;flex-wrap:wrap;">
           <span class="pill p-ok mono" style="font-size:11px;">Base: ${esc(origin)}</span>

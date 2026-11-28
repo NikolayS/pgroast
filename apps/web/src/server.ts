@@ -131,7 +131,7 @@ function renderOAuthResultHtml(opts: {
   error?: string;
   localWorkbenchUrl: string;
 }): string {
-  const title = opts.ok ? `Publish token issued — pgroast` : `Sign-in failed — pgroast`;
+  const title = opts.ok ? `Publish token issued — PgRoast` : `Sign-in failed — PgRoast`;
   const body = opts.ok
     ? `
       <div class="badge ok">${escAttr(opts.provider.toUpperCase())} verified</div>
@@ -619,7 +619,7 @@ export async function createWebHandler(opts?: {
         const spec = {
           openapi: "3.1.0",
           info: {
-            title: "pgroast Public Companion API",
+            title: "PgRoast Public Companion API",
             version: ROOT_PKG_VERSION,
             description: "Read-only CommitFest intelligence, multi-model roasts, Postgres Hacking Observatory, Mailing Lists Archive, and Weekly Quota Auto-Contribute queue.",
           },
@@ -648,7 +648,7 @@ export async function createWebHandler(opts?: {
       if (method === "GET" && path === "/robots.txt") {
         const origin = resolveRequestOrigin(req, cfg);
         const body = [
-          "# pgroast — PostgreSQL CommitFest collaboration & adversarial pre-review",
+          "# PgRoast — Postgres CommitFest collaboration & adversarial pre-review",
           `# LLM / AI crawler guide: ${origin}/llms.txt`,
           `# Full LLM digest: ${origin}/llms-full.txt`,
           "",
@@ -740,11 +740,11 @@ export async function createWebHandler(opts?: {
           ? (JSON.parse(latestBrief.closing_json || "[]") as Array<{ cf_id: number; title: string; verdict?: string; status?: string }>)
           : [];
         const lines: string[] = [
-          "# pgroast",
+          "# PgRoast",
           "",
           "> Open-source Postgres CommitFest collaboration hub where human reviewers and AI assistants run adversarial design pre-reviews (\"roasts\") of Postgres patches, compare multi-model roasts, and hand off verified reviews to pgsql-hackers.",
           "",
-          "## How pgroast works",
+          "## How PgRoast works",
           "",
           "- **Humans + AIs together:** Reviewers run a private local Backoffice (`apps/local`) with their own AI CLIs (Claude, Codex, Gemini/agy, or cross-family dual mode) to pre-review CommitFest entries or their own draft patches (`pgroast --self`), then explicitly publish sanitized roasts to this public hub.",
           "- **Roast levels (Verification Depth):** `light` (idea, thread, and 2,547 historical precedents only; no code read, no compile), `medium` (reads C/H/SQL diffs + surrounding postgres.git context, runs `git apply`, incremental `meson compile -Dcassert=true`, and targeted `meson test`), `dark` (everything in `medium` plus boots a throwaway patched Postgres cluster over Unix socket, runs adversarial pure-SQL stress tests and `EXPLAIN (ANALYZE, BUFFERS)` checks via `psql`, inspects `postgres.log` for crashes/TRAP/PANIC, and runs a reflection pass).",
@@ -767,7 +767,7 @@ export async function createWebHandler(opts?: {
           `- [All CommitFest Entries](${origin}/?tab=entries): Searchable directory of ${entries.length} patches with status and verdict filters.`,
           `- [Community Roasts](${origin}/roasts): Attributed multi-model, multi-flavour roasts.`,
           `- [Personal Backoffice Setup](${origin}/?tab=connect): How to run your own local workbench and publish roasts.`,
-          `- [About pgroast — What Roasting Means](${origin}/about): Why we roast Postgres patches, why idea and design scrutiny is the foundation of all roast levels (Light, Medium, Dark), and how the 7-angle + Critic pipeline works.`,
+          `- [About PgRoast — What Roasting Means](${origin}/about): Why we roast Postgres patches, why idea and design scrutiny is the foundation of all roast levels (Light, Medium, Dark), and how the 7-angle + Critic pipeline works.`,
           `- [Docs, All Features & Weekly Quota Auto-Contribute](${origin}/docs): Complete feature directory, CLI reference, live CommitFest coverage progress, and weekly OAuth quota donation setup.`,
           `- [XML Sitemap](${origin}/sitemap.xml): Complete index of all patch collaboration pages.`,
           `- [Full LLM Digest](${origin}/llms-full.txt): Expanded Markdown with live roasts and full shortlist.`,
@@ -835,57 +835,57 @@ export async function createWebHandler(opts?: {
       const staticPageMeta: Record<string, { canonicalPath: string; title: string; desc: string }> = {
         "/hackers": {
           canonicalPath: "/hackers",
-          title: "Postgres Hackers — Leaderboards & Contributor Catalog — pgroast",
+          title: "Postgres Hackers — Leaderboards & Contributor Catalog — PgRoast",
           desc: "Postgres contributor leaderboards (committers, authors, reviewers, bug hunters, rising stars), maintainer sponsorship load, and searchable catalog of 2,100+ unified profiles.",
         },
         "/lists": {
           canonicalPath: "/lists",
-          title: "PostgreSQL Mailing Lists Archive (Continuous Sync) — pgroast",
-          desc: "Continuously synced archive across 51 PostgreSQL public mailing lists with full-text search, active threads, and unified /hacker/<slug> contributor profiles.",
+          title: "Postgres Mailing Lists Archive (Continuous Sync) — PgRoast",
+          desc: "Continuously synced archive across 51 Postgres public mailing lists with full-text search, active threads, and unified /hacker/<slug> contributor profiles.",
         },
         "/stats": {
           canonicalPath: "/stats",
-          title: "Postgres & CommitFest Stats Observatory — pgroast",
+          title: "Postgres & CommitFest Stats Observatory — PgRoast",
           desc: "PG11–PG20 release trends, backpatch depth, CVE & AI security wave, quality under load, monthly inflection, CommitFest queue, bottlenecks, and Dark build/SQL verification.",
         },
         "/entries": {
           canonicalPath: "/entries",
-          title: "CommitFest Entries — pgroast",
+          title: "CommitFest Entries — PgRoast",
           desc: "Browse and filter open and closed Postgres CommitFest patches with AI pre-review verdicts and verification badges.",
         },
         "/roasts": {
           canonicalPath: "/roasts",
-          title: "Community Roasts — pgroast",
+          title: "Community Roasts — PgRoast",
           desc: "Browse attributed multi-model Postgres patch roasts across Light, Medium, and Dark verification depths.",
         },
         "/contribute": {
           canonicalPath: "/contribute",
-          title: "Weekly Quota Auto-Contribute & Live CommitFest Coverage — pgroast",
-          desc: "Donate unused weekly OAuth quota (Claude, Codex, Antigravity) to pre-review open PostgreSQL CommitFest patches, preview the live queue, and track community coverage.",
+          title: "Weekly Quota Auto-Contribute & Live CommitFest Coverage — PgRoast",
+          desc: "Donate unused weekly OAuth quota (Claude, Codex, Antigravity) to pre-review open Postgres CommitFest patches, preview the live queue, and track community coverage.",
         },
         "/docs": {
           canonicalPath: "/docs",
-          title: "Docs & Complete Feature Catalog — pgroast",
-          desc: "Complete directory of every pgroast feature, architecture overview, CLI command reference, and public APIs.",
+          title: "Docs & Complete Feature Catalog — PgRoast",
+          desc: "Complete directory of every PgRoast feature, architecture overview, CLI command reference, and public APIs.",
         },
         "/about": {
           canonicalPath: "/about",
-          title: "About pgroast — What Roasting Postgres Patches Means",
-          desc: "How pgroast uses AI to review and scrutinize Postgres CommitFest patches — starting with the idea itself across Light, Medium, and Dark roast levels.",
+          title: "About PgRoast — What Roasting Postgres Patches Means",
+          desc: "How PgRoast uses AI to review and scrutinize Postgres CommitFest patches — starting with the idea itself across Light, Medium, and Dark roast levels.",
         },
         "/connect": {
           canonicalPath: "/connect",
-          title: "Setup Backoffice & Publish Token — pgroast",
+          title: "Setup Backoffice & Publish Token — PgRoast",
           desc: "Connect your local CLI or Personal Backoffice to publish sanitized Postgres patch roasts.",
         },
         "/coordination": {
           canonicalPath: "/coordination",
-          title: "Team Coordination — pgroast",
+          title: "Team Coordination — PgRoast",
           desc: "Shared review coordination and claim board for Postgres CommitFest patches.",
         },
         "/team": {
           canonicalPath: "/coordination",
-          title: "Team Coordination — pgroast",
+          title: "Team Coordination — PgRoast",
           desc: "Shared review coordination and claim board for Postgres CommitFest patches.",
         },
       };
@@ -895,13 +895,13 @@ export async function createWebHandler(opts?: {
         const origin = resolveRequestOrigin(req, cfg);
         const cfId = parsePositivePgInt(patchPageMatch?.[1] || url.searchParams.get("cf")) ?? 0;
         const hackerSlug = hackerPageMatch?.[1]?.toLowerCase() || "";
-        let title = "pgroast — PostgreSQL CommitFest Collaboration & Hacking Observatory";
-        let desc = "Explore PostgreSQL hacking activity, contributor profiles, CommitFest patches, -hackers discussions, live diffs, and multi-model AI pre-reviews.";
+        let title = "PgRoast — Postgres CommitFest Collaboration & Hacking Observatory";
+        let desc = "Explore Postgres hacking activity, contributor profiles, CommitFest patches, -hackers discussions, live diffs, and multi-model AI pre-reviews.";
         let canonical = `${origin}/`;
         let jsonLd: Record<string, unknown> = {
           "@context": "https://schema.org",
           "@type": "WebSite",
-          name: "pgroast",
+          name: "PgRoast",
           url: `${origin}/`,
           description: desc,
         };
@@ -914,18 +914,18 @@ export async function createWebHandler(opts?: {
           const profile = await getHackerProfileBySlug(db, hackerSlug).catch(() => null);
           if (profile) {
             const p = profile.person;
-            title = `${p.name} (${p.role}) — PostgreSQL Hacking Profile · pgroast`;
+            title = `${p.name} (${p.role}) — Postgres Hacking Profile · PgRoast`;
             desc = `${p.commitsAuthored} commits authored · ${p.reviewsGiven} reviews credited · ${p.bugsReported} bugs reported · ${p.commitsCommitted} commits landed`;
             jsonLd = {
               "@context": "https://schema.org",
               "@type": "Person",
               name: p.name,
-              jobTitle: `PostgreSQL ${p.role}`,
+              jobTitle: `Postgres ${p.role}`,
               url: canonical,
               description: desc,
             };
           } else {
-            title = `${hackerSlug} — PostgreSQL Hacker Profile · pgroast`;
+            title = `${hackerSlug} — Postgres Hacker Profile · PgRoast`;
           }
         } else if (cfId > 0) {
           canonical = `${origin}/patch/${cfId}`;
@@ -938,7 +938,7 @@ export async function createWebHandler(opts?: {
             }
           }
           if (entry) {
-            title = `CF ${entry.cf_id}: ${entry.title} — pgroast`;
+            title = `CF ${entry.cf_id}: ${entry.title} — PgRoast`;
             const parts = [
               entry.verdict ? humanVerdictLabel(entry.verdict) : "Not roasted",
               entry.status || "",
@@ -953,19 +953,19 @@ export async function createWebHandler(opts?: {
               description: desc,
               author: entry.authors ? { "@type": "Person", name: entry.authors } : undefined,
               dateModified: entry.updated_at || undefined,
-              isPartOf: { "@type": "WebSite", name: "pgroast", url: `${origin}/` },
+              isPartOf: { "@type": "WebSite", name: "PgRoast", url: `${origin}/` },
             };
           } else {
-            title = `CF ${cfId} — pgroast`;
+            title = `CF ${cfId} — PgRoast`;
           }
         }
         const safeLd = JSON.stringify(jsonLd).replace(/</g, "\\u003c");
         const ogTags = [
           `<link rel="canonical" href="${escAttr(canonical)}" />`,
-          `<link rel="alternate" type="text/markdown" title="pgroast LLMs Guide" href="${escAttr(origin)}/llms.txt" />`,
+          `<link rel="alternate" type="text/markdown" title="PgRoast LLMs Guide" href="${escAttr(origin)}/llms.txt" />`,
           `<meta name="description" content="${escAttr(desc)}" />`,
           `<meta property="og:type" content="${cfId > 0 ? "article" : "website"}" />`,
-          `<meta property="og:site_name" content="pgroast" />`,
+          `<meta property="og:site_name" content="PgRoast" />`,
           `<meta property="og:url" content="${escAttr(canonical)}" />`,
           `<meta property="og:title" content="${escAttr(title)}" />`,
           `<meta property="og:description" content="${escAttr(desc)}" />`,
@@ -1171,7 +1171,7 @@ export async function createWebHandler(opts?: {
         const ghOk = Boolean(cfg.githubClientId && cfg.githubClientSecret);
         const goOk = Boolean(cfg.googleClientId && cfg.googleClientSecret);
         const qs = cli.cliPort && cli.cliState ? `?cli_port=${cli.cliPort}&cli_state=${encodeURIComponent(cli.cliState)}` : "";
-        const html = `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1" /><title>Sign in to pgroast CLI</title><style>body{margin:0;background:#0b0c0e;color:#e7e9ee;font-family:-apple-system,BlinkMacSystemFont,Inter,Segoe UI,sans-serif;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;}.card{max-width:420px;width:100%;background:#13151b;border:1px solid #262a35;border-radius:14px;padding:24px;}h1{font-size:19px;margin:0 0 8px;}p{color:#9ca3b5;font-size:13.5px;line-height:1.5;margin:0 0 18px;}.btns{display:flex;flex-direction:column;gap:10px;}.btn{display:flex;align-items:center;justify-content:center;padding:11px 16px;border-radius:9px;font-size:14px;font-weight:600;text-decoration:none;border:1px solid #2d3240;background:#1a1d26;color:#e7e9ee;}.btn.primary{background:#5e6ad2;border-color:#5e6ad2;color:#fff;}</style></head><body><main class="card"><h1>Sign in to pgroast CLI</h1><p>Issues a publish-only token for your local CLI (~/.pgroast/auth.json). Nothing is ever posted to pgsql-hackers or CommitFest.</p><div class="btns">${ghOk ? `<a class="btn primary" href="/auth/github${qs}">Continue with GitHub</a>` : ""}${goOk ? `<a class="btn${ghOk ? "" : " primary"}" href="/auth/google${qs}">Continue with Google</a>` : ""}${!ghOk && !goOk ? `<p>OAuth is not configured on this server. Run <code>npx pgroast login</code> in your terminal for automatic CLI registration.</p>` : ""}</div></main></body></html>`;
+        const html = `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1" /><title>Sign in to PgRoast CLI</title><style>body{margin:0;background:#0b0c0e;color:#e7e9ee;font-family:-apple-system,BlinkMacSystemFont,Inter,Segoe UI,sans-serif;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;}.card{max-width:420px;width:100%;background:#13151b;border:1px solid #262a35;border-radius:14px;padding:24px;}h1{font-size:19px;margin:0 0 8px;}p{color:#9ca3b5;font-size:13.5px;line-height:1.5;margin:0 0 18px;}.btns{display:flex;flex-direction:column;gap:10px;}.btn{display:flex;align-items:center;justify-content:center;padding:11px 16px;border-radius:9px;font-size:14px;font-weight:600;text-decoration:none;border:1px solid #2d3240;background:#1a1d26;color:#e7e9ee;}.btn.primary{background:#5e6ad2;border-color:#5e6ad2;color:#fff;}</style></head><body><main class="card"><h1>Sign in to PgRoast CLI</h1><p>Issues a publish-only token for your local CLI (~/.pgroast/auth.json). Nothing is ever posted to pgsql-hackers or CommitFest.</p><div class="btns">${ghOk ? `<a class="btn primary" href="/auth/github${qs}">Continue with GitHub</a>` : ""}${goOk ? `<a class="btn${ghOk ? "" : " primary"}" href="/auth/google${qs}">Continue with Google</a>` : ""}${!ghOk && !goOk ? `<p>OAuth is not configured on this server. Run <code>npx pgroast login</code> in your terminal for automatic CLI registration.</p>` : ""}</div></main></body></html>`;
         return new Response(html, {
           headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store", ...securityHeaders("app") },
         });

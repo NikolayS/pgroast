@@ -1,4 +1,4 @@
-# pgroast 🔥❤️‍🔥🍿
+# PgRoast 🔥❤️‍🔥🍿
 
 **Let's roast Postgres patches!** Humans and their AIs reviewing Postgres CommitFest patches together.
 
@@ -11,7 +11,7 @@ Every roast starts by scrutinizing the **idea and design** (Review Pyramid + 2,5
 The fastest way to install and run your local **Personal Backoffice** (`http://127.0.0.1:3432`) is to paste this prompt into your AI coding agent (**Claude Code**, **Codex**, **Cursor**, **Windsurf**, or **Antigravity**):
 
 ```text
-Install and configure the pgroast Personal Backoffice on this machine:
+Install and configure the PgRoast Personal Backoffice on this machine:
 
 1. Check prerequisites: git, bun (>= 1.3.5), Postgres 18 or 19 (local or Docker), and at least one signed-in AI CLI (claude, codex, or agy).
 2. Clone https://github.com/NikolayS/pgroast.git (or git pull if already cloned) and run `bun install`.
@@ -133,7 +133,7 @@ Each reviewer runs their own Personal Backoffice locally.
 **Fastest way — paste this prompt into your AI coding agent (Claude Code, Codex, Cursor, or Antigravity):**
 
 ```text
-Install and configure the pgroast Personal Backoffice on this machine:
+Install and configure the PgRoast Personal Backoffice on this machine:
 
 1. Check prerequisites: git, bun (>= 1.3.5), PostgreSQL 18 or 19 (local or Docker), and at least one signed-in AI CLI (claude or codex).
 2. Clone https://github.com/NikolayS/pgroast.git (or git pull if already cloned) and run `bun install`.

@@ -7,7 +7,7 @@
 export function buildBackofficeInstallPrompt(origin = "https://pgroast.postgres.ai"): string {
   const cleanOrigin = (origin || "https://pgroast.postgres.ai").replace(/\/$/, "");
   return [
-    "Install and configure the pgroast Personal Backoffice on this machine:",
+    "Install and configure the PgRoast Personal Backoffice on this machine:",
     "",
     "1. Check prerequisites: git, bun (>= 1.3.5), Postgres 18 or 19 (local or Docker), and at least one signed-in AI CLI (claude, codex, or agy).",
     "2. Clone https://github.com/NikolayS/pgroast.git (or git pull if already cloned) and run `bun install`.",

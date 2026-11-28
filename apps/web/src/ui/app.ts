@@ -671,7 +671,7 @@ async function openPatchPage(cfId: number, pushHistory = true, initialMrTab: MrT
     if (state.activePatchId !== cfId) return;
     state.patchData = data;
     state.patchLoading = false;
-    const title = data.entry?.title ? `CF ${cfId}: ${data.entry.title} — pgroast` : `CF ${cfId} — pgroast`;
+    const title = data.entry?.title ? `CF ${cfId}: ${data.entry.title} — PgRoast` : `CF ${cfId} — PgRoast`;
     document.title = title;
     render();
   } catch {
@@ -770,7 +770,7 @@ async function openHackerProfile(slug: string, pushHistory = true, year?: number
       else if (data.opinions.length > 0) state.hackerProfileTab = "opinions";
       else state.hackerProfileTab = "commits";
     }
-    document.title = `${data.person.name} — PostgreSQL Hacker Profile | pgroast`;
+    document.title = `${data.person.name} — Postgres Hacker Profile | PgRoast`;
     render();
   } catch (err) {
     if (state.activeHackerSlug !== cleanSlug) return;
@@ -908,26 +908,26 @@ function navigateToTab(tab: TabId, pushHistory = true, hash = ""): void {
   syncTopBackofficeLink();
   document.title =
     tab === "hackers"
-      ? "Postgres Hacking Observatory — pgroast"
+      ? "Postgres Hackers — PgRoast"
       : tab === "lists"
-        ? "Postgres Mailing Lists Archive — pgroast"
+        ? "Postgres Mailing Lists Archive — PgRoast"
         : tab === "stats"
-          ? "CommitFest Stats Observatory — pgroast"
+          ? "Postgres & CommitFest Stats — PgRoast"
           : tab === "entries"
-            ? "CommitFest Entries — pgroast"
+            ? "CommitFest Entries — PgRoast"
             : tab === "opinions"
-              ? "Community Roasts — pgroast"
+              ? "Community Roasts — PgRoast"
               : tab === "contribute"
-                ? "Weekly Quota Auto-Contribute — pgroast"
+                ? "Weekly Quota Auto-Contribute — PgRoast"
                 : tab === "docs"
-                  ? "Docs & Complete Feature Catalog — pgroast"
+                  ? "Docs & Feature Catalog — PgRoast"
                   : tab === "about"
-                    ? "About pgroast — What Roasting Postgres Patches Means"
+                    ? "About PgRoast — What Roasting Postgres Patches Means"
                     : tab === "connect"
-                      ? "Setup Backoffice & Publish Token — pgroast"
+                      ? "Setup Backoffice & Publish Token — PgRoast"
                       : tab === "coordination"
-                        ? "Team Coordination — pgroast"
-                        : "pgroast — Public CommitFest App";
+                        ? "Team Coordination — PgRoast"
+                        : "PgRoast — Let's roast Postgres patches!";
   if (pushHistory) {
     try {
       const tabToPath: Record<TabId, string> = {
@@ -2423,7 +2423,7 @@ function renderIntroCard(): string {
   }
 
   return `
-    <section class="home-welcome" aria-label="About pgroast">
+    <section class="home-welcome" aria-label="About PgRoast">
       <div class="home-welcome-top">
         <div style="flex:1;min-width:240px;">
           <div class="muted" style="font-size:13px;line-height:1.5;">
@@ -2566,9 +2566,9 @@ function renderBriefTab(): string {
       </button>
     </div>
 
-    <details class="insights-fold">
+    <details class="insights-fold" open>
       <summary>
-        <span>Brief Snapshot Charts &amp; Matrix <span class="dim" style="font-weight:400;font-size:12px;">(for live queue &amp; bottlenecks, see Stats)</span></span>
+        <span>Brief snapshot charts and matrix <span class="dim" style="font-weight:400;font-size:12px;">(for live queue &amp; bottlenecks, see Stats)</span></span>
         <svg class="fold-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
       </summary>
       <div class="insights-body">
@@ -3349,7 +3349,7 @@ function openMoreSheet(): void {
   if (!backdrop || !body) return;
 
   const items: Array<{ tab: TabId; title: string; sub: string; badge?: string }> = [
-    { tab: "about", title: "About pgroast", sub: "What roasting means, idea scrutiny first, and the story" },
+    { tab: "about", title: "About PgRoast", sub: "What roasting means, idea scrutiny first, and the story" },
     { tab: "lists", title: "Mailing Lists Archive", sub: "All 49 PostgreSQL lists · live sync & search" },
     { tab: "contribute", title: "Auto-Contribute Quota", sub: "Donate leftover weekly AI quota to roast patches" },
     { tab: "docs", title: "Docs, CLI & API Explorer", sub: "Stripe-style OpenAPI docs + CLI playground" },
@@ -4592,16 +4592,16 @@ window.addEventListener("popstate", () => {
     syncTopBackofficeLink();
     document.title =
       route.tab === "hackers"
-        ? "PostgreSQL Hacking Observatory — pgroast"
+        ? "Postgres Hackers — PgRoast"
         : route.tab === "lists"
-          ? "PostgreSQL Mailing Lists Archive — pgroast"
+          ? "Postgres Mailing Lists Archive — PgRoast"
           : route.tab === "contribute"
-            ? "Weekly Quota Auto-Contribute — pgroast"
+            ? "Weekly Quota Auto-Contribute — PgRoast"
             : route.tab === "docs"
-              ? "Docs & Complete Feature Catalog — pgroast"
+              ? "Docs & Feature Catalog — PgRoast"
               : route.tab === "about"
-                ? "About pgroast — What Roasting PostgreSQL Patches Means"
-                : "pgroast — Public CommitFest App";
+                ? "About PgRoast — What Roasting Postgres Patches Means"
+                : "PgRoast — Let's roast Postgres patches!";
     render();
     if (route.tab === "hackers") {
       if (!state.hackersOverview && !state.hackersLoading) void loadHackersOverview();
