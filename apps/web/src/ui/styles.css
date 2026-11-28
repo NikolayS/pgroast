@@ -399,6 +399,32 @@ a:hover {
   gap: 12px;
 }
 
+/* Desktop-sticky time-window bar (normal flow on mobile to preserve viewport height) */
+.sticky-window-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 9px 14px;
+  margin-bottom: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  background: var(--glass);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+.sticky-window-bar .chips {
+  margin: 0;
+}
+@media (min-width: 769px) {
+  .sticky-window-bar {
+    position: sticky;
+    top: calc(54px + env(safe-area-inset-top));
+    z-index: 22;
+  }
+}
+
 .brand-cluster {
   display: inline-flex;
   align-items: center;

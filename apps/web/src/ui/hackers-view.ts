@@ -457,7 +457,11 @@ export const HACKER_WINDOWS: Array<{ id: HackerWindow; label: string }> = [
   { id: "all", label: "All-time" },
 ];
 
-export function renderPostgresGitStatsSections(overview: HackersOverviewData, win: HackerWindow): string {
+export function renderPostgresGitStatsSections(
+  overview: HackersOverviewData,
+  win: HackerWindow,
+  mode: "all" | "trends" | "window" = "all",
+): string {
   if (!overview.synced || !overview.totals) return "";
   const t = overview.totals;
   const meta = overview.syncMeta;
@@ -646,15 +650,35 @@ export function renderPostgresGitStatsSections(overview: HackersOverviewData, wi
           : ""
       }
 
-      <div class="card viz-card" style="margin-bottom:14px;">
-        <div class="card-head">
-          <div>
-            <div class="viz-kicker">Maintainer bottleneck and bench decentralization (PG11–PG20)</div>
-            <h2 class="viz-headline">${esc(mb.headline)}</h2>
-            <div class="dim" style="font-size:11.5px;margin-top:2px;">${esc(mb.subline)}</div>
+      <div class="grid2" style="margin-bottom:14px;">
+        <div class="card viz-card" style="margin-bottom:0;">
+          <div class="card-head">
+            <div>
+              <div class="viz-kicker">Maintainer bottleneck and bench decentralization (PG11–PG20)</div>
+              <h2 class="viz-headline">${esc(mb.headline)}</h2>
+              <div class="dim" style="font-size:11.5px;margin-top:2px;">${esc(mb.subline)}</div>
+            </div>
           </div>
+          ${mb.svg}
         </div>
-        ${mb.svg}
+        ${
+          overview.concentrationByYear?.length
+            ? (() => {
+                const conc = renderCommitterConcentrationSvg(overview.concentrationByYear);
+                return `
+        <div class="card viz-card" style="margin-bottom:0;">
+          <div class="card-head">
+            <div>
+              <div class="viz-kicker">Throughput concentration (2016–present)</div>
+              <h2 class="viz-headline">${esc(conc.headline)}</h2>
+              <div class="dim" style="font-size:11.5px;margin-top:2px;">${esc(conc.subline)}</div>
+            </div>
+          </div>
+          ${conc.svg}
+        </div>`;
+              })()
+            : ""
+        }
       </div>
 
       <div class="card" style="padding:12px 16px;margin-bottom:14px;">
@@ -895,88 +919,99 @@ export function renderPostgresGitStatsSections(overview: HackersOverviewData, wi
       : "";
 
   const bf = renderBusFactorQuadrantSvg(overview.subsystems);
-  const concCard = overview.concentrationByYear?.length
-    ? (() => {
-        const conc = renderCommitterConcentrationSvg(overview.concentrationByYear);
-        return `
-        <div class="card viz-card" style="margin-bottom:0;">
-          <div class="card-head">
-            <div>
-              <div class="viz-kicker">Throughput Concentration (2016–Present)</div>
-              <h2 class="viz-headline">${esc(conc.headline)}</h2>
-              <div class="dim" style="font-size:11.5px;margin-top:2px;">${esc(conc.subline)}</div>
-            </div>
-          </div>
-          ${conc.svg}
-        </div>`;
-      })()
+
+  const trendsSection = deepIntelBlock
+    ? `
+    <section id="stats-long-term-trends" style="margin-bottom:18px;">
+      <div style="margin:6px 0 12px;display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px;">
+        <div>
+          <div class="viz-kicker">Multi-year security and release trends</div>
+          <h2 style="margin:2px 0 0;font-size:18px;">CVEs (2015–2026) and release cycles (PG11–PG20)</h2>
+        </div>
+        <span class="tag-micro">Fixed multi-year horizon</span>
+      </div>
+      ${deepIntelBlock}
+    </section>
+    `
     : "";
 
-  return `
-    <!-- Postgres Git KPI Strip -->
-    <div class="kpis">
-      <div class="kpi" style="cursor:default;">
-        <div class="kpi-l">Active hackers</div>
-        <div class="kpi-v">${fmtNum(t.activeHackers)}</div>
-        <div class="kpi-sub">+${fmtNum(t.newHackers)} first-time in window</div>
+  const windowSection = `
+    <section id="stats-window-activity" style="margin-bottom:18px;${mode === "all" ? "padding-top:14px;border-top:1px solid var(--border);" : ""}">
+      <div class="sticky-window-bar">
+        <div>
+          <div class="viz-kicker" style="margin-bottom:1px;">Postgres activity by time window · ${esc(winLabel)}</div>
+          <div class="dim" style="font-size:11.5px;">Every KPI and chart in this section updates when you switch period</div>
+        </div>
+        <div class="chips" role="tablist" aria-label="Time window">
+          ${HACKER_WINDOWS.map((w) => `<button type="button" class="chip ${win === w.id ? "active" : ""}" data-hacker-window="${w.id}">${esc(w.label)}</button>`).join("")}
+        </div>
       </div>
-      <div class="kpi" style="cursor:default;">
-        <div class="kpi-l"><span class="dot" style="background:var(--accent)"></span>Commits landed</div>
-        <div class="kpi-v">${fmtNum(t.commits)}</div>
-        <div class="kpi-sub">${fmtNum(t.backpatches)} backpatched · ${t.reverts} reverts</div>
-      </div>
-      ${
-        win === "all"
-          ? `
-      <div class="kpi" style="cursor:default;">
-        <div class="kpi-l"><span class="dot" style="background:var(--ok)"></span>Committers</div>
-        <div class="kpi-v" style="color:var(--ok)">${fmtNum(t.committers)}</div>
-        <div class="kpi-sub">${fmtNum(t.authors)} credited authors</div>
-      </div>
-      `
-          : `
-      <div class="kpi" style="cursor:default;">
-        <div class="kpi-l"><span class="dot" style="background:var(--ok)"></span>Committed for others</div>
-        <div class="kpi-v" style="color:var(--ok)">${t.committedForOthersPct}%</div>
-        <div class="kpi-sub">${fmtNum(t.committedForOthers)} of ${fmtNum(t.commits)} commits</div>
-      </div>
-      `
-      }
-      <div class="kpi" style="cursor:default;">
-        <div class="kpi-l"><span class="dot" style="background:#4cb782"></span>Reviewed-by credits</div>
-        <div class="kpi-v">${fmtNum(t.reviewsGiven)}</div>
-        <div class="kpi-sub">${fmtNum(t.reviewers)} reviewers${win === "all" ? " (trailers ~2010+)" : ""}</div>
-      </div>
-      <div class="kpi" style="cursor:default;">
-        <div class="kpi-l"><span class="dot" style="background:var(--warn)"></span>Bugs reported → fixed</div>
-        <div class="kpi-v">${fmtNum(t.bugsReported)}</div>
-        <div class="kpi-sub">${fmtNum(t.reporters)} reporters${win === "all" ? " (trailers ~2010+)" : ""}</div>
-      </div>
-      <div class="kpi" style="cursor:default;">
-        <div class="kpi-l">Multi-email unified</div>
-        <div class="kpi-v">${fmtNum(meta.multiEmailPeople || 0)}</div>
-        <div class="kpi-sub">${fmtNum(meta.totalIdentities || 0)} total identities linked</div>
-      </div>
-    </div>
 
-    ${deepIntelBlock}
-    ${heroBlock}
+      <!-- Window KPI Strip -->
+      <div class="kpis">
+        <div class="kpi" style="cursor:default;">
+          <div class="kpi-l">Active hackers</div>
+          <div class="kpi-v">${fmtNum(t.activeHackers)}</div>
+          <div class="kpi-sub">+${fmtNum(t.newHackers)} first-time in window</div>
+        </div>
+        <div class="kpi" style="cursor:default;">
+          <div class="kpi-l"><span class="dot" style="background:var(--accent)"></span>Commits landed</div>
+          <div class="kpi-v">${fmtNum(t.commits)}</div>
+          <div class="kpi-sub">${fmtNum(t.backpatches)} backpatched · ${t.reverts} reverts</div>
+        </div>
+        ${
+          win === "all"
+            ? `
+        <div class="kpi" style="cursor:default;">
+          <div class="kpi-l"><span class="dot" style="background:var(--ok)"></span>Committers</div>
+          <div class="kpi-v" style="color:var(--ok)">${fmtNum(t.committers)}</div>
+          <div class="kpi-sub">${fmtNum(t.authors)} credited authors</div>
+        </div>
+        `
+            : `
+        <div class="kpi" style="cursor:default;">
+          <div class="kpi-l"><span class="dot" style="background:var(--ok)"></span>Committed for others</div>
+          <div class="kpi-v" style="color:var(--ok)">${t.committedForOthersPct}%</div>
+          <div class="kpi-sub">${fmtNum(t.committedForOthers)} of ${fmtNum(t.commits)} commits</div>
+        </div>
+        `
+        }
+        <div class="kpi" style="cursor:default;">
+          <div class="kpi-l"><span class="dot" style="background:#4cb782"></span>Reviewed-by credits</div>
+          <div class="kpi-v">${fmtNum(t.reviewsGiven)}</div>
+          <div class="kpi-sub">${fmtNum(t.reviewers)} reviewers${win === "all" ? " (trailers ~2010+)" : ""}</div>
+        </div>
+        <div class="kpi" style="cursor:default;">
+          <div class="kpi-l"><span class="dot" style="background:var(--warn)"></span>Bugs reported → fixed</div>
+          <div class="kpi-v">${fmtNum(t.bugsReported)}</div>
+          <div class="kpi-sub">${fmtNum(t.reporters)} reporters${win === "all" ? " (trailers ~2010+)" : ""}</div>
+        </div>
+        <div class="kpi" style="cursor:default;">
+          <div class="kpi-l">Multi-email unified</div>
+          <div class="kpi-v">${fmtNum(meta.multiEmailPeople || 0)}</div>
+          <div class="kpi-sub">${fmtNum(meta.totalIdentities || 0)} total identities linked</div>
+        </div>
+      </div>
 
-    <!-- Subsystem Bus-Factor Quadrant + Annual Committer Concentration -->
-    <div class="grid2" style="margin-bottom:14px;">
+      ${heroBlock}
+
+      <!-- Window-Scoped Subsystem Bus-Factor Quadrant -->
       <div class="card viz-card" style="margin-bottom:0;">
         <div class="card-head">
           <div>
-            <div class="viz-kicker">Subsystem Bus Factor (${esc(winLabel)})</div>
+            <div class="viz-kicker">Subsystem bus factor (${esc(winLabel)})</div>
             <h2 class="viz-headline">${esc(bf.headline)}</h2>
             <div class="dim" style="font-size:11.5px;margin-top:2px;">${esc(bf.subline)}</div>
           </div>
         </div>
         ${bf.svg}
       </div>
-      ${concCard}
-    </div>
+    </section>
   `;
+
+  if (mode === "trends") return trendsSection;
+  if (mode === "window") return windowSection;
+  return `${trendsSection}${windowSection}`;
 }
 
 export function renderHackersTab(params: {
@@ -1163,9 +1198,15 @@ export function renderHackersTab(params: {
           ${fmtNum(meta.totalPeople || 0)} unified contributors (${fmtNum(meta.multiEmailPeople || 0)} merged across multiple emails) · ${fmtNum(meta.totalCommitsAll || 0)} commits indexed · Latest commit ${esc((meta.lastCommitAt || "").slice(0, 10))}
         </div>
       </div>
-      <div class="row" style="gap:8px;align-items:center;flex-wrap:wrap;">
-        <button type="button" class="btn btn-ghost btn-sm" data-goto-stats="1">Release, CVE, and backpatch stats →</button>
-        <div class="chips" role="tablist" aria-label="Time window" style="margin-bottom:0;">
+      <button type="button" class="btn btn-ghost btn-sm" data-goto-stats="1">Release, CVE, and backpatch stats →</button>
+    </div>
+
+    <section>
+      <div class="sticky-window-bar">
+        <div class="dim" style="font-size:12px;">
+          Leaderboards and KPIs window: <strong style="color:var(--text);">${esc(windows.find((w) => w.id === win)?.label || win)}</strong>
+        </div>
+        <div class="chips" role="tablist" aria-label="Time window">
           ${windows
             .map(
               (w) => `
@@ -1175,7 +1216,6 @@ export function renderHackersTab(params: {
             .join("")}
         </div>
       </div>
-    </div>
 
     <!-- People KPI Strip -->
     <div class="kpis">
@@ -1329,6 +1369,7 @@ export function renderHackersTab(params: {
         }
       </div>
     </div>
+    </section>
 
     <!-- Searchable All-Hackers Directory -->
     <div class="card">

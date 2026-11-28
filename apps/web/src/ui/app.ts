@@ -3925,8 +3925,13 @@ function render(): void {
     document.querySelectorAll<HTMLElement>("[data-hacker-window]").forEach((el) => {
       const trigger = () => {
         const nextWin = (el.dataset.hackerWindow as HackerWindow) || "PG20";
+        if (el.tagName === "TR" && state.statsSection === "git") {
+          state.statsSection = "all";
+        }
         void loadHackersOverview(nextWin);
-        if (el.tagName === "TR") window.scrollTo({ top: 0, behavior: "smooth" });
+        if (el.tagName === "TR") {
+          setTimeout(() => document.getElementById("stats-window-activity")?.scrollIntoView({ behavior: "smooth", block: "start" }), 60);
+        }
       };
       el.addEventListener("click", trigger);
       if (el.tagName === "TR") {
@@ -4022,8 +4027,13 @@ function render(): void {
     document.querySelectorAll<HTMLElement>("[data-hacker-window]").forEach((el) => {
       const trigger = () => {
         const nextWin = (el.dataset.hackerWindow as HackerWindow) || "PG20";
+        if (el.tagName === "TR" && state.statsSection === "git") {
+          state.statsSection = "all";
+        }
         void loadHackersOverview(nextWin);
-        if (el.tagName === "TR") window.scrollTo({ top: 0, behavior: "smooth" });
+        if (el.tagName === "TR") {
+          setTimeout(() => document.getElementById("stats-window-activity")?.scrollIntoView({ behavior: "smooth", block: "start" }), 60);
+        }
       };
       el.addEventListener("click", trigger);
       if (el.tagName === "TR") {

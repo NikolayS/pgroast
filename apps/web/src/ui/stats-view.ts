@@ -1,6 +1,5 @@
 import type { DarkMatrixRow, StatsOverviewData, TriageTableRow } from "../stats-queries.ts";
 import {
-  HACKER_WINDOWS,
   renderPostgresGitStatsSections,
   type HackersOverviewData,
   type HackerWindow,
@@ -12,7 +11,7 @@ import {
   renderQueueUnitChartSvg,
 } from "./viz-charts.ts";
 
-export type StatsSection = "all" | "git" | "commitfest";
+export type StatsSection = "all" | "git" | "window" | "commitfest";
 export type StatsQueueFilter = "all" | "dark" | "warnings" | "clean";
 export type StatsDarkFilter = "all" | "issues" | "clean";
 
@@ -232,7 +231,8 @@ export function renderStatsObservatory(params: {
     return `<div class="card"><div class="empty-state">No stats data indexed yet.</div></div>`;
   }
 
-  const showGit = section === "all" || section === "git";
+  const showTrends = section === "all" || section === "git";
+  const showWindow = section === "all" || section === "window";
   const showCf = section === "all" || section === "commitfest";
   const gitMeta = gitOverview?.syncMeta;
 
@@ -270,28 +270,20 @@ export function renderStatsObservatory(params: {
     <div class="row" style="justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px;">
       <div class="chips" role="tablist" aria-label="Stats section" style="margin:0;">
         <button type="button" class="chip ${section === "all" ? "active" : ""}" data-stats-section="all">All stats</button>
-        <button type="button" class="chip ${section === "git" ? "active" : ""}" data-stats-section="git">Postgres git and releases (PG11–PG20)</button>
+        <button type="button" class="chip ${section === "git" ? "active" : ""}" data-stats-section="git">CVEs and releases (2015–2026)</button>
+        <button type="button" class="chip ${section === "window" ? "active" : ""}" data-stats-section="window">Activity by window</button>
         <button type="button" class="chip ${section === "commitfest" ? "active" : ""}" data-stats-section="commitfest">CommitFest and roasts</button>
       </div>
-      ${
-        showGit
-          ? `
-      <div class="chips" role="tablist" aria-label="Git time window" style="margin:0;">
-        ${HACKER_WINDOWS.map((w) => `<button type="button" class="chip ${gitWindow === w.id ? "active" : ""}" data-hacker-window="${w.id}">${esc(w.label)}</button>`).join("")}
-      </div>
-      `
-          : ""
-      }
     </div>
 
     ${
-      showGit
+      showTrends || showWindow
         ? gitOverview && gitOverview.synced
           ? `
-      ${renderPostgresGitStatsSections(gitOverview, gitWindow)}
+      ${renderPostgresGitStatsSections(gitOverview, gitWindow, showTrends && showWindow ? "all" : showTrends ? "trends" : "window")}
       `
           : gitLoading
-            ? `<div class="card" style="padding:18px;margin-bottom:14px;"><div class="dim">Loading Postgres git &amp; PG11–PG20 release trends…</div></div>`
+            ? `<div class="card" style="padding:18px;margin-bottom:14px;"><div class="dim">Loading Postgres git and PG11–PG20 release trends…</div></div>`
             : ""
         : ""
     }
