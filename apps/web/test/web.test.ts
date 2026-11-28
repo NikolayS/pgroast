@@ -894,6 +894,14 @@ describe("pgroast-web public companion API & security gates", () => {
     expect(aboutHtml).toContain("About pgroast — What Roasting Postgres Patches Means");
     const roastsHtml = await (await req("/roasts")).text();
     expect(roastsHtml).toContain("Community Roasts — pgroast");
+    const hackersHtml = await (await req("/hackers")).text();
+    expect(hackersHtml).toContain("Postgres Hacking Observatory — pgroast");
+    const statsHtml = await (await req("/stats")).text();
+    expect(statsHtml).toContain("CommitFest Stats Observatory — pgroast");
+    const entriesHtml = await (await req("/entries")).text();
+    expect(entriesHtml).toContain("CommitFest Entries — pgroast");
+    const connectHtml = await (await req("/connect")).text();
+    expect(connectHtml).toContain("Setup Backoffice &amp; Publish Token — pgroast");
   });
 
   test("Mailing Lists Archive: catalog/since/mbox parsers, unified hacker linking, APIs, and /lists SSR", async () => {

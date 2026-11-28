@@ -548,20 +548,22 @@ function parseRouteFromLocation(): { patchId: number | null; hackerSlug: string 
   if (hackerMatch?.[1]) {
     return { patchId: null, hackerSlug: hackerMatch[1].toLowerCase(), tab: "hackers", mrTab: "overview", hash: u.hash };
   }
-  if (/^\/docs\/?$/i.test(u.pathname)) {
-    return { patchId: null, hackerSlug: null, tab: "docs", mrTab: "overview", hash: u.hash };
-  }
-  if (/^\/contribute\/?$/i.test(u.pathname)) {
-    return { patchId: null, hackerSlug: null, tab: "contribute", mrTab: "overview", hash: u.hash };
-  }
-  if (/^\/lists\/?$/i.test(u.pathname)) {
-    return { patchId: null, hackerSlug: null, tab: "lists", mrTab: "overview", hash: u.hash };
-  }
-  if (/^\/about\/?$/i.test(u.pathname)) {
-    return { patchId: null, hackerSlug: null, tab: "about", mrTab: "overview", hash: u.hash };
-  }
-  if (/^\/roasts\/?$/i.test(u.pathname)) {
-    return { patchId: null, hackerSlug: null, tab: "opinions", mrTab: "overview", hash: u.hash };
+  const pathTabMap: Record<string, TabId> = {
+    "/hackers": "hackers",
+    "/lists": "lists",
+    "/stats": "stats",
+    "/entries": "entries",
+    "/roasts": "opinions",
+    "/contribute": "contribute",
+    "/docs": "docs",
+    "/about": "about",
+    "/connect": "connect",
+    "/coordination": "coordination",
+    "/team": "coordination",
+  };
+  const normPath = u.pathname.replace(/\/+$/, "").toLowerCase();
+  if (normPath && pathTabMap[normPath]) {
+    return { patchId: null, hackerSlug: null, tab: pathTabMap[normPath]!, mrTab: "overview", hash: u.hash };
   }
   const rawTabParam = u.searchParams.get("tab");
   const tabParam = (rawTabParam === "roasts" ? "opinions" : rawTabParam) as TabId | null;
@@ -900,34 +902,42 @@ function navigateToTab(tab: TabId, pushHistory = true, hash = ""): void {
   syncTopBackofficeLink();
   document.title =
     tab === "hackers"
-      ? "PostgreSQL Hacking Observatory — pgroast"
+      ? "Postgres Hacking Observatory — pgroast"
       : tab === "lists"
-        ? "PostgreSQL Mailing Lists Archive — pgroast"
-        : tab === "contribute"
-          ? "Weekly Quota Auto-Contribute — pgroast"
-          : tab === "docs"
-            ? "Docs & Complete Feature Catalog — pgroast"
-            : tab === "about"
-              ? "About pgroast — What Roasting Postgres Patches Means"
-              : tab === "opinions"
-                ? "Community Roasts — pgroast"
-                : "pgroast — Public CommitFest App";
+        ? "Postgres Mailing Lists Archive — pgroast"
+        : tab === "stats"
+          ? "CommitFest Stats Observatory — pgroast"
+          : tab === "entries"
+            ? "CommitFest Entries — pgroast"
+            : tab === "opinions"
+              ? "Community Roasts — pgroast"
+              : tab === "contribute"
+                ? "Weekly Quota Auto-Contribute — pgroast"
+                : tab === "docs"
+                  ? "Docs & Complete Feature Catalog — pgroast"
+                  : tab === "about"
+                    ? "About pgroast — What Roasting Postgres Patches Means"
+                    : tab === "connect"
+                      ? "Setup Backoffice & Publish Token — pgroast"
+                      : tab === "coordination"
+                        ? "Team Coordination — pgroast"
+                        : "pgroast — Public CommitFest App";
   if (pushHistory) {
     try {
-      const targetUrl =
-        (tab === "brief"
-          ? "/"
-          : tab === "docs"
-            ? "/docs"
-            : tab === "contribute"
-              ? "/contribute"
-              : tab === "lists"
-                ? "/lists"
-                : tab === "about"
-                  ? "/about"
-                  : tab === "opinions"
-                    ? "/roasts"
-                    : `/?tab=${encodeURIComponent(tab)}`) + hash;
+      const tabToPath: Record<TabId, string> = {
+        brief: "/",
+        hackers: "/hackers",
+        lists: "/lists",
+        stats: "/stats",
+        entries: "/entries",
+        opinions: "/roasts",
+        contribute: "/contribute",
+        docs: "/docs",
+        about: "/about",
+        connect: "/connect",
+        coordination: "/coordination",
+      };
+      const targetUrl = (tabToPath[tab] || "/") + hash;
       window.history.pushState({ patchId: null, hackerSlug: null, tab }, "", targetUrl);
     } catch {
       // ignore

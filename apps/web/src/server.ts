@@ -681,13 +681,13 @@ export async function createWebHandler(opts?: {
         const latestDate = (briefs[0]?.created_at || new Date().toISOString()).slice(0, 10);
         const staticUrls: Array<{ loc: string; lastmod: string; changefreq: string; priority: string }> = [
           { loc: `${origin}/`, lastmod: latestDate, changefreq: "daily", priority: "1.0" },
-          { loc: `${origin}/?tab=hackers`, lastmod: latestDate, changefreq: "daily", priority: "0.9" },
+          { loc: `${origin}/hackers`, lastmod: latestDate, changefreq: "daily", priority: "0.9" },
           { loc: `${origin}/lists`, lastmod: latestDate, changefreq: "hourly", priority: "0.9" },
-          { loc: `${origin}/?tab=stats`, lastmod: latestDate, changefreq: "daily", priority: "0.8" },
-          { loc: `${origin}/?tab=entries`, lastmod: latestDate, changefreq: "daily", priority: "0.8" },
+          { loc: `${origin}/stats`, lastmod: latestDate, changefreq: "daily", priority: "0.8" },
+          { loc: `${origin}/entries`, lastmod: latestDate, changefreq: "daily", priority: "0.8" },
           { loc: `${origin}/roasts`, lastmod: latestDate, changefreq: "hourly", priority: "0.8" },
-          { loc: `${origin}/?tab=coordination`, lastmod: latestDate, changefreq: "daily", priority: "0.6" },
-          { loc: `${origin}/?tab=connect`, lastmod: latestDate, changefreq: "weekly", priority: "0.6" },
+          { loc: `${origin}/coordination`, lastmod: latestDate, changefreq: "daily", priority: "0.6" },
+          { loc: `${origin}/connect`, lastmod: latestDate, changefreq: "weekly", priority: "0.6" },
           { loc: `${origin}/contribute`, lastmod: latestDate, changefreq: "daily", priority: "0.9" },
           { loc: `${origin}/docs`, lastmod: latestDate, changefreq: "weekly", priority: "0.8" },
           { loc: `${origin}/about`, lastmod: latestDate, changefreq: "weekly", priority: "0.8" },
@@ -831,12 +831,66 @@ export async function createWebHandler(opts?: {
       }
       const patchPageMatch = path.match(/^\/patch\/(\d+)\/?$/);
       const hackerPageMatch = path.match(/^\/hacker\/([a-z0-9-]+)\/?$/i);
-      const isDocsPage = path === "/docs" || path === "/docs/";
-      const isContributePage = path === "/contribute" || path === "/contribute/";
-      const isListsPage = path === "/lists" || path === "/lists/";
-      const isAboutPage = path === "/about" || path === "/about/";
-      const isRoastsPage = path === "/roasts" || path === "/roasts/";
-      if (method === "GET" && (path === "/" || path === "/index.html" || patchPageMatch || hackerPageMatch || isDocsPage || isContributePage || isListsPage || isAboutPage || isRoastsPage)) {
+      const normSpaPath = path.replace(/\/+$/, "").toLowerCase();
+      const staticPageMeta: Record<string, { canonicalPath: string; title: string; desc: string }> = {
+        "/hackers": {
+          canonicalPath: "/hackers",
+          title: "Postgres Hacking Observatory — pgroast",
+          desc: "Explore 30 years of Postgres git commits, active release-cycle velocity (PG20), subsystem bus factor, and unified multi-email contributor profiles.",
+        },
+        "/lists": {
+          canonicalPath: "/lists",
+          title: "PostgreSQL Mailing Lists Archive (Continuous Sync) — pgroast",
+          desc: "Continuously synced archive across 51 PostgreSQL public mailing lists with full-text search, active threads, and unified /hacker/<slug> contributor profiles.",
+        },
+        "/stats": {
+          canonicalPath: "/stats",
+          title: "CommitFest Stats Observatory — pgroast",
+          desc: "Live CommitFest queue overview, committer warnings, subsystem bottlenecks, build/test/SQL verification results, and Top Roasters leaderboard.",
+        },
+        "/entries": {
+          canonicalPath: "/entries",
+          title: "CommitFest Entries — pgroast",
+          desc: "Browse and filter open and closed Postgres CommitFest patches with AI pre-review verdicts and verification badges.",
+        },
+        "/roasts": {
+          canonicalPath: "/roasts",
+          title: "Community Roasts — pgroast",
+          desc: "Browse attributed multi-model Postgres patch roasts across Light, Medium, and Dark verification depths.",
+        },
+        "/contribute": {
+          canonicalPath: "/contribute",
+          title: "Weekly Quota Auto-Contribute & Live CommitFest Coverage — pgroast",
+          desc: "Donate unused weekly OAuth quota (Claude, Codex, Antigravity) to pre-review open PostgreSQL CommitFest patches, preview the live queue, and track community coverage.",
+        },
+        "/docs": {
+          canonicalPath: "/docs",
+          title: "Docs & Complete Feature Catalog — pgroast",
+          desc: "Complete directory of every pgroast feature, architecture overview, CLI command reference, and public APIs.",
+        },
+        "/about": {
+          canonicalPath: "/about",
+          title: "About pgroast — What Roasting Postgres Patches Means",
+          desc: "How pgroast uses AI to review and scrutinize Postgres CommitFest patches — starting with the idea itself across Light, Medium, and Dark roast levels.",
+        },
+        "/connect": {
+          canonicalPath: "/connect",
+          title: "Setup Backoffice & Publish Token — pgroast",
+          desc: "Connect your local CLI or Personal Backoffice to publish sanitized Postgres patch roasts.",
+        },
+        "/coordination": {
+          canonicalPath: "/coordination",
+          title: "Team Coordination — pgroast",
+          desc: "Shared review coordination and claim board for Postgres CommitFest patches.",
+        },
+        "/team": {
+          canonicalPath: "/coordination",
+          title: "Team Coordination — pgroast",
+          desc: "Shared review coordination and claim board for Postgres CommitFest patches.",
+        },
+      };
+      const matchedStaticPage = staticPageMeta[normSpaPath];
+      if (method === "GET" && (path === "/" || path === "/index.html" || patchPageMatch || hackerPageMatch || matchedStaticPage)) {
         await refreshUiAssetsIfChanged();
         const origin = resolveRequestOrigin(req, cfg);
         const cfId = parsePositivePgInt(patchPageMatch?.[1] || url.searchParams.get("cf")) ?? 0;
@@ -851,26 +905,10 @@ export async function createWebHandler(opts?: {
           url: `${origin}/`,
           description: desc,
         };
-        if (isDocsPage) {
-          canonical = `${origin}/docs`;
-          title = "Docs & Complete Feature Catalog — pgroast";
-          desc = "Complete directory of every pgroast feature, architecture overview, CLI command reference, and public APIs.";
-        } else if (isContributePage) {
-          canonical = `${origin}/contribute`;
-          title = "Weekly Quota Auto-Contribute & Live CommitFest Coverage — pgroast";
-          desc = "Donate unused weekly OAuth quota (Claude, Codex, Antigravity) to pre-review open PostgreSQL CommitFest patches, preview the live queue, and track community coverage.";
-        } else if (isListsPage) {
-          canonical = `${origin}/lists`;
-          title = "PostgreSQL Mailing Lists Archive (Continuous Sync) — pgroast";
-          desc = "Continuously synced archive across 51 PostgreSQL public mailing lists with full-text search, active threads, and unified /hacker/<slug> contributor profiles.";
-        } else if (isAboutPage) {
-          canonical = `${origin}/about`;
-          title = "About pgroast — What Roasting Postgres Patches Means";
-          desc = "How pgroast uses AI to review and scrutinize Postgres CommitFest patches — starting with the idea itself across Light, Medium, and Dark roast levels.";
-        } else if (isRoastsPage) {
-          canonical = `${origin}/roasts`;
-          title = "Community Roasts — pgroast";
-          desc = "Browse attributed multi-model Postgres patch roasts across Light, Medium, and Dark verification depths.";
+        if (matchedStaticPage) {
+          canonical = `${origin}${matchedStaticPage.canonicalPath}`;
+          title = matchedStaticPage.title;
+          desc = matchedStaticPage.desc;
         } else if (hackerSlug) {
           canonical = `${origin}/hacker/${encodeURIComponent(hackerSlug)}`;
           const profile = await getHackerProfileBySlug(db, hackerSlug).catch(() => null);
