@@ -587,78 +587,131 @@ export function renderCollabConstellationSvg(
     nodes: CollabNode[];
   }> = [
     { title: "Committed their patches", verb: "Landed patches by", color: "var(--viz-1)", baseDeg: 270, nodes: collaborators.committedBy.slice(0, 5) },
-    { title: "Reviewed their patches", verb: "Reviewed patches by", color: "var(--viz-2)", baseDeg: 30, nodes: collaborators.reviewedBy.slice(0, 5) },
-    { title: "Authors they helped", verb: "Helped author", color: "var(--viz-3)", baseDeg: 150, nodes: collaborators.helpedAuthors.slice(0, 5) },
+    { title: "Reviewed their patches", verb: "Reviewed patches by", color: "var(--viz-2)", baseDeg: 35, nodes: collaborators.reviewedBy.slice(0, 5) },
+    { title: "Authors they helped", verb: "Helped author", color: "var(--viz-3)", baseDeg: 145, nodes: collaborators.helpedAuthors.slice(0, 5) },
   ];
 
   const totalNodes = sectors.reduce((a, s) => a + s.nodes.length, 0);
   if (totalNodes === 0) return "";
 
   const w = 680;
-  const h = 320;
+  const h = 368;
   const cx = w / 2;
-  const cy = h / 2 + 6;
+  const cy = 196;
   const maxCnt = Math.max(1, ...sectors.flatMap((s) => s.nodes.map((n) => n.count)));
 
-  // Subtle sector dividers & concentric rings
-  const rings = [72, 118]
+  // Subtle sector dividers & concentric rings (bubbles stay strictly inside r <= 116)
+  const rings = [64, 100]
     .map((r) => `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="var(--viz-grid)" stroke-dasharray="3 3" />`)
     .join("");
 
   const dividers = [330, 90, 210]
     .map((deg) => {
-      const p = polarToCartesian(cx, cy, 136, deg);
+      const p = polarToCartesian(cx, cy, 118, deg);
       return `<line x1="${cx}" y1="${cy}" x2="${p.x.toFixed(1)}" y2="${p.y.toFixed(1)}" stroke="var(--viz-grid)" />`;
     })
     .join("");
 
-  const sectorHeaders = sectors
-    .map((sec) => {
-      const p = polarToCartesian(cx, cy, 146, sec.baseDeg);
-      const yAdj = Math.max(14, Math.min(h - 8, p.y));
-      const xAdj = Math.max(84, Math.min(w - 84, p.x));
-      return `<text x="${xAdj.toFixed(1)}" y="${yAdj.toFixed(1)}" text-anchor="middle" fill="${sec.color}" font-size="10.5" font-weight="650">${esc(sec.title)}</text>`;
-    })
-    .join("");
+  // Collect positioned nodes + external callout label specs for 2-column vertical collision avoidance
+  interface PlacedNode {
+    sec: (typeof sectors)[number];
+    node: CollabNode;
+    idx: number;
+    deg: number;
+    pos: { x: number; y: number };
+    knee: { x: number; y: number };
+    r: number;
+    sw: number;
+    side: "left" | "right";
+    labelY: number;
+  }
 
-  const links: string[] = [];
-  const bubbles: string[] = [];
-
+  const placed: PlacedNode[] = [];
   for (const sec of sectors) {
     const n = sec.nodes.length;
     sec.nodes.forEach((node, idx) => {
-      const spread = n === 1 ? 0 : ((idx / (n - 1)) - 0.5) * 74;
+      const spread = n === 1 ? 0 : (idx / (n - 1) - 0.5) * 68;
       const deg = sec.baseDeg + spread;
-      // Closer to center = tighter collaboration
-      const dist = idx === 0 ? 74 : idx <= 2 ? 98 : 118;
+      const dist = idx === 0 ? 64 : idx <= 2 ? 84 : 100;
       const pos = polarToCartesian(cx, cy, dist, deg);
-      const r = 7 + Math.sqrt(node.count / maxCnt) * 12;
-      const sw = 1.2 + (node.count / maxCnt) * 3.2;
-
-      // Quadratic curve control point rotated slightly for elegance
-      const mid = polarToCartesian(cx, cy, dist * 0.52, deg + 9);
-      links.push(
-        `<path d="M ${cx} ${cy} Q ${mid.x.toFixed(1)} ${mid.y.toFixed(1)} ${pos.x.toFixed(1)} ${pos.y.toFixed(1)}" fill="none" stroke="${sec.color}" stroke-opacity="0.38" stroke-width="${sw.toFixed(1)}" />`,
-      );
-
-      const initials = node.name
-        .split(/\s+/)
-        .slice(0, 2)
-        .map((p) => p[0] || "")
-        .join("")
-        .toUpperCase();
-      const shortName = node.name.length > 18 ? `${node.name.slice(0, 17)}…` : node.name;
-      const lblX = pos.x < cx ? pos.x - r - 5 : pos.x + r + 5;
-      const lblAnchor = pos.x < cx ? "end" : "start";
-
-      bubbles.push(`
-        <g class="viz-hoverable" tabindex="0" data-open-hacker="${esc(node.slug)}" data-tip-title="${esc(node.name)} (${esc(node.role)})" data-tip-body="${esc(sec.title)}: ${fmtNum(node.count)} shared commits" data-tip-sub="Click to open /hacker/${esc(node.slug)}">
-          <circle cx="${pos.x.toFixed(1)}" cy="${pos.y.toFixed(1)}" r="${r.toFixed(1)}" fill="${sec.color}" fill-opacity="0.88" stroke="var(--surface)" stroke-width="1.8" />
-          <text x="${pos.x.toFixed(1)}" y="${(pos.y + 3.2).toFixed(1)}" text-anchor="middle" fill="#fff" font-size="${r > 12 ? 9.5 : 8}" font-weight="700" pointer-events="none">${esc(initials)}</text>
-          ${idx < 3 ? `<text x="${lblX.toFixed(1)}" y="${(pos.y + 3.5).toFixed(1)}" text-anchor="${lblAnchor}" fill="var(--text)" font-size="10.5" font-weight="500" pointer-events="none">${esc(shortName)} <tspan fill="var(--dim)" class="mono">(${node.count})</tspan></text>` : ""}
-        </g>
-      `);
+      const r = 7 + Math.sqrt(node.count / maxCnt) * 9.5;
+      const sw = 1.2 + (node.count / maxCnt) * 2.8;
+      const knee = polarToCartesian(cx, cy, 122, deg);
+      const side: "left" | "right" = knee.x < cx ? "left" : "right";
+      placed.push({ sec, node, idx, deg, pos, knee, r, sw, side, labelY: knee.y });
     });
+  }
+
+  // Resolve vertical overlaps independently in left and right external label columns
+  const MIN_Y = 38;
+  const MAX_Y = h - 14;
+  const MIN_GAP = 22;
+  const resolveColumn = (side: "left" | "right") => {
+    const col = placed.filter((p) => p.side === side).sort((a, b) => a.labelY - b.labelY);
+    if (col.length === 0) return;
+    // Pass 1: push downward to enforce MIN_GAP
+    for (let i = 0; i < col.length; i++) {
+      const minAllowed = i === 0 ? MIN_Y : col[i - 1]!.labelY + MIN_GAP;
+      if (col[i]!.labelY < minAllowed) col[i]!.labelY = minAllowed;
+    }
+    // Pass 2: clamp bottom & push upward if needed
+    const last = col[col.length - 1]!;
+    if (last.labelY > MAX_Y) {
+      last.labelY = MAX_Y;
+      for (let i = col.length - 2; i >= 0; i--) {
+        const maxAllowed = col[i + 1]!.labelY - MIN_GAP;
+        if (col[i]!.labelY > maxAllowed) col[i]!.labelY = maxAllowed;
+      }
+    }
+    // Pass 3: keep top inside MIN_Y if column is very dense
+    if (col[0]!.labelY < MIN_Y) {
+      const span = Math.max(1, MAX_Y - MIN_Y);
+      const step = col.length > 1 ? Math.min(MIN_GAP, span / (col.length - 1)) : 0;
+      col.forEach((p, i) => {
+        p.labelY = MIN_Y + i * step;
+      });
+    }
+  };
+  resolveColumn("left");
+  resolveColumn("right");
+
+  const LEFT_COL_X = cx - 142;
+  const RIGHT_COL_X = cx + 142;
+
+  const links: string[] = [];
+  const leaders: string[] = [];
+  const bubbles: string[] = [];
+
+  for (const item of placed) {
+    const { sec, node, deg, pos, knee, r, sw, side, labelY } = item;
+    const mid = polarToCartesian(cx, cy, Math.hypot(pos.x - cx, pos.y - cy) * 0.52, deg + 8);
+    links.push(
+      `<path d="M ${cx} ${cy} Q ${mid.x.toFixed(1)} ${mid.y.toFixed(1)} ${pos.x.toFixed(1)} ${pos.y.toFixed(1)}" fill="none" stroke="${sec.color}" stroke-opacity="0.38" stroke-width="${sw.toFixed(1)}" />`,
+    );
+
+    const edgeStart = polarToCartesian(pos.x, pos.y, r + 1.5, deg);
+    const labelX = side === "left" ? LEFT_COL_X : RIGHT_COL_X;
+    const elbowEndX = side === "left" ? labelX + 6 : labelX - 6;
+    leaders.push(
+      `<polyline points="${edgeStart.x.toFixed(1)},${edgeStart.y.toFixed(1)} ${knee.x.toFixed(1)},${labelY.toFixed(1)} ${elbowEndX.toFixed(1)},${labelY.toFixed(1)}" fill="none" stroke="${sec.color}" stroke-opacity="0.42" stroke-width="1" />`,
+    );
+
+    const initials = node.name
+      .split(/\s+/)
+      .slice(0, 2)
+      .map((p) => p[0] || "")
+      .join("")
+      .toUpperCase();
+    const shortName = node.name.length > 20 ? `${node.name.slice(0, 19)}…` : node.name;
+    const lblAnchor = side === "left" ? "end" : "start";
+
+    bubbles.push(`
+      <g class="viz-hoverable" tabindex="0" data-open-hacker="${esc(node.slug)}" data-tip-title="${esc(node.name)} (${esc(node.role)})" data-tip-body="${esc(sec.title)}: ${fmtNum(node.count)} shared commits" data-tip-sub="Click to open /hacker/${esc(node.slug)}">
+        <circle cx="${pos.x.toFixed(1)}" cy="${pos.y.toFixed(1)}" r="${r.toFixed(1)}" fill="${sec.color}" fill-opacity="0.9" stroke="var(--surface)" stroke-width="1.8" />
+        <text x="${pos.x.toFixed(1)}" y="${(pos.y + 3).toFixed(1)}" text-anchor="middle" fill="#fff" font-size="${r > 11 ? 9 : 7.8}" font-weight="700" pointer-events="none">${esc(initials)}</text>
+        <text x="${labelX.toFixed(1)}" y="${(labelY + 3.5).toFixed(1)}" text-anchor="${lblAnchor}" fill="var(--text)" font-size="10.8" font-weight="500">${esc(shortName)} <tspan fill="var(--dim)" class="mono">(${node.count})</tspan></text>
+      </g>
+    `);
   }
 
   const centerInitials = centerName
@@ -668,16 +721,26 @@ export function renderCollabConstellationSvg(
     .join("")
     .toUpperCase();
 
+  // Clean non-overlapping legend bar above the constellation
+  const activeSectors = sectors.filter((s) => s.nodes.length > 0);
+  const legendHtml = activeSectors
+    .map(
+      (s) =>
+        `<span class="viz-legend-chip"><span class="dot" style="background:${s.color};"></span><span>${esc(s.title)}</span><strong class="mono">${s.nodes.length}</strong></span>`,
+    )
+    .join("");
+
   return `
     <div class="viz-constellation-wrap">
+      <div class="viz-legend-row" style="margin-bottom:4px;justify-content:center;">${legendHtml}</div>
       <svg viewBox="0 0 ${w} ${h}" class="obs-chart-svg" role="img" aria-label="Collaboration constellation for ${esc(centerName)}">
         ${rings}
         ${dividers}
         ${links.join("")}
-        ${sectorHeaders}
+        ${leaders.join("")}
         ${bubbles.join("")}
-        <circle cx="${cx}" cy="${cy}" r="22" fill="var(--surface)" stroke="var(--viz-1)" stroke-width="2.6" />
-        <text x="${cx}" y="${cy + 4.5}" text-anchor="middle" fill="var(--text)" font-size="12" font-weight="700">${esc(centerInitials)}</text>
+        <circle cx="${cx}" cy="${cy}" r="21" fill="var(--surface)" stroke="var(--viz-1)" stroke-width="2.5" />
+        <text x="${cx}" y="${cy + 4.2}" text-anchor="middle" fill="var(--text)" font-size="11.5" font-weight="700">${esc(centerInitials)}</text>
       </svg>
     </div>
   `;
