@@ -425,6 +425,35 @@ a:hover {
   }
 }
 
+/* Inline link-styled button (no browser-default grey chrome) */
+.link-btn {
+  appearance: none;
+  -webkit-appearance: none;
+  background: transparent;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  font-weight: 500;
+  color: var(--accent-t);
+  cursor: pointer;
+  text-align: left;
+  text-decoration: none;
+  display: inline;
+  line-height: inherit;
+}
+.link-btn:hover {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.dm-table .link-btn {
+  color: var(--text);
+  white-space: nowrap;
+}
+.dm-table .link-btn:hover {
+  color: var(--accent-t);
+}
+
 .brand-cluster {
   display: inline-flex;
   align-items: center;
