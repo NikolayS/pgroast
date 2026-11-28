@@ -1,5 +1,6 @@
 import { renderHackerProfileSkeleton, renderHackersSkeleton } from "./skeletons.ts";
 import {
+  renderAllTimeGrowthSvg,
   renderBusFactorQuadrantSvg,
   renderCollabConstellationSvg,
   renderCommitterConcentrationSvg,
@@ -563,20 +564,32 @@ export function renderHackersTab(params: {
         <div class="kpi-v">${fmtNum(t.commits)}</div>
         <div class="kpi-sub">${fmtNum(t.backpatches)} backpatched · ${t.reverts} reverts</div>
       </div>
+      ${
+        win === "all"
+          ? `
+      <div class="kpi" style="cursor:default;">
+        <div class="kpi-l"><span class="dot" style="background:var(--ok)"></span>Committers</div>
+        <div class="kpi-v" style="color:var(--ok)">${fmtNum(t.committers)}</div>
+        <div class="kpi-sub">${fmtNum(t.authors)} credited authors</div>
+      </div>
+      `
+          : `
       <div class="kpi" style="cursor:default;">
         <div class="kpi-l"><span class="dot" style="background:var(--ok)"></span>Committed for others</div>
         <div class="kpi-v" style="color:var(--ok)">${t.committedForOthersPct}%</div>
         <div class="kpi-sub">${fmtNum(t.committedForOthers)} of ${fmtNum(t.commits)} commits</div>
       </div>
+      `
+      }
       <div class="kpi" style="cursor:default;">
         <div class="kpi-l"><span class="dot" style="background:#4cb782"></span>Reviewed-by credits</div>
         <div class="kpi-v">${fmtNum(t.reviewsGiven)}</div>
-        <div class="kpi-sub">${fmtNum(t.reviewers)} unique reviewers</div>
+        <div class="kpi-sub">${fmtNum(t.reviewers)} reviewers${win === "all" ? " (trailers ~2010+)" : ""}</div>
       </div>
       <div class="kpi" style="cursor:default;">
         <div class="kpi-l"><span class="dot" style="background:var(--warn)"></span>Bugs reported → fixed</div>
         <div class="kpi-v">${fmtNum(t.bugsReported)}</div>
-        <div class="kpi-sub">${fmtNum(t.reporters)} unique reporters</div>
+        <div class="kpi-sub">${fmtNum(t.reporters)} reporters${win === "all" ? " (trailers ~2010+)" : ""}</div>
       </div>
       <div class="kpi" style="cursor:default;">
         <div class="kpi-l">Multi-email unified</div>
@@ -585,23 +598,45 @@ export function renderHackersTab(params: {
       </div>
     </div>
 
-    <!-- 1. Hero Chart: obeys selected time window (Release-Cycle Race for PG20/PG19/PG18; Window Activity Timeline for 30d/90d/1y/5y/all) -->
+    <!-- 1. Hero Chart: obeys selected time window (All-time: 30-Year Growth; PG20/19/18: Release-Cycle Race; 30d/90d/1y/5y: Sponsorship & Review Throughput) -->
     ${(() => {
       const isPgCycleWindow = win === "PG20" || win === "PG19" || win === "PG18";
       const focusMajor = isPgCycleWindow ? win : "PG20";
       const winLabel = windows.find((w) => w.id === win)?.label || win;
       const race = overview.releaseCycles?.length ? renderReleaseCycleRaceSvg(overview.releaseCycles, focusMajor) : null;
 
+      // For All-time, filter Sponsorship & Review Ratio to the git trailer era (2011+) so pre-2011 CVS commits do not skew the ratio
+      const sponsorTimeline =
+        win === "all"
+          ? overview.timeline.filter((d) => Number(d.period.slice(0, 4)) >= 2011)
+          : overview.timeline;
+      const sponsorCommits = sponsorTimeline.reduce((a, d) => a + d.commits, 0);
+      const sponsorForOthers = sponsorTimeline.reduce((a, d) => a + (d.forOthers ?? 0), 0);
+      const sponsorPct =
+        win === "all"
+          ? sponsorCommits > 0
+            ? Math.round((sponsorForOthers / sponsorCommits) * 100)
+            : 0
+          : t.committedForOthersPct;
+
       const sponsorshipCard = (isHero: boolean) => `
       <${isHero ? "section" : "div"} class="card viz-card" ${isHero ? "" : 'style="margin-bottom:0;"'}>
         <div class="card-head">
           <div>
-            <div class="viz-kicker">Sponsorship &amp; Review Throughput (${esc(winLabel)})</div>
-            <h2${isHero ? ' class="viz-headline"' : ""}>${fmtNum(t.commits)} commits · ${t.committedForOthersPct}% landed for other authors</h2>
-            <div class="dim" style="font-size:12px;">Window: ${esc(winLabel)} · ${fmtNum(t.reviewsGiven)} Reviewed-by credits across ${fmtNum(t.activeHackers)} active hackers · Hover any bar for breakdown</div>
+            <div class="viz-kicker">Sponsorship &amp; Review Ratio (${win === "all" ? "Git trailer era · 2011+" : esc(winLabel)})</div>
+            <h2${isHero ? ' class="viz-headline"' : ""}>${
+              win === "all"
+                ? `${sponsorPct}% of commits since 2011 were landed for other authors`
+                : `${fmtNum(t.commits)} commits · ${t.committedForOthersPct}% landed for other authors`
+            }</h2>
+            <div class="dim" style="font-size:12px;">${
+              win === "all"
+                ? "Pre-2011 CVS commits rarely used Author:/Reviewed-by: headers, so this ratio is scoped to 2011+ · Hover any year"
+                : `Window: ${esc(winLabel)} · ${fmtNum(t.reviewsGiven)} Reviewed-by credits across ${fmtNum(t.activeHackers)} active hackers · Hover any bar`
+            }</div>
           </div>
         </div>
-        ${renderSponsorshipTimelineSvg(overview.timeline)}
+        ${renderSponsorshipTimelineSvg(sponsorTimeline)}
       </${isHero ? "section" : "div"}>`;
 
       const raceCard = (isHero: boolean) =>
@@ -631,6 +666,25 @@ export function renderHackersTab(params: {
         </div>
         ${renderGlobalRhythmHeatmap(overview.rhythmHeatmap)}
       </div>`;
+
+      if (win === "all") {
+        const growth = renderAllTimeGrowthSvg(overview.timeline);
+        return `
+      <section class="card viz-card">
+        <div class="card-head">
+          <div>
+            <div class="viz-kicker">30 Years of Postgres Development (All-time)</div>
+            <h2 class="viz-headline">${esc(growth.headline)}</h2>
+            <div class="dim" style="font-size:12px;margin-top:2px;">${esc(growth.subline)}</div>
+          </div>
+        </div>
+        ${growth.svg}
+      </section>
+      <div class="grid2" style="margin-bottom:14px;">
+        ${sponsorshipCard(false)}
+        ${cadenceCard}
+      </div>`;
+      }
 
       if (isPgCycleWindow && race) {
         return `

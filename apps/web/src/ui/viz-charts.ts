@@ -492,6 +492,118 @@ export function renderSponsorshipTimelineSvg(
   `;
 }
 
+/**
+ * All-time hero chart (1996–present): Annual Commits (bars) vs Active Contributors (line),
+ * avoiding the pre-2010 trailer-adoption skew of Reviewed-by / Author headers.
+ */
+export function renderAllTimeGrowthSvg(
+  timeline: Array<{ period: string; commits: number; forOthers?: number; reviews: number; activeHackers: number }>,
+): { headline: string; subline: string; svg: string } {
+  if (!timeline || timeline.length === 0) {
+    return { headline: "Postgres Development History", subline: "No commit history synced yet.", svg: `<div class="empty-state">No timeline data yet.</div>` };
+  }
+  const first = timeline[0]!;
+  const last = timeline[timeline.length - 1]!;
+  const totalCommits = timeline.reduce((a, d) => a + d.commits, 0);
+  const peakCommits = timeline.reduce((best, d) => (d.commits > best.commits ? d : best), first);
+  const peakHackers = timeline.reduce((best, d) => (d.activeHackers > best.activeHackers ? d : best), first);
+  const growthX = first.activeHackers > 0 ? Math.round(peakHackers.activeHackers / first.activeHackers) : 0;
+
+  const headline = `${first.period}–${last.period}: from ${fmtNum(first.activeHackers)} to ${fmtNum(peakHackers.activeHackers)} active hackers/year${growthX >= 2 ? ` (${growthX}×)` : ""} · ${fmtNum(totalCommits)} commits`;
+  const subline = `Peak commit year: ${peakCommits.period} (${fmtNum(peakCommits.commits)} commits) · Peak contributor year: ${peakHackers.period} (${fmtNum(peakHackers.activeHackers)} active) · Hover any year for details`;
+
+  const w = 680;
+  const h = 224;
+  const padL = 44;
+  const padR = 52;
+  const padT = 18;
+  const padB = 28;
+  const plotW = w - padL - padR;
+  const plotH = h - padT - padB;
+
+  const maxCommits = Math.max(1, ...timeline.map((d) => d.commits));
+  const maxHackers = Math.max(1, ...timeline.map((d) => d.activeHackers));
+  const step = plotW / Math.max(1, timeline.length);
+  const barW = Math.max(5, Math.min(20, step * 0.66));
+
+  const yCommit = (v: number) => padT + plotH - (v / maxCommits) * plotH;
+  const yHacker = (v: number) => padT + plotH - (v / maxHackers) * plotH;
+
+  // Vertical reference marker at 2010 (git migration + start of formal Author:/Reviewed-by: trailers)
+  const idx2010 = timeline.findIndex((d) => d.period === "2010");
+  const marker2010 =
+    idx2010 > 0
+      ? (() => {
+          const x = padL + idx2010 * step + step / 2;
+          return `
+            <line x1="${x.toFixed(1)}" y1="${padT}" x2="${x.toFixed(1)}" y2="${padT + plotH}" stroke="var(--border-s)" stroke-dasharray="3 3" />
+            <text x="${(x + 4).toFixed(1)}" y="${padT + 10}" text-anchor="start" fill="var(--dim)" font-size="9.5">2010: git &amp; trailers</text>
+          `;
+        })()
+      : "";
+
+  const bars = timeline
+    .map((d, i) => {
+      const x = padL + i * step + (step - barW) / 2;
+      const y = yCommit(d.commits);
+      const y0 = padT + plotH;
+      const isPeak = d.period === peakCommits.period;
+      const revSub =
+        d.reviews > 0
+          ? `${fmtNum(d.reviews)} Reviewed-by credits · ${fmtNum(d.forOthers ?? 0)} landed for others`
+          : "Pre-trailer era (CVS commits rarely carried Reviewed-by headers)";
+      return `
+        <g class="viz-hoverable" tabindex="0" data-tip-title="${esc(d.period)}" data-tip-body="${fmtNum(d.commits)} commits · ${fmtNum(d.activeHackers)} active hackers" data-tip-sub="${esc(revSub)}">
+          <rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barW.toFixed(1)}" height="${Math.max(1, y0 - y).toFixed(1)}" rx="2" fill="var(--viz-1)" fill-opacity="${isPeak ? "0.95" : "0.42"}" />
+        </g>
+      `;
+    })
+    .join("");
+
+  const hackerPts = timeline
+    .map((d, i) => `${(padL + i * step + step / 2).toFixed(1)},${yHacker(d.activeHackers).toFixed(1)}`)
+    .join(" ");
+
+  const hackerDots = timeline
+    .map((d, i) => {
+      if (d.period !== first.period && d.period !== last.period && d.period !== peakHackers.period) return "";
+      const cx = padL + i * step + step / 2;
+      const cy = yHacker(d.activeHackers);
+      return `<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="3.4" fill="var(--viz-2)" stroke="var(--surface)" stroke-width="1.2" pointer-events="none" />`;
+    })
+    .join("");
+
+  const labelStep = Math.max(1, Math.ceil(timeline.length / 8));
+  const xLabels = timeline
+    .map((d, i) => {
+      if (i % labelStep !== 0 && i !== timeline.length - 1) return "";
+      return `<text x="${(padL + i * step + step / 2).toFixed(1)}" y="${h - 7}" text-anchor="middle" fill="var(--viz-axis)" font-size="10" class="mono">${esc(d.period)}</text>`;
+    })
+    .join("");
+
+  const svg = `
+    <svg viewBox="0 0 ${w} ${h}" class="obs-chart-svg" role="img" aria-label="Annual Postgres commits and active hackers over all time">
+      <line x1="${padL}" y1="${padT}" x2="${w - padR}" y2="${padT}" stroke="var(--viz-grid)" stroke-dasharray="3 3" />
+      <line x1="${padL}" y1="${(padT + plotH / 2).toFixed(1)}" x2="${w - padR}" y2="${(padT + plotH / 2).toFixed(1)}" stroke="var(--viz-grid)" stroke-dasharray="3 3" />
+      <line x1="${padL}" y1="${padT + plotH}" x2="${w - padR}" y2="${padT + plotH}" stroke="var(--border)" />
+      <text x="${padL - 6}" y="${padT + 8}" text-anchor="end" fill="var(--viz-axis)" font-size="10" class="mono">${fmtNum(maxCommits)}</text>
+      <text x="${padL - 6}" y="${padT + plotH}" text-anchor="end" fill="var(--viz-axis)" font-size="10" class="mono">0</text>
+      <text x="${w - padR + 6}" y="${padT + 8}" text-anchor="start" fill="var(--viz-2)" font-size="9.5" class="mono">${fmtNum(maxHackers)} ppl</text>
+      ${marker2010}
+      ${bars}
+      <polyline fill="none" stroke="var(--viz-2)" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round" points="${hackerPts}" pointer-events="none" />
+      ${hackerDots}
+      ${xLabels}
+    </svg>
+    <div class="obs-chart-legend">
+      <span><span class="dot" style="background:var(--viz-1);opacity:0.55"></span>Annual commits (peak year darker)</span>
+      <span><span class="dot" style="background:var(--viz-2)"></span>Active contributors / year</span>
+    </div>
+  `;
+
+  return { headline, subline, svg };
+}
+
 /* ============================================================================
  * 5. PROFILE: 24-Hour Radial UTC Circadian Clock + Outer Day-of-Week Ring
  * ============================================================================ */
