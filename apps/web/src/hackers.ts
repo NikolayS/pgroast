@@ -916,11 +916,14 @@ export class IdentityResolver {
           if (local.length >= 4 && !GENERIC_LOCALS.has(local)) addHandleKey(local, r);
         }
       } else {
-        // Single-word handle node
-        for (const toks of toksList) {
-          if (toks.length === 1) {
-            const h = toks[0]!.replace(/[^a-z0-9]/g, "");
-            if (h.length >= 4) singleTokenRoots.push({ root: r, handle: h });
+        // Single-word handle node: ONLY resolve bare handles without their own distinct email
+        // (avoids merging unrelated people like "Noah <imchifan8@gmail.com>" into "Noah Misch <noah@leadboat.com>")
+        if ((this.nodeEmails.get(r)?.size || 0) === 0) {
+          for (const toks of toksList) {
+            if (toks.length === 1) {
+              const h = toks[0]!.replace(/[^a-z0-9]/g, "");
+              if (h.length >= 4) singleTokenRoots.push({ root: r, handle: h });
+            }
           }
         }
       }

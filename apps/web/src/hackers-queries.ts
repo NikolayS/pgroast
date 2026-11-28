@@ -327,6 +327,8 @@ export async function getHackersOverview(db: WebDatabase, rawWindow?: string | n
     recentAiRows,
     backpatchTaxRows,
     mlByDayRows,
+    cveReportersRows,
+    cveFixAuthorsRows,
   ] = await Promise.all([
     db.sql.unsafe(
       `WITH cycles(pg_major, start_d) AS (
@@ -756,6 +758,40 @@ export async function getHackersOverview(db: WebDatabase, rawWindow?: string | n
         total: number;
       }>
     >,
+    db.sql.unsafe(
+      `WITH cve_rep AS (
+         SELECT DISTINCT j.cve, cc.person_id
+         FROM ${db.t("pg_commits")} c
+         CROSS JOIN LATERAL jsonb_array_elements_text(
+           CASE WHEN c.cve_ids_json LIKE '[%' THEN c.cve_ids_json::jsonb ELSE '[]'::jsonb END
+         ) AS j(cve)
+         JOIN ${db.t("commit_credits")} cc ON cc.commit_sha = c.sha AND cc.credit_kind = 'reporter'
+         WHERE c.committed_at >= '2026-01-01'
+       )
+       SELECT p.slug, p.canonical_name AS name, p.pg_role AS role, p.email_count, COUNT(*)::int AS count
+       FROM cve_rep r
+       JOIN ${db.t("people")} p ON p.id = r.person_id
+       GROUP BY p.id
+       ORDER BY count DESC, p.canonical_name ASC
+       LIMIT 15`,
+    ) as Promise<Array<{ slug: string; name: string; role: string; email_count: number; count: number }>>,
+    db.sql.unsafe(
+      `WITH cve_auth AS (
+         SELECT DISTINCT j.cve, cc.person_id
+         FROM ${db.t("pg_commits")} c
+         CROSS JOIN LATERAL jsonb_array_elements_text(
+           CASE WHEN c.cve_ids_json LIKE '[%' THEN c.cve_ids_json::jsonb ELSE '[]'::jsonb END
+         ) AS j(cve)
+         JOIN ${db.t("commit_credits")} cc ON cc.commit_sha = c.sha AND cc.credit_kind IN ('author', 'co_author')
+         WHERE c.committed_at >= '2026-01-01'
+       )
+       SELECT p.slug, p.canonical_name AS name, p.pg_role AS role, p.email_count, COUNT(*)::int AS count
+       FROM cve_auth a
+       JOIN ${db.t("people")} p ON p.id = a.person_id
+       GROUP BY p.id
+       ORDER BY count DESC, p.canonical_name ASC
+       LIMIT 15`,
+    ) as Promise<Array<{ slug: string; name: string; role: string; email_count: number; count: number }>>,
   ]);
 
   // Build cumulative series per PG release cycle
@@ -950,6 +986,22 @@ export async function getHackersOverview(db: WebDatabase, rawWindow?: string | n
         other: Number(r.other || 0),
         total: Number(r.total || 0),
       })),
+    cveLeaderboard2026: {
+      reporters: cveReportersRows.map((r) => ({
+        slug: r.slug,
+        name: r.name,
+        role: r.role,
+        emailCount: Number(r.email_count || 0),
+        count: Number(r.count || 0),
+      })),
+      fixAuthors: cveFixAuthorsRows.map((r) => ({
+        slug: r.slug,
+        name: r.name,
+        role: r.role,
+        emailCount: Number(r.email_count || 0),
+        count: Number(r.count || 0),
+      })),
+    },
     concentrationByYear: concYearRows.map((r) => {
       const tot = Math.max(1, Number(r.total || 0));
       return {

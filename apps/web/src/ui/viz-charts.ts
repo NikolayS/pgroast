@@ -1446,6 +1446,8 @@ export function renderCollabConstellationSvg(
   centerName: string,
   collaborators: { committedBy: CollabNode[]; reviewedBy: CollabNode[]; helpedAuthors: CollabNode[] },
 ): string {
+  const firstName = centerName.trim().split(/\s+/)[0] || centerName;
+  const poss = firstName.endsWith("s") ? `${firstName}'` : `${firstName}'s`;
   const sectors: Array<{
     title: string;
     verb: string;
@@ -1453,9 +1455,9 @@ export function renderCollabConstellationSvg(
     baseDeg: number;
     nodes: CollabNode[];
   }> = [
-    { title: "Committed their patches", verb: "Landed patches by", color: "var(--viz-1)", baseDeg: 270, nodes: collaborators.committedBy.slice(0, 5) },
-    { title: "Reviewed their patches", verb: "Reviewed patches by", color: "var(--viz-2)", baseDeg: 35, nodes: collaborators.reviewedBy.slice(0, 5) },
-    { title: "Authors they helped", verb: "Helped author", color: "var(--viz-sector-3)", baseDeg: 145, nodes: collaborators.helpedAuthors.slice(0, 5) },
+    { title: `Landed ${poss} patches`, verb: `Committed ${poss} patches`, color: "var(--viz-1)", baseDeg: 270, nodes: collaborators.committedBy.slice(0, 5) },
+    { title: `Reviewed ${poss} patches`, verb: `Reviewed ${poss} patches`, color: "var(--viz-2)", baseDeg: 35, nodes: collaborators.reviewedBy.slice(0, 5) },
+    { title: `Authors ${firstName} helped`, verb: `${firstName} reviewed or landed patches by`, color: "var(--viz-sector-3)", baseDeg: 145, nodes: collaborators.helpedAuthors.slice(0, 5) },
   ];
 
   const totalNodes = sectors.reduce((a, s) => a + s.nodes.length, 0);

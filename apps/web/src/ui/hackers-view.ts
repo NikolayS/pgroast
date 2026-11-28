@@ -24,7 +24,7 @@ import {
 } from "./viz-charts.ts";
 
 export type HackerWindow = "30d" | "90d" | "1y" | "5y" | "PG20" | "PG19" | "PG18" | "PG17" | "all";
-export type HackerLbKind = "committers" | "authors" | "reviewers" | "reporters" | "rising";
+export type HackerLbKind = "authors" | "reviewers" | "committers" | "reporters" | "cve_reporters" | "cve_authors" | "rising";
 export type HackerProfileTab = "commits" | "reviews" | "commitfest" | "lists" | "opinions";
 
 export interface HackersOverviewData {
@@ -87,6 +87,10 @@ export interface HackersOverviewData {
     sec20: number;
   }>;
   mailingListsByDay?: MailingListByDayPoint[];
+  cveLeaderboard2026?: {
+    reporters: Array<{ slug: string; name: string; role: string; emailCount: number; count: number }>;
+    fixAuthors: Array<{ slug: string; name: string; role: string; emailCount: number; count: number }>;
+  };
   concentrationByYear?: ConcentrationYearPoint[];
   rhythmHeatmap: number[][];
   subsystems: SubsystemBusFactorItem[];
@@ -699,6 +703,46 @@ export function renderPostgresGitStatsSections(overview: HackersOverviewData, wi
           <div class="dim" style="font-size:11px;margin-top:8px;">
             Grouped by calendar year when the security fix landed on Postgres <code class="mono">master</code> and backpatched to supported stable branches. Each distinct <code class="mono">CVE-YYYY-NNNN</code> is counted once per year in its primary vulnerability category.
           </div>
+          ${
+            overview.cveLeaderboard2026 && (overview.cveLeaderboard2026.reporters.length > 0 || overview.cveLeaderboard2026.fixAuthors.length > 0)
+              ? `
+          <div class="grid2" style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border);align-items:start;">
+            <div>
+              <div class="viz-kicker" style="margin-bottom:6px;">Top 2026 CVE reporters (distinct CVEs)</div>
+              <div class="table-scroll">
+                <table class="dm-table">
+                  <thead><tr><th>Reporter</th><th class="num">Distinct CVEs</th></tr></thead>
+                  <tbody>
+                    ${overview.cveLeaderboard2026.reporters
+                      .slice(0, 10)
+                      .map(
+                        (r) => `<tr><td><button type="button" class="link-btn" data-open-hacker="${esc(r.slug)}">${esc(r.name)}</button></td><td class="num mono"><strong>${r.count}</strong></td></tr>`,
+                      )
+                      .join("")}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div>
+              <div class="viz-kicker" style="margin-bottom:6px;">Top 2026 CVE fix authors (distinct CVEs, Author:/Co-authored-by:)</div>
+              <div class="table-scroll">
+                <table class="dm-table">
+                  <thead><tr><th>Author</th><th class="num">CVEs fixed</th></tr></thead>
+                  <tbody>
+                    ${overview.cveLeaderboard2026.fixAuthors
+                      .slice(0, 10)
+                      .map(
+                        (r) => `<tr><td><button type="button" class="link-btn" data-open-hacker="${esc(r.slug)}">${esc(r.name)}</button></td><td class="num mono"><strong>${r.count}</strong></td></tr>`,
+                      )
+                      .join("")}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+          `
+              : ""
+          }
         </details>
         `
             : ""
@@ -1059,10 +1103,29 @@ export function renderHackersTab(params: {
         ? overview.leaderboards.authors
         : lbTab === "reviewers"
           ? overview.leaderboards.reviewers
-          : overview.leaderboards.reporters;
+          : lbTab === "cve_reporters"
+            ? overview.cveLeaderboard2026?.reporters || []
+            : lbTab === "cve_authors"
+              ? overview.cveLeaderboard2026?.fixAuthors || []
+              : overview.leaderboards.reporters;
+    if (rows.length === 0) return `<div class="empty-state">No credited entries recorded in this window.</div>`;
     const maxCnt = Math.max(1, ...rows.map((r) => r.count));
-    const unit = lbTab === "authors" ? "commits" : lbTab === "reviewers" ? "reviews" : "bugs";
-    const color = lbTab === "authors" ? "var(--accent)" : lbTab === "reviewers" ? "var(--ok)" : "var(--warn)";
+    const unit =
+      lbTab === "authors"
+        ? "commits"
+        : lbTab === "reviewers"
+          ? "reviews"
+          : lbTab === "cve_reporters"
+            ? "CVEs found"
+            : lbTab === "cve_authors"
+              ? "CVEs fixed"
+              : "bug reports";
+    const color =
+      lbTab === "authors" || lbTab === "cve_authors"
+        ? "var(--accent)"
+        : lbTab === "reviewers"
+          ? "var(--ok)"
+          : "var(--warn)";
     return rows
       .map((r, i) => {
         const w = Math.max(5, Math.round((r.count / maxCnt) * 100));
@@ -1161,7 +1224,9 @@ export function renderHackersTab(params: {
           <button type="button" class="chip ${lbTab === "authors" ? "active" : ""}" data-hacker-lb="authors">Authors</button>
           <button type="button" class="chip ${lbTab === "reviewers" ? "active" : ""}" data-hacker-lb="reviewers">Reviewers</button>
           <button type="button" class="chip ${lbTab === "committers" ? "active" : ""}" data-hacker-lb="committers">Committers</button>
-          <button type="button" class="chip ${lbTab === "reporters" ? "active" : ""}" data-hacker-lb="reporters">Bug hunters</button>
+          <button type="button" class="chip ${lbTab === "reporters" ? "active" : ""}" data-hacker-lb="reporters">Bug reports</button>
+          <button type="button" class="chip ${lbTab === "cve_reporters" ? "active" : ""}" data-hacker-lb="cve_reporters">CVE hunters (2026)</button>
+          <button type="button" class="chip ${lbTab === "cve_authors" ? "active" : ""}" data-hacker-lb="cve_authors">CVE fix authors (2026)</button>
           <button type="button" class="chip ${lbTab === "rising" ? "active" : ""}" data-hacker-lb="rising">Rising stars</button>
         </div>
         <div class="obs-lb-list">
