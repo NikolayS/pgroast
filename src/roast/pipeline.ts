@@ -61,6 +61,8 @@ export interface RunOptions {
   roastLevel?: RoastLevel;
   /** Review archetype flavour (default, edge-case-hunter, spec-lawyer, ...). */
   roastFlavour?: RoastFlavour;
+  /** Optional custom steering / extra focus instructions (--focus / --focus-file). */
+  focusPrompt?: string;
   /** Extra rounds after the first pass (default 0; dark defaults to 1 reflection round). */
   rounds?: number;
   /** Optional local postgres.git path for Medium/Dark git apply + meson compile + tests. */
@@ -434,7 +436,8 @@ export async function runRoast(proposal: ProposalInput, opts: RunOptions): Promi
   const { backend, models } = opts;
   const roastLevel = normalizeRoastLevel(opts.roastLevel);
   const roastFlavour = normalizeRoastFlavour(opts.roastFlavour);
-  const profilePrompt = buildRoastProfilePrompt(roastLevel, roastFlavour);
+  const focusPrompt = (opts.focusPrompt || "").trim();
+  const profilePrompt = buildRoastProfilePrompt(roastLevel, roastFlavour, focusPrompt);
   const angles = opts.angles ?? ANGLES;
   const warnings: string[] = [...proposal.warnings];
   const report = emptyReport();
@@ -471,6 +474,7 @@ export async function runRoast(proposal: ProposalInput, opts: RunOptions): Promi
       proposal,
       level: roastLevel,
       pgRepo: opts.pgRepo,
+      focusPrompt: focusPrompt || undefined,
       backend,
       model: models.critic,
       log,
@@ -1015,6 +1019,7 @@ export async function runRoast(proposal: ProposalInput, opts: RunOptions): Promi
     mode: selfMode ? "self" : "review",
     roast_level: roastLevel,
     roast_flavour: roastFlavour,
+    ...(focusPrompt ? { focus_prompt: focusPrompt } : {}),
     verification,
     backend: opts.backendName ?? (backend.dryRun ? "dry-run" : "claude"),
     models,

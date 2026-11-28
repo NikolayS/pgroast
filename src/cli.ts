@@ -103,6 +103,8 @@ export function renderUsage(useColor = Boolean(process.stdout.isTTY && !process.
     `  ${cmd("--level L")}             light (idea), medium ${d("(default: +build/test)")}, dark (+live SQL stress)`,
     `  ${cmd("--flavour NAME")}        default ${d("(House Blend)")}, edge-case-hunter, spec-lawyer, systems-architect,`,
     `                        perf-hawk, storage-skeptic, index-specialist, production-dba`,
+    `  ${cmd("--focus TEXT")}          Extra steering prompt / specific areas to scrutinize deeply ${d("(alias: --steer)")}`,
+    `  ${cmd("--focus-file PATH")}     Load steering instructions from a text/markdown file`,
     `  ${cmd("--backend NAME")}        claude, codex, agy, or dual ${d("(default: PGROAST_BACKEND or auto)")}`,
     `  ${cmd("--model NAME")}          Override model ${d("(e.g. opus, gpt-6.2-astra, gemini-4-neon-high)")}`,
     `  ${cmd("--effort LEVEL")}        Reasoning effort for claude/codex ${d("(low, medium, high, xhigh, max)")}`,
@@ -146,6 +148,8 @@ export interface CliArgs {
   token?: string;
   roastLevel?: RoastLevel;
   roastFlavour?: RoastFlavour;
+  focusPrompt?: string;
+  focusFile?: string;
   doctor?: boolean;
   initDb?: boolean;
   noEnrich?: boolean;
@@ -248,6 +252,17 @@ export function parseArgs(argv: string[]): CliArgs | "help" | "version" {
         a.roastFlavour = normalizeRoastFlavour(fl);
         break;
       }
+      case "--focus":
+      case "--steer":
+      case "--prompt": {
+        const txt = value(flag, inline).trim();
+        if (txt) a.focusPrompt = a.focusPrompt ? `${a.focusPrompt}\n\n${txt}` : txt;
+        break;
+      }
+      case "--focus-file":
+      case "--steer-file":
+        a.focusFile = value(flag, inline);
+        break;
       case "--self":
         a.self = true;
         break;
@@ -529,6 +544,20 @@ async function main(): Promise<number> {
   const backend = args.dryRun ? new DryRunBackend({ transcriptDir }) : createBackend(backendName, { transcriptDir, log });
   if (!args.dryRun) log(`backend: ${backendName} CLI (subscription login, no tools)`);
 
+  const focusParts: string[] = [];
+  if (args.focusFile) {
+    const fp = resolve(args.focusFile);
+    if (!existsSync(fp)) throw new Error(`--focus-file not found: ${fp}`);
+    const content = readFileSync(fp, "utf8").trim();
+    if (content) focusParts.push(content);
+  }
+  if (args.focusPrompt?.trim()) focusParts.push(args.focusPrompt.trim());
+  const focusPrompt = focusParts.join("\n\n").trim() || undefined;
+  if (focusPrompt) {
+    const preview = focusPrompt.replace(/\s+/g, " ");
+    log(`focus: "${preview.length > 140 ? `${preview.slice(0, 138)}…` : preview}"`);
+  }
+
   const roast = await runRoast(proposal, {
     backend,
     models,
@@ -538,6 +567,7 @@ async function main(): Promise<number> {
     mode: args.self ? "self" : "review",
     roastLevel: args.roastLevel,
     roastFlavour: args.roastFlavour,
+    focusPrompt,
     pgRepo: args.pgRepo,
     skipVerify: args.skipVerify,
     offline: args.offline,

@@ -159,6 +159,7 @@ export function renderMarkdown(r: Roast): string {
   const latestPatchStr = formatLatestPatch(r);
   if (latestPatchStr) src.push(`- Latest patch evaluated: ${latestPatchStr}`);
   src.push(`- Roast profile: ${formatRoastProfile(r.roast_level, r.roast_flavour)}`);
+  if (r.focus_prompt) src.push(`- Steering focus: ${oneLine(r.focus_prompt)}`);
   const flavourNote = formatFlavourDisclaimer(r.roast_flavour);
   if (flavourNote) src.push(`- ${flavourNote}`);
   src.push(`- Patch prose read: ${r.input.attachments_read.length ? r.input.attachments_read.join(", ") : "none"} (commit message, file list and doc hunks only; no code review)`);
@@ -371,6 +372,7 @@ export function renderCompactMarkdown(r: Roast, fullName = "roast-full.md"): str
   out.push(`${src.join("; ")}.`, "");
   const compactFlavourNote = formatFlavourDisclaimer(r.roast_flavour);
   if (compactFlavourNote) out.push(`> ${compactFlavourNote}`, "");
+  if (r.focus_prompt) out.push(`**Steering focus:** ${oneLine(r.focus_prompt)}`, "");
 
   if (r.verification && (r.verification.gitApply !== "skipped" || r.verification.liveReproCases.length > 0)) {
     const v = r.verification;

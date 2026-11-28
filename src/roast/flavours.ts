@@ -210,15 +210,35 @@ export function isValidRoastFlavour(raw: string): boolean {
   return (ROAST_FLAVOURS as readonly string[]).includes(v) || Object.prototype.hasOwnProperty.call(FLAVOUR_ALIASES, v);
 }
 
-/** Prompt block injected into roaster, critic, and synthesis stages. Empty for medium + default. */
-export function buildRoastProfilePrompt(level: RoastLevel = "medium", flavour: RoastFlavour = "default"): string {
+export function normalizeFocusPrompt(raw?: string | null): string {
+  const cleaned = (raw || "").replace(/\r\n/g, "\n").trim();
+  if (!cleaned) return "";
+  return cleaned.length > 4000 ? `${cleaned.slice(0, 4000).trim()}…` : cleaned;
+}
+
+/** Prompt block injected into roaster, critic, and synthesis stages. */
+export function buildRoastProfilePrompt(
+  level: RoastLevel = "medium",
+  flavour: RoastFlavour = "default",
+  focusPrompt?: string | null,
+): string {
   const parts: string[] = [];
   const l = ROAST_LEVEL_META[level];
   const f = ROAST_FLAVOUR_META[flavour];
   if (l?.promptInstruction) parts.push(l.promptInstruction);
   if (f?.promptInstruction) parts.push(f.promptInstruction);
+  const focus = normalizeFocusPrompt(focusPrompt);
+  if (focus) {
+    parts.push(
+      [
+        "## Reviewer Steering & Extra Focus",
+        "The human reviewer explicitly requested deeper scrutiny in the following direction. Prioritize investigating these specific questions and risk areas across your review, while still keeping the full Review Pyramid and strict Critic evidence bar (do NOT invent defects if the patch handles these areas properly; explicitly note what you verified):",
+        focus,
+      ].join("\n\n"),
+    );
+  }
   if (parts.length === 0) return "";
-  return `# Roast Level & Reviewer Archetype\n\n${parts.join("\n\n")}`;
+  return `# Roast Level, Reviewer Archetype & Focus\n\n${parts.join("\n\n")}`;
 }
 
 export function formatRoastProfile(level?: string | null, flavour?: string | null): string {

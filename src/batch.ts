@@ -89,6 +89,7 @@ export interface BatchOptions {
   backend?: BackendName;
   roastLevel?: RoastLevel;
   roastFlavour?: RoastFlavour;
+  focusPrompt?: string;
   transcriptsDir?: string;
   dryRun?: boolean;
   offline?: boolean;
@@ -181,6 +182,7 @@ export async function runBatch(o: BatchOptions): Promise<{ done: number; skipped
         mode: "review",
         roastLevel: o.roastLevel,
         roastFlavour: o.roastFlavour,
+        focusPrompt: o.focusPrompt,
         offline: o.offline,
         rounds: 0,
         log: (m) => log(`[${e.id}] ${m}`),
@@ -277,6 +279,14 @@ export function parseBatchArgs(argv: string[]): BatchOptions {
       const fl = value(tok);
       if (!isValidRoastFlavour(fl)) throw new Error(`--flavour must be one of: ${ROAST_FLAVOURS.join(", ")}`);
       o.roastFlavour = normalizeRoastFlavour(fl);
+    } else if (tok === "--focus" || tok === "--steer" || tok === "--prompt") {
+      const txt = value(tok).trim();
+      if (txt) o.focusPrompt = o.focusPrompt ? `${o.focusPrompt}\n\n${txt}` : txt;
+    } else if (tok === "--focus-file" || tok === "--steer-file") {
+      const fp = resolve(value(tok));
+      if (!existsSync(fp)) throw new Error(`--focus-file not found: ${fp}`);
+      const content = readFileSync(fp, "utf8").trim();
+      if (content) o.focusPrompt = o.focusPrompt ? `${o.focusPrompt}\n\n${content}` : content;
     } else if (tok === "--transcripts") o.transcriptsDir = value(tok);
     else if (tok === "--dry-run") o.dryRun = true;
     else if (tok === "--offline") o.offline = true;
@@ -298,6 +308,8 @@ const BATCH_USAGE = `Usage: pgroast batch <commitfest-number> --out DIR [options
   --backend NAME     claude, codex, agy, or dual
   --level L          light, medium (default), or dark
   --flavour NAME     Reviewer archetype slug (default: default)
+  --focus TEXT       Extra steering prompt / specific areas to scrutinize (alias: --steer)
+  --focus-file PATH  Load steering instructions from a text/markdown file
   --blind N          Read only the first N messages of each thread
   --dry-run          Build prompts without calling any model
   --offline          Use cached pages only

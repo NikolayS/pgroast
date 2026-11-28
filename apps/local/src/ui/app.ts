@@ -2323,6 +2323,29 @@ function renderWorkbenchView(): string {
           </div>
         </div>
 
+        <div class="roast-focus-box" style="margin-top:10px;margin-bottom:10px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:5px;">
+            <label for="roast-focus" style="font-size:12px;font-weight:600;color:var(--text);">Steering / focus prompt <span class="dim" style="font-weight:400;">(optional — passed to all reviewers &amp; Dark SQL planner)</span></label>
+            <button type="button" id="roast-focus-clear" style="background:none;border:none;padding:0;font-size:11px;color:var(--dim);cursor:pointer;">Clear</button>
+          </div>
+          <textarea id="roast-focus" rows="2" placeholder="Optional: steer what to scrutinize deeply (e.g. WAL crash safety, lock ordering under concurrent DDL, logical replication, pg_upgrade catalog changes)…" style="width:100%;box-sizing:border-box;resize:vertical;padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font:12.5px/1.45 inherit;"></textarea>
+          <div class="row" style="gap:5px;flex-wrap:wrap;margin-top:6px;">
+            ${[
+              ["WAL & crash safety", "Check WAL logging, crash recovery, torn-page safety, and standby replay thoroughly."],
+              ["Locks & concurrency", "Check heavyweight/LWLock ordering, deadlock risk, MVCC visibility, and concurrent DDL races."],
+              ["pg_upgrade & catalog", "Check catalog version bumps, pg_upgrade compatibility, pg_dump/pg_restore round-trip, and system views."],
+              ["Logical replication", "Check logical decoding, replication slot invalidation, walsender/apply worker behavior, and DDL replication."],
+              ["Planner & perf", "Check planner cost estimation, regression risk on unaffected queries, memory context leaks, and worst-case O(N^2) paths."],
+              ["Security & privileges", "Check privilege escalation, RLS bypass, search_path/pg_temp safety, and untrusted input bounds."],
+            ]
+              .map(
+                ([lbl, txt]) =>
+                  `<button type="button" class="pill pill-neutral" style="cursor:pointer;font-size:11px;" data-append-focus="${esc(txt)}">+ ${esc(lbl)}</button>`,
+              )
+              .join("")}
+          </div>
+        </div>
+
         <details class="roast-advanced">
           <summary>Backend, models &amp; options <span class="dim">(${esc(defBackend)} · 1 reflection round)</span></summary>
           <div class="form-grid" style="margin-top:10px;">
@@ -4647,11 +4670,32 @@ function bindViewEvents(): void {
     return val || fallback || undefined;
   };
 
+  document.querySelectorAll<HTMLButtonElement>("[data-append-focus]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const ta = document.getElementById("roast-focus") as HTMLTextAreaElement | null;
+      const snippet = btn.dataset.appendFocus || "";
+      if (!ta || !snippet) return;
+      const cur = ta.value.trim();
+      if (!cur.includes(snippet)) {
+        ta.value = cur ? `${cur}\n${snippet}` : snippet;
+      }
+      ta.focus();
+    });
+  });
+  document.getElementById("roast-focus-clear")?.addEventListener("click", () => {
+    const ta = document.getElementById("roast-focus") as HTMLTextAreaElement | null;
+    if (ta) {
+      ta.value = "";
+      ta.focus();
+    }
+  });
+
   document.getElementById("run-roast-btn")?.addEventListener("click", async () => {
     if (!state.selectedCfId) return;
     const backend = (document.getElementById("roast-backend") as HTMLSelectElement)?.value || state.settings?.defaultBackend || "auto";
     const roastLevel = state.roastLevel || "medium";
     const roastFlavour = state.roastFlavour || "default";
+    const focusPrompt = (document.getElementById("roast-focus") as HTMLTextAreaElement | null)?.value.trim() || undefined;
     const rounds = Number((document.getElementById("roast-rounds") as HTMLSelectElement)?.value ?? 1);
     const claudeModel = readModelField("roast-claude-model", "roast-claude-model-custom", "opus");
     const effort = (document.getElementById("roast-effort") as HTMLSelectElement)?.value || undefined;
@@ -4664,7 +4708,7 @@ function bindViewEvents(): void {
     try {
       const { job } = await api<{ job: JobRecord }>("/api/jobs/roast", {
         method: "POST",
-        body: JSON.stringify({ cfId: state.selectedCfId, backend, roastLevel, roastFlavour, rounds, claudeModel, effort, agyModel, codexModel, publish, selfMode, dryRun }),
+        body: JSON.stringify({ cfId: state.selectedCfId, backend, roastLevel, roastFlavour, focusPrompt, rounds, claudeModel, effort, agyModel, codexModel, publish, selfMode, dryRun }),
       });
       openJobStream(job);
       void refreshJobsList();

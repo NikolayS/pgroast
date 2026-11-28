@@ -447,6 +447,8 @@ export interface Roast {
   roast_level?: RoastLevel;
   /** Review archetype flavour: "default" | "edge-case-hunter" | "spec-lawyer" | ... */
   roast_flavour?: RoastFlavour;
+  /** Optional custom steering / extra focus instructions provided by the reviewer (--focus). */
+  focus_prompt?: string;
   /** Real code/apply/compile/test/live-SQL verification results (populated for medium & dark roasts). */
   verification?: VerificationReport | null;
   /** "claude" | "codex" | "agy" | "dual" | "dry-run" | "test". */

@@ -1561,4 +1561,37 @@ describe("v2 CLI publish & weekly quota auto-contribute", () => {
       "anthropic/claude-opus-5-5:high",
     );
   });
+
+  test("--focus / --steer / --focus-file parses in CLI & batch and injects into roast profile prompt", async () => {
+    const { buildRoastProfilePrompt } = await import("../src/roast/flavours.ts");
+    const parsed = parseArgs([
+      "6558",
+      "--level",
+      "dark",
+      "--focus",
+      "Check WAL logging and crash safety",
+      "--steer",
+      "Verify pg_upgrade catalog migration",
+      "--focus-file",
+      "/tmp/custom-focus.md",
+    ]);
+    expect(typeof parsed).toBe("object");
+    if (typeof parsed === "string") throw new Error(`unexpected string result: ${parsed}`);
+    expect(parsed.focusPrompt).toBe("Check WAL logging and crash safety\n\nVerify pg_upgrade catalog migration");
+    expect(parsed.focusFile).toBe("/tmp/custom-focus.md");
+
+    const batchParsed = parseBatchArgs([
+      "62",
+      "--out",
+      "/tmp/out",
+      "--focus",
+      "Focus on lock ordering under concurrent DDL",
+    ]);
+    expect(batchParsed.focusPrompt).toBe("Focus on lock ordering under concurrent DDL");
+
+    const promptBlock = buildRoastProfilePrompt("dark", "storage-skeptic", "Check torn-page safety during crash recovery");
+    expect(promptBlock).toContain("## Reviewer Steering & Extra Focus");
+    expect(promptBlock).toContain("Check torn-page safety during crash recovery");
+    expect(buildRoastProfilePrompt("medium", "default", "")).not.toContain("## Reviewer Steering & Extra Focus");
+  });
 });

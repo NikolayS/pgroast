@@ -299,6 +299,7 @@ export class JobRunner {
     backend?: "auto" | "claude" | "agy" | "codex" | "dual";
     roastLevel?: "light" | "medium" | "dark";
     roastFlavour?: string;
+    focusPrompt?: string;
     claudeModel?: string;
     effort?: string;
     agyModel?: string;
@@ -342,6 +343,8 @@ export class JobRunner {
 
     const shouldPublish = params.publish !== false && !params.selfMode && !params.dryRun;
     const cliArgs = ["run", "src/cli.ts", target, "--out", outDir, "--backend", backend, "--roast-level", roastLevel, "--flavour", roastFlavour];
+    const focusPrompt = (params.focusPrompt || "").trim();
+    if (focusPrompt) cliArgs.push("--focus", focusPrompt);
     if (rounds > 0) cliArgs.push("--rounds", String(rounds));
     if (params.selfMode) cliArgs.push("--self");
     if (params.dryRun) cliArgs.push("--dry-run");

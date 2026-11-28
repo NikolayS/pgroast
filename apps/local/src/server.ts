@@ -648,6 +648,7 @@ export async function createAppHandler(opts?: {
             backend?: "claude" | "agy" | "codex" | "dual";
             roastLevel?: "light" | "medium" | "dark";
             roastFlavour?: string;
+            focusPrompt?: string;
             claudeModel?: string;
             effort?: string;
             agyModel?: string;

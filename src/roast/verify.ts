@@ -295,6 +295,7 @@ export async function runPatchVerification(opts: {
   proposal: ProposalInput;
   level: RoastLevel;
   pgRepo?: string;
+  focusPrompt?: string;
   backend?: LlmBackend;
   model?: string;
   log?: (msg: string) => void;
@@ -499,6 +500,7 @@ export async function runPatchVerification(opts: {
         instDir,
         proposal: opts.proposal,
         codeHunks,
+        focusPrompt: opts.focusPrompt,
         backend: opts.backend,
         model: opts.model,
         log,
@@ -528,11 +530,12 @@ async function runDarkLiveSqlStress(args: {
   instDir: string;
   proposal: ProposalInput;
   codeHunks: { path: string; text: string }[];
+  focusPrompt?: string;
   backend: LlmBackend;
   model: string;
   log: (m: string) => void;
 }): Promise<void> {
-  const { base, buildDir, instDir, proposal, codeHunks, backend, model, log } = args;
+  const { base, buildDir, instDir, proposal, codeHunks, focusPrompt, backend, model, log } = args;
 
   // Install patched binaries into slot's isolated instDir (~2s)
   const instRes = runCmd("meson", ["install", "-C", buildDir, "--no-rebuild", "--quiet"], { timeoutMs: 60_000 });
@@ -570,6 +573,9 @@ async function runDarkLiveSqlStress(args: {
       prompt: [
         `Patch title: ${proposal.cf?.title || proposal.thread.subject}`,
         `Touched files: ${codeHunks.map((h) => h.path).join(", ")}`,
+        ...(focusPrompt?.trim()
+          ? ["", "## Human Reviewer Steering Focus (prioritize SQL test cases targeting this)", focusPrompt.trim()]
+          : []),
         "",
         "## Patch Code Diff",
         diffPreview,
