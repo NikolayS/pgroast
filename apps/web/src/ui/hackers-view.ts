@@ -5,6 +5,7 @@ import {
   renderBusFactorQuadrantSvg,
   renderCollabConstellationSvg,
   renderCommitterConcentrationSvg,
+  renderCveCategoriesByYearSvg,
   renderMaintainerBottleneckSvg,
   renderMonthlyInflectionSvg,
   renderQualityUnderLoadSvg,
@@ -13,6 +14,7 @@ import {
   renderSecurityAiWaveSvg,
   renderSponsorshipTimelineSvg,
   type ConcentrationYearPoint,
+  type CveYearPoint,
   type MonthlyInflectionPoint,
   type ReleaseCycleSeries,
   type ReleaseTrendPoint,
@@ -54,6 +56,7 @@ export interface HackersOverviewData {
   timeline: Array<{ period: string; commits: number; forOthers?: number; reviews: number; activeHackers: number }>;
   releaseCycles?: ReleaseCycleSeries[];
   releaseTrends?: ReleaseTrendPoint[];
+  cveByYear?: CveYearPoint[];
   monthlyInflection?: MonthlyInflectionPoint[];
   recentAiCommits?: Array<{
     sha: string;
@@ -550,11 +553,13 @@ export function renderPostgresGitStatsSections(overview: HackersOverviewData, wi
       </div>`;
 
   const trends = overview.releaseTrends || [];
+  const cveYears = overview.cveByYear || [];
   const deepIntelBlock =
     trends.length >= 3
       ? (() => {
           const bp = renderBackpatchChurnSvg(trends);
-          const sec = renderSecurityAiWaveSvg(trends);
+          const sec = cveYears.length >= 3 ? renderSecurityAiWaveSvg(cveYears) : null;
+          const cveCats = cveYears.length >= 3 ? renderCveCategoriesByYearSvg(cveYears) : null;
           const qual = renderQualityUnderLoadSvg(trends);
           const mb = renderMaintainerBottleneckSvg(trends);
           const monthly = overview.monthlyInflection?.length ? renderMonthlyInflectionSvg(overview.monthlyInflection) : null;
@@ -562,6 +567,35 @@ export function renderPostgresGitStatsSections(overview: HackersOverviewData, wi
           const taxLeaders = overview.backpatchTaxLeaders || [];
           const fmtK = (n: number) => (n >= 1_000_000 ? `${(n / 1_000_000).toFixed(2)}M` : n >= 1_000 ? `${Math.round(n / 1_000)}k` : String(n));
           return `
+      ${
+        sec && cveCats
+          ? `
+      <div class="grid2" style="margin-bottom:14px;">
+        <div class="card viz-card" style="margin-bottom:0;">
+          <div class="card-head">
+            <div>
+              <div class="viz-kicker">Annual CVEs &amp; AI-Assisted Security Wave (2015–2026)</div>
+              <h2 class="viz-headline">${esc(sec.headline)}</h2>
+              <div class="dim" style="font-size:11.5px;margin-top:2px;">${esc(sec.subline)}</div>
+            </div>
+          </div>
+          ${sec.svg}
+        </div>
+        <div class="card viz-card" style="margin-bottom:0;">
+          <div class="card-head">
+            <div>
+              <div class="viz-kicker">CVEs by Vulnerability Category (2015–2026)</div>
+              <h2 class="viz-headline">${esc(cveCats.headline)}</h2>
+              <div class="dim" style="font-size:11.5px;margin-top:2px;">${esc(cveCats.subline)}</div>
+            </div>
+          </div>
+          ${cveCats.svg}
+        </div>
+      </div>
+      `
+          : ""
+      }
+
       <div class="grid2" style="margin-bottom:14px;">
         <div class="card viz-card" style="margin-bottom:0;">
           <div class="card-head">
@@ -576,35 +610,12 @@ export function renderPostgresGitStatsSections(overview: HackersOverviewData, wi
         <div class="card viz-card" style="margin-bottom:0;">
           <div class="card-head">
             <div>
-              <div class="viz-kicker">Security &amp; AI-Assisted Audit Wave (PG11–PG20)</div>
-              <h2 class="viz-headline">${esc(sec.headline)}</h2>
-              <div class="dim" style="font-size:11.5px;margin-top:2px;">${esc(sec.subline)}</div>
-            </div>
-          </div>
-          ${sec.svg}
-        </div>
-      </div>
-
-      <div class="grid2" style="margin-bottom:14px;">
-        <div class="card viz-card" style="margin-bottom:0;">
-          <div class="card-head">
-            <div>
               <div class="viz-kicker">Quality Under Load: Reviews vs. Reverts &amp; Oversights (PG11–PG20)</div>
               <h2 class="viz-headline">${esc(qual.headline)}</h2>
               <div class="dim" style="font-size:11.5px;margin-top:2px;">${esc(qual.subline)}</div>
             </div>
           </div>
           ${qual.svg}
-        </div>
-        <div class="card viz-card" style="margin-bottom:0;">
-          <div class="card-head">
-            <div>
-              <div class="viz-kicker">Maintainer Bottleneck &amp; Bench Decentralization (PG11–PG20)</div>
-              <h2 class="viz-headline">${esc(mb.headline)}</h2>
-              <div class="dim" style="font-size:11.5px;margin-top:2px;">${esc(mb.subline)}</div>
-            </div>
-          </div>
-          ${mb.svg}
         </div>
       </div>
 
@@ -625,9 +636,70 @@ export function renderPostgresGitStatsSections(overview: HackersOverviewData, wi
           : ""
       }
 
+      <div class="card viz-card" style="margin-bottom:14px;">
+        <div class="card-head">
+          <div>
+            <div class="viz-kicker">Maintainer Bottleneck &amp; Bench Decentralization (PG11–PG20)</div>
+            <h2 class="viz-headline">${esc(mb.headline)}</h2>
+            <div class="dim" style="font-size:11.5px;margin-top:2px;">${esc(mb.subline)}</div>
+          </div>
+        </div>
+        ${mb.svg}
+      </div>
+
       <div class="card" style="padding:12px 16px;margin-bottom:14px;">
+        ${
+          cveYears.length > 0
+            ? `
         <details class="st-more-toggle" style="margin-top:0;">
-          <summary>Full PG11–PG20 evidence table (commits, churn, 5+-branch deep backpatches, CVEs, AI-credited, reverts, reviews, top-5 bench share)</summary>
+          <summary>Annual CVE breakdown table (2015–2026: totals, categories, Security: commits, AI/LLM-credited)</summary>
+          <div class="table-scroll" style="margin-top:10px;">
+            <table class="dm-table">
+              <thead>
+                <tr>
+                  <th>Year</th>
+                  <th class="num">Distinct CVEs</th>
+                  <th class="num">Memory safety</th>
+                  <th class="num">Privilege &amp; auth</th>
+                  <th class="num">Injection &amp; quoting</th>
+                  <th class="num">Type &amp; catalog</th>
+                  <th class="num">DoS &amp; logic</th>
+                  <th class="num">Sec commits</th>
+                  <th class="num">AI-credited</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${[...cveYears]
+                  .reverse()
+                  .map(
+                    (y) => `
+                  <tr>
+                    <td class="mono" style="font-weight:700;">${esc(y.year)}</td>
+                    <td class="num mono" style="${y.distinctCves >= 20 ? "color:var(--accent-t);font-weight:700;" : "font-weight:600;"}">${y.distinctCves}</td>
+                    <td class="num mono" style="${y.memorySafety >= 10 ? "color:var(--warn);font-weight:600;" : ""}">${y.memorySafety}</td>
+                    <td class="num mono">${y.privilegeAuth}</td>
+                    <td class="num mono">${y.injectionQuoting}</td>
+                    <td class="num mono dim">${y.typeCatalog}</td>
+                    <td class="num mono dim">${y.dosLogic}</td>
+                    <td class="num mono dim">${y.securityCommits}</td>
+                    <td class="num mono" style="${y.aiCommits >= 1 ? "color:var(--ok);font-weight:600;" : "color:var(--dim);"}">${y.aiCommits}${y.aiSecurityCommits > 0 ? ` <span class="dim">(${y.aiSecurityCommits} sec)</span>` : ""}</td>
+                  </tr>
+                `,
+                  )
+                  .join("")}
+              </tbody>
+            </table>
+          </div>
+          <div class="dim" style="font-size:11px;margin-top:8px;">
+            Grouped by calendar year when the security fix landed on Postgres <code class="mono">master</code> and backpatched to supported stable branches. Each distinct <code class="mono">CVE-YYYY-NNNN</code> is counted once per year in its primary vulnerability category.
+          </div>
+        </details>
+        `
+            : ""
+        }
+
+        <details class="st-more-toggle" style="${cveYears.length > 0 ? "margin-top:8px;padding-top:8px;border-top:1px solid var(--border);" : "margin-top:0;"}">
+          <summary>Full PG11–PG20 release cycle table (commits, churn, 5+-branch deep backpatches, security fixes, AI-credited, reverts, reviews, top-5 bench share)</summary>
           <div class="table-scroll" style="margin-top:10px;">
             <table class="dm-table">
               <thead>
@@ -637,7 +709,7 @@ export function renderPostgresGitStatsSections(overview: HackersOverviewData, wi
                   <th class="num">Churn</th>
                   <th class="num">Backpatched</th>
                   <th class="num">5+ br deep</th>
-                  <th class="num">CVEs</th>
+                  <th class="num">Sec fixes</th>
                   <th class="num">AI-credited</th>
                   <th class="num">Revert %</th>
                   <th class="num">2+ Rev %</th>
@@ -658,7 +730,7 @@ export function renderPostgresGitStatsSections(overview: HackersOverviewData, wi
                     <td class="num mono dim">${fmtK(r.linesChanged)}</td>
                     <td class="num mono" style="${r.backpatchPct >= 25 ? "color:var(--warn);font-weight:600;" : ""}">${fmtNum(r.backpatched)} <span class="dim">(${r.backpatchPct}%)</span></td>
                     <td class="num mono">${fmtNum(r.bpDeep5Plus)}</td>
-                    <td class="num mono" style="${r.distinctCves >= 20 ? "color:var(--accent-t);font-weight:600;" : ""}">${r.distinctCves}</td>
+                    <td class="num mono" style="${r.securityCommits >= 30 ? "color:var(--accent-t);font-weight:600;" : ""}">${r.securityCommits}</td>
                     <td class="num mono" style="${r.aiCommits >= 1 ? "color:var(--ok);font-weight:600;" : ""}">${r.aiCommits}</td>
                     <td class="num mono dim">${r.revertPct}%</td>
                     <td class="num mono">${r.multiReviewedPct}%</td>
@@ -674,7 +746,7 @@ export function renderPostgresGitStatsSections(overview: HackersOverviewData, wi
             </table>
           </div>
           <div class="dim" style="font-size:11px;margin-top:8px;">
-            *PG20 is in progress. Measured on Postgres <code class="mono">master</code> grouped by June 25 branch-cut boundaries. <strong>5+ br deep</strong> counts commits with <code class="mono">Backpatch-through</code> spanning 5+ major branches (latent multi-year bugs). <strong>AI-credited</strong> counts commits explicitly naming Anthropic, Claude, OpenAI, Codex, or LLM-guided audits in commit messages/trailers (zero SQL <code class="mono">cursor</code> false positives).
+            *PG20 is in progress (unreleased — <strong>Sec fixes</strong> counts <code class="mono">Security:</code> commits landed on <code class="mono">master</code> during that development cycle and backpatched to released branches). Measured by June 25 branch-cut boundaries.
           </div>
         </details>
 

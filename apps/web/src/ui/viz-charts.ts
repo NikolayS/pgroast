@@ -90,6 +90,19 @@ export interface MonthlyInflectionPoint {
   committers: number;
 }
 
+export interface CveYearPoint {
+  year: string;
+  distinctCves: number;
+  securityCommits: number;
+  aiCommits: number;
+  aiSecurityCommits: number;
+  memorySafety: number;
+  privilegeAuth: number;
+  injectionQuoting: number;
+  typeCatalog: number;
+  dosLogic: number;
+}
+
 export function renderReleaseCycleRaceSvg(
   cycles: ReleaseCycleSeries[],
   focusMajor: string = "PG20",
@@ -766,23 +779,23 @@ export function renderBackpatchChurnSvg(
 }
 
 /* ============================================================================
- * 4C. HACKERS: The CVE & AI-Assisted Security Wave (PG11-PG20)
+ * 4C. HACKERS/STATS: Annual CVE Totals & AI-Assisted Security Wave (2015–2026)
  * ============================================================================ */
 export function renderSecurityAiWaveSvg(
-  trends: ReleaseTrendPoint[],
+  years: CveYearPoint[],
 ): { headline: string; subline: string; svg: string } {
-  if (!trends || trends.length === 0) {
-    return { headline: "CVE & AI Security Wave", subline: "No security data synced yet.", svg: `<div class="empty-state">No data yet.</div>` };
+  if (!years || years.length === 0) {
+    return { headline: "Annual CVEs & AI Security Wave", subline: "No security data synced yet.", svg: `<div class="empty-state">No data yet.</div>` };
   }
 
-  const latest = trends[trends.length - 1]!;
-  const pg11to18Cves = trends
-    .filter((d) => !["PG19", "PG20"].includes(d.major))
-    .reduce((a, b) => a + b.distinctCves, 0);
-  const pg19 = trends.find((d) => d.major === "PG19");
+  const latest = years[years.length - 1]!;
+  const prior = years.slice(0, -1);
+  const priorCves = prior.reduce((a, b) => a + b.distinctCves, 0);
+  const priorFirst = prior[0]?.year || "2015";
+  const priorLast = prior[prior.length - 1]?.year || "2025";
 
-  const headline = `${fmtNum(latest.distinctCves)} distinct CVEs in ${latest.major} so far — more than PG11–PG18 combined (${fmtNum(pg11to18Cves)})`;
-  const subline = `Explicit AI/LLM-credited commits: 0 (PG11–18) → ${pg19?.aiCommits ?? 0} (PG19) → ${fmtNum(latest.aiCommits)} (${latest.major}) · ${fmtNum(latest.securityCommits)} Security: commits`;
+  const headline = `${fmtNum(latest.distinctCves)} distinct CVEs in ${latest.year} — more than ${priorFirst}–${priorLast} combined (${fmtNum(priorCves)})`;
+  const subline = `${fmtNum(latest.securityCommits)} Security: commits in ${latest.year} · Explicit AI/LLM-credited commits: 0 (${priorFirst}–${priorLast}) → ${fmtNum(latest.aiCommits)} (${latest.year}, ${latest.aiSecurityCommits} security)`;
 
   const w = 520;
   const h = 216;
@@ -793,27 +806,30 @@ export function renderSecurityAiWaveSvg(
   const plotW = w - padL - padR;
   const plotH = h - padT - padB;
 
-  const maxY = Math.max(20, Math.ceil(Math.max(...trends.map((d) => Math.max(d.securityCommits, d.distinctCves, d.aiCommits))) / 20) * 20);
-  const step = plotW / Math.max(1, trends.length);
-  const pairW = Math.max(14, Math.min(34, step * 0.72));
-  const bw = pairW / 2 - 1.5;
+  const maxY = Math.max(20, Math.ceil(Math.max(...years.map((d) => Math.max(d.securityCommits, d.distinctCves, d.aiCommits))) / 25) * 25);
+  const step = plotW / Math.max(1, years.length);
+  const pairW = Math.max(12, Math.min(30, step * 0.74));
+  const bw = pairW / 2 - 1.2;
 
-  const bars = trends
+  const bars = years
     .map((d, i) => {
       const cx = padL + i * step + step / 2;
       const x1 = cx - pairW / 2;
-      const x2 = cx + 1.5;
+      const x2 = cx + 1.2;
       const hSec = (d.securityCommits / maxY) * plotH;
       const hCve = (d.distinctCves / maxY) * plotH;
       const hAi = (d.aiCommits / maxY) * plotH;
       const ySec = padT + plotH - hSec;
       const yCve = padT + plotH - hCve;
       const yAi = padT + plotH - hAi;
+      const isLast = i === years.length - 1;
 
-      const tipTitle = d.isInProgress ? `${d.major} (in progress)` : d.major;
+      const tipTitle = d.year;
       const tipBody = `${fmtNum(d.distinctCves)} distinct CVEs · ${fmtNum(d.securityCommits)} Security: commits · ${fmtNum(d.aiCommits)} AI/LLM-credited`;
-      const tipSub = d.aiCommits > 0 ? "Includes Anthropic OSS, Claude, OpenAI Security & LLM-guided audits" : "Zero explicit AI/LLM commit attributions in git history";
-      const showTopLbl = d.distinctCves >= 20 || d.aiCommits >= 10;
+      const tipSub =
+        d.aiCommits > 0
+          ? `${d.aiSecurityCommits} AI-credited security commits (Anthropic OSS, Claude, OpenAI Security, LLM review)`
+          : "Zero explicit AI/LLM commit attributions in git history";
 
       return `
         <g class="viz-hoverable" tabindex="0" data-tip-title="${esc(tipTitle)}" data-tip-body="${esc(tipBody)}" data-tip-sub="${esc(tipSub)}">
@@ -821,16 +837,16 @@ export function renderSecurityAiWaveSvg(
           ${hSec > 0 ? `<rect x="${x1.toFixed(1)}" y="${ySec.toFixed(1)}" width="${bw.toFixed(1)}" height="${hSec.toFixed(1)}" rx="1.5" fill="var(--viz-1)" opacity="0.28" />` : ""}
           ${hCve > 0 ? `<rect x="${x1.toFixed(1)}" y="${yCve.toFixed(1)}" width="${bw.toFixed(1)}" height="${hCve.toFixed(1)}" rx="1.5" fill="var(--viz-1)" opacity="0.92" />` : ""}
           ${hAi > 0 ? `<rect x="${x2.toFixed(1)}" y="${yAi.toFixed(1)}" width="${bw.toFixed(1)}" height="${hAi.toFixed(1)}" rx="1.5" fill="var(--viz-2)" opacity="0.92" />` : ""}
-          ${showTopLbl && d.distinctCves > 0 ? `<text x="${(x1 + bw / 2).toFixed(1)}" y="${Math.max(12, ySec - 4).toFixed(1)}" text-anchor="middle" fill="var(--viz-1)" font-size="9" font-weight="700" class="mono">${d.distinctCves}</text>` : ""}
-          ${showTopLbl && d.aiCommits > 0 ? `<text x="${(x2 + bw / 2).toFixed(1)}" y="${Math.max(12, yAi - 4).toFixed(1)}" text-anchor="middle" fill="var(--viz-2)" font-size="9" font-weight="700" class="mono">${d.aiCommits}</text>` : ""}
-          <text x="${cx.toFixed(1)}" y="${h - 8}" text-anchor="middle" fill="${d.isInProgress ? "var(--ink)" : "var(--viz-axis)"}" font-size="9.5" font-weight="${d.isInProgress ? "700" : "400"}" class="mono">${esc(d.major)}${d.isInProgress ? "*" : ""}</text>
+          ${isLast && d.distinctCves > 0 ? `<text x="${(x1 + bw / 2).toFixed(1)}" y="${Math.max(12, ySec - 4).toFixed(1)}" text-anchor="middle" fill="var(--viz-1)" font-size="9" font-weight="700" class="mono">${d.distinctCves}</text>` : ""}
+          ${isLast && d.aiCommits > 0 ? `<text x="${(x2 + bw / 2).toFixed(1)}" y="${Math.max(12, yAi - 4).toFixed(1)}" text-anchor="middle" fill="var(--viz-2)" font-size="9" font-weight="700" class="mono">${d.aiCommits}</text>` : ""}
+          <text x="${cx.toFixed(1)}" y="${h - 8}" text-anchor="middle" fill="${isLast ? "var(--ink)" : "var(--viz-axis)"}" font-size="9.5" font-weight="${isLast ? "700" : "400"}" class="mono">'${esc(d.year.slice(2))}</text>
         </g>
       `;
     })
     .join("");
 
   const svg = `
-    <svg viewBox="0 0 ${w} ${h}" class="obs-chart-svg" role="img" aria-label="PG11 through PG20 distinct CVEs, Security trailer commits, and AI-credited commits">
+    <svg viewBox="0 0 ${w} ${h}" class="obs-chart-svg" role="img" aria-label="Annual Postgres distinct CVEs, Security commits, and AI-credited commits from 2015 through 2026">
       <line x1="${padL}" y1="${padT}" x2="${w - padR}" y2="${padT}" stroke="var(--viz-grid)" stroke-dasharray="3 3" />
       <line x1="${padL}" y1="${(padT + plotH / 2).toFixed(1)}" x2="${w - padR}" y2="${(padT + plotH / 2).toFixed(1)}" stroke="var(--viz-grid)" stroke-dasharray="3 3" />
       <line x1="${padL}" y1="${padT + plotH}" x2="${w - padR}" y2="${padT + plotH}" stroke="var(--border)" />
@@ -843,6 +859,97 @@ export function renderSecurityAiWaveSvg(
       <span><span class="dot" style="background:var(--viz-1);opacity:0.92"></span>Distinct CVEs</span>
       <span><span class="dot" style="background:var(--viz-1);opacity:0.28"></span>Security: commits</span>
       <span><span class="dot" style="background:var(--viz-2)"></span>AI / LLM-credited commits</span>
+    </div>
+  `;
+
+  return { headline, subline, svg };
+}
+
+/* ============================================================================
+ * 4C2. STATS: Annual CVEs by Vulnerability Category (2015–2026)
+ * ============================================================================ */
+export function renderCveCategoriesByYearSvg(
+  years: CveYearPoint[],
+): { headline: string; subline: string; svg: string } {
+  if (!years || years.length === 0) {
+    return { headline: "CVEs by Category", subline: "No CVE category data synced yet.", svg: `<div class="empty-state">No data yet.</div>` };
+  }
+
+  const latest = years[years.length - 1]!;
+  const prior = years.slice(0, -1);
+  const priorMem = prior.reduce((a, b) => a + b.memorySafety, 0);
+  const memMult = priorMem > 0 ? `${(latest.memorySafety / priorMem).toFixed(1)}×` : "";
+  const latestOther = latest.typeCatalog + latest.dosLogic;
+
+  const headline = `Memory safety CVEs jumped ${memMult || "4×"} in ${latest.year} (${latest.memorySafety} vs ${priorMem} across ${prior[0]?.year || "2015"}–${prior[prior.length - 1]?.year || "2025"})`;
+  const subline = `${latest.year} mix: ${latest.memorySafety} Memory safety · ${latest.privilegeAuth} Privilege & auth · ${latest.injectionQuoting} Injection & quoting · ${latestOther} Type/DoS`;
+
+  const w = 520;
+  const h = 216;
+  const padL = 40;
+  const padR = 16;
+  const padT = 22;
+  const padB = 28;
+  const plotW = w - padL - padR;
+  const plotH = h - padT - padB;
+
+  const maxY = Math.max(20, Math.ceil(Math.max(...years.map((d) => d.distinctCves)) / 20) * 20);
+  const step = plotW / Math.max(1, years.length);
+  const barW = Math.max(12, Math.min(28, step * 0.64));
+
+  const bars = years
+    .map((d, i) => {
+      const cx = padL + i * step + step / 2;
+      const x = cx - barW / 2;
+      const other = d.typeCatalog + d.dosLogic;
+      const hMem = (d.memorySafety / maxY) * plotH;
+      const hPriv = (d.privilegeAuth / maxY) * plotH;
+      const hInj = (d.injectionQuoting / maxY) * plotH;
+      const hOth = (other / maxY) * plotH;
+
+      let cy = padT + plotH;
+      const yMem = cy - hMem;
+      cy = yMem;
+      const yPriv = cy - hPriv;
+      cy = yPriv;
+      const yInj = cy - hInj;
+      cy = yInj;
+      const yOth = cy - hOth;
+      const isLast = i === years.length - 1;
+
+      const tipTitle = `${d.year} · ${d.distinctCves} distinct CVE${d.distinctCves === 1 ? "" : "s"}`;
+      const tipBody = `Memory safety: ${d.memorySafety} · Privilege & auth: ${d.privilegeAuth} · Injection & quoting: ${d.injectionQuoting}`;
+      const tipSub = `Type & catalog: ${d.typeCatalog} · DoS & logic: ${d.dosLogic}`;
+
+      return `
+        <g class="viz-hoverable" tabindex="0" data-tip-title="${esc(tipTitle)}" data-tip-body="${esc(tipBody)}" data-tip-sub="${esc(tipSub)}">
+          <rect x="${(cx - step / 2).toFixed(1)}" y="${padT}" width="${step.toFixed(1)}" height="${plotH}" fill="transparent" />
+          ${hOth > 0 ? `<rect x="${x.toFixed(1)}" y="${yOth.toFixed(1)}" width="${barW.toFixed(1)}" height="${hOth.toFixed(1)}" rx="1.5" fill="var(--viz-axis)" opacity="0.52" />` : ""}
+          ${hInj > 0 ? `<rect x="${x.toFixed(1)}" y="${yInj.toFixed(1)}" width="${barW.toFixed(1)}" height="${hInj.toFixed(1)}" rx="1.5" fill="var(--viz-2)" opacity="0.90" />` : ""}
+          ${hPriv > 0 ? `<rect x="${x.toFixed(1)}" y="${yPriv.toFixed(1)}" width="${barW.toFixed(1)}" height="${hPriv.toFixed(1)}" rx="1.5" fill="var(--viz-3)" opacity="0.90" />` : ""}
+          ${hMem > 0 ? `<rect x="${x.toFixed(1)}" y="${yMem.toFixed(1)}" width="${barW.toFixed(1)}" height="${hMem.toFixed(1)}" rx="1.5" fill="var(--viz-1)" opacity="0.94" />` : ""}
+          ${d.distinctCves > 0 ? `<text x="${cx.toFixed(1)}" y="${Math.max(12, yOth - 4).toFixed(1)}" text-anchor="middle" fill="${isLast ? "var(--ink)" : "var(--viz-axis)"}" font-size="9" font-weight="${isLast ? "700" : "500"}" class="mono">${d.distinctCves}</text>` : ""}
+          <text x="${cx.toFixed(1)}" y="${h - 8}" text-anchor="middle" fill="${isLast ? "var(--ink)" : "var(--viz-axis)"}" font-size="9.5" font-weight="${isLast ? "700" : "400"}" class="mono">'${esc(d.year.slice(2))}</text>
+        </g>
+      `;
+    })
+    .join("");
+
+  const svg = `
+    <svg viewBox="0 0 ${w} ${h}" class="obs-chart-svg" role="img" aria-label="Annual Postgres CVEs broken down by vulnerability category from 2015 through 2026">
+      <line x1="${padL}" y1="${padT}" x2="${w - padR}" y2="${padT}" stroke="var(--viz-grid)" stroke-dasharray="3 3" />
+      <line x1="${padL}" y1="${(padT + plotH / 2).toFixed(1)}" x2="${w - padR}" y2="${(padT + plotH / 2).toFixed(1)}" stroke="var(--viz-grid)" stroke-dasharray="3 3" />
+      <line x1="${padL}" y1="${padT + plotH}" x2="${w - padR}" y2="${padT + plotH}" stroke="var(--border)" />
+      <text x="${padL - 6}" y="${padT + 4}" text-anchor="end" fill="var(--viz-axis)" font-size="9.5" class="mono">${maxY}</text>
+      <text x="${padL - 6}" y="${(padT + plotH / 2 + 3).toFixed(1)}" text-anchor="end" fill="var(--viz-axis)" font-size="9.5" class="mono">${Math.round(maxY / 2)}</text>
+      <text x="${padL - 6}" y="${padT + plotH}" text-anchor="end" fill="var(--viz-axis)" font-size="9.5" class="mono">0</text>
+      ${bars}
+    </svg>
+    <div class="obs-chart-legend">
+      <span><span class="dot" style="background:var(--viz-1)"></span>Memory safety</span>
+      <span><span class="dot" style="background:var(--viz-3)"></span>Privilege &amp; auth</span>
+      <span><span class="dot" style="background:var(--viz-2)"></span>Injection &amp; quoting</span>
+      <span><span class="dot" style="background:var(--viz-axis);opacity:0.65"></span>Type &amp; DoS</span>
     </div>
   `;
 

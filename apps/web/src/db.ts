@@ -313,11 +313,13 @@ export class WebDatabase {
         backpatch_through INTEGER,
         has_security_trailer BOOLEAN NOT NULL DEFAULT FALSE,
         cve_ids_json TEXT NOT NULL DEFAULT '[]',
+        cve_category TEXT NOT NULL DEFAULT '',
         ai_signal TEXT NOT NULL DEFAULT ''
       )`,
       `ALTER TABLE ${this.t("pg_commits")} ADD COLUMN IF NOT EXISTS backpatch_through INTEGER`,
       `ALTER TABLE ${this.t("pg_commits")} ADD COLUMN IF NOT EXISTS has_security_trailer BOOLEAN NOT NULL DEFAULT FALSE`,
       `ALTER TABLE ${this.t("pg_commits")} ADD COLUMN IF NOT EXISTS cve_ids_json TEXT NOT NULL DEFAULT '[]'`,
+      `ALTER TABLE ${this.t("pg_commits")} ADD COLUMN IF NOT EXISTS cve_category TEXT NOT NULL DEFAULT ''`,
       `ALTER TABLE ${this.t("pg_commits")} ADD COLUMN IF NOT EXISTS ai_signal TEXT NOT NULL DEFAULT ''`,
       `CREATE INDEX IF NOT EXISTS idx_${this.schema}_pg_commits_date ON ${this.t("pg_commits")}(committed_at DESC)`,
       `CREATE INDEX IF NOT EXISTS idx_${this.schema}_pg_commits_major ON ${this.t("pg_commits")}(pg_major, committed_at DESC)`,

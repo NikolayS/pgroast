@@ -43,6 +43,7 @@ export interface ParsedCommit {
   backpatchThrough: number | null;
   hasSecurityTrailer: boolean;
   cveIds: string[];
+  cveCategory: string;
   aiSignal: string;
   filesChanged: number;
   insertions: number;
@@ -354,6 +355,39 @@ const AI_SIGNAL_RE =
   /\b(claude|chatgpt|openai|anthropic|llms?|coding agent|ai agent|ai-assisted|ai-generated|copilot|codex|gemini|deepseek|oss-scanner|mythos|ai tool|generative ai)\b/gi;
 const CVE_ID_RE = /\bCVE-\d{4}-\d+\b/gi;
 
+export function classifyCveCategory(text: string): string {
+  const t = text.toLowerCase();
+  if (
+    /buffer over|out-of-bounds?|out of bounds?|use-after-free|dangling pointer|heap overflow|stack overflow|integer overflow|int32 overflow|avoid overflow|wraparound|overrun|over-?read|memory disclosure|uninitialized memory|null pointer|dereferenc|unsafe deforming|bound check|length check|memory context|large allocation/.test(
+      t,
+    )
+  ) {
+    return "Memory safety";
+  }
+  if (
+    /sql injection|injection|path traversal|\\restrict|format string|quote |quoting|escape |escaping|extension script substitution|fully qualify|search_path|pg_temp|deparse|arbitrary shell|command execution|arbitrary code/.test(
+      t,
+    )
+  ) {
+    return "Injection & quoting";
+  }
+  if (
+    /privilege|rls|row-level security|row visibility|ownership|owner|reassign owned|drop owned|security definer|superuser|bypass|ssl|tls|gss|scram|ldap|kerberos|auth|password|certificate|connection option|role |execute permission|restricted code|restrict virtual|trust /.test(
+      t,
+    )
+  ) {
+    return "Privilege & auth";
+  }
+  if (
+    /type confusion|pseudo-type|rowtype|row type|composite type|expanded-record|expanded record|recheck record|same data type|typcache|portal|catalog|cast function|domain check|nulls honestly|dropped column/.test(
+      t,
+    )
+  ) {
+    return "Type & catalog";
+  }
+  return "DoS & logic";
+}
+
 export function parseCommitTrailers(
   body: string,
   subject = "",
@@ -364,6 +398,7 @@ export function parseCommitTrailers(
   backpatchThrough: number | null;
   hasSecurityTrailer: boolean;
   cveIds: string[];
+  cveCategory: string;
   aiSignal: string;
 } {
   const trailers: Array<{ kind: CreditKind; person: ParsedPersonRef }> = [];
@@ -427,13 +462,15 @@ export function parseCommitTrailers(
     else aiSet.add(tok);
   }
 
+  const cveIds = Array.from(cveSet).sort();
   return {
     trailers,
     discussionUrls,
     isBackpatch,
     backpatchThrough,
     hasSecurityTrailer,
-    cveIds: Array.from(cveSet).sort(),
+    cveIds,
+    cveCategory: hasSecurityTrailer || cveIds.length > 0 ? classifyCveCategory(fullText) : "",
     aiSignal: Array.from(aiSet).sort().join(","),
   };
 }
@@ -1028,7 +1065,7 @@ export async function readPostgresGitLog(
     };
     const gitCommitter = parsePersonRef(`${cn} <${ce}>`) || gitAuthor;
 
-    const { trailers, discussionUrls, isBackpatch, backpatchThrough, hasSecurityTrailer, cveIds, aiSignal } =
+    const { trailers, discussionUrls, isBackpatch, backpatchThrough, hasSecurityTrailer, cveIds, cveCategory, aiSignal } =
       parseCommitTrailers(body, subject);
     const isRevert = /^revert\b/i.test(subject);
 
@@ -1067,6 +1104,7 @@ export async function readPostgresGitLog(
       backpatchThrough,
       hasSecurityTrailer,
       cveIds,
+      cveCategory,
       aiSignal,
       filesChanged,
       insertions,
@@ -1270,6 +1308,7 @@ export async function syncHackersToDb(
     backpatchThrough: number | null;
     hasSecurityTrailer: boolean;
     cveIdsJson: string;
+    cveCategory: string;
     aiSignal: string;
     primarySubsystem: string;
     subsystemsJson: string;
@@ -1353,6 +1392,7 @@ export async function syncHackersToDb(
       backpatchThrough: c.backpatchThrough,
       hasSecurityTrailer: c.hasSecurityTrailer,
       cveIdsJson: JSON.stringify(c.cveIds),
+      cveCategory: c.cveCategory,
       aiSignal: c.aiSignal,
       primarySubsystem: c.primarySubsystem,
       subsystemsJson: JSON.stringify(c.subsystems),
@@ -1483,6 +1523,7 @@ export async function syncHackersToDb(
         c.backpatchThrough,
         c.hasSecurityTrailer,
         c.cveIdsJson,
+        c.cveCategory,
         c.aiSignal,
         c.primarySubsystem,
         c.subsystemsJson,
@@ -1493,13 +1534,13 @@ export async function syncHackersToDb(
         c.pgMajor,
       );
       tuples.push(
-        `($${b + 1},$${b + 2},$${b + 3},$${b + 4},$${b + 5},$${b + 6},$${b + 7},$${b + 8},$${b + 9},$${b + 10},$${b + 11},$${b + 12},$${b + 13},$${b + 14},$${b + 15},$${b + 16},$${b + 17},$${b + 18},$${b + 19})`,
+        `($${b + 1},$${b + 2},$${b + 3},$${b + 4},$${b + 5},$${b + 6},$${b + 7},$${b + 8},$${b + 9},$${b + 10},$${b + 11},$${b + 12},$${b + 13},$${b + 14},$${b + 15},$${b + 16},$${b + 17},$${b + 18},$${b + 19},$${b + 20})`,
       );
     }
     await db.sql.unsafe(
       `INSERT INTO ${db.t("pg_commits")} (
         sha, committed_at, authored_at, subject, author_person_id, committer_person_id,
-        is_revert, is_backpatch, backpatch_through, has_security_trailer, cve_ids_json, ai_signal,
+        is_revert, is_backpatch, backpatch_through, has_security_trailer, cve_ids_json, cve_category, ai_signal,
         primary_subsystem, subsystems_json, discussion_urls_json,
         files_changed, insertions, deletions, pg_major
       ) VALUES ${tuples.join(",")} ON CONFLICT (sha) DO NOTHING`,

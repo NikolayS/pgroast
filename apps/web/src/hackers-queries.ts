@@ -314,6 +314,7 @@ export async function getHackersOverview(db: WebDatabase, rawWindow?: string | n
     subsysBfRows,
     concYearRows,
     releaseTrendRows,
+    cveYearRows,
     monthlyInflectionRows,
     recentAiRows,
     backpatchTaxRows,
@@ -540,6 +541,74 @@ export async function getHackersOverview(db: WebDatabase, rawWindow?: string | n
       }>
     >,
     db.sql.unsafe(
+      `WITH yr_base AS (
+         SELECT
+           LEFT(committed_at, 4) AS yr,
+           has_security_trailer,
+           cve_ids_json,
+           cve_category,
+           ai_signal
+         FROM ${db.t("pg_commits")}
+         WHERE committed_at >= '2015-01-01'
+       ),
+       cve_dedup AS (
+         SELECT
+           yb.yr,
+           j.cve,
+           MIN(CASE yb.cve_category
+             WHEN 'Memory safety' THEN 1
+             WHEN 'Injection & quoting' THEN 2
+             WHEN 'Privilege & auth' THEN 3
+             WHEN 'Type & catalog' THEN 4
+             ELSE 5 END) AS prio
+         FROM yr_base yb
+         CROSS JOIN LATERAL jsonb_array_elements_text(
+           CASE WHEN yb.cve_ids_json LIKE '[%' THEN yb.cve_ids_json::jsonb ELSE '[]'::jsonb END
+         ) AS j(cve)
+         GROUP BY 1, 2
+       ),
+       cve_by_yr AS (
+         SELECT
+           yr,
+           COUNT(*)::int AS distinct_cves,
+           COUNT(*) FILTER (WHERE prio = 1)::int AS mem_safety,
+           COUNT(*) FILTER (WHERE prio = 3)::int AS priv_auth,
+           COUNT(*) FILTER (WHERE prio = 2)::int AS inj_quote,
+           COUNT(*) FILTER (WHERE prio = 4)::int AS type_cat,
+           COUNT(*) FILTER (WHERE prio = 5)::int AS dos_logic
+         FROM cve_dedup
+         GROUP BY yr
+       )
+       SELECT
+         yb.yr AS year,
+         COALESCE(MAX(c.distinct_cves), 0)::int AS distinct_cves,
+         COUNT(*) FILTER (WHERE yb.has_security_trailer)::int AS security_commits,
+         COUNT(*) FILTER (WHERE yb.ai_signal != '')::int AS ai_commits,
+         COUNT(*) FILTER (WHERE yb.ai_signal != '' AND (yb.has_security_trailer OR yb.cve_ids_json != '[]'))::int AS ai_security_commits,
+         COALESCE(MAX(c.mem_safety), 0)::int AS memory_safety,
+         COALESCE(MAX(c.priv_auth), 0)::int AS privilege_auth,
+         COALESCE(MAX(c.inj_quote), 0)::int AS injection_quoting,
+         COALESCE(MAX(c.type_cat), 0)::int AS type_catalog,
+         COALESCE(MAX(c.dos_logic), 0)::int AS dos_logic
+       FROM yr_base yb
+       LEFT JOIN cve_by_yr c ON c.yr = yb.yr
+       GROUP BY yb.yr
+       ORDER BY yb.yr ASC`,
+    ) as Promise<
+      Array<{
+        year: string;
+        distinct_cves: number;
+        security_commits: number;
+        ai_commits: number;
+        ai_security_commits: number;
+        memory_safety: number;
+        privilege_auth: number;
+        injection_quoting: number;
+        type_catalog: number;
+        dos_logic: number;
+      }>
+    >,
+    db.sql.unsafe(
       `WITH m_base AS (
          SELECT
            LEFT(committed_at, 7) AS ym,
@@ -763,6 +832,18 @@ export async function getHackersOverview(db: WebDatabase, rawWindow?: string | n
         isInProgress: r.pg_major === "PG20",
       };
     }),
+    cveByYear: cveYearRows.map((r) => ({
+      year: r.year,
+      distinctCves: Number(r.distinct_cves || 0),
+      securityCommits: Number(r.security_commits || 0),
+      aiCommits: Number(r.ai_commits || 0),
+      aiSecurityCommits: Number(r.ai_security_commits || 0),
+      memorySafety: Number(r.memory_safety || 0),
+      privilegeAuth: Number(r.privilege_auth || 0),
+      injectionQuoting: Number(r.injection_quoting || 0),
+      typeCatalog: Number(r.type_catalog || 0),
+      dosLogic: Number(r.dos_logic || 0),
+    })),
     monthlyInflection: monthlyInflectionRows.map((r) => {
       const commits = Number(r.commits || 0);
       const backpatched = Number(r.backpatched || 0);
