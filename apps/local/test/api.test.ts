@@ -86,7 +86,7 @@ describe("HTTP API & SPA smoke integration tests", () => {
   test("serves HTML, CSS, and Bun-bundled JS SPA", async () => {
     const htmlRes = await req("/");
     expect(htmlRes.status).toBe(200);
-    expect(await htmlRes.text()).toContain("pgroast-app");
+    expect(await htmlRes.text()).toContain("PgRoast");
 
     const cssRes = await req("/styles.css");
     expect(cssRes.status).toBe(200);

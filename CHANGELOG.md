@@ -1,5 +1,20 @@
 # Changelog
 
+## v0.5.3 (2026-11-28)
+
+Adds custom steering and focus prompts across the roast pipeline, CLI, and Personal Backoffice (`--focus` / `--steer` / `--prompt` / `--focus-file`), plus `PgRoast` brand standardization and Stats/Hackers observatory upgrades.
+
+### Changes
+
+- **Custom steering / focus prompts (`src/roast/flavours.ts`, `src/roast/pipeline.ts`, `src/roast/verify.ts`, `src/cli.ts`, `src/batch.ts`, `apps/local/`):**
+  - Added repeatable `--focus TEXT` (aliases `--steer`, `--prompt`) and `--focus-file PATH` (alias `--steer-file`) to `pgroast` and `pgroast batch`.
+  - Injected steering focus into all 7 review angles, the Critic, Dark reflection, Synthesizer, and the Dark live Postgres SQL stress-test planner.
+  - Recorded `focus_prompt` in `roast.json` and rendered it in full and compact Markdown reports.
+  - Added an optional steering / focus prompt textarea with 6 one-click Postgres risk chips in the Personal Backoffice roast drawer.
+- **Public App Stats, Hackers & branding (`apps/web/`):**
+  - Reorganized `/stats` vs `/hackers`: moved Postgres git & release analytics into `/stats` (PG11–PG20 backpatch depth, annual CVEs 2015–2026 by vulnerability category, quality under load, monthly regime shift, ranked horizontal subsystem bus-factor chart) and streamlined `/hackers` to Top 25 leaderboards (Authors default, plus CVE hunters and CVE fix authors), maintainer load, and contributor catalog.
+  - Fixed Brief / Entries / Stats verdict count consistency, standardized visible branding to `PgRoast`, and expanded Brief snapshot charts by default.
+
 ## v0.5.2 (2026-11-27)
 
 Records the exact resolved Claude model version (for example `anthropic/claude-opus-5-5:high` instead of bare `anthropic/claude-opus`) and wires `--effort` to Claude Code runs (defaulting to `high`).
